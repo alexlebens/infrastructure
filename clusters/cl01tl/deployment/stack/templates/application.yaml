@@ -8,15 +8,28 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: {{ .Values.application.cilium.source.repo }}
-    targetRevision: {{ .Values.application.cilium.source.revision }}
-    path: "{{ .Values.git.path }}/{{ .Values.application.cilium.source.path }}"
+    repoURL: {{ .Values.git.repo }}
+    targetRevision: {{ .Values.git.revision }}
+    path: clusters/{{ .Values.cluster.name }}/standalone/cilium
   destination:
     name: in-cluster
-    namespace: {{ .Values.application.cilium.namespace }}
+    namespace: kube-system
   revisionHistoryLimit: 3
   syncPolicy:
-    {{- toYaml .Values.application.cilium.syncPolicy | nindent 4 }}
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 16m
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PruneLast=true
 
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -29,15 +42,28 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: {{ .Values.application.metricsServer.source.repo }}
-    targetRevision: {{ .Values.application.metricsServer.source.revision }}
-    path: "{{ .Values.git.path }}/{{ .Values.application.metricsServer.source.path }}"
+    repoURL: {{ .Values.git.repo }}
+    targetRevision: {{ .Values.git.revision }}
+    path: clusters/{{ .Values.cluster.name }}/standalone/metrics-server
   destination:
     name: in-cluster
-    namespace: {{ .Values.application.metricsServer.namespace }}
+    namespace: kube-system
   revisionHistoryLimit: 3
   syncPolicy:
-    {{- toYaml .Values.application.metricsServer.syncPolicy | nindent 4 }}
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 16m
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=false
+      - ServerSideApply=true
+      - PruneLast=true
 
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -50,15 +76,28 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: {{ .Values.application.kubeletServingCertApprover.source.repo }}
-    targetRevision: {{ .Values.application.kubeletServingCertApprover.source.revision }}
-    path: "{{ .Values.git.path }}/{{ .Values.application.kubeletServingCertApprover.source.path }}"
+    repoURL: {{ .Values.git.repo }}
+    targetRevision: {{ .Values.git.revision }}
+    path: clusters/{{ .Values.cluster.name }}/standalone/kubelet-serving-cert-approver
   destination:
     name: in-cluster
-    namespace: {{ .Values.application.kubeletServingCertApprover.namespace }}
+    namespace: kubelet-serving-cert-approver
   revisionHistoryLimit: 3
   syncPolicy:
-    {{- toYaml .Values.application.kubeletServingCertApprover.syncPolicy | nindent 4 }}
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 16m
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=false
+      - ServerSideApply=true
+      - PruneLast=true
 
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -71,12 +110,25 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: {{ .Values.application.prometheusOperatorCrds.source.repo }}
-    targetRevision: {{ .Values.application.prometheusOperatorCrds.source.revision }}
-    path: "{{ .Values.git.path }}/{{ .Values.application.prometheusOperatorCrds.source.path }}"
+    repoURL: {{ .Values.git.repo }}
+    targetRevision: {{ .Values.git.revision }}
+    path: clusters/{{ .Values.cluster.name }}/standalone/prometheus-operator-crds
   destination:
     name: in-cluster
-    namespace: {{ .Values.application.prometheusOperatorCrds.namespace }}
+    namespace: kube-system
   revisionHistoryLimit: 3
   syncPolicy:
-    {{- toYaml .Values.application.prometheusOperatorCrds.syncPolicy | nindent 4 }}
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 16m
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=false
+      - ServerSideApply=true
+      - PruneLast=true
