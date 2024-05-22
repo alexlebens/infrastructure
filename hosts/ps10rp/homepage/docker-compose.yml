@@ -1,0 +1,56 @@
+services:
+    homepage:
+        container_name: homepage
+        image: ghcr.io/benphelps/homepage:latest
+        labels:
+            traefik.docker.network: traefik
+            traefik.enable: true
+            traefik.http.routers.homepage.entrypoints: websecure
+            traefik.http.routers.homepage.rule: Host(`www.lebens-home.net`)
+            traefik.http.routers.homepage.service: homepage
+            traefik.http.services.homepage.loadbalancer.server.port: 3000
+        networks:
+            traefik: null
+        volumes:
+            - config:/app/config
+            - images:/app/public/images
+            - icons:/app/public/icons
+
+    dockerproxy:
+        container_name: homepage-dockerproxy
+        environment:
+            - CONTAINERS=1
+            - POST=0
+        image: ghcr.io/tecnativa/docker-socket-proxy:latest
+        networks:
+            traefik: null
+        privileged: true
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+
+networks:
+    traefik:
+        name: traefik
+        external: true
+
+volumes:
+    config:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: /mnt/data/containers/homepage/config
+
+    images:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: /mnt/data/containers/homepage/images
+
+    icons:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: /mnt/data/containers/homepage/icons

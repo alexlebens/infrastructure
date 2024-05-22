@@ -1,0 +1,117 @@
+vikunja:
+  api:
+    enabled: true
+    image:
+      repository: vikunja/api
+      tag: 0.22.1
+    persistence:
+      data:
+        enabled: true
+        size: 10Gi
+        mountPath: /app/vikunja/files
+        storageClass: ceph-block
+      config:
+        type: secret
+        name: vikunja-config-secret
+    configMaps:
+      config:
+        enabled: false
+    ingress:
+      main:
+        enabled: true
+        className: traefik
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt-issuer
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+          traefik.ingress.kubernetes.io/router.tls: "true"
+        hosts:
+          - host: vikunja.alexlebens.net
+            paths:
+              - path: /api/v1/
+        tls:
+          - hosts:
+              - vikunja.alexlebens.net
+            secretName: vikunja-secret-tls
+    env:
+      VIKUNJA_SERVICE_FRONTENDURL: https://vikunja.alexlebens.net
+      VIKUNJA_SERVICE_ENABLEREGISTRATION: "true"
+      VIKUNJA_SERVICE_TIMEZONE: US/Central
+      VIKUNJA_REDIS_ENABLED: "true"
+      VIKUNJA_REDIS_HOST: vikunja-redis-headless:6379
+      VIKUNJA_REDIS_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+           name: vikunja-config-secret
+           key: redis-password
+      VIKUNJA_DATABASE_USER:
+        valueFrom:
+          secretKeyRef:
+           name: vikunja-postgresql-16-cluster-app
+           key: user
+      VIKUNJA_DATABASE_DATABASE:
+        valueFrom:
+          secretKeyRef:
+           name: vikunja-postgresql-16-cluster-app
+           key: dbname
+      VIKUNJA_DATABASE_HOST:
+        valueFrom:
+          secretKeyRef:
+           name: vikunja-postgresql-16-cluster-app
+           key: host
+      VIKUNJA_DATABASE_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+           name: vikunja-postgresql-16-cluster-app
+           key: password
+  frontend:
+    enabled: true
+    image:
+      repository: vikunja/frontend
+      tag: 0.22.1
+    env:
+      VIKUNJA_API_URL: https://vikunja.alexlebens.net/api/v1/
+    ingress:
+      main:
+        enabled: true
+        className: traefik
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt-issuer
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+          traefik.ingress.kubernetes.io/router.tls: "true"
+        hosts:
+          - host: vikunja.alexlebens.net
+            paths:
+              - path: /
+        tls:
+          - hosts:
+              - vikunja.alexlebens.net
+            secretName: vikunja-secret-tls
+  postgresql:
+    enabled: false
+  redis:
+    enabled: false
+  typesense:
+    enabled: false
+redis:
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: vikunja-config-secret
+    existingSecretPasswordKey: redis-password
+postgres-16-cluster:
+  mode: standalone
+  kubernetesClusterName: cl01tl
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/vikunja
+    endpointCredentials: vikunja-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d

@@ -1,0 +1,42 @@
+freshrss:
+  deployment:
+    env:
+      TZ: US/Central
+      CRON_MIN: 13,43
+      OIDC_ENABLED: 1
+      OIDC_PROVIDER_METADATA_URL: https://authentik.alexlebens.net/application/o/freshrss/.well-known/openid-configuration
+      OIDC_X_FORWARDED_HEADERS: X-Forwarded-Port X-Forwarded-Proto X-Forwarded-Host
+      OIDC_SCOPES: openid email profile
+      OIDC_REMOTE_USER_CLAIM: preferred_username
+    envFrom:
+      - secretRef:
+          name: freshrss-oidc-secret
+  ingress:
+    enabled: true
+    className: traefik
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+      cert-manager.io/cluster-issuer: letsencrypt-issuer
+    host: rss.alexlebens.net
+  persistence:
+    config:
+      storageClassName: ceph-block
+      storageSize: 5Gi
+postgres-16-cluster:
+  mode: standalone
+  kubernetesClusterName: cl01tl
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/freshrss
+    endpointCredentials: freshrss-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d

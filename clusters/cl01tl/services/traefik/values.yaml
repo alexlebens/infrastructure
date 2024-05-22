@@ -1,0 +1,82 @@
+traefik:
+  deployment:
+    kind: DaemonSet
+  ingressClass:
+    enabled: true
+    isDefaultClass: true
+  ingressRoute:
+    dashboard:
+      enabled: true
+      matchRule: (Host(`traefik-cl01tl.alexlebens.net`) && (PathPrefix(`/api/`) || PathPrefix(`/dashboard/`)))
+      entryPoints: ["websecure"]
+  providers:
+    kubernetesCRD:
+      allowCrossNamespace: true
+      allowEmptyServices: true
+    kubernetesIngress:
+      allowEmptyServices: true
+      publishedService:
+        enabled: true
+  metrics:
+    service:
+      enabled: true
+  globalArguments: []
+  ports:
+    web:
+      expose:
+        default: true
+      exposedPort: 80
+      redirectTo:
+        port: websecure
+        priority: 10
+      forwardedHeaders:
+        trustedIPs:
+          - 10.0.0.0/8
+          - 172.16.0.0/16
+          - 192.168.0.0/16
+          - fc00::/7
+        insecure: false
+      proxyProtocol:
+        trustedIPs:
+          - 10.0.0.0/8
+          - 172.16.0.0/16
+          - 192.168.0.0/16
+          - fc00::/7
+        insecure: false
+    websecure:
+      port: 8443
+      expose:
+        default: true
+      exposedPort: 443
+      forwardedHeaders:
+        trustedIPs:
+          - 10.0.0.0/8
+          - 172.16.0.0/16
+          - 192.168.0.0/16
+          - fc00::/7
+        insecure: false
+      proxyProtocol:
+        trustedIPs:
+          - 10.0.0.0/8
+          - 172.16.0.0/16
+          - 192.168.0.0/16
+          - fc00::/7
+        insecure: false
+      tls:
+        enabled: true
+    metrics:
+      expose:
+        default: false
+  tlsStore:
+    default:
+      defaultCertificate:
+        secretName: traefik-secret-tls
+  service:
+    enabled: true
+    type: LoadBalancer
+    annotations:
+      metallb.universe.tf/allow-shared-ip: "external"
+    externalIPs:
+      - 192.168.1.17
+      - 192.168.1.16
+      - 192.168.1.15

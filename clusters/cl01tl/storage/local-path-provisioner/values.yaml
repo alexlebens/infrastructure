@@ -1,0 +1,42 @@
+local-static-provisioner:
+  image:
+    repository: rancher/local-path-provisioner
+    tag: v0.0.26
+  storageClass:
+    create: true
+    defaultClass: false
+    defaultVolumeType: hostPath
+    name: local-path
+    reclaimPolicy: Delete
+    volumeBindingMode: WaitForFirstConsumer
+  nodePathMap:
+    - node: talos-di4-2sr
+      paths:
+        - /var/local-path-provisioner
+    - node: talos-pqo-s7t
+      paths:
+        - /var/local-path-provisioner
+    - node: talos-89d-c5v
+      paths:
+        - /var/local-path-provisioner
+  affinity:
+    nodeAffinity:
+      required:
+        nodeSelectorTerms:
+          - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - talos-di4-2sr
+                - talos-pqo-s7t
+                - talos-89d-c5v
+  configmap:
+    name: local-path-config
+    setup: |-
+      #!/bin/sh
+      set -eu
+      mkdir -m 0777 -p "$VOL_DIR"
+    teardown: |-
+      #!/bin/sh
+      set -eu
+      rm -rf "$VOL_DIR"

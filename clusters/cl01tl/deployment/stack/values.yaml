@@ -1,0 +1,148 @@
+git:
+  repo: git@github.com:alexlebens/alexlebens-net.git
+  revision: HEAD
+  path: clusters/cl01tl
+applicationSet:
+  - name: applications
+    syncPolicy:
+      automated:
+        enabled: true
+        prune: true
+        selfheal: false
+      syncOptions:
+        - CreateNamespace=true
+        - ApplyOutOfSyncOnly=true
+        - ServerSideApply=false
+        - PruneLast=true
+  - name: deployment
+    namespace: argocd
+    syncPolicy:
+      automated:
+        enabled: true
+        prune: true
+        selfheal: false
+      syncOptions:
+        - CreateNamespace=true
+        - ApplyOutOfSyncOnly=true
+        - ServerSideApply=false
+        - PruneLast=true
+  - name: platform
+    syncPolicy:
+      automated:
+        enabled: true
+        prune: true
+        selfheal: false
+      syncOptions:
+        - CreateNamespace=true
+        - ApplyOutOfSyncOnly=true
+        - ServerSideApply=true
+        - PruneLast=true
+  - name: services
+    ignoreDifferences:
+      - group: ""
+        kind: Service
+        jqPathExpressions:
+          - .status.loadBalancer.ingress[].ipMode      
+    syncPolicy:
+      automated:
+        enabled: true
+        prune: true
+        selfheal: false
+      syncOptions:
+        - CreateNamespace=true
+        - ApplyOutOfSyncOnly=true
+        - ServerSideApply=true
+        - PruneLast=true
+  - name: storage
+    syncPolicy:
+      automated:
+        enabled: true
+        prune: true
+        selfheal: false
+      syncOptions:
+        - CreateNamespace=true
+        - ApplyOutOfSyncOnly=true
+        - ServerSideApply=false
+        - PruneLast=true
+application:
+  cilium:
+    namespace: kube-system
+    source:
+      repo: git@github.com:alexlebens/alexlebens-net.git
+      revision: HEAD
+      path: standalone/cilium
+    syncPolicy:
+      retry:
+        limit: 10
+        backoff:
+          duration: 1m
+          factor: 2
+          maxDuration: 16m
+      syncOptions:
+        - CreateNamespace=false
+        - ApplyOutOfSyncOnly=true
+        - ServerSideApply=true
+        - PruneLast=true
+  metricsServer:
+    namespace: kube-system
+    source:
+      repo: git@github.com:alexlebens/alexlebens-net.git
+      revision: HEAD
+      path: standalone/metrics-server
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      retry:
+        limit: 10
+        backoff:
+          duration: 1m
+          factor: 2
+          maxDuration: 16m
+      syncOptions:
+        - CreateNamespace=false
+        - ApplyOutOfSyncOnly=false
+        - ServerSideApply=true
+        - PruneLast=true
+  kubeletServingCertApprover:
+    namespace: kubelet-serving-cert-approver
+    source:
+      repo: git@github.com:alexlebens/alexlebens-net.git
+      revision: HEAD
+      path: standalone/kubelet-serving-cert-approver
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      retry:
+        limit: 10
+        backoff:
+          duration: 1m
+          factor: 2
+          maxDuration: 16m
+      syncOptions:
+        - CreateNamespace=true
+        - ApplyOutOfSyncOnly=false
+        - ServerSideApply=true
+        - PruneLast=true
+  prometheusOperatorCrds:
+    namespace: kube-system
+    source:
+      repo: git@github.com:alexlebens/alexlebens-net.git
+      revision: HEAD
+      path: standalone/prometheus-operator-crds
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      retry:
+        limit: 10
+        backoff:
+          duration: 1m
+          factor: 2
+          maxDuration: 16m
+      syncOptions:
+        - CreateNamespace=false
+        - ApplyOutOfSyncOnly=false
+        - ServerSideApply=true
+        - PruneLast=true

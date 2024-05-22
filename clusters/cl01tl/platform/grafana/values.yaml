@@ -1,0 +1,142 @@
+grafana:
+  deploymentStrategy:
+    type: Recreate
+  createConfigmap: true
+  serviceMonitor:
+    enabled: true
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+      cert-manager.io/cluster-issuer: letsencrypt-issuer
+    hosts:
+      - grafana.alexlebens.net
+    tls:
+      - secretName: grafana-secret-tls
+        hosts:
+          - grafana.alexlebens.net
+  persistence:
+    enabled: true
+    storageClassName: ceph-block
+  admin:
+    existingSecret: grafana-auth-secret
+    userKey: admin-user
+    passwordKey: admin-password
+  envFromSecret: grafana-oauth-secret
+  plugins:
+    - grafana-clock-panel
+    - vonage-status-panel
+    - grafana-worldmap-panel
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          uid: prometheus
+          url: http://kube-prometheus-stack-prometheus.kube-prometheus-stack:9090/
+          access: proxy
+          isDefault: true
+          jsonData:
+            timeInterval: 30s
+        - name: Loki
+          type: loki
+          url: http://loki.loki:3100
+          jsonData:
+            httpHeaderName1: "X-Scope-OrgID"
+          secureJsonData:
+            httpHeaderValue1: "1"
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: "default"
+          orgId: 1
+          folder: ""
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      node-exporter:
+        gnetId: 1860
+        revision: 33
+        datasource: Prometheus
+      coredns:
+        gnetId: 14981
+        revision: 2
+        datasource: Prometheus
+      loki:
+        gnetId: 14055
+        revision: 5
+        datasource: Prometheus
+      argocd:
+        gnetId: 14584
+        revision: 1
+        datasource: Prometheus
+      cert-manager:
+        gnetId: 11001
+        revision: 1
+        datasource: Prometheus
+      traefik:
+        gnetId: 17346
+        revision: 7
+        datasource: Prometheus
+      kubernetes-nodes:
+        gnetId: 8171
+        revision: 1
+        datasource: Prometheus
+      vault:
+        gnetId: 12904
+        revision: 2
+        datasource: Prometheus
+      ceph:
+        gnetId: 2842
+        revision: 17
+        datasource: Prometheus
+      alertmanager:
+        gnetId: 9578
+        revision: 4
+        datasource: Prometheus
+      sonarr:
+        gnetId: 12530
+        revision: 2
+        datasource: Prometheus
+      radarr:
+        gnetId: 12896
+        revision: 1
+        datasource: Prometheus
+      unpoller:
+        gnetId: 11315
+        revision: 9
+        datasource: Prometheus
+      etcd:
+        gnetId: 3070
+        revision: 3
+        datasource: Prometheus
+  grafana.ini:
+    analytics:
+      check_for_updates: false
+    server:
+      domain: alexlebens.net
+      root_url: https://grafana.alexlebens.net
+    users:
+      auto_assign_org: true
+      auto_assign_org_id: 1
+    auth:
+      disable_login_form: true
+      oauth_auto_login: true
+      signout_redirect_url: https://authentik.alexlebens.net/application/o/grafana/end-session/
+    auth.generic_oauth:
+      enabled: true
+      name: Authentik
+      allow_sign_up: true
+      scopes: openid profile email
+      auth_url: https://authentik.alexlebens.net/application/o/authorize/
+      token_url: https://authentik.alexlebens.net/application/o/token/
+      api_url: https://authentik.alexlebens.net/application/o/userinfo/
+      role_attribute_path: contains(groups, 'Grafana Admins') && 'Admin' || contains(groups, 'Grafana Editors') && 'Editor' || 'Viewer'

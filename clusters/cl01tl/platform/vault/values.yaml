@@ -1,0 +1,170 @@
+vault:
+  global:
+    enabled: true
+    tlsDisable: true
+    psp:
+      enable: false
+    serverTelemetry:
+      prometheusOperator: true
+  injector:
+    enabled: false
+  server:
+    enabled: true
+    image:
+      repository: "hashicorp/vault"
+      tag: "1.16.2"
+    updateStrategyType: "OnDelete"
+    logLevel: debug
+    logFormat: standard
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+      limits:
+        memory: 256Mi
+        cpu: 250m
+    ingress:
+      enabled: true
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      ingressClassName: traefik
+      pathType: Prefix
+      activeService: true
+      hosts:
+        - host: vault.alexlebens.net
+          paths:
+            - /
+      tls:
+        - secretName: vault-secret-tls
+          hosts:
+            - vault.alexlebens.net
+    route:
+      enabled: false
+    authDelegator:
+      enabled: false
+    readinessProbe:
+      enabled: true
+      port: 8200
+    livenessProbe:
+      enabled: false
+    volumes:
+      - name: vault-nfs-storage-backup
+        persistentVolumeClaim:
+          claimName: vault-nfs-storage-backup
+    volumeMounts:
+      - mountPath: /opt/backups/
+        name: vault-nfs-storage-backup
+        readOnly: false
+    affinity: |
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: {{ template "vault.name" . }}
+                app.kubernetes.io/instance: "{{ .Release.Name }}"
+                component: server
+            topologyKey: kubernetes.io/hostname
+    networkPolicy:
+      enabled: false
+    service:
+      enabled: true
+      active:
+        enabled: true
+      standby:
+        enabled: false
+      type: ClusterIP
+      port: 8200
+      targetPort: 8200
+    dataStorage:
+      enabled: true
+      size: 10Gi
+      mountPath: "/vault/data"
+      accessMode: ReadWriteOnce
+    auditStorage:
+      enabled: false
+      size: 10Gi
+      mountPath: "/vault/audit"
+      accessMode: ReadWriteOnce
+    dev:
+      enabled: false
+    standalone:
+      enabled: false
+    ha:
+      enabled: true
+      replicas: 3
+      raft:
+        enabled: true
+        config: |
+          ui = true
+
+          listener "tcp" {
+            tls_disable = 1
+            address = "[::]:8200"
+            cluster_address = "[::]:8201"
+            telemetry {
+              unauthenticated_metrics_access = "true"
+            }
+          }
+
+          storage "raft" {
+            path = "/vault/data"
+            retry_join {
+              leader_api_addr = "http://vault-0.vault-internal:8200"
+            }
+            retry_join {
+              leader_api_addr = "http://vault-1.vault-internal:8200"
+            }
+            retry_join {
+              leader_api_addr = "http://vault-2.vault-internal:8200"
+            }
+          }
+
+          service_registration "kubernetes" {}
+
+          telemetry {
+            prometheus_retention_time = "30s"
+            disable_hostname = true
+          }
+
+      disruptionBudget:
+        enabled: true
+        maxUnavailable: null
+    serviceAccount:
+      create: true
+      serviceDiscovery:
+        enabled: true
+    hostNetwork: false
+  ui:
+    enabled: true
+    publishNotReadyAddresses: true
+    activeVaultPodOnly: false
+    serviceType: "ClusterIP"
+    serviceNodePort: null
+    externalPort: 8200
+    targetPort: 8200
+  csi:
+    enabled: false
+  serverTelemetry:
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+    prometheusRules:
+      enabled: true
+      rules:
+        - alert: vault-HighResponseTime
+          annotations:
+            message: The response time of Vault is over 500ms on average over the last 5 minutes.
+          expr: vault_core_handle_request{quantile="0.5", namespace="mynamespace"} > 500
+          for: 5m
+          labels:
+            severity: warning
+        - alert: vault-HighResponseTime
+          annotations:
+            message: The response time of Vault is over 1s on average over the last 5 minutes.
+          expr: vault_core_handle_request{quantile="0.5", namespace="mynamespace"} > 1000
+          for: 5m
+          labels:
+            severity: critical

@@ -1,0 +1,40 @@
+pgadmin4:
+  image:
+    repository: dpage/pgadmin4
+    tag: "8.6"
+  serviceAccount:
+    create: true
+    automountServiceAccountToken: true
+  strategy:
+    type: Recreate    
+  serverDefinitions:
+    enabled: false
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+      cert-manager.io/cluster-issuer: letsencrypt-issuer
+    hosts:
+      - host: pgadmin.alexlebens.net
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: pgadmin-secret-tls
+        hosts:
+          - pgadmin.alexlebens.net
+  existingSecret: pgadmin-password-secret
+  secretKeys:
+    pgadminPasswordKey: pgadmin-password
+  env:
+    email: alexanderlebens@gmail.com
+  envVarsFromSecrets:
+    - pgadmin-env-secret
+  persistentVolume:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+    storageClass: ceph-block

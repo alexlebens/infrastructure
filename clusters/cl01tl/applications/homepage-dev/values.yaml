@@ -1,0 +1,225 @@
+homepage:
+  global:
+    nameOverride: homepage
+  controllers:
+    main:
+      type: deployment
+      annotations:
+        reloader.stakater.com/auto: "true"
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/gethomepage/homepage
+            tag: v0.8.13
+            pullPolicy: IfNotPresent
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  configMaps:
+    config:
+      enabled: true
+      data:
+        docker.yaml: ""
+        kubernetes.yaml: ""
+        settings.yaml: |
+          favicon: https://alexlebens-dev.nyc3.digitaloceanspaces.com/cl02do/assets/icon_white.png
+          headerStyle: clean
+          hideVersion: true
+          color: slate
+          background:
+            image: https://alexlebens-dev.nyc3.digitaloceanspaces.com/cl02do/assets/background.jpg
+          theme: dark
+          disableCollapse: true
+          layout:
+            - Media:
+                icon: mdi-multimedia-#ffffff
+            - Applications:
+                icon: mdi-application-#ffffff          
+        widgets.yaml: |
+          - logo:
+              icon: https://alexlebens-dev.nyc3.digitaloceanspaces.com/cl02do/assets/icon_white.png
+          - datetime:
+              text_size: xl
+              format:
+                dateStyle: long
+                timeStyle: short
+                hour12: false
+          - openmeteo:
+              label: Denver
+              latitude: 39.73
+              longitude: 104.99
+              units: metric
+              cache: 5
+        services.yaml: |
+          - Media:
+              - Plex:
+                  icon: plex.png
+                  href: https://plex.alexlebens.net
+                  description: Media server
+                  siteMonitor: http://plex.plex:32400
+                  statusStyle: dot
+              - Overseerr:
+                  icon: overseerr.png
+                  description: Requests
+                  href: https://overseerr.alexlebens.net
+                  siteMonitor: http://overseerr.overseerr:5055
+                  statusStyle: dot
+              - Jellyfin:
+                  icon: jellyfin.png
+                  description: Media server
+                  href: https://jellyfin.alexlebens.net/
+                  siteMonitor: http://jellyfin.jellyfin:8096
+                  statusStyle: dot
+              - TubeAchivist:
+                  icon: tube-archivist.png
+                  description: Youtube downloader
+                  href: https://tubearchivist.alexlebens.net/login/
+                  siteMonitor: http://tubearchivist.tubearchivist:8000
+                  statusStyle: dot
+              - Navidrome:
+                  icon: navidrome.png
+                  description: Music
+                  href: https://navidrome.alexlebens.net
+                  siteMonitor: http://navidrome.navidrome:4533
+                  statusStyle: dot
+              - Audiobookshelf:
+                  icon: audiobookshelf.png
+                  description: Audiobooks, Books, and Podcasts
+                  href: https://audiobookshelf.alexlebens.net
+                  siteMonitor: http://audiobookshelf.audiobookshelf:80
+                  statusStyle: dot
+              - Calibre:
+                  icon: calibre-web.png
+                  description: Books
+                  href: https://calibre.alexlebens.net
+                  siteMonitor: http://calibre-web.calibre-web:8083
+                  statusStyle: dot
+          - Applications:
+              - Ghost:
+                  icon: ghost.png
+                  description: Website and blog
+                  href: https://blog.alexlebens.dev
+                  siteMonitor: https://blog.alexlebens.dev
+                  statusStyle: dot
+              - Chat:
+                  icon: element.svg
+                  description: Web client for Matrix chat
+                  href: https://chat.alexlebens.dev
+                  siteMonitor: https://chat.alexlebens.dev
+                  statusStyle: dot
+              - Home Assistant:
+                  icon: home-assistant.png
+                  description: Home automation
+                  href: https://homeassistant.alexlebens.net
+                  siteMonitor: http://home-assistant.home-assistant:8123
+                  statusStyle: dot
+              - Vikunja:
+                  icon: vikunja.png
+                  description: Notes and tasks
+                  href: https://vikunja.alexlebens.net
+                  siteMonitor: http://vikunja-frontend.vikunja:80
+                  statusStyle: dot
+              - Taiga:
+                  icon: taiga.png
+                  description: Project planning
+                  href: https://taiga.alexlebens.net
+                  siteMonitor: http://taiga-front.taiga:80
+                  statusStyle: dot
+              - Penpot:
+                  icon: https://raw.githubusercontent.com/penpot/penpot/362d4ea47f06d169dd6e0a34cb9d141200e646e6/frontend/resources/images/icons/penpot-logo-icon.svg
+                  description: Web design
+                  href: https://penpot.alexlebens.net
+                  siteMonitor: http://penpot.penpot:80
+                  statusStyle: dot
+              - Outline:
+                  icon: outline.png
+                  description: Wiki
+                  href: https://outline.alexlebens.net
+                  siteMonitor: http://outline.outline:3000
+                  statusStyle: dot
+              - FreshRss:
+                  icon: freshrss.svg
+                  description: Rss reader
+                  href: https://rss.alexlebens.net
+                  siteMonitor: http://freshrss.freshrss:80
+                  statusStyle: dot
+        bookmarks.yaml: ""
+  service:
+    http:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 3000
+          protocol: HTTP
+  persistence:
+    config:
+      enabled: true
+      type: configMap
+      name: homepage-dev-config
+      advancedMounts:
+        main:
+          main:
+            - path: /app/config/bookmarks.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: bookmarks.yaml
+            - path: /app/config/docker.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: docker.yaml
+            - path: /app/config/kubernetes.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: kubernetes.yaml
+            - path: /app/config/services.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: services.yaml
+            - path: /app/config/settings.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: settings.yaml
+            - path: /app/config/widgets.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: widgets.yaml
+cloudflared:
+  global:
+    nameOverride: cloudflared
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: cloudflare/cloudflared
+            tag: "2024.5.0"
+            pullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --no-autoupdate
+            - run
+            - --token
+            - $(CF_MANAGED_TUNNEL_TOKEN)
+          env:
+            - name: CF_MANAGED_TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: homepage-dev-cloudflared-secret
+                  key: cf-tunnel-token
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi

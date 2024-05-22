@@ -1,0 +1,34 @@
+code-server:
+  image:
+    repository: linuxserver/code-server
+    tag: 4.89.1
+  ingress:
+    enabled: true
+    className: traefik
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+      cert-manager.io/cluster-issuer: letsencrypt-issuer
+    hosts:
+      - host: codeserver.alexlebens.net
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: codeserver-secret-tls
+        hosts:
+          - codeserver.alexlebens.net
+  env:
+    simple:
+      TZ: US/Central
+      DEFAULT_WORKSPACE: /config
+    full:
+      - name: SUDO_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: password
+            name: codeserver-password-secret
+            optional: false
+  persistence:
+    existingClaim: code-server-nfs-storage
+    enabled: true

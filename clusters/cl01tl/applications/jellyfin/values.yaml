@@ -1,0 +1,55 @@
+jellyfin:
+  env:
+    TZ: US/Central
+  ingress:
+    main:
+      enabled: true
+      ingressClassName: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: jellyfin.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: jellyfin-secret-tls
+          hosts:
+            - jellyfin.alexlebens.net
+  persistence:
+    config:
+      enabled: true
+      mountPath: /config
+      accessMode: ReadWriteOnce
+      size: 40Gi
+    cache:
+      enabled: true
+      mountPath: /cache
+      accessMode: ReadWriteOnce
+      size: 40Gi
+    media:
+      enabled: true
+      mountPath: /mnt/store
+      type: pvc
+      existingClaim: jellyfin-nfs-storage
+    youtube:
+      enabled: true
+      mountPath: /youtube
+      type: pvc
+      existingClaim: jellyfin-youtube-nfs-storage
+  resources:
+    requests:
+      gpu.intel.com/i915: 1
+    limits:
+      gpu.intel.com/i915: 1
+storage:
+  storage:
+    nfs:
+      path: /volume2/Storage
+      server: synologybond.alexlebens.net
+  youtube:
+    nfs:
+      path: /volume2/Storage/YouTube
+      server: synologybond.alexlebens.net

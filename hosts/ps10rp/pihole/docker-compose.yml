@@ -1,0 +1,61 @@
+services:
+    pihole:
+        container_name: pihole
+        env_file:
+            - .env
+        image: docker.io/pihole/pihole:latest
+        labels:
+            traefik.docker.network: traefik
+            traefik.enable: true
+            traefik.http.routers.pihole.entrypoints: websecure
+            traefik.http.routers.pihole.rule: Host(`pihole.lebens-home.net`)
+            traefik.http.routers.pihole.service: pihole
+            traefik.http.services.pihole.loadbalancer.server.port: 8080
+        networks:
+            traefik: null
+        ports:
+            - 53:53/tcp
+            - 53:53/udp
+            - 8080:8080            
+        privileged: true
+        volumes:
+            - config:/etc/pihole
+            - dnsmasq:/etc/dnsmasq.d
+            - logs:/var/log
+
+    pihole_exporter:
+        container_name: pihole-exporter
+        depends_on:
+            - pihole
+        env_file:
+            - .exporter.env
+        image: docker.io/ekofr/pihole-exporter:latest
+        networks:
+            traefik: null
+
+networks:
+    traefik:
+        name: traefik
+        external: true
+
+volumes:
+    config:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: /mnt/data/containers/pihole/config
+
+    dnsmasq:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: /mnt/data/containers/pihole/dnsmasq
+
+    logs:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: /mnt/data/containers/pihole/logs

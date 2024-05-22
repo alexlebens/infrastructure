@@ -1,0 +1,46 @@
+home-assistant:
+  deployment:
+    env:
+      TZ: US/Central
+  ingressRoute:
+    enabled: true
+    host: homeassistant.alexlebens.net
+    authentik:
+      outpost: authentik-outpost-proxy
+      namespace: authentik
+  metrics:
+    enabled: true
+    serviceMonitor:
+      bearerTokenSecret:
+        name: home-assistant-token-secret
+        key: bearerToken
+    prometheusRule:
+      enabled: true
+      rules:
+        - alert: HomeAssistantAbsent
+          annotations:
+            description: Home Assistant has disappeared from Prometheus service discovery.
+            summary: Home Assistant is down.
+          expr: |
+            absent(up{job=~".*home-assistant.*"} == 1)
+          for: 5m
+          labels:
+            severity: critical
+  persistence:
+    config:
+      storageClassName: ceph-block
+      storageSize: 1Gi
+  codeserver:
+    enabled: true
+    env:
+      TZ: US/Central
+      DEFAULT_WORKSPACE: /config
+    envFrom:
+      - secretRef:
+          name: home-assistant-codeserver-password-secret
+    ingressRoute:
+      enabled: true
+      host: homeassistant-codeserver.alexlebens.net
+      authentik:
+        outpost: authentik-outpost-proxy
+        namespace: authentik

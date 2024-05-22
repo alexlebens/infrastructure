@@ -1,0 +1,123 @@
+outline:
+  ingress:
+    enabled: true
+    className: traefik
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+      cert-manager.io/cluster-issuer: letsencrypt-issuer
+    host: outline.alexlebens.net
+  persistence:
+    type: s3
+    s3:
+      credentialsSecret: outline-bucket-user-secret
+      region: us-east-1
+      bucketName: outline
+      bucketUrl: https://minio-outline-api.alexlebens.net/outline
+      forcePathStyle: false
+  outline:
+    url: https://outline.alexlebens.net
+    secretKey:
+      existingSecretName: outline-key-secret
+      existingSecretKey: secret-key
+    utilsSecret:
+      existingSecretName: outline-key-secret
+      existingSecretKey: utils-key
+    database:
+      usernameSecret:
+        existingSecretName: outline-postgresql-16-cluster-app
+        existingSecretKey: username
+      passwordSecret:
+        existingSecretName: outline-postgresql-16-cluster-app
+        existingSecretKey: password
+      databaseName:
+        existingSecretName: outline-postgresql-16-cluster-app
+        existingSecretKey: dbname
+      databaseHost:
+        existingSecretName: outline-postgresql-16-cluster-app
+        existingSecretKey: host
+      databasePort:
+        existingSecretName: outline-postgresql-16-cluster-app
+        existingSecretKey: port
+    auth:
+      oidc:
+        enabled: true
+        clientId:
+          existingSecretName: outline-oidc-secret
+          existingSecretKey: client
+        clientSecret:
+          existingSecretName: outline-oidc-secret
+          existingSecretKey: secret
+        authUri: https://authentik.alexlebens.net/application/o/authorize/
+        tokenUri: https://authentik.alexlebens.net/application/o/token/
+        userinfoUri: https://authentik.alexlebens.net/application/o/userinfo/
+        usernameClaim: email
+        displayName: Authentik
+        scopes: openid profile email
+minio:
+  existingSecret:
+    name: outline-minio-root-secret
+  tenant:
+    name: minio-outline
+    configuration:
+      name: outline-minio-config-secret
+    pools:
+      - servers: 3
+        name: pool
+        volumesPerServer: 2
+        size: 10Gi
+        storageClassName: ceph-block
+    mountPath: /export
+    subPath: /data
+    metrics:
+      enabled: true
+      port: 9000
+      protocol: http
+    certificate:
+      requestAutoCert: false
+  ingress:
+    api:
+      enabled: true
+      ingressClassName: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      tls:
+        - secretName: minio-outline-api-secret-tls
+          hosts:
+            - minio-outline-api.alexlebens.net
+      host: minio-outline-api.alexlebens.net
+      path: /
+      pathType: Prefix
+    console:
+      enabled: true
+      ingressClassName: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      tls:
+        - secretName: minio-outline-console-secret-tls
+          hosts:
+            - minio-outline.alexlebens.net
+      host: minio-outline.alexlebens.net
+      path: /
+      pathType: Prefix
+postgres-16-cluster:
+  mode: standalone
+  kubernetesClusterName: cl01tl
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/outline
+    endpointCredentials: outline-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d

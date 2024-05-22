@@ -1,0 +1,118 @@
+authentik:
+  global:
+    env:
+      - name: AUTHENTIK_SECRET_KEY
+        valueFrom:
+          secretKeyRef:
+            name: authentik-key-secret
+            key: key
+      - name: AUTHENTIK_POSTGRESQL__HOST
+        valueFrom:
+          secretKeyRef:
+            name: authentik-postgresql-16-cluster-app
+            key: host
+      - name: AUTHENTIK_POSTGRESQL__NAME
+        valueFrom:
+          secretKeyRef:
+            name: authentik-postgresql-16-cluster-app
+            key: dbname
+      - name: AUTHENTIK_POSTGRESQL__USER
+        valueFrom:
+          secretKeyRef:
+            name: authentik-postgresql-16-cluster-app
+            key: user
+      - name: AUTHENTIK_POSTGRESQL__PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: authentik-postgresql-16-cluster-app
+            key: password
+  server:
+    name: server
+    replicas: 1
+    volumes:
+      - name: custom-css
+        configMap:
+          name: authentik-custom-css
+    volumeMounts:
+      - name: custom-css
+        mountPath: /web/dist/custom.css
+        subPath: custom.css
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+    ingress:
+      enabled: true
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      ingressClassName: traefik
+      hosts:
+        - auth.alexlebens.net
+        - authentik.alexlebens.net
+      tls:
+        - secretName: authentik-secret-tls
+          hosts:
+            - auth.alexlebens.net
+            - authentik.alexlebens.net
+  worker:
+    name: worker
+    replicas: 1
+  prometheus:
+    rules:
+      enabled: true
+  postgresql:
+    enabled: false
+  redis:
+    enabled: true
+cloudflared:
+  global:
+    nameOverride: cloudflared
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: cloudflare/cloudflared
+            tag: "2024.5.0"
+            pullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --no-autoupdate
+            - run
+            - --token
+            - $(CF_MANAGED_TUNNEL_TOKEN)
+          env:
+            - name: CF_MANAGED_TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-cloudflared-secret
+                  key: cf-tunnel-token
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+postgres-16-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: false
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/authentik
+    endpointCredentials: authentik-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d

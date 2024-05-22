@@ -1,0 +1,66 @@
+argo-cd:
+  crds:
+    install: true
+  configs:
+    cm:
+      admin.enabled: true
+      url: https://argocd.alexlebens.net
+      statusbadge.enabled: true
+      dex.config: |
+        connectors:
+        - config:
+            issuer: https://authentik.alexlebens.net/application/o/argocd/
+            clientID: $argocd-oidc-secret:client
+            clientSecret: $argocd-oidc-secret:secret
+            insecureEnableGroups: true
+            scopes:
+              - openid
+              - profile
+              - email
+              - groups
+          name: authentik
+          type: oidc
+          id: authentik
+    rbac:
+      policy.csv: |
+        g, ArgoCD Admins, role:admin
+    params:
+      server.insecure: true
+  server:
+    replicas: 2
+    ingress:
+      enabled: true
+      controller: generic
+      ingressClassName: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hostname: argocd.alexlebens.net
+      tls: true
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+  dex:
+    enabled: true
+  redis-ha:
+    enabled: true
+  controller:
+    replicas: 1
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+  repoServer:
+    replicas: 2
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+  applicationSet:
+    replicas: 2
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true

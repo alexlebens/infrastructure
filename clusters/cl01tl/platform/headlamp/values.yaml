@@ -1,0 +1,48 @@
+headlamp:
+  config:
+    oidc:
+      secret:
+        create: true
+        name: headlamp-oidc-generated-secret
+  env:
+    - name: HEADLAMP_CONFIG_OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          key: HEADLAMP_CONFIG_OIDC_CLIENT_ID
+          name: headlamp-oidc-secret
+    - name: HEADLAMP_CONFIG_OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          key: HEADLAMP_CONFIG_OIDC_CLIENT_SECRET
+          name: headlamp-oidc-secret
+    - name: HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL
+      value: https://authentik.alexlebens.net/application/o/headlamp/
+  persistentVolumeClaim:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+    storageClassName: ceph-block
+    volumeMode: Filesystem
+  ingress:
+    enabled: true
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+      cert-manager.io/cluster-issuer: letsencrypt-issuer
+    hosts:
+      - host: headlamp.alexlebens.net
+        paths:
+          - path: /
+            type: ImplementationSpecific
+    tls:
+      - secretName: headlamp-secret-tls
+        hosts:
+          - headlamp.alexlebens.net
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi

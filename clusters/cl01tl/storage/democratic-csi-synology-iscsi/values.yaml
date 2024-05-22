@@ -1,0 +1,37 @@
+democratic-csi:
+  driver:
+    existingConfigSecret: synology-iscsi-config-secret
+    config:
+      driver: synology-iscsi
+  csiDriver:
+    name: "org.democratic-csi.iscsi-synology"
+  controller:
+    enabled: true
+    rbac:
+      enabled: true
+    replicaCount: 2
+  storageClasses:
+    - name: synology-iscsi-delete
+      defaultClass: false
+      reclaimPolicy: Delete
+      volumeBindingMode: Immediate
+      allowVolumeExpansion: true
+      parameters:
+        fsType: ext4
+    - name: synology-iscsi-retain
+      defaultClass: false
+      reclaimPolicy: Retain
+      volumeBindingMode: Immediate
+      allowVolumeExpansion: true
+      parameters:
+        fsType: ext4
+  node:
+    hostPID: true
+    driver:
+      extraEnv:
+        - name: ISCSIADM_HOST_STRATEGY
+          value: nsenter
+        - name: ISCSIADM_HOST_PATH
+          value: /usr/local/sbin/iscsiadm
+      iscsiDirHostPath: /usr/local/etc/iscsi
+      iscsiDirHostPathType: ""

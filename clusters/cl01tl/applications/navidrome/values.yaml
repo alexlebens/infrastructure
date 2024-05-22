@@ -1,0 +1,43 @@
+navidrome:
+  image:
+    repository: deluan/navidrome
+    tag: "0.52.5"
+  ingress:
+    main:
+      enabled: true
+      ingressClassName: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: navidrome.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: navidrome-secret-tls
+          hosts:
+            - navidrome.alexlebens.net
+  persistence:
+    config:
+      enabled: true
+      mountPath: /data
+      accessMode: ReadWriteOnce
+      size: 2Gi
+    music:
+      enabled: true
+      mountPath: /mnt/store
+      type: pvc
+      existingClaim: navidrome-nfs-storage
+  env:
+    ND_MUSICFOLDER: /mnt/store/Music
+    ND_SCANSCHEDULE: 1h
+    ND_LOGLEVEL: info
+    ND_SESSIONTIMEOUT: 24h
+    ND_BASEURL: "/"
+storage:
+  storage:
+    nfs:
+      path: /volume2/Storage
+      server: synologybond.alexlebens.net

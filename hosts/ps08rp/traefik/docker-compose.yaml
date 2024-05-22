@@ -1,0 +1,45 @@
+services:
+    traefik:
+        command: traefik
+        container_name: traefik
+        env_file:
+            - .env
+        image: docker.io/traefik:v3.0
+        labels:
+            traefik.docker.network: traefik
+            traefik.enable: true
+            traefik.http.routers.dashboard.entrypoints: websecure
+            traefik.http.routers.dashboard.rule: (Host(`traefik-ps08rp.alexlebens.net`) && (PathPrefix(`/api/`) || PathPrefix(`/dashboard/`)))
+            traefik.http.routers.dashboard.service: api@internal
+            traefik.http.routers.dashboard.tls: true
+            traefik.http.routers.dashboard.tls.certresolver: cloudflare
+        networks:
+            traefik: null
+        ports:
+            - 80:80
+            - 443:443
+        privileged: true
+        restart: always
+        volumes:
+            - config:/etc/traefik
+            - log:/log
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+
+networks:
+    traefik:
+        name: traefik
+
+volumes:
+    config:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: /opt/traefik/config
+
+    log:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: /opt/traefik/log

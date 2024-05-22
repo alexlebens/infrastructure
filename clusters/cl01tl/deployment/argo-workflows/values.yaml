@@ -1,0 +1,121 @@
+argo-workflows:
+  controller:
+    metricsConfig:
+      enabled: true
+    persistence:
+      connectionPool:
+        maxIdleConns: 100
+        maxOpenConns: 0
+      nodeStatusOffLoad: true
+      archive: true
+      postgresql:
+        host: argo-workflows-postgresql-16-cluster-rw
+        port: 5432
+        database: app
+        tableName: app
+        userNameSecret:
+          name: argo-workflows-postgresql-16-cluster-app
+          key: username
+        passwordSecret:
+          name: argo-workflows-postgresql-16-cluster-app
+          key: password
+        ssl: false
+        sslMode: disable
+    workflowWorkers: 2
+    workflowTTLWorkers: 1
+    podCleanupWorkers: 1
+    cronWorkflowWorkers: 1
+    telemetryConfig:
+      enabled: true
+    serviceMonitor:
+      enabled: true
+    name: workflow-controller
+    workflowNamespaces:
+      - argocd
+  server:
+    authModes:
+      - sso
+    ingress:
+      enabled: true
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      ingressClassName: traefik
+      hosts:
+        - argo-workflows.alexlebens.net
+      tls:
+        - secretName: argoworkflows-example-tls
+          hosts:
+            - argo-workflows.alexlebens.net
+    sso:
+      enabled: true
+      issuer: https://authentik.alexlebens.net/application/o/argo-workflows/
+      clientId:
+        name: argo-workflows-oidc-secret
+        key: client
+      clientSecret:
+        name: argo-workflows-oidc-secret
+        key: secret
+      redirectUrl: https://argo-workflows.alexlebens.net/oauth2/callback
+      rbac:
+        enabled: false
+      scopes:
+        - openid
+        - email
+        - profile
+  useStaticCredentials: true
+  artifactRepository:
+    archiveLogs: false
+    s3: {}
+      # accessKeySecret:
+      #   name: "{{ .Release.Name }}-minio"
+      #   key: accesskey
+      # secretKeySecret:
+      #   name: "{{ .Release.Name }}-minio"
+      #   key: secretkey
+      # insecure: true
+      # bucket:
+      # endpoint:
+      # region:
+      # encryptionOptions:
+      #   enableEncryption: true
+
+argo-events:
+  global:
+    image:
+      repository: quay.io/argoproj/argo-events
+      tag: v1.9.1
+  controller:
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        namespace: argocd
+  webhook:
+    enabled: true
+postgres-16-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: true
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/argo-workflows
+    endpointCredentials: argo-workflows-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d

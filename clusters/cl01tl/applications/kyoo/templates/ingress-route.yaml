@@ -1,0 +1,32 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: kyoo
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: kyoo
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`kyoo.alexlebens.net`)
+      priority: 10
+      services:
+        - kind: Service
+          name: kyoo-front
+          port: 8901
+    - kind: Rule
+      match: Host(`kyoo.alexlebens.net`) && PathPrefix(`/api/`)
+      middlewares:
+        - name: kyoo-strip-prefix
+          namespace: {{ .Release.Namespace }}
+      priority: 15
+      services:
+        - kind: Service
+          name: kyoo-back
+          port: 5000

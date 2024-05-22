@@ -1,0 +1,590 @@
+app-template:
+  controllers:
+    autosync:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/zoriya/kyoo_autosync
+            tag: "4.5.0"
+            pullPolicy: IfNotPresent
+          env:
+            - name: RABBITMQ_HOST
+              value: kyoo-rabbitmq
+            - name: RABBITMQ_DEFAULT_USER
+              value: kyoo
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-rabbitmq-secret
+                  key: password
+          resources:
+            limits:
+              cpu: 100m
+              memory: 512Mi
+            requests:
+              cpu: 10m
+              memory: 128Mi
+    back:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      initContainers:
+        migrations:
+          image:
+            repository: ghcr.io/zoriya/kyoo_migrations
+            tag: "4.5.0"
+            pullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-postgresql-16-cluster-app
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-postgresql-16-cluster-app
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-postgresql-16-cluster-app
+                  key: dbname
+            - name: POSTGRES_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-postgresql-16-cluster-app
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-postgresql-16-cluster-app
+                  key: port
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 10m
+              memory: 256Mi
+      containers:
+        main:
+          image:
+            repository: ghcr.io/zoriya/kyoo_back
+            tag: "4.5.0"
+            pullPolicy: IfNotPresent
+          env:
+            - name: REQUIRE_ACCOUNT_VERIFICATION
+              value: "false"
+            - name: UNLOGGED_PERMISSIONS
+              value: overall.read
+            - name: DEFAULT_PERMISSIONS
+              value: overall.read,overall.play
+            - name: AUTHENTICATION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-key-secret
+                  key: key
+            - name: KYOO_APIKEYS
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-key-secret
+                  key: kyoo
+            - name: THEMOVIEDB_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-key-secret
+                  key: tmdb
+            - name: PUBLIC_URL
+              value: https://kyoo.alexlebens.net
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-postgresql-16-cluster-app
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-postgresql-16-cluster-app
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-postgresql-16-cluster-app
+                  key: dbname
+            - name: POSTGRES_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-postgresql-16-cluster-app
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-postgresql-16-cluster-app
+                  key: port
+            - name: OIDC_SERVICE_NAME
+              value: Authentik
+            - name: OIDC_SERVICE_LOGO
+              value: https://avatars.githubusercontent.com/u/82976448?s=200&v=4
+            - name: OIDC_SERVICE_AUTHORIZATION
+              value: https://authentik.alexlebens.net/application/o/authorize/
+            - name: OIDC_SERVICE_TOKEN
+              value: https://authentik.alexlebens.net/application/o/token/
+            - name: OIDC_SERVICE_PROFILE
+              value: https://authentik.alexlebens.net/application/o/userinfo/
+            - name: OIDC_SERVICE_SCOPE
+              value: "openid profile email"
+            - name: OIDC_SERVICE_CLIENTID
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-oidc-secret
+                  key: client
+            - name: OIDC_SERVICE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-oidc-secret
+                  key: secret
+            - name: TRANSCODER_URL
+              value: http://kyoo-transcoder.kyoo:7666
+            - name: MEILI_HOST
+              value: http://kyoo-meilisearch.kyoo:7700
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-meilisearch-master-key-secret
+                  key: MEILI_MASTER_KEY
+            - name: RABBITMQ_HOST
+              value: kyoo-rabbitmq
+            - name: RABBITMQ_DEFAULT_USER
+              value: kyoo
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-rabbitmq-secret
+                  key: password
+          resources:
+            limits:
+              cpu: 5000m
+              memory: 5Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    front:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/zoriya/kyoo_front
+            tag: "4.5.0"
+            pullPolicy: IfNotPresent
+          env:
+            - name: KYOO_URL
+              value: http://kyoo-back.kyoo:5000
+            - name: KYOO_APIKEYS
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-key-secret
+                  key: kyoo
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    matcher:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/zoriya/kyoo_scanner
+            tag: "4.5.0"
+            pullPolicy: IfNotPresent
+          args:
+            - matcher
+          env:
+            - name: KYOO_URL
+              value: http://kyoo-back.kyoo:5000
+            - name: KYOO_APIKEYS
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-key-secret
+                  key: kyoo
+            - name: THEMOVIEDB_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-key-secret
+                  key: tmdb
+            - name: LIBRARY_LANGUAGES
+              value: en
+            - name: LIBRARY_IGNORE_PATTERN
+              value: .*/[dD]ownloads?/.*
+            - name: RABBITMQ_HOST
+              value: kyoo-rabbitmq
+            - name: RABBITMQ_DEFAULT_USER
+              value: kyoo
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-rabbitmq-secret
+                  key: password
+          resources:
+            limits:
+              cpu: 5000m
+              memory: 2Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    scanner:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/zoriya/kyoo_scanner
+            tag: "4.5.0"
+            pullPolicy: IfNotPresent
+          env:
+            - name: KYOO_URL
+              value: http://kyoo-back.kyoo:5000
+            - name: KYOO_APIKEYS
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-key-secret
+                  key: kyoo
+            - name: THEMOVIEDB_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-key-secret
+                  key: tmdb
+            - name: LIBRARY_LANGUAGES
+              value: en
+            - name: LIBRARY_IGNORE_PATTERN
+              value: .*/[dD]ownloads?/.*
+            - name: RABBITMQ_HOST
+              value: kyoo-rabbitmq
+            - name: RABBITMQ_DEFAULT_USER
+              value: kyoo
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: kyoo-rabbitmq-secret
+                  key: password
+          resources:
+            limits:
+              cpu: 5000m
+              memory: 2Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    transcoder:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/zoriya/kyoo_transcoder
+            tag: "4.5.0"
+            pullPolicy: IfNotPresent
+          env:
+            - name: GOCODER_HWACCEL
+              value: qsv
+            - name: GOCODER_QSV_RENDERER
+              value: /dev/dri/renderD128
+            - name: GOCODER_PRESET
+              value: fast
+            - name: GOCODER_METADATA_ROOT
+              value: /metadata
+            - name: GOCODER_CACHE_ROOT
+              value: /cache
+          resources:
+            limits:
+              cpu: 5000m
+              memory: 4Gi
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 100m
+              memory: 512Mi
+              gpu.intel.com/i915: 1
+  serviceAccount:
+    create: true
+  service:
+    back:
+      controller: back
+      ports:
+        http:
+          port: 5000
+          targetPort: 5000
+          protocol: HTTP
+    front:
+      controller: front
+      ports:
+        http:
+          port: 8901
+          targetPort: 8901
+          protocol: HTTP
+    transcoder:
+      controller: transcoder
+      ports:
+        http:
+          port: 7666
+          targetPort: 7666
+          protocol: HTTP
+  persistence:
+    back:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 50Gi
+      retain: true
+      advancedMounts:
+        back:
+          main:
+            - path: /metadata
+              readOnly: false
+    metadata:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        transcoder:
+          main:
+            - path: /metadata
+              readOnly: false
+    cache:
+      type: emptyDir
+      advancedMounts:
+        transcoder:
+          main:
+            - path: /cache
+              readOnly: false
+    anime:
+      existingClaim: kyoo-anime-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: "/video/Anime"
+              readOnly: true
+        matcher:
+          main:
+            - path: "/video/Anime"
+              readOnly: true
+        transcoder:
+          main:
+            - path: "/video/Anime"
+              readOnly: true
+    anime-movies:
+      existingClaim: kyoo-anime-movies-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: "/video/Anime Movies"
+              readOnly: true
+        matcher:
+          main:
+            - path: "/video/Anime Movies"
+              readOnly: true
+        transcoder:
+          main:
+            - path: "/video/Anime Movies"
+              readOnly: true
+    documentaries:
+      existingClaim: kyoo-documentaries-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: /video/Documentaries
+              readOnly: true
+        matcher:
+          main:
+            - path: /video/Documentaries
+              readOnly: true
+        transcoder:
+          main:
+            - path: /video/Documentaries
+              readOnly: true
+    documentary-shows:
+      existingClaim: kyoo-documentary-shows-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: "/video/Documentary Shows"
+              readOnly: true
+        matcher:
+          main:
+            - path: "/video/Documentary Shows"
+              readOnly: true
+        transcoder:
+          main:
+            - path: "/video/Documentary Shows"
+              readOnly: true
+    movies:
+      existingClaim: kyoo-movies-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: "/video/Movies"
+              readOnly: true
+        matcher:
+          main:
+            - path: "/video/Movies"
+              readOnly: true
+        transcoder:
+          main:
+            - path: "/video/Movies"
+              readOnly: true
+    movies-4k:
+      existingClaim: kyoo-movies-4k-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: "/video/Movies 4K"
+              readOnly: true
+        matcher:
+          main:
+            - path: "/video/Movies 4K"
+              readOnly: true
+        transcoder:
+          main:
+            - path: "/video/Movies 4K"
+              readOnly: true
+    movies-classics:
+      existingClaim: kyoo-movies-classics-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: "/video/Movies Classics"
+              readOnly: true
+        matcher:
+          main:
+            - path: "/video/Movies Classics"
+              readOnly: true
+        transcoder:
+          main:
+            - path: "/video/Movies Classics"
+              readOnly: true
+    movies-foreign:
+      existingClaim: kyoo-movies-foreign-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: "/video/Movies Foreign"
+              readOnly: true
+        matcher:
+          main:
+            - path: "/video/Movies Foreign"
+              readOnly: true
+        transcoder:
+          main:
+            - path: "/video/Movies Foreign"
+              readOnly: true
+    stand-up:
+      existingClaim: kyoo-stand-up-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: "/video/Stand Up"
+              readOnly: true
+        matcher:
+          main:
+            - path: "/video/Stand Up"
+              readOnly: true
+        transcoder:
+          main:
+            - path: "/video/Stand Up"
+              readOnly: true
+    tv-shows:
+      existingClaim: kyoo-tv-shows-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: "/video/TV Shows"
+              readOnly: true
+        matcher:
+          main:
+            - path: "/video/TV Shows"
+              readOnly: true
+        transcoder:
+          main:
+            - path: "/video/TV Shows"
+              readOnly: true
+    tv-shows-4k:
+      existingClaim: kyoo-tv-shows-4k-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: "/video/TV Shows 4K"
+              readOnly: true
+        matcher:
+          main:
+            - path: "/video/TV Shows 4K"
+              readOnly: true
+        transcoder:
+          main:
+            - path: "/video/TV Shows 4K"
+              readOnly: true
+rabbitmq:
+  auth:
+    username: kyoo
+    existingPasswordSecret: kyoo-rabbitmq-secret
+    existingSecretPasswordKey: password
+    existingErlangSecret: kyoo-rabbitmq-secret
+    existingSecretErlangKey: erlang
+  extraConfiguration: |-
+    default_vhost = /
+    default_permissions.configure = .*
+    default_permissions.read = .*
+    default_permissions.write = .*
+meilisearch:
+  environment:
+    MEILI_NO_ANALYTICS: true
+    MEILI_ENV: production
+  auth:
+    existingMasterKeySecret: kyoo-meilisearch-master-key-secret
+  service:
+    type: ClusterIP
+    port: 7700
+  persistence:
+    enabled: true
+    storageClass: ceph-block
+    size: 10Gi
+  resources:
+    limits:
+      cpu: 200m
+      memory: 2Gi
+    requests:
+      cpu: 10m
+      memory: 128Mi
+  serviceMonitor:
+    enabled: true
+postgres-16-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/kyoo
+    endpointCredentials: kyoo-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d

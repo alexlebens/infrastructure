@@ -1,0 +1,37 @@
+services:
+    technitium:
+        container_name: technitium
+        env_file:
+            - .env
+        image: technitium/dns-server:latest
+        labels:
+            traefik.docker.network: traefik
+            traefik.enable: true
+            traefik.http.routers.technitium.entrypoints: websecure
+            traefik.http.routers.technitium.rule: Host(`technitium-ps08rp.alexlebens.net`)
+            traefik.http.routers.technitium.service: technitium
+            traefik.http.services.technitium.loadbalancer.server.port: 5380
+        networks:
+            traefik: null
+        ports:
+            - 53:53/udp
+            - 53:53/tcp
+            - 67:67/udp
+        restart: always
+        sysctls:
+            - net.ipv4.ip_local_port_range=1024 65000
+        volumes:
+            - config:/etc/dns
+
+networks:
+    traefik:
+        name: traefik
+        external: true
+
+volumes:
+    config:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: /opt/technitium/config

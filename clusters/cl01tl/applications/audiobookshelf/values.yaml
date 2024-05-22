@@ -1,0 +1,48 @@
+audiobookshelf:
+  image:
+    repository: ghcr.io/advplyr/audiobookshelf
+    tag: 2.9.0
+  env:
+    TZ: US/Central
+  ingress:
+    main:
+      enabled: true
+      ingressClassName: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: audiobookshelf.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: audiobookshelf-secret-tls
+          hosts:
+            - audiobookshelf.alexlebens.net
+  persistence:
+    config:
+      enabled: true
+      mountPath: /config
+      accessMode: ReadWriteOnce
+      size: 2Gi
+    metadata:
+      enabled: true
+      mountPath: /metadata
+      accessMode: ReadWriteOnce
+      size: 10Gi
+    backup:
+      enabled: true
+      mountPath: /metadata/backups
+      type: pvc
+      existingClaim: audiobookshelf-nfs-storage-backup
+    audiobooks:
+      enabled: true
+      mountPath: /mnt/store/
+      type: pvc
+      existingClaim: audiobookshelf-nfs-storage
+storage:
+  nfs:
+    path: /volume2/Storage
+    server: synologybond.alexlebens.net

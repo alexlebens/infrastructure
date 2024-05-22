@@ -1,0 +1,78 @@
+plex:
+  image:
+    repository: ghcr.io/onedr0p/plex
+    tag: 1.40.2.8395-c67dce28e
+  env:
+    ADVERTISE_IP: "https://plex.alexlebens.net:443/"
+    ALLOWED_NETWORKS: "10.0.0.0/8,192.168.1.0/24"
+  service:
+    main:
+      primary: true
+      type: LoadBalancer
+      annotations:
+        metallb.universe.tf/allow-shared-ip: "external"
+      externalIPs:
+        - 192.168.1.17
+        - 192.168.1.16
+        - 192.168.1.15
+      ports:
+        http:
+          port: 32400
+  ingress:
+    main:
+      enabled: true
+      ingressClassName: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: plex.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: plex-secret-tls
+          hosts:
+            - plex.alexlebens.net
+  hostNetwork: false
+  persistence:
+    config:
+      enabled: true
+      existingClaim: plex-config
+    transcode:
+      enabled: true
+      type: emptyDir
+    media:
+      enabled: true
+      mountPath: /mnt/store
+      type: pvc
+      existingClaim: plex-nfs-storage
+  podSecurityContext:
+    runAsUser: 568
+    runAsGroup: 568
+    fsGroup: 568
+    fsGroupChangePolicy: "OnRootMismatch"
+    supplementalGroups:
+      - 44
+      - 100
+      - 109
+      - 65539
+  resources:
+    requests:
+      gpu.intel.com/i915: 1
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      gpu.intel.com/i915: 1
+      cpu: 4000m
+      memory: 4096Mi
+storage:
+  config:
+    storageClassName: ceph-block
+    storageSize: 80Gi
+    volumeMode: Filesystem
+  media:
+    nfs:
+      path: /volume2/Storage
+      server: synologybond.alexlebens.net

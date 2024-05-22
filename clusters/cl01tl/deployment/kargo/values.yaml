@@ -1,0 +1,120 @@
+kargo:
+  api:
+    host: kargo.alexlebens.net
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    tls:
+      enabled: false
+    ingress:
+      enabled: true
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      ingressClassName: traefik
+      tls:
+        enabled: true
+        selfSignedCert: false
+    adminAccount:
+      enabled: false
+    oidc:
+      enabled: true
+      admins:
+        groups: ["ArgoCD Admins"]
+      dex:
+        enabled: true
+        image:
+          repository: ghcr.io/dexidp/dex
+          tag: v2.39.1
+        env:
+          - name: CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: kargo-oidc-secret
+                key: CLIENT_ID
+          - name: CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: kargo-oidc-secret
+                key: CLIENT_SECRET            
+        tls:
+          selfSignedCert: false
+        skipApprovalScreen: true
+        connectors:
+          - type: oidc
+            id: authentik
+            name: Authentik
+            config:
+              issuer: https://authentik.alexlebens.net/application/o/kargo/
+              clientID: "$CLIENT_ID"
+              clientSecret: "$CLIENT_SECRET"
+              redirectURI: https://kargo.alexlebens.net/dex/callback
+              insecureEnableGroups: true
+              scopes:
+                - openid
+                - profile
+                - email
+                - groups
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+    argocd:
+      urls:
+        "": https://argocd.alexlebens.net
+    rollouts:
+      integrationEnabled: true
+  controller:
+    enabled: true
+    gitClient:
+      name: "Kargo cl01tl"
+      email: "alexanderlebens@gmail.com"
+    argocd:
+      integrationEnabled: true
+    rollouts:
+      integrationEnabled: true
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  managementController:
+    enabled: true
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  webhooks:
+    register: true
+  webhooksServer:
+    tls:
+      selfSignedCert: true
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  garbageCollector:
+    schedule: "0 * * * *"
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi

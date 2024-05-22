@@ -1,0 +1,55 @@
+{{- range $index, $stack := .Values.applicationSet }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: {{ $stack.name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $stack.name }}
+    app.kubernetes.io/instance: {{ $stack.name }}
+    app.kubernetes.io/version: {{ $.Chart.AppVersion }}
+    app.kubernetes.io/component: {{ $stack.name }}
+    app.kubernetes.io/part-of: {{ $.Release.Name }}
+spec:
+  syncPolicy:
+    applicationsSync: create-only
+    preserveResourcesOnDeletion: true
+  generators:
+    - git:
+        repoURL: {{ $.Values.git.repo }}
+        revision: {{ $.Values.git.revision }}
+        directories:
+          - path: "{{ $.Values.git.path }}/{{ $stack.name }}/*"
+  template:
+    metadata:
+      name: '{{ `{{path.basename}}` }}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      destination:
+        name: in-cluster
+        namespace: '{{ $stack.namespace | default `{{path.basename}}` }}'
+      project: default
+      revisionHistoryLimit: 3
+      source:
+        repoURL: {{ $.Values.git.repo }}
+        targetRevision: {{ $.Values.git.revision }}
+        path: '{{ `{{path}}` }}'
+      ignoreDifferences:
+        {{- toYaml $stack.ignoreDifferences | nindent 8 }}          
+      syncPolicy:
+        {{- if $stack.syncPolicy.automated.enabled }}
+        automated:
+          prune: {{ $stack.syncPolicy.automated.prune | default false }}
+          selfHeal: {{ $stack.syncPolicy.automated.selfHeal | default false }}
+        {{- end }}
+        retry:
+          limit: 3
+          backoff:
+            duration: 1m
+            factor: 2
+            maxDuration: 15m
+        syncOptions:
+          {{- toYaml $stack.syncPolicy.syncOptions | nindent 10 }}
+{{- end }}

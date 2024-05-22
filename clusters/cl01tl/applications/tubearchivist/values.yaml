@@ -1,0 +1,46 @@
+tubearchivist:
+  deployment:
+    env:
+      TZ: US/Central
+    envFrom:
+      - secretRef:
+          name: tubearchivist-config-secret
+    resources:
+      limits:
+        memory: 2Gi
+        cpu: 1000m
+  ingress:
+    enabled: true
+    className: traefik
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+      cert-manager.io/cluster-issuer: letsencrypt-issuer
+    host: tubearchivist.alexlebens.net
+  persistence:
+    cache:
+      enabled: true
+      storageClassName: ceph-block
+      storageSize: 80Gi
+    youtube:
+      claimName: tubearchivist-nfs-storage
+  elasticsearch:
+    global:
+      storageClass: ceph-block
+    extraEnvVarsSecret: tubearchivist-elasticsearch-secret
+    extraConfig:
+      path:
+        repo: /usr/share/elasticsearch/data/snapshot
+    extraVolumes:
+      - name: snapshot
+        nfs:
+          path: /volume2/Storage/TubeArchivist
+          server: synologybond.alexlebens.net
+    extraVolumeMounts:
+      - name: snapshot
+        mountPath: /usr/share/elasticsearch/data/snapshot
+    snapshotRepoPath: /usr/share/elasticsearch/data/snapshot
+storage:
+  youtube:
+    nfsPath: /volume2/Storage/YouTube
+    nfsServer: synologybond.alexlebens.net

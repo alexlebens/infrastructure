@@ -1,0 +1,113 @@
+################################################################
+# Global
+################################################################
+
+global:
+  checkNewVersion: true
+  sendAnonymousUsage: false
+
+################################################################
+# EntryPoints
+################################################################
+
+entryPoints:
+  web:
+    address: :80
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+
+  websecure:
+    address: :443
+    forwardedHeaders:
+      trustedIPs:
+        - "192.168.1.1/16"
+    proxyProtocol:
+      trustedIPs:
+        - "192.168.1.1/16"
+    http:
+      tls:
+        options: default
+        certResolver: cloudflare
+        domains:
+          - main: "*.alexlebens.net"
+            sans:
+              - "alexlebens.net"
+      middlewares:
+        - ip-local@file
+
+################################################################
+# Certificate Resolvers
+################################################################
+
+certificatesResolvers:
+  cloudflare:
+    acme:
+      email: alexanderlebens@gmail.com
+      storage: /etc/traefik/acme/acme.json
+      preferredChain: "ISRG Root X1"
+      dnsChallenge:
+        provider: cloudflare
+        delayBeforeCheck: "3"
+        resolvers:
+          - "1.1.1.1"
+          - "1.0.0.1"
+
+################################################################
+# Traefik logs
+################################################################
+
+log:
+  level: INFO
+
+################################################################
+# Access logs
+################################################################
+
+accessLog: {}
+
+################################################################
+# API and Dashboard
+################################################################
+
+api:
+  insecure: false
+  dashboard: true
+
+################################################################
+# Ping
+################################################################
+
+# ping:
+
+################################################################
+# Metrics
+################################################################
+
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+    buckets:
+      - 0.1
+      - 0.3
+      - 1.2
+      - 5.0
+    entryPoint: websecure
+    manualRouting: true
+
+################################################################
+# Providers
+################################################################
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+
+  file:
+    directory: "/etc/traefik/conf"
+    watch: true
