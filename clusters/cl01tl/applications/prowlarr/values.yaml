@@ -1,0 +1,38 @@
+prowlarr:
+  image:
+    repository: ghcr.io/onedr0p/prowlarr
+    tag: "1.17.2.4511"
+  env:
+    TZ: US/Central
+  ingress:
+    main:
+      enabled: true
+      ingressClassName: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: prowlarr.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: prowlarr-secret-tls
+          hosts:
+            - prowlarr.alexlebens.net
+  persistence:
+    config:
+      enabled: true
+      storageClass: ceph-block
+      size: 1Gi
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 2000
+    fsGroupChangePolicy: "OnRootMismatch"
+    supplementalGroups:
+      - 44
+      - 100
+      - 109
+      - 65539

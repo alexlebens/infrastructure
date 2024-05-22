@@ -1,0 +1,67 @@
+app-template:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: lscr.io/linuxserver/lazylibrarian
+            tag: version-b3a081ec
+            pullPolicy: IfNotPresent
+          env:
+            PUID: 1001
+            PGID: 1001
+            TZ: US/Central
+            DOCKER_MODS: linuxserver/mods:lazylibrarian-ffmpeg|linuxserver/mods:universal-calibre
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 10m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 5299
+          protocol: HTTP
+  ingress:
+    main:
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      className: traefik
+      hosts:
+        - host: lazylibrarian.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: lazy-librarian
+                port: 5299
+      tls:
+        - secretName: lazy-librarian-secret-tls
+          hosts:
+            - lazylibrarian.alexlebens.net
+  persistence:
+    config:
+      enabled: true
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      globalMounts:
+        - path: /config
+    storage:
+      enabled: true
+      existingClaim: lazy-librarian-nfs-storage
+      globalMounts:
+        - path: /mnt/store

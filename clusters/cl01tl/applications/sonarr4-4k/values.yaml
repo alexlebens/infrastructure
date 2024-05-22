@@ -1,0 +1,110 @@
+sonarr:
+  image:
+    repository: ghcr.io/onedr0p/sonarr
+    tag: "4.0.4.1491"
+  env:
+    TZ: US/Central
+    SONARR__POSTGRES_MAIN_DB: sonarr-main
+    SONARR__POSTGRES_LOG_DB: sonarr-log
+    SONARR__POSTGRES_HOST:
+      valueFrom:
+        secretKeyRef:
+          name: sonarr4-4k-postgresql-16-cluster-app
+          key: host
+    SONARR__POSTGRES_PORT:
+      valueFrom:
+        secretKeyRef:
+          name: sonarr4-4k-postgresql-16-cluster-app
+          key: port
+    SONARR__POSTGRES_USER:
+      valueFrom:
+        secretKeyRef:
+          name: sonarr4-4k-postgresql-16-cluster-app
+          key: user
+    SONARR__POSTGRES_PASSWORD:
+      valueFrom:
+        secretKeyRef:
+          name: sonarr4-4k-postgresql-16-cluster-app
+          key: password
+  ingress:
+    main:
+      enabled: true
+      ingressClassName: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: sonarr-4k.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: sonarr4-4k-secret-tls
+          hosts:
+            - sonarr-4k.alexlebens.net
+  persistence:
+    config:
+      enabled: true
+      mountPath: /config
+      accessMode: ReadWriteOnce
+      size: 20Gi
+    media:
+      enabled: true
+      mountPath: /mnt/store
+      type: pvc
+      existingClaim: sonarr4-4k-nfs-storage
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 2000
+    fsGroupChangePolicy: "OnRootMismatch"
+    supplementalGroups:
+      - 44
+      - 100
+      - 109
+      - 65539
+  metrics:
+    enabled: true
+    prometheusRule:
+      enabled: true
+      rules:
+        - alert: SonarrDown
+          annotations:
+            description: Sonarr 4k service is down.
+            summary: Sonarr 4k is down.
+          expr: |
+            sonarr_system_status == 0
+          for: 5m
+          labels:
+            severity: critical
+    exporter:
+      image:
+        repository: ghcr.io/onedr0p/exportarr
+        tag: v2.0.1
+persistence:
+  media:
+    nfsPath: /volume2/Storage
+    nfsServer: synologybond.alexlebens.net
+postgres-16-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+    initdb:
+      database: app
+      owner: app
+      postInitApplicationSQL:
+        - CREATE DATABASE "sonarr-main" OWNER "app";
+        - CREATE DATABASE "sonarr-log" OWNER "app";
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/sonarr4-4k
+    endpointCredentials: sonarr4-4k-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d

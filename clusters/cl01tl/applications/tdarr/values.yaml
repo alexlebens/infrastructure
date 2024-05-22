@@ -1,0 +1,54 @@
+tdarr:
+  global:
+    persistence:
+      media:
+        claimName: tdarr-nfs-storage
+        mountPath: /mnt/store
+  server:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: 5000m
+        memory: 2Gi
+    ingress:
+      enabled: true
+      className: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      host: tdarr.alexlebens.net
+    persistence:
+      config:
+        storageClassName: ceph-block
+        storageSize: 50Gi
+      server:
+        storageClassName: ceph-block
+        storageSize: 50Gi
+  node:
+    replicas: 3
+    resources:
+      requests:
+        gpu.intel.com/i915: 1
+        cpu: 100m
+        memory: 1Gi
+      limits:
+        gpu.intel.com/i915: 1
+        cpu: 5000m
+        memory: 5Gi
+    persistence:
+      cache:
+        size: 5Gi
+  tdarr-exporter:
+    metrics:
+      serviceMonitor:
+        enabled: true
+    settings:
+      config:
+        url: https://tdarr.alexlebens.net
+persistence:
+  media:
+    nfsPath: /volume2/Storage
+    nfsServer: synologybond.alexlebens.net

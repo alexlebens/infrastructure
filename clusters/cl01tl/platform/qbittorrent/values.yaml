@@ -1,0 +1,64 @@
+qbittorrent:
+  global:
+    persistence:
+      media:
+        claimName: qbittorrent-nfs-storage
+        mountPath: /mnt/store
+  server:
+    env:
+      - name: TZ
+        value: US/Central
+      - name: PUID
+        value: "1000"
+      - name: PGID
+        value: "1000"        
+    resources:
+      requests:
+        cpu: 100m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+    ingress:
+      enabled: true
+      className: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      host: qbittorrent.alexlebens.net
+    persistence:
+      config:
+        storageClassName: nfs-client
+        storageSize: 1Gi
+  gluetun:
+    enabled: true
+    env:
+      - name: VPN_SERVICE_PROVIDER
+        value: custom
+      - name: VPN_TYPE
+        value: wireguard
+      - name: FIREWALL_OUTBOUND_SUBNETS
+        value: 192.168.1.0/24,10.244.0.0/16
+      - name: FIREWALL_INPUT_PORTS
+        value: 8080,9022
+      - name: DOT
+        value: "off"
+    existingSecretName: qbittorrent-wireguard-conf
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+    exporter:
+      env:
+        - name: QBITTORRENT_USER
+          value: admin
+        - name: QBITTORRENT_PASS
+          valueFrom:
+            secretKeyRef:
+              name: qbittorrent-auth
+              key: admin-password
+persistence:
+  media:
+    nfsPath: /volume2/Storage
+    nfsServer: synologybond.alexlebens.net
