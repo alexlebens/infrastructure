@@ -1,9 +1,36 @@
-overseerr:
-  image:
-    repository: ghcr.io/sct/overseerr
-    tag: 1.33.2
-  env:
-    TZ: US/Central
+app-template:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/sct/overseerr
+            tag: 1.33.2
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+          resources:
+            limits:
+              cpu: 100m
+              memory: 512Mi
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 5055
+          targetPort: 5055
+          protocol: HTTP
   ingress:
     main:
       enabled: true
@@ -22,8 +49,13 @@ overseerr:
           hosts:
             - overseerr.alexlebens.net
   persistence:
-    config:
-      enabled: true
-      mountPath: /config
+    main:
+      storageClass: ceph-block
       accessMode: ReadWriteOnce
-      size: 5Gi
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /app/config
+              readOnly: false
