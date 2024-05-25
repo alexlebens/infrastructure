@@ -28,58 +28,64 @@ ghost:
     user: ghost
     database: ghost
     existingSecret: ghost-mysql-credentials-secret
-mysql-innodbcluster:
-  tls:
-    useSelfSigned: true
-  serverInstances: 3
-  routerInstances: 1
-  baseServerId: 1000
-  logs:
-    error:
-      enabled: true
-      collect: false
-    general:
-      enabled: true
-      collect: false
-    slowQuery:
-      enabled: true
-      longQueryTime: 2.5
-  datadirVolumeClaimTemplate:
-    accessModes:
-      - ReadWriteOnce
-    resources:
-      requests:
-        storage: 10Gi
-  backupProfiles:
-    - name: dump-instance-profile
-      dumpInstance:
-        storage:
-          s3:
-            prefix: ghost/instance
-            config: ghost-mysql-backup-credentials-secret
-            bucketName: cl01tl-mysql-backups
-            endpoint: https://s3.us-east-2.amazonaws.com
-    - name: snapshot-profile
-      snapshot:
-        storage:
-          s3:
-            prefix: ghost/snapshot
-            config: ghost-mysql-backup-credentials-secret
-            bucketName: cl01tl-mysql-backups
-            endpoint: https://s3.us-east-2.amazonaws.com
-  backupSchedules:
-    - name: dump-instance-schedule
-      schedule: "0 0 * * SAT"
-      timeZone: US/Central
-      deleteBackupData: false
-      backupProfileName: dump-instance-profile
-      enabled: true
-    - name: snapshot-schedule
-      schedule: "0 0 * * *"
-      timeZone: US/Central
-      deleteBackupData: false
-      backupProfileName: snapshot-profile
-      enabled: true
+mysql-8-cluster:
+  mode: standalone
+  cluster:
+    serverInstances: 3
+    baseServerId: 1000
+    exisitingCredentialsSecret: ghost-mysql-credentials-secret
+    logs:
+      error:
+        enabled: true
+      general:
+        enabled: true
+      slowQuery:
+        enabled: true
+        longQueryTime: 2.5
+    datadirVolumeClaimTemplate:
+      storageClassName: ceph-block
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+    podSpec:
+      containers:
+        - name: mysql
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 100m
+  backup:
+    enabled: true
+    profiles:
+      - name: dump-instance-profile
+        dumpInstance:
+          storage:
+            s3:
+              prefix: ghost/instance
+              config: ghost-mysql-backup-credentials-secret
+              bucketName: cl01tl-mysql-backups
+              endpoint: https://s3.us-east-2.amazonaws.com
+      - name: snapshot-profile
+        snapshot:
+          storage:
+            s3:
+              prefix: ghost/snapshot
+              config: ghost-mysql-backup-credentials-secret
+              bucketName: cl01tl-mysql-backups
+              endpoint: https://s3.us-east-2.amazonaws.com
+    schedules:
+      - name: dump-instance-schedule
+        schedule: "0 0 * * SAT"
+        timeZone: US/Central
+        deleteBackupData: false
+        backupProfileName: dump-instance-profile
+        enabled: true
+      - name: snapshot-schedule
+        schedule: "0 0 * * *"
+        timeZone: US/Central
+        deleteBackupData: false
+        backupProfileName: snapshot-profile
+        enabled: true
 cloudflared:
   global:
     nameOverride: cloudflared
