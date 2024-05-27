@@ -1,28 +1,65 @@
 freshrss:
-  deployment:
-    env:
-      TZ: US/Central
-      CRON_MIN: 13,43
-      OIDC_ENABLED: 1
-      OIDC_PROVIDER_METADATA_URL: https://authentik.alexlebens.net/application/o/freshrss/.well-known/openid-configuration
-      OIDC_X_FORWARDED_HEADERS: X-Forwarded-Port X-Forwarded-Proto X-Forwarded-Host
-      OIDC_SCOPES: openid email profile
-      OIDC_REMOTE_USER_CLAIM: preferred_username
-    envFrom:
-      - secretRef:
-          name: freshrss-oidc-secret
-  ingress:
-    enabled: true
-    className: traefik
-    annotations:
-      traefik.ingress.kubernetes.io/router.entrypoints: websecure
-      traefik.ingress.kubernetes.io/router.tls: "true"
-      cert-manager.io/cluster-issuer: letsencrypt-issuer
-    host: rss.alexlebens.net
+  controllers:
+    autosync:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: freshrss/freshrss
+            tag: 1.23.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: PGID
+              value: "568"
+            - name: PUID
+              value: "568"
+            - name: TZ
+              value: US/Central
+            - name: FRESHRSS_ENV
+              value: production
+            - name: CRON_MIN
+              value: 13,43
+            - name: OIDC_ENABLED
+              value: 1
+            - name: OIDC_PROVIDER_METADATA_URL
+              value: https://authentik.alexlebens.net/application/o/freshrss/.well-known/openid-configuration
+            - name: OIDC_X_FORWARDED_HEADERS
+              value: X-Forwarded-Port X-Forwarded-Proto X-Forwarded-Host
+            - name: OIDC_SCOPES
+              value: openid email profile
+            - name: OIDC_REMOTE_USER_CLAIM
+              value: preferred_username
+          envFrom:
+            - secretRef:
+                name: freshrss-oidc-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    back:
+      controller: back
+      ports:
+        http:
+          port: 80
+          targetPort: 80
+          protocol: HTTP
   persistence:
-    config:
-      storageClassName: ceph-block
-      storageSize: 5Gi
+    back:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        back:
+          main:
+            - path: /config
+              readOnly: false
 postgres-16-cluster:
   mode: standalone
   kubernetesClusterName: cl01tl
