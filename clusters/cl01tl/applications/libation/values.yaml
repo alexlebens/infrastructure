@@ -1,14 +1,47 @@
 libation:
-  libation:
-    job:
-      schedule: "0 * * * *"
+  controllers:
+    main:
+      type: cronjob
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Forbid
+        timeZone: US/Central
+        schedule: "0 * * * *"
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 3
+        failedJobsHistory: 3
+        backoffLimit: 3
+        parallelism: 1
+      containers:
+        main:
+          image:
+            repository: rmcrackan/libation
+            tag: 11.3.13
+            pullPolicy: IfNotPresent
+          env:
+            - name: SLEEP_TIME
+              value: "-1"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
   persistence:
     config:
-      storageClassName: nfs-client
-    books:
-      claimName: libation-nfs-storage
-storage:
-  storage:
-    nfs:
-      path: /volume2/Storage/Audiobooks/
-      server: synologybond.alexlebens.net
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    data:
+      existingClaim: libation-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
