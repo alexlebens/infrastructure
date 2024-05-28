@@ -1,54 +1,172 @@
 tdarr:
-  global:
-    persistence:
-      media:
-        claimName: tdarr-nfs-storage
-        mountPath: /mnt/store
-  server:
-    resources:
-      requests:
-        cpu: 50m
-        memory: 256Mi
-      limits:
-        cpu: 5000m
-        memory: 2Gi
-    ingress:
-      enabled: true
+  controllers:
+    server:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/haveagitgat/tdarr
+            tag: "2.19.01"
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: "1001"
+            - name: PGID
+              value: "1001"
+            - name: UMASK_SET
+              value: "002"
+            - name: ffmpegVersion
+              value: "6"
+            - name: internalNode
+              value: "false"
+            - name: inContainer
+              value: "true"
+            - name: nodeName
+              value: tdarr-server
+            - name: serverIP
+              value: 0.0.0.0
+            - name: serverPort
+              value: "8266"
+            - name: webUIPort
+              value: "8265"              
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    node:
+      type: deployment
+      replicas: 3
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/haveagitgat/tdarr_node
+            tag: "2.19.01"
+            pullPolicy: IfNotPresent
+          env:
+             - name: TZ
+              value: US/Central
+            - name: PUID
+              value: "1001"
+            - name: PGID
+              value: "1001"
+            - name: UMASK_SET
+              value: "002"
+            - name: ffmpegVersion
+              value: "6"
+            - name: inContainer
+              value: "true"
+            - name: nodeName
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: serverIP
+              value: tdarr-server-api
+            - name: serverPort
+              value: "8266"              
+          resources:
+            limits:
+              cpu: 8000m
+            requests:
+              gpu.intel.com/i915: 1
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    api:
+      controller: server
+      ports:
+        http:
+          port: 8266
+          targetPort: 8266
+          protocol: HTTP
+    web:
+      controller: server
+      ports:
+        http:
+          port: 8265
+          targetPort: 8265
+          protocol: HTTP
+  ingress:
+    main:
       className: traefik
       annotations:
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
         traefik.ingress.kubernetes.io/router.tls: "true"
         cert-manager.io/cluster-issuer: letsencrypt-issuer
-      host: tdarr.alexlebens.net
-    persistence:
-      config:
-        storageClassName: ceph-block
-        storageSize: 50Gi
-      server:
-        storageClassName: ceph-block
-        storageSize: 50Gi
-  node:
-    replicas: 3
-    resources:
-      requests:
-        gpu.intel.com/i915: 1
-        cpu: 100m
-        memory: 1Gi
-      limits:
-        gpu.intel.com/i915: 1
-        cpu: 5000m
-        memory: 5Gi
-    persistence:
-      cache:
-        size: 5Gi
-  tdarr-exporter:
-    metrics:
-      serviceMonitor:
-        enabled: true
-    settings:
-      config:
-        url: https://tdarr.alexlebens.net
-persistence:
-  media:
-    nfsPath: /volume2/Storage
-    nfsServer: synologybond.alexlebens.net
+      hosts:
+        - host: tdarr.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: tdarr-web
+                port: 8265
+      tls:
+        - secretName: tdarr-secret-tls
+          hosts:
+            - tdarr.alexlebens.net
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 50Gi
+      retain: true
+      advancedMounts:
+        server:
+          main:
+            - path: /app/configs
+              readOnly: false
+    server:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 50Gi
+      retain: true
+      advancedMounts:
+        server:
+          main:
+            - path: /app/server
+              readOnly: false
+    server-cache:
+      type: emptyDir
+      advancedMounts:
+        server:
+          main:
+            - path: /tcache
+              readOnly: false     
+    node-cache:
+      type: emptyDir
+      advancedMounts:              
+        node:
+          main:
+            - path: /tcache
+              readOnly: false                                                  
+    media:
+      existingClaim: tdarr-nfs-storage
+      advancedMounts:
+        server:
+          main:
+            - path: /mnt/store
+              readOnly: true
+        node:
+          main:
+            - path: /mnt/store
+              readOnly: true
+tdarr-exporter:
+  metrics:
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 30s
+  settings:
+    config:
+      url: https://tdarr.alexlebens.net
+      verify_ssl: false
+      log_level: "info"
