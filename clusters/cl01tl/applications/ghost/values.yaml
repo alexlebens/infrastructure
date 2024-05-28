@@ -28,6 +28,8 @@ ghost:
     user: ghost
     database: ghost
     existingSecret: ghost-mysql-credentials-secret
+cloudflared:
+  existingSecretName: ghost-cloudflared-secret    
 mysql-8-cluster:
   mode: standalone
   cluster:
@@ -85,32 +87,3 @@ mysql-8-cluster:
         deleteBackupData: false
         backupProfileName: snapshot-profile
         enabled: true
-cloudflared:
-  global:
-    nameOverride: cloudflared
-  controllers:
-    main:
-      type: deployment
-      strategy: Recreate
-      containers:
-        main:
-          image:
-            repository: cloudflare/cloudflared
-            tag: "2024.5.0"
-            pullPolicy: IfNotPresent
-          args:
-            - tunnel
-            - --no-autoupdate
-            - run
-            - --token
-            - $(CF_MANAGED_TUNNEL_TOKEN)
-          env:
-            - name: CF_MANAGED_TUNNEL_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: ghost-cloudflared-secret
-                  key: cf-tunnel-token
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
