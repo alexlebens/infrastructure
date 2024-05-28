@@ -1,20 +1,67 @@
 calibre-server:
-  deployment:
-    env:
-      TZ: US/Central
-  ingressRoute:
-    enabled: true
-    http:
-      host: calibre-server.alexlebens.net
-    authentik:
-      outpost: authentik-outpost-proxy
-      namespace: authentik
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: linuxserver/calibre
+            tag: v7.5.1-ls269
+            pullPolicy: IfNotPresent
+          env:
+            - name: PGID
+              value: "1001"
+            - name: PUID
+              value: "1001"
+            - name: TZ
+              value: US/Central
+            - name: UMASK_SET
+              value: "022"
+            - name: CUSTOM_USER
+              value: calibre
+            - name: TITLE
+              value: Calibre Server
+            - name: NO_DECOR
+              value: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    web:
+      controller: main
+      ports:
+        http:
+          port: 8080
+          targetPort: 8080
+          protocol: HTTP
+    content:
+      controller: main
+      ports:
+        http:
+          port: 8081
+          targetPort: 8081
+          protocol: HTTP
   persistence:
     config:
-      storageClassName: ceph-block
-      storageSize: 5Gi
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
     books:
-      claimName: calibre-server-nfs-storage
-      nfs:
-        path: /volume2/Storage/Calibre
-        server: synologybond.alexlebens.net
+      existingClaim: calibre-server-nfs-storage
+      advancedMounts:
+        scanner:
+          main:
+            - path: /books
+              readOnly: true
