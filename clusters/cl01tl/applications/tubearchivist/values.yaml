@@ -1,46 +1,112 @@
 tubearchivist:
-  deployment:
-    env:
-      TZ: US/Central
-    envFrom:
-      - secretRef:
-          name: tubearchivist-config-secret
-    resources:
-      limits:
-        memory: 2Gi
-        cpu: 1000m
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: bbilly1/tubearchivist
+            tag: v0.4.8
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+          envFrom:
+            - secretRef:
+                name: tubearchivist-config-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 8000
+          targetPort: 8000
+          protocol: HTTP
   ingress:
-    enabled: true
-    className: traefik
-    annotations:
-      traefik.ingress.kubernetes.io/router.entrypoints: websecure
-      traefik.ingress.kubernetes.io/router.tls: "true"
-      cert-manager.io/cluster-issuer: letsencrypt-issuer
-    host: tubearchivist.alexlebens.net
+    main:
+      className: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: tubearchivist.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: main
+                port: 8000
+      tls:
+        - secretName: tubearchivist-secret-tls
+          hosts:
+            - tubearchivist.alexlebens.net
   persistence:
     cache:
-      enabled: true
-      storageClassName: ceph-block
-      storageSize: 80Gi
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /cache
+              readOnly: false
     youtube:
-      claimName: tubearchivist-nfs-storage
-  elasticsearch:
-    global:
-      storageClass: ceph-block
-    extraEnvVarsSecret: tubearchivist-elasticsearch-secret
-    extraConfig:
-      path:
-        repo: /usr/share/elasticsearch/data/snapshot
-    extraVolumes:
-      - name: snapshot
-        nfs:
-          path: /volume2/Storage/TubeArchivist
-          server: synologybond.alexlebens.net
-    extraVolumeMounts:
-      - name: snapshot
-        mountPath: /usr/share/elasticsearch/data/snapshot
-    snapshotRepoPath: /usr/share/elasticsearch/data/snapshot
-storage:
-  youtube:
-    nfsPath: /volume2/Storage/YouTube
-    nfsServer: synologybond.alexlebens.net
+      existingClaim: tubearchivist-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /youtube
+              readOnly: false
+redis:
+  image:
+    repository: redis/redis-stack-server
+    tag: 7.2.0-v10
+  architecture: standalone
+  auth:
+    enabled: false
+  commonConfiguration: |-
+    # Enable AOF https://redis.io/topics/persistence#append-only-file
+    appendonly yes
+    # Disable RDB persistence, AOF persistence already enabled.
+    save ""
+    # Enable Redis Json module
+    loadmodule /opt/redis-stack/lib/rejson.so
+elasticsearch:
+  global:
+    storageClass: ceph-block
+  extraEnvVars:
+    - name: discovery.type
+      value: single-node
+    - name: xpack.security.enabled
+      value: true
+  extraEnvVarsSecret: tubearchivist-elasticsearch-secret
+  extraConfig:
+    path:
+      repo: /usr/share/elasticsearch/data/snapshot
+  extraVolumes:
+    - name: snapshot
+      nfs:
+        path: /volume2/Storage/TubeArchivist
+        server: synologybond.alexlebens.net
+  extraVolumeMounts:
+    - name: snapshot
+      mountPath: /usr/share/elasticsearch/data/snapshot
+  snapshotRepoPath: /usr/share/elasticsearch/data/snapshot
+  master:
+    masterOnly: false
+    replicaCount: 1
+  data:
+    replicaCount: 0
+  coordinating:
+    replicaCount: 0
+  ingest:
+    enabled: false
+    replicaCount: 0
