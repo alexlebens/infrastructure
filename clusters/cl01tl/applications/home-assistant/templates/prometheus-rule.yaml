@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: home-assistant
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: home-assistant
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/component: metrics
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+spec:
+  groups:
+    - name: home-assistant
+      rules:
+        - alert: HomeAssistantAbsent
+          annotations:
+            description: Home Assistant has disappeared from Prometheus service discovery.
+            summary: Home Assistant is down.
+          expr: |
+            absent(up{job=~".*home-assistant.*"} == 1)
+          for: 5m
+          labels:
+            severity: critical

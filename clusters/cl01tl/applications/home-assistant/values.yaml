@@ -1,46 +1,79 @@
 home-assistant:
-  deployment:
-    env:
-      TZ: US/Central
-  ingressRoute:
-    enabled: true
-    host: homeassistant.alexlebens.net
-    authentik:
-      outpost: authentik-outpost-proxy
-      namespace: authentik
-  metrics:
-    enabled: true
-    serviceMonitor:
-      bearerTokenSecret:
-        name: home-assistant-token-secret
-        key: bearerToken
-    prometheusRule:
-      enabled: true
-      rules:
-        - alert: HomeAssistantAbsent
-          annotations:
-            description: Home Assistant has disappeared from Prometheus service discovery.
-            summary: Home Assistant is down.
-          expr: |
-            absent(up{job=~".*home-assistant.*"} == 1)
-          for: 5m
-          labels:
-            severity: critical
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: homeassistant/home-assistant
+            tag: 2024.5.5
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    codeserver:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: linuxserver/code-server
+            tag: 4.89.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+            - name: DEFAULT_WORKSPACE
+              value: /config
+          envFrom:
+            - secretRef:
+                name: home-assistant-codeserver-password-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 8123
+          targetPort: 8123
+          protocol: HTTP
+    codeserver:
+      controller: codeserver
+      ports:
+        http:
+          port: 8443
+          targetPort: 8443
+          protocol: HTTP
   persistence:
     config:
-      storageClassName: ceph-block
-      storageSize: 1Gi
-  codeserver:
-    enabled: true
-    env:
-      TZ: US/Central
-      DEFAULT_WORKSPACE: /config
-    envFrom:
-      - secretRef:
-          name: home-assistant-codeserver-password-secret
-    ingressRoute:
-      enabled: true
-      host: homeassistant-codeserver.alexlebens.net
-      authentik:
-        outpost: authentik-outpost-proxy
-        namespace: authentik
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+        codeserver:
+          main:
+            - path: /config/home-assistant
+              readOnly: false
