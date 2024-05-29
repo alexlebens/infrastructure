@@ -1,67 +1,516 @@
 penpot:
-  ingress:
-    enabled: true
-    annotations:
-      traefik.ingress.kubernetes.io/router.entrypoints: websecure
-      traefik.ingress.kubernetes.io/router.tls: "true"
-      cert-manager.io/cluster-issuer: letsencrypt-issuer
-    hosts:
-      - host: penpot.alexlebens.net
-    tls:
-      - secretName: penpot-secret-tls
-        hosts:
-          - penpot.alexlebens.net
-  persistence:
-    enabled: true
-    storageClass: ceph-block
-    size: 8Gi
-    accessModes:
-      - ReadWriteOnce
-  config:
-    publicURI: https://penpot.alexlebens.net
-    flags: enable-registration enable-insecure-register enable-login enable-login-with-oidc disable-demo-users disable-demo-warning
-    apiSecretKey:
-      existingSecretName: penpot-key-secret
-      existingSecretKey: key
-    postgresql:
-      host: penpot-postgresql-16-cluster-rw.penpot.svc.cluster.local
-      port: 5432
-      database: app
-      existingSecret: penpot-postgresql-16-cluster-app
-      secretKeys:
-        usernameKey: username
-        passwordKey: password
-    redis:
-      host: penpot-redis-headless.penpot.svc.cluster.local
-      port: 6379
-      database: 0
-    assets:
-      storageBackend: assets-s3
-      s3:
-        region: us-east-1
-        bucket: penpot
-        endpointURI: https://minio-penpot-api.alexlebens.net/penpot
-        existingSecret: penpot-bucket-user-secret
-        secretKeys:
-          accessKeyIDKey: AWS_ACCESS_KEY_ID
-          secretAccessKey: AWS_SECRET_ACCESS_KEY
-    telemetryEnabled: false
-    providers:
-      oidc:
+  controllers:
+    frontend:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: penpotapp/frontend
+            tag: 2.0.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: PENPOT_PUBLIC_URI
+              value: https://penpot.alexlebens.net
+            - name: PENPOT_FLAGS
+              value: enable-registration enable-insecure-register enable-login enable-login-with-oidc disable-demo-users disable-demo-warning
+            - name: PENPOT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-key-secret
+                  key: key
+            - name: PENPOT_DATABASE_URI
+              value: postgresql://$(PENPOT_DATABASE_HOST):$(PENPOT_DATABASE_PORT)/$(PENPOT_DATABASE_DATABASE)
+            - name: PENPOT_DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: host
+            - name: PENPOT_DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: port
+            - name: PENPOT_DATABASE_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: database                                              
+            - name: PENPOT_DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: username
+            - name: PENPOT_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: password
+            - name: PENPOT_REDIS_URI
+              value: redis://penpot-redis-headless.penpot.svc.cluster.local:6379/0
+            - name: PENPOT_ASSETS_STORAGE_BACKEND
+              value: assets-s3
+            - name: PENPOT_STORAGE_ASSETS_S3_REGION
+              value: us-east-1
+            - name: PENPOT_STORAGE_ASSETS_S3_BUCKET
+              value: penpot
+            - name: PENPOT_STORAGE_ASSETS_S3_ENDPOINT
+              value: https://minio-penpot-api.alexlebens.net/penpot
+            - name: PENPOT_TELEMETRY_ENABLED
+              value: false
+            - name: PENPOT_OIDC_BASE_URI
+              value: https://authentik.alexlebens.net/application/o/
+            - name: PENPOT_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-oidc-secret
+                  key: client
+            - name: PENPOT_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-oidc-secret
+                  key: secret
+            - name: PENPOT_OIDC_AUTH_URI
+              value: https://authentik.alexlebens.net/application/o/authorize/
+            - name: PENPOT_OIDC_TOKEN_URI
+              value: https://authentik.alexlebens.net/application/o/token/
+            - name: PENPOT_OIDC_USER_URI
+              value: https://authentik.alexlebens.net/application/o/userinfo/
+            - name: PENPOT_OIDC_SCOPES
+              value: "openid profile email"
+            - name: PENPOT_OIDC_NAME_ATTR
+              value: preferred_username
+            - name: PENPOT_OIDC_EMAIL_ATTR
+              value: email
+          envFrom:
+            - secretRef:
+                name: penpot-bucket-user-secret
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchExpressions:
+                  - key: app.kubernetes.io/instance
+                    operator: In
+                    values:
+                    - penpot
+                topologyKey: "kubernetes.io/hostname"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    backend:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      securityContext:
         enabled: true
-        baseURI: https://authentik.alexlebens.net/application/o/
-        authURI: https://authentik.alexlebens.net/application/o/authorize/
-        tokenURI: https://authentik.alexlebens.net/application/o/token/
-        userURI: https://authentik.alexlebens.net/application/o/userinfo/
-        roles: ""
-        rolesAttribute: ""
-        scopes: "openid profile email"
-        nameAttribute: preferred_username
-        emailAttribute: email
-      existingSecret: penpot-oidc-secret
-      secretKeys:
-        oidcClientIDKey: client
-        oidcClientSecretKey: secret
+        fsGroup: 1001      
+      containers:
+        main:
+          image:
+            repository: penpotapp/backend
+            tag: 2.0.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: PENPOT_PUBLIC_URI
+              value: https://penpot.alexlebens.net
+            - name: PENPOT_FLAGS
+              value: enable-registration enable-insecure-register enable-login enable-login-with-oidc disable-demo-users disable-demo-warning
+            - name: PENPOT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-key-secret
+                  key: key
+            - name: PENPOT_DATABASE_URI
+              value: postgresql://$(PENPOT_DATABASE_HOST):$(PENPOT_DATABASE_PORT)/$(PENPOT_DATABASE_DATABASE)
+            - name: PENPOT_DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: host
+            - name: PENPOT_DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: port
+            - name: PENPOT_DATABASE_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: database                                              
+            - name: PENPOT_DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: username
+            - name: PENPOT_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: password
+            - name: PENPOT_REDIS_URI
+              value: redis://penpot-redis-headless.penpot.svc.cluster.local:6379/0
+            - name: PENPOT_ASSETS_STORAGE_BACKEND
+              value: assets-s3
+            - name: PENPOT_STORAGE_ASSETS_S3_REGION
+              value: us-east-1
+            - name: PENPOT_STORAGE_ASSETS_S3_BUCKET
+              value: penpot
+            - name: PENPOT_STORAGE_ASSETS_S3_ENDPOINT
+              value: https://minio-penpot-api.alexlebens.net/penpot
+            - name: PENPOT_TELEMETRY_ENABLED
+              value: false
+            - name: PENPOT_OIDC_BASE_URI
+              value: https://authentik.alexlebens.net/application/o/
+            - name: PENPOT_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-oidc-secret
+                  key: client
+            - name: PENPOT_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-oidc-secret
+                  key: secret
+            - name: PENPOT_OIDC_AUTH_URI
+              value: https://authentik.alexlebens.net/application/o/authorize/
+            - name: PENPOT_OIDC_TOKEN_URI
+              value: https://authentik.alexlebens.net/application/o/token/
+            - name: PENPOT_OIDC_USER_URI
+              value: https://authentik.alexlebens.net/application/o/userinfo/
+            - name: PENPOT_OIDC_SCOPES
+              value: "openid profile email"
+            - name: PENPOT_OIDC_NAME_ATTR
+              value: preferred_username
+            - name: PENPOT_OIDC_EMAIL_ATTR
+              value: email
+          envFrom:
+            - secretRef:
+                name: penpot-bucket-user-secret
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchExpressions:
+                  - key: app.kubernetes.io/instance
+                    operator: In
+                    values:
+                    - penpot
+                topologyKey: "kubernetes.io/hostname"
+          securityContext:
+            enabled: true
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true          
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    exporter:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      securityContext:
+        enabled: true
+        fsGroup: 1001
+      containers:
+        main:
+          image:
+            repository: penpotapp/exporter
+            tag: 2.0.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: PENPOT_PUBLIC_URI
+              value: https://penpot.alexlebens.net
+            - name: PENPOT_FLAGS
+              value: enable-registration enable-insecure-register enable-login enable-login-with-oidc disable-demo-users disable-demo-warning
+            - name: PENPOT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-key-secret
+                  key: key
+            - name: PENPOT_DATABASE_URI
+              value: postgresql://$(PENPOT_DATABASE_HOST):$(PENPOT_DATABASE_PORT)/$(PENPOT_DATABASE_DATABASE)
+            - name: PENPOT_DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: host
+            - name: PENPOT_DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: port
+            - name: PENPOT_DATABASE_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: database                                              
+            - name: PENPOT_DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: username
+            - name: PENPOT_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-postgresql-16-cluster-app
+                  key: password
+            - name: PENPOT_REDIS_URI
+              value: redis://penpot-redis-headless.penpot.svc.cluster.local:6379/0
+            - name: PENPOT_ASSETS_STORAGE_BACKEND
+              value: assets-s3
+            - name: PENPOT_STORAGE_ASSETS_S3_REGION
+              value: us-east-1
+            - name: PENPOT_STORAGE_ASSETS_S3_BUCKET
+              value: penpot
+            - name: PENPOT_STORAGE_ASSETS_S3_ENDPOINT
+              value: https://minio-penpot-api.alexlebens.net/penpot
+            - name: PENPOT_TELEMETRY_ENABLED
+              value: false
+            - name: PENPOT_OIDC_BASE_URI
+              value: https://authentik.alexlebens.net/application/o/
+            - name: PENPOT_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-oidc-secret
+                  key: client
+            - name: PENPOT_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: penpot-oidc-secret
+                  key: secret
+            - name: PENPOT_OIDC_AUTH_URI
+              value: https://authentik.alexlebens.net/application/o/authorize/
+            - name: PENPOT_OIDC_TOKEN_URI
+              value: https://authentik.alexlebens.net/application/o/token/
+            - name: PENPOT_OIDC_USER_URI
+              value: https://authentik.alexlebens.net/application/o/userinfo/
+            - name: PENPOT_OIDC_SCOPES
+              value: "openid profile email"
+            - name: PENPOT_OIDC_NAME_ATTR
+              value: preferred_username
+            - name: PENPOT_OIDC_EMAIL_ATTR
+              value: email
+          envFrom:
+            - secretRef:
+                name: penpot-bucket-user-secret
+          securityContext:
+            enabled: true
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    frontend:
+      controller: frontend
+      ports:
+        http:
+          port: 80
+          targetPort: 80
+          protocol: HTTP
+    backend:
+      controller: backend
+      ports:
+        http:
+          port: 6060
+          targetPort: 6060
+          protocol: HTTP
+    exporter:
+      controller: exporter
+      ports:
+        http:
+          port: 6061
+          targetPort: 6061
+          protocol: HTTP
+  ingress:
+    main:
+      className: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: penpot.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: penpot
+                port: 8000
+      tls:
+        - secretName: penpot-secret-tls
+          hosts:
+            - penpot.alexlebens.net
+  configMaps:
+    frontend-nginx:
+      enabled: true
+      data:
+        nginx.conf: |
+          user www-data;
+          worker_processes auto;
+          pid /run/nginx.pid;
+          include /etc/nginx/modules-enabled/*.conf;
+
+          events {
+              worker_connections 2048;
+              # multi_accept on;
+          }
+
+          http {
+              sendfile on;
+              tcp_nopush on;
+              tcp_nodelay on;
+              keepalive_requests 30;
+              keepalive_timeout 65;
+              types_hash_max_size 2048;
+
+              server_tokens off;
+
+              reset_timedout_connection on;
+              client_body_timeout 30s;
+              client_header_timeout 30s;
+
+              include /etc/nginx/mime.types;
+              default_type application/octet-stream;
+
+              error_log /dev/stdout;
+              access_log /dev/stdout;
+
+              gzip on;
+              gzip_vary on;
+              gzip_proxied any;
+              gzip_static on;
+              gzip_comp_level 4;
+              gzip_buffers 16 8k;
+              gzip_http_version 1.1;
+
+              gzip_types text/plain text/css text/javascript application/javascript application/json application/transit+json;
+
+              resolver 127.0.0.11;
+
+              map $http_upgrade $connection_upgrade {
+                  default upgrade;
+                  ''      close;
+              }
+
+              server {
+                  listen 80 default_server;
+                  server_name _;
+
+                  client_max_body_size 100M;
+                  charset utf-8;
+
+                  proxy_http_version 1.1;
+                  proxy_set_header Host $http_host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Scheme $scheme;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+                  etag off;
+                  root /var/www/app/;
+
+                  location ~* \.(js|css).*$ {
+                      add_header Cache-Control "max-age=86400" always; # 24 hours
+                  }
+
+                  location ~* \.(html).*$ {
+                      add_header Cache-Control "no-cache, max-age=0" always;
+                  }
+
+                  location /api/export {
+                      proxy_pass http://{{ include "penpot.fullname" . }}-exporter:6061;
+                  }
+
+                  location /api {
+                      proxy_pass http://{{ include "penpot.fullname" . }}-backend:6060/api;
+                  }
+
+                  location /ws/notifications {
+                      proxy_set_header Upgrade $http_upgrade;
+                      proxy_set_header Connection 'upgrade';
+                      proxy_pass http://{{ include "penpot.fullname" . }}-backend:6060/ws/notifications;
+                  }
+
+                  location @handle_redirect {
+                      set $redirect_uri "$upstream_http_location";
+                      set $redirect_host "$upstream_http_x_host";
+                      set $redirect_cache_control "$upstream_http_cache_control";
+
+                      proxy_buffering off;
+
+                      proxy_set_header Host "$redirect_host";
+                      proxy_hide_header etag;
+                      proxy_hide_header x-amz-id-2;
+                      proxy_hide_header x-amz-request-id;
+                      proxy_hide_header x-amz-meta-server-side-encryption;
+                      proxy_hide_header x-amz-server-side-encryption;
+                      proxy_pass $redirect_uri;
+
+                      add_header x-internal-redirect "$redirect_uri";
+                      add_header x-cache-control "$redirect_cache_control";
+                      add_header cache-control "$redirect_cache_control";
+                  }
+
+                  location /assets {
+                      proxy_pass http://{{ include "penpot.fullname" . }}-backend:6060/assets;
+                      recursive_error_pages on;
+                      proxy_intercept_errors on;
+                      error_page 301 302 307 = @handle_redirect;
+                  }
+
+                  location /internal/assets {
+                      internal;
+                      alias /opt/data/assets;
+                      add_header x-internal-redirect "$upstream_http_x_accel_redirect";
+                  }
+              }
+          }
+  persistence:
+    penpot:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 8Gi
+      retain: true
+      advancedMounts:
+        frontend:
+          main:
+            - path: /opt/data
+              readOnly: false
+        backend:
+          main:
+            - path: /opt/data
+              readOnly: false
+    config:
+      enabled: true
+      type: configMap
+      name: penpot-frontend-nginx
+      advancedMounts:
+        frontend:
+          main:
+            - path: /etc/nginx/nginx.conf
+              readOnly: true
+              mountPropagation: None
+              subPath: nginx.conf
 redis:
   architecture: standalone
   auth:
@@ -118,7 +567,6 @@ minio:
       pathType: Prefix
 postgres-16-cluster:
   mode: standalone
-  kubernetesClusterName: cl01tl
   cluster:
     walStorage:
       storageClass: local-path
