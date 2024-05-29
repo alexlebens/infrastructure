@@ -1,64 +1,156 @@
 qbittorrent:
-  global:
-    persistence:
-      media:
-        claimName: qbittorrent-nfs-storage
-        mountPath: /mnt/store
-  server:
-    env:
-      - name: TZ
-        value: US/Central
-      - name: PUID
-        value: "1000"
-      - name: PGID
-        value: "1000"        
-    resources:
-      requests:
-        cpu: 100m
-        memory: 2Gi
-      limits:
-        cpu: 2000m
-        memory: 2Gi
-    ingress:
-      enabled: true
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        qbittorrent:
+          image:
+            repository: linuxserver/qbittorrent
+            tag: version-4.6.3-r0
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: UMASK_SET
+              value: "002"
+            - name: WEBUI_PORT
+              value: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+        gluetun:
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.38.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: custom
+            - name: VPN_TYPE
+              value: wireguard
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 192.168.1.0/24,10.244.0.0/16
+            - name: FIREWALL_INPUT_PORTS
+              value: 8080,9022
+            - name: DOT
+              value: "off"
+          securityContext:
+            privileged: True
+            capabilities:
+              add:
+                - NET_ADMIN
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+        exporter:
+          image:
+            repository: esanchezm/prometheus-qbittorrent-exporter
+            tag: v1.5.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: QBITTORRENT_HOST
+              value: "http://localhost"
+            - name: QBITTORRENT_PORT
+              value: "8080"
+            - name: EXPORTER_PORT
+              value: "9022"
+            - name: QBITTORRENT_USER
+              value: admin
+            - name: QBITTORRENT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: qbittorrent-auth
+                  key: admin-password
+            - name: EXPORTER_LOG_LEVEL
+              value: INFO
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    http:
+      controller: main
+      ports:
+        http:
+          port: 8080
+          targetPort: 8080
+          protocol: HTTP
+    health:
+      controller: main
+      ports:
+        http:
+          port: 9999
+          targetPort: 9999
+          protocol: HTTP
+    metrics:
+      controller: main
+      ports:
+        http:
+          port: 9022
+          targetPort: 9022
+          protocol: HTTP
+  ingress:
+    main:
       className: traefik
       annotations:
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
         traefik.ingress.kubernetes.io/router.tls: "true"
         cert-manager.io/cluster-issuer: letsencrypt-issuer
-      host: qbittorrent.alexlebens.net
-    persistence:
-      config:
-        storageClassName: nfs-client
-        storageSize: 1Gi
-  gluetun:
-    enabled: true
-    env:
-      - name: VPN_SERVICE_PROVIDER
-        value: custom
-      - name: VPN_TYPE
-        value: wireguard
-      - name: FIREWALL_OUTBOUND_SUBNETS
-        value: 192.168.1.0/24,10.244.0.0/16
-      - name: FIREWALL_INPUT_PORTS
-        value: 8080,9022
-      - name: DOT
-        value: "off"
-    existingSecretName: qbittorrent-wireguard-conf
-  metrics:
-    enabled: true
-    serviceMonitor:
+      hosts:
+        - host: qbittorrent.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: qbittorrent-http
+                port: 8000
+      tls:
+        - secretName: qbittorrent-secret-tls
+          hosts:
+            - qbittorrent.alexlebens.net
+  persistence:
+    config:
+      existingClaim: qbittorrent-config
+      advancedMounts:
+        main:
+          qbittorrent:
+            - path: /config
+              readOnly: false
+    storage:
+      existingClaim: qbittorrent-nfs-storage
+      advancedMounts:
+        main:
+          qbittorrent:
+            - path: /mnt/store
+              readOnly: false
+    wireguard-config:
       enabled: true
-    exporter:
-      env:
-        - name: QBITTORRENT_USER
-          value: admin
-        - name: QBITTORRENT_PASS
-          valueFrom:
-            secretKeyRef:
-              name: qbittorrent-auth
-              key: admin-password
-persistence:
-  media:
-    nfsPath: /volume2/Storage
-    nfsServer: synologybond.alexlebens.net
+      type: secret
+      name: qbittorrent-wireguard-conf
+      advancedMounts:
+        main:
+          main:
+            - path: /gluetun/wireguard/wg0.conf
+              readOnly: true
+              mountPropagation: None
+              subPath: wg0.conf
+    tunnel-device:
+      enabled: true
+      type: hostPath
+      path: /dev/net/tun
+      advancedMounts:
+        main:
+          gluetun:
+            - path: /dev/net/tun
+              readOnly: false
