@@ -1,0 +1,74 @@
+kubelet-serving-cert-approver:
+  defaultPodOptions:
+    priorityClassName: system-cluster-critical
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+                - key: node-role.kubernetes.io/master
+                  operator: DoesNotExist
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
+            weight: 100
+    securityContext:
+      fsGroup: 65534
+      runAsGroup: 65534
+      runAsUser: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+        operator: Exists
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+        operator: Exists
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/alex1989hu/kubelet-serving-cert-approver
+            tag: v0.8.3
+            pullPolicy: Always
+          args:
+            - serve
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        health:
+          port: 8080
+          targetPort: 8080
+          protocol: HTTP
+    main:
+      controller: main
+      ports:
+        metrics:
+          port: 9090
+          targetPort: 9090
+          protocol: HTTP
