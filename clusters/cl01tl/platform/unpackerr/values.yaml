@@ -1,26 +1,55 @@
 unpackerr:
-  deployment:
-    env:
-      TZ: US/Central
-      UN_WEBSERVER_METRICS: true
-      UN_SONARR_0_URL: http://sonarr4.sonarr4:8989
-      UN_SONARR_0_PATHS_0: /mnt/store/Torrent/FINISHED/SONARR
-      UN_SONARR_1_URL: http://sonarr4-4k.sonarr4-4k:8989
-      UN_SONARR_1_PATHS_0: /mnt/store/Torrent/FINISHED/SONARR4K
-      UN_RADARR_0_URL: http://radarr5.radarr5:7878
-      UN_RADARR_0_PATHS_0: /mnt/store/Torrent/FINISHED/RADARR
-      UN_RADARR_1_URL: http://radarr5-4k.radarr5-4k:7878
-      UN_RADARR_1_PATHS_0: /mnt/store/Torrent/FINISHED/RADARR4K
-      UN_LIDARR_0_URL: http://lidarr2.lidarr2:8686
-      UN_LIDARR_0_PATHS_0: /mnt/store/Torrent/FINISHED/LIDARR
-    envFrom:
-      - secretRef:
-          name: unpackerr-key-secret
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: golift/unpackerr
+            tag: v0.13.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: UN_WEBSERVER_METRICS
+              value: true
+            - name: UN_SONARR_0_URL
+              value: http://sonarr4.sonarr4:8989
+            - name: UN_SONARR_0_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/SONARR
+            - name: UN_SONARR_1_URL
+              value: http://sonarr4-4k.sonarr4-4k:8989
+            - name: UN_SONARR_1_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/SONARR4K
+            - name: UN_RADARR_0_URL
+              value: http://radarr5.radarr5:7878
+            - name: UN_RADARR_0_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/RADARR
+            - name: UN_RADARR_1_URL
+              value: http://radarr5-4k.radarr5-4k:7878
+            - name: UN_RADARR_1_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/RADARR4K
+            - name: UN_LIDARR_0_URL
+              value: http://lidarr2.lidarr2:8686
+            - name: UN_LIDARR_0_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/LIDARR
+          envFrom:
+            - secretRef:
+                name: unpackerr-key-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
   persistence:
-    downloads:
-      mountPath: /mnt/store
-      claimName: unpackerr-nfs-storage
-persistence:
-  media:
-    nfsPath: /volume2/Storage
-    nfsServer: synologybond.alexlebens.net
+    storage:
+      existingClaim: unpackerr-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: true
