@@ -1,34 +1,49 @@
 code-server:
-  image:
-    repository: linuxserver/code-server
-    tag: 4.89.1
-  ingress:
-    enabled: true
-    className: traefik
-    annotations:
-      traefik.ingress.kubernetes.io/router.entrypoints: websecure
-      traefik.ingress.kubernetes.io/router.tls: "true"
-      cert-manager.io/cluster-issuer: letsencrypt-issuer
-    hosts:
-      - host: codeserver.alexlebens.net
-        paths:
-          - path: /
-            pathType: Prefix
-    tls:
-      - secretName: codeserver-secret-tls
-        hosts:
-          - codeserver.alexlebens.net
-  env:
-    simple:
-      TZ: US/Central
-      DEFAULT_WORKSPACE: /config
-    full:
-      - name: SUDO_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            key: password
-            name: codeserver-password-secret
-            optional: false
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: linuxserver/code-server
+            tag: 4.89.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+            - name: DEFAULT_WORKSPACE
+              value: /config
+          envFrom:
+            - secretRef:
+                name: codeserver-password-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 8443
+          targetPort: 8443
+          protocol: HTTP
   persistence:
-    existingClaim: code-server-nfs-storage
-    enabled: true
+    config:
+      existingClaim: code-server-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: "/video/Stand Up"
+              readOnly: false
+cloudflared:
+  existingSecretName: code-server-cloudflared-secret
