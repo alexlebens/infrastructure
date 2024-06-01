@@ -1,139 +1,417 @@
 taiga:
+  controllers:
+    front:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        front:
+          image:
+            repository: ghcr.io/alexlebens/taiga-front-docker-oidc
+            tag: 6.7.7
+            pullPolicy: IfNotPresent
+          env:
+            - name: TAIGA_URL
+              value: https://taiga.alexlebens.net
+            - name: PUBLIC_REGISTER_ENABLED
+              value: false
+            - name: ENABLE_GITHUB_AUTH
+              value: false
+            - name: ENABLE_GITLAB_AUTH
+              value: false
+            - name: ENABLE_OIDC
+              value: true
+            - name: ENABLE_SLACK
+              value: false
+            - name: ENABLE_GITHUB_IMPORTER
+              value: false
+            - name: ENABLE_JIRA_IMPORTER
+              value: false
+            - name: ENABLE_TRELLO_IMPORTER
+              value: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    back:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        back:
+          image:
+            repository: ghcr.io/alexlebens/taiga-back-docker-oidc
+            tag: 6.7.3
+            pullPolicy: IfNotPresent
+          env:
+            - name: TAIGA_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-key-secret
+                  key: key
+            - name: ENABLE_TELEMETRY
+              value: false
+            - name: PUBLIC_REGISTER_ENABLED
+              value: false
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-postgresql-16-cluster-app
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-postgresql-16-cluster-app
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-postgresql-16-cluster-app
+                  key: dbname
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-postgresql-16-cluster-app
+                  key: host
+            - name: OIDC_ENABLED
+              value: "True"
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-oidc-secret
+                  key: client
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-oidc-secret
+                  key: secret
+            - name: OIDC_SCOPES
+              value: openid profile email
+            - name: OIDC_SIGN_ALGO
+              value: RS256
+            - name: OIDC_BASE_URL
+              value: https://authentik.alexlebens.net/application/o/
+            - name: OIDC_JWKS_ENDPOINT
+              value: https://authentik.alexlebens.net/application/o/taiga/jwks/
+            - name: OIDC_AUTHORIZATION_ENDPOINT
+              value: https://authentik.alexlebens.net/application/o/authorize/
+            - name: OIDC_TOKEN_ENDPOINT
+              value: https://authentik.alexlebens.net/application/o/token/
+            - name: OIDC_USER_ENDPOINT
+              value: https://authentik.alexlebens.net/application/o/userinfo/
+            - name: ENABLE_GITHUB_AUTH
+              value: "false"
+            - name: ENABLE_GITLAB_AUTH
+              value: "false"
+            - name: ENABLE_SLACK
+              value: "false"
+            - name: ENABLE_GITHUB_IMPORTER
+              value: "False"
+            - name: ENABLE_JIRA_IMPORTER
+              value: "False"
+            - name: ENABLE_JIRA_IMPORTER
+              value: "False"
+            - name: RABBITMQ_USER
+              value: taiga
+            - name: RABBITMQ_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-async-rabbitmq-secret
+                  key: password
+            - name: TAIGA_SITES_DOMAIN
+              value: taiga.alexlebens.net
+            - name: TAIGA_SITES_SCHEME
+              value: https
+            - name: SESSION_COOKIE_SECURE
+              value: "True"
+            - name: CSRF_COOKIE_SECURE
+              value: "True"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+        async:
+          image:
+            repository: ghcr.io/alexlebens/taiga-back-docker-oidc
+            tag: 6.7.3
+            pullPolicy: IfNotPresent
+          command:
+            - /taiga-back/docker/async_entrypoint.sh
+          env:
+            - name: TAIGA_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-key-secret
+                  key: key
+            - name: ENABLE_TELEMETRY
+              value: false
+            - name: PUBLIC_REGISTER_ENABLED
+              value: false
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-postgresql-16-cluster-app
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-postgresql-16-cluster-app
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-postgresql-16-cluster-app
+                  key: dbname
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-postgresql-16-cluster-app
+                  key: host
+            - name: OIDC_ENABLED
+              value: "True"
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-oidc-secret
+                  key: client
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-oidc-secret
+                  key: secret
+            - name: OIDC_SCOPES
+              value: openid profile email
+            - name: OIDC_SIGN_ALGO
+              value: RS256
+            - name: OIDC_BASE_URL
+              value: https://authentik.alexlebens.net/application/o/
+            - name: OIDC_JWKS_ENDPOINT
+              value: https://authentik.alexlebens.net/application/o/taiga/jwks/
+            - name: OIDC_AUTHORIZATION_ENDPOINT
+              value: https://authentik.alexlebens.net/application/o/authorize/
+            - name: OIDC_TOKEN_ENDPOINT
+              value: https://authentik.alexlebens.net/application/o/token/
+            - name: OIDC_USER_ENDPOINT
+              value: https://authentik.alexlebens.net/application/o/userinfo/
+            - name: ENABLE_GITHUB_AUTH
+              value: "false"
+            - name: ENABLE_GITLAB_AUTH
+              value: "false"
+            - name: ENABLE_SLACK
+              value: "false"
+            - name: ENABLE_GITHUB_IMPORTER
+              value: "False"
+            - name: ENABLE_JIRA_IMPORTER
+              value: "False"
+            - name: ENABLE_JIRA_IMPORTER
+              value: "False"
+            - name: RABBITMQ_USER
+              value: taiga
+            - name: RABBITMQ_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-async-rabbitmq-secret
+                  key: password
+            - name: TAIGA_SITES_DOMAIN
+              value: taiga.alexlebens.net
+            - name: TAIGA_SITES_SCHEME
+              value: https
+            - name: SESSION_COOKIE_SECURE
+              value: "True"
+            - name: CSRF_COOKIE_SECURE
+              value: "True"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    events:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        events:
+          image:
+            repository: taigaio/taiga-events
+            tag: 6.7.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: TAIGA_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-key-secret
+                  key: key
+            - name: RABBITMQ_USER
+              value: taiga
+            - name: RABBITMQ_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-events-rabbitmq-secret
+                  key: password
+            - name: APP_PORT
+              value: 3023
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    protected:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: taigaio/taiga-protected
+            tag: 6.7.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: taiga-key-secret
+                  key: key
+            - name: MAX_AGE
+              value: 360
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
   serviceAccount:
     create: true
-  secretKey:
-    existingSecretName: taiga-key-secret
-    existingSecretKey: key
-  createInitialUser: false
-  enableTelemetry: false
-  publicRegisterEnabled: false
-  postgresql:
-    existingSecretName: taiga-postgresql-16-cluster-app
-    usernameKey: username
-    passwordKey: password
-    databaseNameKey: dbname
-    hostKey: host
-    portKey: port
-  oidc:
-    enabled: true
-    existingSecretName: taiga-oidc-secret
-    scopesKey: scopes
-    signatureAlgorithmKey: signatureAlgorithm
-    clientIdKey: client
-    clientSecretKey: secret
-    baseUrlKey: baseUrl
-    jwksEndpointKey: jwksEndpoint
-    authorizationEndpointKey: authorizationEndpoint
-    tokenEndpointKey: tokenEndpoint
-    userEndpointKey: userEndpoint
-  back:
-    image:
-      repository: ghcr.io/alexlebens/taiga-back-docker-oidc
-      tag: latest
-      pullPolicy: Always
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 1Gi
-    livenessProbe:
-      enabled: true
-    readinessProbe:
-      enabled: true
-  async:
-    image:
-      repository: ghcr.io/alexlebens/taiga-back-docker-oidc
-      tag: latest
-      pullPolicy: Always      
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 1Gi
-    livenessProbe:
-      enabled: true
-    readinessProbe:
-      enabled: true
-  async-rabbitmq:
-    auth:
-      username: taiga
-      existingPasswordSecret: taiga-async-rabbitmq-secret
-      existingSecretPasswordKey: password
-      existingErlangSecret: taiga-async-rabbitmq-secret
-      existingSecretErlangKey: erlang
-  events:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 1Gi
-    livenessProbe:
-      enabled: false
-    readinessProbe:
-      enabled: false
-  events-rabbitmq:
-    auth:
-      username: taiga
-      existingPasswordSecret: taiga-events-rabbitmq-secret
-      existingSecretPasswordKey: password
-      existingErlangSecret: taiga-events-rabbitmq-secret
-      existingSecretErlangKey: erlang
-  protected:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 1Gi
-    livenessProbe:
-      enabled: false
-    readinessProbe:
-      enabled: false
-  front:
-    image:
-      repository: ghcr.io/alexlebens/taiga-front-docker-oidc
-      tag: latest
-      pullPolicy: Always      
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 1Gi
-    livenessProbe:
-      enabled: true
-    readinessProbe:
-      enabled: true
+  service:
+    front:
+      controller: front
+      ports:
+        front:
+          port: 80
+          targetPort: 80
+          protocol: HTTP
+    back:
+      controller: back
+      ports:
+        back:
+          port: 8000
+          targetPort: 8000
+          protocol: HTTP
+    events:
+      controller: events
+      ports:
+        events:
+          port: 8888
+          targetPort: 8888
+          protocol: HTTP
+        app:
+          port: 3023
+          targetPort: 3023
+          protocol: HTTP
+    protected:
+      controller: protected
+      ports:
+        protected:
+          port: 8003
+          targetPort: 8003
+          protocol: HTTP
   ingress:
-    enabled: true
-    annotations:
-      traefik.ingress.kubernetes.io/router.entrypoints: websecure
-      traefik.ingress.kubernetes.io/router.tls: "true"
-      cert-manager.io/cluster-issuer: letsencrypt-issuer
-    className: traefik
-    host: taiga.alexlebens.net
+    main:
+      className: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: taiga.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: taiga-front
+                port: 80
+            - path: /api
+              pathType: Prefix
+              service:
+                  name: taiga-back
+                  port: 8000
+              pathType: ImplementationSpecific
+            - path: /admin
+              pathType: Prefix
+              service:
+                  name: taiga-back
+                  port: 8000
+              pathType: ImplementationSpecific
+            - path: /oidc
+              pathType: Prefix
+              service:
+                  name: taiga-back
+                  port: 8000
+              pathType: ImplementationSpecific
+            - path: /events
+              pathType: Prefix
+              service:
+                  name: taiga-events
+                  port: 8888
+              pathType: ImplementationSpecific
+            - path: /media
+              pathType: Prefix
+              service:
+                  name: taiga-protected
+                  port: 8003
+              pathType: ImplementationSpecific
+      tls:
+        - secretName: taiga-secret-tls
+          hosts:
+            - taiga.alexlebens.net
   persistence:
     static:
-      enabled: true
-      storageClass: nfs-client
-      accessMode: ReadWriteMany
-      size: 1Gi
+      existingClaim: taiga-static
+      advancedMounts:
+        back:
+          back:
+            - path: /taiga-back/static
+              readOnly: false
+        back:
+          async:
+            - path: /taiga-back/static
+              readOnly: false
     media:
-      enabled: true
-      storageClass: nfs-client
-      accessMode: ReadWriteMany
-      size: 1Gi
+      existingClaim: taiga-media
+      advancedMounts:
+        back:
+          back:
+            - path: /taiga-back/media
+              readOnly: false
+        back:
+          async:
+            - path: /taiga-back/media
+              readOnly: false
+async-rabbitmq:
+  auth:
+    username: taiga
+    existingPasswordSecret: taiga-async-rabbitmq-secret
+    existingSecretPasswordKey: password
+    existingErlangSecret: taiga-async-rabbitmq-secret
+    existingSecretErlangKey: erlang
+  extraConfiguration: |-
+    default_vhost = taiga
+    default_permissions.configure = .*
+    default_permissions.read = .*
+    default_permissions.write = .*
+events-rabbitmq:
+  auth:
+    username: taiga
+    existingPasswordSecret: taiga-events-rabbitmq-secret
+    existingSecretPasswordKey: password
+    existingErlangSecret: taiga-events-rabbitmq-secret
+    existingSecretErlangKey: erlang
+  extraConfiguration: |-
+    default_vhost = taiga
+    default_permissions.configure = .*
+    default_permissions.read = .*
+    default_permissions.write = .*
 postgres-16-cluster:
   mode: standalone
-  kubernetesClusterName: cl01tl
   cluster:
     walStorage:
       storageClass: local-path
