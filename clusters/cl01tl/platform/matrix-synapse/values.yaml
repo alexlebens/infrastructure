@@ -109,8 +109,10 @@ matrix-synapse:
   ingress:
     enabled: false
 matrix-hookshot:
+  global:
+    nameOverride: matrix-hookshot
   controllers:
-    matrix-hookshot:
+    main:
       type: deployment
       replicas: 1
       strategy: Recreate
@@ -127,11 +129,9 @@ matrix-hookshot:
               memory: 256Mi
   serviceAccount:
     create: true
-    name: mautrix-whatsapp
   service:
     main:
-      nameOverride: matrix-hookshot
-      controller: matrix-hookshot
+      controller: main
       ports:
         webhook:
           port: 9000
@@ -155,7 +155,7 @@ matrix-hookshot:
       type: secret
       name: matrix-hookshot-config-secret
       advancedMounts:
-        matrix-hookshot:
+        main:
           main:
             - path: /data/config.yml
               readOnly: true
@@ -166,7 +166,7 @@ matrix-hookshot:
       type: secret
       name: matrix-hookshot-config-secret
       advancedMounts:
-        matrix-hookshot:
+        main:
           main:
             - path: /data/registration.yml
               readOnly: true
@@ -177,15 +177,17 @@ matrix-hookshot:
       type: secret
       name: matrix-hookshot-config-secret
       advancedMounts:
-        matrix-hookshot:
+        main:
           main:
             - path: /data/passkey.pem
               readOnly: true
               mountPropagation: None
               subPath: passkey.pem
 mautrix-discord:
+  global:
+    nameOverride: mautrix-discord
   controllers:
-    mautrix-discord:
+    main:
       type: deployment
       replicas: 1
       strategy: Recreate
@@ -202,24 +204,22 @@ mautrix-discord:
               memory: 256Mi
   serviceAccount:
     create: true
-    name: mautrix-discord
   service:
     main:
-      nameOverride: mautrix-discord
-      controller: mautrix-discord
+      controller: main
       ports:
         http:
           port: 29334
           targetPort: 29334
           protocol: HTTP
   persistence:
-    mautrix-discord-data:
+    data:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 500Mi
       retain: true
       advancedMounts:
-        mautrix-discord:
+        main:
           main:
             - path: /data
               readOnly: false
@@ -228,15 +228,17 @@ mautrix-discord:
       type: secret
       name: mautrix-discord-config-secret
       advancedMounts:
-        mautrix-discord:
+        main:
           main:
             - path: /data/config.yml
               readOnly: true
               mountPropagation: None
               subPath: config.yml
 mautrix-whatsapp:
+  global:
+    nameOverride: mautrix-whatsapp
   controllers:
-    mautrix-whatsapp:
+    main:
       type: deployment
       replicas: 1
       strategy: Recreate
@@ -253,24 +255,22 @@ mautrix-whatsapp:
               memory: 256Mi
   serviceAccount:
     create: true
-    name: mautrix-whatsapp
   service:
     main:
-      nameOverride: mautrix-whatsapp
-      controller: mautrix-whatsapp
+      controller: main
       ports:
         http:
           port: 29334
           targetPort: 29334
           protocol: HTTP
   persistence:
-    mautrix-whatsapp-data:
+    data:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 500Mi
       retain: true
       advancedMounts:
-        mautrix-whatsapp:
+        main:
           main:
             - path: /data
               readOnly: false
@@ -279,7 +279,7 @@ mautrix-whatsapp:
       type: secret
       name: mautrix-whatsapp-config-secret
       advancedMounts:
-        mautrix-whatsapp:
+        main:
           main:
             - path: /data/config.yml
               readOnly: true
