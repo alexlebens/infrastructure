@@ -33,7 +33,7 @@ matrix-synapse:
           secretName: mautrix-discord-config-secret
       - name: mautrix-whatsapp-config-secret
         secret:
-          secretName: mautrix-whatsapp-config-secret          
+          secretName: mautrix-whatsapp-config-secret
     extraVolumeMounts:
       - name: matrix-synapse-config-secret
         mountPath: /synapse/config/conf.d/oidc.yaml
@@ -54,7 +54,7 @@ matrix-synapse:
       - name: mautrix-whatsapp-config-secret
         mountPath: /synapse/config/conf.d/mautrix-whatsapp-registration.yaml
         subPath: mautrix-whatsapp-registration.yaml
-        readOnly: true        
+        readOnly: true
     resources:
       requests:
         cpu: 100m
@@ -109,52 +109,176 @@ matrix-synapse:
   ingress:
     enabled: false
 matrix-hookshot:
-  deployment:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-  ingress:
-    webhook:
-      enabled: false
-    appservice:
-      enabled: false
-  metrics:
-    enabled: true
-    serviceMonitor:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: halfshot/matrix-hookshot
+            tag: 5.3.0
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        webhook:
+          port: 9000
+          targetPort: 9000
+          protocol: HTTP
+        metrics:
+          port: 9001
+          targetPort: 9001
+          protocol: HTTP
+        appservice:
+          port: 9002
+          targetPort: 9002
+          protocol: HTTP
+        widgets:
+          port: 9003
+          targetPort: 9003
+          protocol: HTTP
+  persistence:
+    config:
       enabled: true
-  hookshot:
-    existingSecret: matrix-hookshot-config-secret
-    existingRegistrationSecret: matrix-hookshot-config-secret
-    existingPasskeySecret: matrix-hookshot-config-secret
+      type: secret
+      name: matrix-hookshot-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/config.yml
+              readOnly: true
+              mountPropagation: None
+              subPath: config.yml
+    registration:
+      enabled: true
+      type: secret
+      name: matrix-hookshot-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/registration.yml
+              readOnly: true
+              mountPropagation: None
+              subPath: registration.yml
+    passkey:
+      enabled: true
+      type: secret
+      name: matrix-hookshot-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/passkey.pem
+              readOnly: true
+              mountPropagation: None
+              subPath: passkey.pem
 mautrix-discord:
-  deployment:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-  ingress:
-    enabled: false
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: dock.mau.dev/mautrix/discord
+            tag: v0.6.5
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 29334
+          targetPort: 29334
+          protocol: HTTP
   persistence:
-    enabled: ture
-    storageClass: ceph-block
-    size: 500Mi
-  mautrixDiscord:
-    existingSecret: mautrix-discord-config-secret
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 500Mi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+    config:
+      enabled: true
+      type: secret
+      name: mautrix-discord-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/config.yml
+              readOnly: true
+              mountPropagation: None
+              subPath: config.yml
 mautrix-whatsapp:
-  deployment:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
-  ingress:
-    enabled: false
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: dock.mau.dev/mautrix/whatsapp
+            tag: v0.10.7
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 29334
+          targetPort: 29334
+          protocol: HTTP
   persistence:
-    enabled: ture
-    storageClass: ceph-block
-    size: 500Mi
-  mautrixWhatsapp:
-    existingSecret: mautrix-whatsapp-config-secret    
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 500Mi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+    config:
+      enabled: true
+      type: secret
+      name: mautrix-whatsapp-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/config.yml
+              readOnly: true
+              mountPropagation: None
+              subPath: config.yml
 redis:
   architecture: standalone
   auth:
@@ -167,6 +291,12 @@ redis:
   replica:
     persistence:
       enabled: false
+cloudflared-synapse:
+  name: cloudflared-synapse
+  existingSecretName: matrix-synapse-cloudflared-synapse-secret
+cloudflared-hookshot:
+  name: cloudflared-hookshot
+  existingSecretName: matrix-synapse-cloudflared-hookshot-secret
 postgres-16-cluster:
   mode: standalone
   cluster:
@@ -185,9 +315,3 @@ postgres-16-cluster:
     endpointCredentials: matrix-synapse-postgresql-16-cluster-backup-secret
     backupIndex: 1
     retentionPolicy: 14d
-cloudflared-synapse:
-  name: cloudflared-synapse
-  existingSecretName: matrix-synapse-cloudflared-synapse-secret
-cloudflared-hookshot:
-  name: cloudflared-hookshot
-  existingSecretName: matrix-synapse-cloudflared-hookshot-secret  
