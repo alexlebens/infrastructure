@@ -1,0 +1,112 @@
+readarr:
+  image:
+    repository: ghcr.io/onedr0p/readarr-develop
+    tag: "0.3.22.2499"
+  env:
+    TZ: US/Central
+    READARR__POSTGRES_MAIN_DB: readarr-main
+    READARR__POSTGRES_LOG_DB: readarr-log
+    READARR__POSTGRES_CACHE_DB: readarr-cache
+    READARR__POSTGRES_HOST:
+      valueFrom:
+        secretKeyRef:
+          name: postgresql-readarr-books-cluster-app
+          key: host
+    READARR__POSTGRES_PORT:
+      valueFrom:
+        secretKeyRef:
+          name: postgresql-readarr-books-cluster-app
+          key: port
+    READARR__POSTGRES_USER:
+      valueFrom:
+        secretKeyRef:
+          name: postgresql-readarr-books-cluster-app
+          key: user
+    READARR__POSTGRES_PASSWORD:
+      valueFrom:
+        secretKeyRef:
+          name: postgresql-readarr-books-cluster-app
+          key: password
+  ingress:
+    main:
+      enabled: true
+      ingressClassName: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: readarr-books.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: readarr-books-secret-tls
+          hosts:
+            - readarr-books.alexlebens.net
+  persistence:
+    config:
+      enabled: true
+      mountPath: /config
+      accessMode: ReadWriteOnce
+      size: 20Gi
+    media:
+      enabled: true
+      mountPath: /mnt/store
+      type: pvc
+      existingClaim: readarr-books-nfs-storage
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 2000
+    fsGroupChangePolicy: "OnRootMismatch"
+    supplementalGroups:
+      - 44
+      - 100
+      - 109
+      - 65539
+  metrics:
+    enabled: true
+    prometheusRule:
+      enabled: true
+      rules:
+        - alert: ReadarrBooksDown
+          annotations:
+            description: Readarr Books service is down.
+            summary: Readarr Books is down.
+          expr: |
+            readarr_books_system_status == 0
+          for: 5m
+          labels:
+            severity: critical
+    exporter:
+      image:
+        repository: ghcr.io/onedr0p/exportarr
+        tag: v2.0.1
+persistence:
+  media:
+    nfsPath: /volume2/Storage
+    nfsServer: synologybond.alexlebens.net
+postgres-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+    initdb:
+      database: app
+      owner: app
+      postInitApplicationSQL:
+        - CREATE DATABASE "readarr-main" OWNER "app";
+        - CREATE DATABASE "readarr-log" OWNER "app";
+        - CREATE DATABASE "readarr-cache" OWNER app;
+  backup:
+    enabled: false
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/readarr-books
+    endpointCredentials: readarr-books-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d
