@@ -8,12 +8,12 @@ vikunja:
       containers:
         main:
           image:
-            repository: vikunja/api
-            tag: 0.22.1
+            repository: vikunja/vikunja
+            tag: 0.23.0
             pullPolicy: IfNotPresent
           env:
-            - name: VIKUNJA_SERVICE_FRONTENDURL
-              value: https://vikunja.alexlebens.dev
+            - name: VIKUNJA_SERVICE_PUBLICURL
+              value: https://vikunja.alexlebens.dev         
             - name: VIKUNJA_SERVICE_ENABLEREGISTRATION
               value: "false"
             - name: VIKUNJA_SERVICE_TIMEZONE
@@ -62,24 +62,6 @@ vikunja:
             requests:
               cpu: 100m
               memory: 128Mi
-    front:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      containers:
-        main:
-          image:
-            repository: vikunja/frontend
-            tag: 0.22.1
-            pullPolicy: IfNotPresent
-          env:
-            - name: VIKUNJA_API_URL
-              value: https://vikunja-api.alexlebens.dev/api/v1/
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
   serviceAccount:
     create: true
   service:
@@ -89,13 +71,6 @@ vikunja:
         http:
           port: 3456
           targetPort: 3456
-          protocol: HTTP
-    front:
-      controller: front
-      ports:
-        http:
-          port: 80
-          targetPort: 80
           protocol: HTTP
   persistence:
     data:
@@ -174,9 +149,6 @@ redis:
 cloudflared-api:
   name: cloudflared-api
   existingSecretName: vikunja-cloudflared-api-secret
-cloudflared-front:
-  name: cloudflared-front
-  existingSecretName: vikunja-cloudflared-front-secret
 postgres-16-cluster:
   mode: standalone
   kubernetesClusterName: cl01tl
