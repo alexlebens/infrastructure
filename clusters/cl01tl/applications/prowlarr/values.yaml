@@ -1,13 +1,65 @@
-prowlarr:
-  image:
-    repository: ghcr.io/onedr0p/prowlarr
-    tag: 1.18.0.4543
-  env:
-    TZ: US/Central
+lidarr2:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          runAsUser: 568
+          runAsGroup: 568
+          fsGroup: 568
+          fsGroupChangePolicy: OnRootMismatch
+          supplementalGroups:
+            - 44
+            - 100
+            - 109
+            - 65539
+      containers:
+        main:
+          image:
+            repository: ghcr.io/onedr0p/prowlarr
+            tag: 1.18.0.4543
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                  - /usr/bin/env
+                  - bash
+                  - -c
+                  - curl --fail localhost:8686/api/v1/system/status?apiKey=`IFS=\> && while
+                    read -d \< E C; do if [[ $E = "ApiKey" ]]; then echo $C; fi; done < /config/config.xml`
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 9696
+          protocol: HTTP
   ingress:
     main:
       enabled: true
-      ingressClassName: traefik
+      className: traefik
       annotations:
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
         traefik.ingress.kubernetes.io/router.tls: "true"
@@ -17,22 +69,21 @@ prowlarr:
           paths:
             - path: /
               pathType: Prefix
+              service:
+                name: prowlarr
+                port: 80
       tls:
         - secretName: prowlarr-secret-tls
           hosts:
             - prowlarr.alexlebens.net
   persistence:
     config:
-      enabled: true
       storageClass: ceph-block
+      accessMode: ReadWriteOnce
       size: 1Gi
-  podSecurityContext:
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 2000
-    fsGroupChangePolicy: OnRootMismatch
-    supplementalGroups:
-      - 44
-      - 100
-      - 109
-      - 65539
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false

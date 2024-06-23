@@ -1,36 +1,116 @@
-readarr:
-  image:
-    repository: ghcr.io/onedr0p/readarr-develop
-    tag: 0.3.28.2554
-  env:
-    TZ: US/Central
-    READARR__POSTGRES_MAIN_DB: readarr-main
-    READARR__POSTGRES_LOG_DB: readarr-log
-    READARR__POSTGRES_CACHE_DB: readarr-cache
-    READARR__POSTGRES_HOST:
-      valueFrom:
-        secretKeyRef:
-          name: readarr-books-postgresql-16-cluster-app
-          key: host
-    READARR__POSTGRES_PORT:
-      valueFrom:
-        secretKeyRef:
-          name: readarr-books-postgresql-16-cluster-app
-          key: port
-    READARR__POSTGRES_USER:
-      valueFrom:
-        secretKeyRef:
-          name: readarr-books-postgresql-16-cluster-app
-          key: user
-    READARR__POSTGRES_PASSWORD:
-      valueFrom:
-        secretKeyRef:
-          name: readarr-books-postgresql-16-cluster-app
-          key: password
+readarr-books:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          runAsUser: 568
+          runAsGroup: 568
+          fsGroup: 568
+          fsGroupChangePolicy: OnRootMismatch
+          supplementalGroups:
+            - 44
+            - 100
+            - 109
+            - 65539
+      containers:
+        main:
+          image:
+            repository: ghcr.io/onedr0p/readarr-develop
+            tag: 0.3.28.2554
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: READARR__POSTGRES_MAIN_DB
+              value: readarr-main
+            - name: READARR__POSTGRES_LOG_DB
+              value: readarr-log
+            - name: READARR__POSTGRES_CACHE_DB
+              value: readarr-cache         
+            - name: READARR__POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: readarr-books-postgresql-16-cluster-app
+                  key: host
+            - name: READARR__POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: readarr-books-postgresql-16-cluster-app
+                  key: port
+            - name: READARR__POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: readarr-books-postgresql-16-cluster-app
+                  key: username
+            - name: READARR__POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: readarr-books-postgresql-16-cluster-app
+                  key: password
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                  - /usr/bin/env
+                  - bash
+                  - -c
+                  - curl --fail localhost:8787/api/v1/system/status?apiKey=`IFS=\> && while
+                    read -d \< E C; do if [[ $E = "ApiKey" ]]; then echo $C; fi; done < /config/config.xml`
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+        metrics:
+          image:
+            repository: ghcr.io/onedr0p/exportarr
+            tag: v2.0.1
+            pullPolicy: IfNotPresent
+          args: ["readarr"]
+          env:
+            - name: URL
+              value: http://localhost
+            - name: CONFIG
+              value: /config/config.xml
+            - name: PORT
+              value: 9796
+            - name: ENABLE_ADDITIONAL_METRICS
+              value: false
+            - name: ENABLE_UNKNOWN_QUEUE_ITEMS
+              value: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8787
+          protocol: HTTP
+        metrics:
+          port: 9795
+          targetPort: 9795
+          protocol: TCP
   ingress:
     main:
       enabled: true
-      ingressClassName: traefik
+      className: traefik
       annotations:
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
         traefik.ingress.kubernetes.io/router.tls: "true"
@@ -40,53 +120,34 @@ readarr:
           paths:
             - path: /
               pathType: Prefix
+              service:
+                name: readarr-books
+                port: 80
       tls:
         - secretName: readarr-books-secret-tls
           hosts:
             - readarr-books.alexlebens.net
   persistence:
     config:
-      enabled: true
-      mountPath: /config
+      storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 20Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+          metrics:
+            - path: /config
+              readOnly: true
     media:
-      enabled: true
-      mountPath: /mnt/store
-      type: pvc
       existingClaim: readarr-books-nfs-storage
-  podSecurityContext:
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 2000
-    fsGroupChangePolicy: OnRootMismatch
-    supplementalGroups:
-      - 44
-      - 100
-      - 109
-      - 65539
-  metrics:
-    enabled: true
-    prometheusRule:
-      enabled: true
-      rules:
-        - alert: ReadarrBooksDown
-          annotations:
-            description: Readarr Books service is down.
-            summary: Readarr Books is down.
-          expr: |
-            readarr_books_system_status == 0
-          for: 5m
-          labels:
-            severity: critical
-    exporter:
-      image:
-        repository: ghcr.io/onedr0p/exportarr
-        tag: v2.0.1
-persistence:
-  media:
-    nfsPath: /volume2/Storage
-    nfsServer: synologybond.alexlebens.net
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: false
 postgres-16-cluster:
   mode: standalone
   cluster:

@@ -1,35 +1,114 @@
-sonarr:
-  image:
-    repository: ghcr.io/onedr0p/sonarr
-    tag: 4.0.5.1710
-  env:
-    TZ: US/Central
-    SONARR__POSTGRES_MAIN_DB: sonarr-main
-    SONARR__POSTGRES_LOG_DB: sonarr-log
-    SONARR__POSTGRES_HOST:
-      valueFrom:
-        secretKeyRef:
-          name: sonarr4-4k-postgresql-16-cluster-app
-          key: host
-    SONARR__POSTGRES_PORT:
-      valueFrom:
-        secretKeyRef:
-          name: sonarr4-4k-postgresql-16-cluster-app
-          key: port
-    SONARR__POSTGRES_USER:
-      valueFrom:
-        secretKeyRef:
-          name: sonarr4-4k-postgresql-16-cluster-app
-          key: user
-    SONARR__POSTGRES_PASSWORD:
-      valueFrom:
-        secretKeyRef:
-          name: sonarr4-4k-postgresql-16-cluster-app
-          key: password
+sonarr4:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          runAsUser: 568
+          runAsGroup: 568
+          fsGroup: 568
+          fsGroupChangePolicy: OnRootMismatch
+          supplementalGroups:
+            - 44
+            - 100
+            - 109
+            - 65539
+      containers:
+        main:
+          image:
+            repository: ghcr.io/onedr0p/sonarr
+            tag: 4.0.5.1710
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: SONARR__POSTGRES_MAIN_DB
+              value: sonarr-main
+            - name: SONARR__POSTGRES_MAIN_DB
+              value: sonarr-log
+            - name: SONARR__POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr4-4k-postgresql-16-cluster-app
+                  key: host
+            - name: SONARR__POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr4-4k-postgresql-16-cluster-app
+                  key: port
+            - name: SONARR__POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr4-4k-postgresql-16-cluster-app
+                  key: username
+            - name: SONARR__POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr4-4k-postgresql-16-cluster-app
+                  key: password
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                  - /usr/bin/env
+                  - bash
+                  - -c
+                  - curl --fail localhost:8989/api/v1/system/status?apiKey=`IFS=\> && while
+                    read -d \< E C; do if [[ $E = "ApiKey" ]]; then echo $C; fi; done < /config/config.xml`
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+        metrics:
+          image:
+            repository: ghcr.io/onedr0p/exportarr
+            tag: v2.0.1
+            pullPolicy: IfNotPresent
+          args: ["sonarr"]
+          env:
+            - name: URL
+              value: http://localhost
+            - name: CONFIG
+              value: /config/config.xml
+            - name: PORT
+              value: 9794
+            - name: ENABLE_ADDITIONAL_METRICS
+              value: false
+            - name: ENABLE_UNKNOWN_QUEUE_ITEMS
+              value: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8989
+          protocol: HTTP
+        metrics:
+          port: 9794
+          targetPort: 9794
+          protocol: TCP
   ingress:
     main:
       enabled: true
-      ingressClassName: traefik
+      className: traefik
       annotations:
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
         traefik.ingress.kubernetes.io/router.tls: "true"
@@ -39,53 +118,34 @@ sonarr:
           paths:
             - path: /
               pathType: Prefix
+              service:
+                name: sonarr4-4k
+                port: 80
       tls:
         - secretName: sonarr4-4k-secret-tls
           hosts:
             - sonarr-4k.alexlebens.net
   persistence:
     config:
-      enabled: true
-      mountPath: /config
+      storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 20Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+          metrics:
+            - path: /config
+              readOnly: true
     media:
-      enabled: true
-      mountPath: /mnt/store
-      type: pvc
       existingClaim: sonarr4-4k-nfs-storage
-  podSecurityContext:
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 2000
-    fsGroupChangePolicy: OnRootMismatch
-    supplementalGroups:
-      - 44
-      - 100
-      - 109
-      - 65539
-  metrics:
-    enabled: true
-    prometheusRule:
-      enabled: true
-      rules:
-        - alert: SonarrDown
-          annotations:
-            description: Sonarr 4k service is down.
-            summary: Sonarr 4k is down.
-          expr: |
-            sonarr_system_status == 0
-          for: 5m
-          labels:
-            severity: critical
-    exporter:
-      image:
-        repository: ghcr.io/onedr0p/exportarr
-        tag: v2.0.1
-persistence:
-  media:
-    nfsPath: /volume2/Storage
-    nfsServer: synologybond.alexlebens.net
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: false
 postgres-16-cluster:
   mode: standalone
   cluster:
