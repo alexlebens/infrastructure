@@ -1,33 +1,50 @@
 calibre-web:
-  image:
-    repository: ghcr.io/linuxserver/calibre-web
-    tag: 0.6.21-ls270
-  env:
-    TZ: US/Central
-    DOCKER_MODS: linuxserver/mods:universal-calibre
-  ingress:
+  controllers:
     main:
-      enabled: false
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/linuxserver/calibre-web
+            tag: 0.6.21-ls270
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: DOCKER_MODS
+              value: linuxserver/mods:universal-calibre
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8083
+          protocol: HTTP
   persistence:
     config:
-      enabled: true
-      mountPath: /config
+      storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 5Gi
-    media:
-      enabled: true
-      mountPath: /books
-      type: pvc
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    books:
       existingClaim: calibre-web-nfs-storage
-ingressRoute:
-  host: calibre.alexlebens.net
-  port: 8083
-  authentik:
-    outpost: authentik-outpost-proxy
-    port: 9000
-    namespace: authentik
-storage:
-  storage:
-    nfs:
-      path: /volume2/Storage/Calibre
-      server: synologybond.alexlebens.net
+      advancedMounts:
+        main:
+          main:
+            - path: /books
+              readOnly: true

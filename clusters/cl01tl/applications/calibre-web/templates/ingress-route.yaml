@@ -1,10 +1,10 @@
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: {{ .Release.Name }}
+  name: calibre-web
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: {{ .Release.Name }}
+    app.kubernetes.io/name: calibre-web
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/version: {{ .Chart.AppVersion }}
     app.kubernetes.io/component: web
@@ -14,20 +14,20 @@ spec:
     - websecure
   routes:
     - kind: Rule
-      match: "Host(`{{ .Values.ingressRoute.host }}`)"
+      match: Host(`calibre.alexlebens.net`)
       middlewares:
-        - name: "authentik-{{ .Release.Name }}"
+        - name: authentik-calibre-web
           namespace: {{ .Release.Namespace }}
       priority: 10
       services:
         - kind: Service
-          name: {{ .Release.Name }}
-          port: {{ .Values.ingressRoute.port }}
+          name: calibre-web
+          port: 80
     - kind: Rule
-      match: "Host(`{{ .Values.ingressRoute.host }}`) && PathPrefix(`/outpost.goauthentik.io/`)"
+      match: Host(`calibre.alexlebens.net`) && PathPrefix(`/outpost.goauthentik.io/`)"
       priority: 15
       services:
         - kind: Service
-          name: {{ .Values.ingressRoute.authentik.outpost }}
-          port: {{ .Values.ingressRoute.authentik.port }}
-          namespace: {{ .Values.ingressRoute.authentik.namespace }}
+          name: authentik-outpost-proxy
+          port: 9000
+          namespace: authentik
