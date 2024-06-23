@@ -1,11 +1,45 @@
 navidrome:
-  image:
-    repository: deluan/navidrome
-    tag: 0.52.5
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: deluan/navidrome
+            tag: 0.52.5
+            pullPolicy: IfNotPresent
+          env:
+            - name: ND_MUSICFOLDER
+              value: /music
+            - name: ND_SCANSCHEDULE
+              value: 1h
+            - name: ND_LOGLEVEL
+              value: info
+            - name: ND_SESSIONTIMEOUT
+              value: 24h
+            - name: ND_BASEURL
+              value: "/"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8083
+          protocol: HTTP
   ingress:
     main:
       enabled: true
-      ingressClassName: traefik
+      className: traefik
       annotations:
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
         traefik.ingress.kubernetes.io/router.tls: "true"
@@ -15,29 +49,28 @@ navidrome:
           paths:
             - path: /
               pathType: Prefix
+              service:
+                name: navidrome
+                port: 80
       tls:
         - secretName: navidrome-secret-tls
           hosts:
             - navidrome.alexlebens.net
   persistence:
     config:
-      enabled: true
-      mountPath: /data
+      storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 2Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
     music:
-      enabled: true
-      mountPath: /mnt/store
-      type: pvc
       existingClaim: navidrome-nfs-storage
-  env:
-    ND_MUSICFOLDER: /mnt/store/Music
-    ND_SCANSCHEDULE: 1h
-    ND_LOGLEVEL: info
-    ND_SESSIONTIMEOUT: 24h
-    ND_BASEURL: "/"
-storage:
-  storage:
-    nfs:
-      path: /volume2/Storage
-      server: synologybond.alexlebens.net
+      advancedMounts:
+        main:
+          main:
+            - path: /music
+              readOnly: true
