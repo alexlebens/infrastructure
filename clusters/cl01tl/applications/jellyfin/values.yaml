@@ -1,10 +1,58 @@
 jellyfin:
-  env:
-    TZ: US/Central
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/jellyfin/jellyfin
+            tag: 10.9.6
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+              memory: 4Gi
+              cpu: 2
+            requests:
+              gpu.intel.com/i915: 1
+              cpu: 100m
+              memory: 1Gi
+        vue:
+          image:
+            repository: ghcr.io/jellyfin/jellyfin-vue
+            tag: unstable.2024-06-22.60160e2
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 80
+          protocol: HTTP
+        vue:
+          port: 8080
+          targetPort: 80
+          protocol: HTTP
   ingress:
     main:
       enabled: true
-      ingressClassName: traefik
+      className: traefik
       annotations:
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
         traefik.ingress.kubernetes.io/router.tls: "true"
@@ -14,46 +62,45 @@ jellyfin:
           paths:
             - path: /
               pathType: Prefix
+              service:
+                name: jellyfin
+                port: 80
       tls:
         - secretName: jellyfin-secret-tls
           hosts:
             - jellyfin.alexlebens.net
   persistence:
     config:
-      enabled: true
-      mountPath: /config
+      storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 40Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
     cache:
-      enabled: true
-      mountPath: /cache
+      storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 40Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /cache
+              readOnly: false
     media:
-      enabled: true
-      mountPath: /mnt/store
-      type: pvc
       existingClaim: jellyfin-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: false
     youtube:
-      enabled: true
-      mountPath: /youtube
-      type: pvc
       existingClaim: jellyfin-youtube-nfs-storage
-  resources:
-    limits:
-      gpu.intel.com/i915: 1
-      memory: 4Gi
-      cpu: 2
-    requests:
-      gpu.intel.com/i915: 1
-      cpu: 100m
-      memory: 1Gi
-storage:
-  storage:
-    nfs:
-      path: /volume2/Storage
-      server: synologybond.alexlebens.net
-  youtube:
-    nfs:
-      path: /volume2/Storage/YouTube
-      server: synologybond.alexlebens.net
+      advancedMounts:
+        main:
+          main:
+            - path: /youtube
+              readOnly: true
