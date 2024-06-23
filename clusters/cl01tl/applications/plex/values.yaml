@@ -1,13 +1,48 @@
-plex:
-  image:
-    repository: ghcr.io/onedr0p/plex
-    tag: 1.40.3.8555-fef15d30c
-  env:
-    ADVERTISE_IP: "https://plex.alexlebens.net:443/"
-    ALLOWED_NETWORKS: "10.0.0.0/8,192.168.1.0/24"
+navidrome:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          runAsUser: 568
+          runAsGroup: 568
+          fsGroup: 568
+          fsGroupChangePolicy: OnRootMismatch
+          supplementalGroups:
+            - 44
+            - 100
+            - 109
+            - 65539        
+      containers:
+        main:
+          image:
+            repository: ghcr.io/onedr0p/plex
+            tag: 1.40.3.8555-fef15d30c
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: ADVERTISE_IP
+              value: https://plex.alexlebens.net:443/
+            - name: ALLOWED_NETWORKS
+              value: 10.0.0.0/8,192.168.1.0/24
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+              cpu: 5000m
+              memory: 4Gi
+            requests:
+              gpu.intel.com/i915: 1
+              cpu: 100m
+              memory: 1Gi
+  serviceAccount:
+    create: true
   service:
     main:
-      primary: true
+      controller: main
       type: LoadBalancer
       annotations:
         metallb.universe.tf/allow-shared-ip: "external"
@@ -18,10 +53,12 @@ plex:
       ports:
         http:
           port: 32400
+          targetPort: 32400
+          protocol: HTTP
   ingress:
     main:
       enabled: true
-      ingressClassName: traefik
+      className: traefik
       annotations:
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
         traefik.ingress.kubernetes.io/router.tls: "true"
@@ -31,48 +68,32 @@ plex:
           paths:
             - path: /
               pathType: Prefix
+              service:
+                name: plex
+                port: 32400
       tls:
         - secretName: plex-secret-tls
           hosts:
             - plex.alexlebens.net
-  hostNetwork: false
   persistence:
     config:
-      enabled: true
       existingClaim: plex-config
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
     transcode:
-      enabled: true
       type: emptyDir
+      advancedMounts:
+        transcoder:
+          main:
+            - path: /transcode
+              readOnly: false
     media:
-      enabled: true
-      mountPath: /mnt/store
-      type: pvc
       existingClaim: plex-nfs-storage
-  podSecurityContext:
-    runAsUser: 568
-    runAsGroup: 568
-    fsGroup: 568
-    fsGroupChangePolicy: "OnRootMismatch"
-    supplementalGroups:
-      - 44
-      - 100
-      - 109
-      - 65539
-  resources:
-    limits:
-      gpu.intel.com/i915: 1
-      cpu: 5000m
-      memory: 4Gi  
-    requests:
-      gpu.intel.com/i915: 1
-      cpu: 100m
-      memory: 1Gi
-storage:
-  config:
-    storageClassName: ceph-block
-    storageSize: 80Gi
-    volumeMode: Filesystem
-  media:
-    nfs:
-      path: /volume2/Storage
-      server: synologybond.alexlebens.net
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: false
