@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: audiobookshelf-config-source
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: audiobookshelf-config-source
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+spec:
+  sourcePVC: audiobookshelf-config
+  trigger:
+    schedule: "*/10 * * * *"
+  rclone:
+    rcloneConfigSection: aws-s3-bucket
+    rcloneDestPath: cl01tl-volsync-backups/audiobookshelf/audiobookshelf-config
+    rcloneConfig: rclone-backup-secret
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: audiobookshelf-metadata-source
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: audiobookshelf-metadata-source
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+spec:
+  sourcePVC: audiobookshelf-metadata
+  trigger:
+    schedule: "*/10 * * * *"
+  rclone:
+    rcloneConfigSection: aws-s3-bucket
+    rcloneDestPath: cl01tl-volsync-backups/audiobookshelf/audiobookshelf-metadata
+    rcloneConfig: rclone-backup-secret
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
