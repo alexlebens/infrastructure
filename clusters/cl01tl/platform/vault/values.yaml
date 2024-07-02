@@ -244,20 +244,13 @@ unseal:
   global:
     fullnameOverride: vault-unseal
   controllers:
-    unseal:
-      type: cronjob
-      cronjob:
-        suspend: false
-        concurrencyPolicy: Allow
-        timeZone: US/Central
-        schedule: "0 * * * *"
-        startingDeadlineSeconds: 90
-        successfulJobsHistory: 3
-        failedJobsHistory: 3
-        backoffLimit: 3
-        parallelism: 3
+    unseal-1:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
       containers:
-        unseal-1:
+        main:
           image:
             repository: ghcr.io/lrstanley/vault-unseal
             tag: 0.5.1
@@ -266,7 +259,13 @@ unseal:
             requests:
               cpu: 100m
               memory: 128Mi
-        unseal-2:
+    unseal-2:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
           image:
             repository: ghcr.io/lrstanley/vault-unseal
             tag: 0.5.1
@@ -275,7 +274,13 @@ unseal:
             requests:
               cpu: 100m
               memory: 128Mi
-        unseal-3:
+    unseal-3:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
           image:
             repository: ghcr.io/lrstanley/vault-unseal
             tag: 0.5.1
@@ -292,8 +297,8 @@ unseal:
       type: secret
       name: vault-unseal-config-1
       advancedMounts:
-        unseal:
-          unseal-1:
+        unseal-1:
+          main:
             - path: /etc/vault-unseal.yaml
               readOnly: true
               mountPropagation: None
@@ -303,8 +308,8 @@ unseal:
       type: secret
       name: vault-unseal-config-2
       advancedMounts:
-        unseal:
-          unseal-2:
+        unseal-2:
+          main:
             - path: /etc/vault-unseal.yaml
               readOnly: true
               mountPropagation: None
@@ -314,8 +319,8 @@ unseal:
       type: secret
       name: vault-unseal-config-3
       advancedMounts:
-        unseal:
-          unseal-3:
+        unseal-3:
+          main:
             - path: /etc/vault-unseal.yaml
               readOnly: true
               mountPropagation: None
