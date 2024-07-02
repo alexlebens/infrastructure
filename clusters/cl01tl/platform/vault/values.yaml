@@ -18,7 +18,7 @@ vault:
     logFormat: standard
     resources:
       requests:
-        cpu: 100m      
+        cpu: 100m
         memory: 256Mi
     ingress:
       enabled: true
@@ -165,3 +165,154 @@ vault:
           for: 5m
           labels:
             severity: critical
+snapshot:
+  controllers:
+    main:
+      type: cronjob
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Forbid
+        timeZone: US/Central
+        schedule: "@every 24h"
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 3
+        failedJobsHistory: 3
+        backoffLimit: 3
+        parallelism: 1
+      containers:
+        snapshot:
+          image:
+            repository: hashicorp/vault
+            tag: 1.16.2
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/ash
+          args:
+            - -ec
+            - |
+              apk add --no-cache jq;
+              export VAULT_TOKEN=$(vault write auth/approle/login role_id=$VAULT_APPROLE_ROLE_ID secret_id=$VAULT_APPROLE_SECRET_ID -format=json | jq -r .auth.client_token);
+              vault operator raft snapshot save /opt/backup/vault-snapshot-latest.snap;
+              cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
+              cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-s3.snap;
+          envFrom:
+            - secretRef:
+                name: vault-snapshot-agent-token
+          env:
+            - name: VAULT_ADDR
+              value: http://vault-active.vault.svc.cluster.local:8200
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+        backup:
+          image:
+            repository: amazon/aws-cli
+            tag: 2.15.42
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - |
+              until [ -f /opt/backup/vault-snapshot-s3.snap ]; do sleep 5; done;
+              aws s3 cp /opt/backup/vault-snapshot-s3.snap s3://cl01tl-vault-snapshots/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
+              rm /opt/backup/vault-snapshot-s3.snap;
+          envFrom:
+            - secretRef:
+                name: vault-snapshot-s3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  persistence:
+    config:
+      existingClaim: vault-nfs-storage-backup
+      advancedMounts:
+        main:
+          snapshot:
+            - path: /opt/backup
+              readOnly: false
+          backup:
+            - path: /opt/backup
+              readOnly: false
+vault-unseal:
+  controllers:
+    main:
+      type: cronjob
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Allow
+        timeZone: US/Central
+        schedule: "0 * * * *"
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 3
+        failedJobsHistory: 3
+        backoffLimit: 3
+        parallelism: 3
+      containers:
+        unseal-1:
+          image:
+            repository: ghcr.io/lrstanley/vault-unseal
+            tag: 0.5.1
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+        unseal-2:
+          image:
+            repository: ghcr.io/lrstanley/vault-unseal
+            tag: 0.5.1
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+        unseal-3:
+          image:
+            repository: ghcr.io/lrstanley/vault-unseal
+            tag: 0.5.1
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  persistence:
+    config-1:
+      enabled: true
+      type: configMap
+      name: vault-unseal-config-1
+      advancedMounts:
+        main:
+          unseal-1:
+            - path: /etc/vault-unseal.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: vault-unseal.yaml
+    config-2:
+      enabled: true
+      type: configMap
+      name: vault-unseal-config-2
+      advancedMounts:
+        main:
+          unseal-2:
+            - path: /etc/vault-unseal.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: vault-unseal.yaml
+    config-3:
+      enabled: true
+      type: configMap
+      name: vault-unseal-config-3
+      advancedMounts:
+        main:
+          unseal-3:
+            - path: /etc/vault-unseal.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: vault-unseal.yaml
