@@ -86,6 +86,14 @@ gitea:
             key: password
   persistence:
     storageClass: ceph-block
+  extraVolumes:
+    - name: gitea-nfs-storage-backup
+      persistentVolumeClaim:
+        claimName: gitea-nfs-storage-backup
+  extraVolumeMounts:
+    - mountPath: /opt/backup
+      name: gitea-nfs-storage-backup
+      readOnly: false
   postgresql:
     enabled: false
   postgresql-ha:
@@ -94,6 +102,73 @@ gitea:
     enabled: true
 cloudflared:
   existingSecretName: gitea-cloudflared-secret
+backup:
+  global:
+    fullnameOverride: gitea-backup
+  controllers:
+    backup:
+      type: cronjob
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Forbid
+        timeZone: US/Central
+        schedule: "@every 24h"
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 3
+        failedJobsHistory: 3
+        backoffLimit: 3
+        parallelism: 1
+      containers:
+        backup:
+          image:
+            repository: bitnami/kubectl
+            tag: 1.30.2
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/ash
+          args:
+            - -ec
+            - |
+              kubectl exec -it deploy/gitea -n gitea -- su - git -c /app/gitea/gitea dump -c /data/gitea/conf/app.ini --file /opt/backup/gitea-backup.zip
+              cp /opt/backup/gitea-backup.zip /opt/backup/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
+              cp /opt/backup/gitea-backup.zip /opt/backup/gitea-backup-s3.zip;
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+        s3:
+          image:
+            repository: amazon/aws-cli
+            tag: 2.17.5
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - |
+              until [ -f /opt/backup/gitea-backup-s3.zip ]; do sleep 5; done;
+              aws s3 cp /opt/backup/gitea-backup-s3.zip s3://cl01tl-gitea-backups/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
+              rm /opt/backup/gitea-backup-s3.zip;
+          envFrom:
+            - secretRef:
+                name: gitea-backup-s3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  persistence:
+    config:
+      existingClaim: gitea-nfs-storage-backup
+      advancedMounts:
+        backup:
+          backup:
+            - path: /opt/backup
+              readOnly: false
+          s3:
+            - path: /opt/backup
+              readOnly: false
 postgres-16-cluster:
   mode: standalone
   cluster:
