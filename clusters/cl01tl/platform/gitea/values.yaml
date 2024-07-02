@@ -4,6 +4,23 @@ gitea:
     tag: 1.22.0
   ingress:
     enabled: false
+    className: traefik
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+      cert-manager.io/cluster-issuer: letsencrypt-issuer
+    hosts:
+      - host: gitea.alexlebens.net
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: gitea-secret-tls
+        hosts:
+          - gitea.alexlebens.net
+  serviceAccount:
+    create: true
+    automountServiceAccountToken: true
   gitea:
     admin:
       existingSecret: gitea-admin-secret
@@ -11,22 +28,41 @@ gitea:
       enabled: true
       serviceMonitor:
         enabled: true
+    oauth:
+      - name: Authentik
+        provider: openidConnect
+        existingSecret: gitea-oidc-secret
+        autoDiscoverUrl: https://auth.alexlebens.dev/application/o/gitea/.well-known/openid-configuration
+        iconUrl: https://goauthentik.io/img/icon.png
+        scopes: "email profile"
     config:
+      APP_NAME: Gitea
       server:
-        LANDING_PAGE: explore
+        PROTOCOL: http
+        DOMAIN: gitea.alexlebens.dev
         ROOT_URL: https://gitea.alexlebens.dev
+        LOCAL_ROOT_URL: http://gitea-http.gitea.svc.cluster.local:3000
+        START_SSH_SERVER: true
+        SSH_DOMAIN: gitea.alexlebens.dev
+        SSH_PORT: 22
+        SSH_LISTEN_PORT: 22
         ENABLE_PPROF: true
-      webhook:
-        ALLOWED_HOST_LIST: private
-        scopes: email profile
-      service:
-        DISABLE_REGISTRATION: true
-        SHOW_REGISTRATION_BUTTON: false
-        explore:
-          REQUIRE_SIGNIN_VIEW: true
+        LANDING_PAGE: explore
       database:
         DB_TYPE: postgres
         SCHEMA: public
+      oauth2_client:
+        ENABLE_AUTO_REGISTRATION: true
+      service:
+        REGISTER_MANUAL_CONFIRM: true
+        SHOW_REGISTRATION_BUTTON: false
+        ALLOW_ONLY_EXTERNAL_REGISTRATION: true
+      explore:
+        REQUIRE_SIGNIN_VIEW: true
+      webhook:
+        ALLOWED_HOST_LIST: private
+      mirror:
+        DEFAULT_INTERVAL: 10m
     additionalConfigFromEnvs:
       - name: GITEA__DATABASE__HOST
         valueFrom:
@@ -48,13 +84,6 @@ gitea:
           secretKeyRef:
             name: gitea-postgresql-16-cluster-app
             key: password
-    oauth:
-      - name: Authentik
-        provider: openidConnect
-        existingSecret: gitea-oidc-secret
-        autoDiscoverUrl: https://auth.alexlebens.dev/application/o/gitea/.well-known/openid-configuration
-        iconUrl: https://goauthentik.io/img/icon.png
-        scopes: "email profile"
   persistence:
     storageClass: ceph-block
   postgresql:
