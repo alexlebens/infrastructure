@@ -1,10 +1,10 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: audiobookshelf-config-source
+  name: audiobookshelf-config-backup-source
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: audiobookshelf-config-source
+    app.kubernetes.io/name: audiobookshelf-config-backup-source
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/version: {{ .Chart.AppVersion }}
     app.kubernetes.io/component: backup
@@ -12,11 +12,16 @@ metadata:
 spec:
   sourcePVC: audiobookshelf-config
   trigger:
-    schedule: "*/10 * * * *"
-  rclone:
-    rcloneConfigSection: aws-s3-bucket
-    rcloneDestPath: cl01tl-volsync-backups/audiobookshelf/audiobookshelf-config
-    rcloneConfig: rclone-backup-secret
+    schedule: 0 */6 * * *
+  restic:
+    pruneIntervalDays: 14
+    repository: restic-backup-secret
+    retain:
+      hourly: 1
+      daily: 1
+      weekly: 7
+      monthly: 4
+      yearly: 1
     copyMethod: Snapshot
     storageClassName: ceph-block
     volumeSnapshotClassName: ceph-blockpool-snapshot
@@ -25,10 +30,10 @@ spec:
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: audiobookshelf-metadata-source
+  name: audiobookshelf-metadata-backup-source
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: audiobookshelf-metadata-source
+    app.kubernetes.io/name: audiobookshelf-metadata-backup-source
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/version: {{ .Chart.AppVersion }}
     app.kubernetes.io/component: backup
@@ -36,11 +41,16 @@ metadata:
 spec:
   sourcePVC: audiobookshelf-metadata
   trigger:
-    schedule: "*/10 * * * *"
-  rclone:
-    rcloneConfigSection: aws-s3-bucket
-    rcloneDestPath: cl01tl-volsync-backups/audiobookshelf/audiobookshelf-metadata
-    rcloneConfig: rclone-backup-secret
+    schedule: 0 */6 * * *
+  restic:
+    pruneIntervalDays: 14
+    repository: restic-backup-secret
+    retain:
+      hourly: 1
+      daily: 1
+      weekly: 7
+      monthly: 4
+      yearly: 1
     copyMethod: Snapshot
     storageClassName: ceph-block
     volumeSnapshotClassName: ceph-blockpool-snapshot
