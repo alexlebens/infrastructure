@@ -1,0 +1,27 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: penpot-data-backup-source
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: penpot-data-backup-source
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+spec:
+  sourcePVC: penpot-data
+  trigger:
+    schedule: 0 */6 * * *
+  restic:
+    pruneIntervalDays: 14
+    repository: penpot-data-backup-secret
+    retain:
+      hourly: 1
+      daily: 1
+      weekly: 7
+      monthly: 4
+      yearly: 4
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
