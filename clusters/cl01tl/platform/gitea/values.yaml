@@ -129,11 +129,8 @@ backup:
           args:
             - -ec
             - |
-              rm -f /opt/backup/gitea-backup.zip
-              kubectl exec -it deploy/gitea -n gitea -- /app/gitea/gitea dump -c /data/gitea/conf/app.ini --file /opt/backup/gitea-backup.zip
-              sleep 2;
-              cp /opt/backup/gitea-backup.zip /opt/backup/gitea-backup-s3.zip;
-              mv /opt/backup/gitea-backup.zip /opt/backup/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
+              kubectl exec -it deploy/gitea -n gitea -- rm -f /opt/backup/gitea-backup.zip;
+              kubectl exec -it deploy/gitea -n gitea -- /app/gitea/gitea dump -c /data/gitea/conf/app.ini --file /opt/backup/gitea-backup.zip;
           resources:
             requests:
               cpu: 100m
@@ -148,9 +145,9 @@ backup:
           args:
             - -ec
             - |
-              until [ -f /opt/backup/gitea-backup-s3.zip ]; do sleep 5; done;
-              aws s3 cp /opt/backup/gitea-backup-s3.zip s3://cl01tl-gitea-backups/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
-              rm /opt/backup/gitea-backup-s3.zip
+              until [ -f /opt/backup/gitea-backup.zip ]; do sleep 5; done;
+              aws s3 cp /opt/backup/gitea-backup.zip s3://cl01tl-gitea-backups/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
+              mv /opt/backup/gitea-backup.zip /opt/backup/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
           envFrom:
             - secretRef:
                 name: gitea-backup-s3
@@ -165,9 +162,6 @@ backup:
       existingClaim: gitea-nfs-storage-backup
       advancedMounts:
         backup:
-          backup:
-            - path: /opt/backup
-              readOnly: false
           s3:
             - path: /opt/backup
               readOnly: false
