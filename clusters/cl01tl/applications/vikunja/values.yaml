@@ -28,14 +28,7 @@ vikunja:
                   name: vikunja-config-secret
                   key: redis-password
             - name: VIKUNJA_TYPESENSE_ENABLED
-              value: "true"
-            - name: VIKUNJA_TYPESENSE_URL
-              value: http://vikunja-typesense.vikunja:8108
-            - name: VIKUNJA_TYPESENSE_APIKEY
-              valueFrom:
-                secretKeyRef:
-                  name: vikunja-config-secret
-                  key: typesense-apikey
+              value: "false"
             - name: VIKUNJA_DATABASE_TYPE
               value: postgres
             - name: VIKUNJA_DATABASE_USER
@@ -94,52 +87,6 @@ vikunja:
               readOnly: true
               mountPropagation: None
               subPath: config.yml
-typesense:
-  global:
-    nameOverride: typesense
-  controllers:
-    typesense:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      containers:
-        main:
-          image:
-            repository: typesense/typesense
-            tag: 27.0.rc14
-            pullPolicy: IfNotPresent
-          env:
-            - name: TYPESENSE_DATA_DIR
-              value: /data
-            - name: TYPESENSE_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: vikunja-config-secret
-                  key: typesense-apikey
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-  service:
-    typesense:
-      controller: typesense
-      ports:
-        http:
-          port: 8108
-          targetPort: 8108
-          protocol: HTTP
-  persistence:
-    config:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 5Gi
-      retain: true
-      advancedMounts:
-        typesense:
-          main:
-            - path: /data
-              readOnly: false
 redis:
   architecture: standalone
   auth:
