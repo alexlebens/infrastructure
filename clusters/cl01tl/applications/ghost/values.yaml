@@ -1,0 +1,134 @@
+ghost:
+  updateStrategy:
+    type: Recreate
+  ghostUsername: user
+  existingSecret: ghost-credentials-secret
+  ghostEmail: alexanderlebens@gmail.com
+  ghostBlogTitle: Alex Lebens
+  ghostHost: blog.alexlebens.dev
+  ghostPath: /
+  ghostSkipInstall: false
+  replicaCount: 1
+  resourcesPreset: small
+  service:
+    type: ClusterIP
+  persistence:
+    enabled: true
+    storageClass: ceph-block
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+  mysql:
+    enabled: false
+  externalDatabase:
+    host: ghost-mysql-8-cluster.ghost.svc.cluster.local
+    port: 3306
+    user: ghost
+    database: ghost
+    existingSecret: ghost-mysql-credentials-secret
+cloudflared:
+  existingSecretName: ghost-cloudflared-secret
+pxc-db:
+  updateStrategy: SmartUpdate
+  upgradeOptions:
+    versionServiceEndpoint: https://check.percona.com
+    apply: disabled
+    schedule: "0 4 * * *"
+  pxc:
+    size: 3
+    image:
+      repository: percona/percona-xtradb-cluster
+      tag: 8.0.36-28.1
+    autoRecovery: true
+    expose:
+      enabled: false
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 100m
+    persistence:
+      enabled: true
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 10Gi
+    disableTLS: false
+    certManager: true
+    clusterSecretName: ghost-mysql-credentials-secret
+  haproxy:
+    enabled: true
+    size: 3
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+    exposePrimary:
+      enabled: true
+      type: ClusterIP
+      externalTrafficPolicy: Cluster
+      internalTrafficPolicy: Cluster
+    exposeReplicas:
+      enabled: false
+  logcollector:
+    enabled: true
+    resources:
+      requests:
+        memory: 128M
+        cpu: 100m
+  backup:
+    enabled: true
+    allowParallel: true
+    image:
+      repository: percona/percona-xtradb-cluster-operator
+      tag: 1.14.0-pxc8.0-backup-pxb8.0.35
+    pitr:
+      enabled: true
+      storageName: s3-binlogs
+      timeBetweenUploads: 600
+      timeoutSeconds: 60
+      resources:
+        requests:
+          memory: 256Mi
+          cpu: 100m
+    storages:
+      s3-binlogs:
+        type: s3
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 100m
+        s3:
+          bucket: cl01tl-mysql-backups/ghost/binlogs
+          credentialsSecret: ghost-mysql-backup-credentials-secret
+          region: us-east-2
+          endpointUrl: https://s3.us-east-2.amazonaws.com 
+      s3-daily:
+        type: s3
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 100m
+        s3:
+          bucket: cl01tl-mysql-backups/ghost/daily
+          credentialsSecret: ghost-mysql-backup-credentials-secret
+          region: us-east-2
+          endpointUrl: https://s3.us-east-2.amazonaws.com
+      s3-weekly:
+        type: s3
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 100m        
+        s3:
+          bucket: cl01tl-mysql-backups/ghost/weekly
+          credentialsSecret: ghost-mysql-backup-credentials-secret
+          region: us-east-2
+          endpointUrl: https://s3.us-east-2.amazonaws.com
+    schedule:
+      - name: daily-backup
+        schedule: "0 0 * * *"
+        keep: 5
+        storageName: s3-daily
+      - name: weekly-backup
+        schedule: "0 0 * * 6"
+        keep: 4
+        storageName: s3-weekly
