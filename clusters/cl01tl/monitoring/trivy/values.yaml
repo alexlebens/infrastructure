@@ -1,0 +1,218 @@
+trivy-operator:
+  targetWorkloads: "pod,replicaset,replicationcontroller,statefulset,daemonset,cronjob,job"
+  operator:
+    replicas: 2
+    leaderElectionId: "trivyoperator-lock"
+    scanJobTTL: ""
+    scanSecretTTL: ""
+    scanJobTimeout: 5m
+    scanJobsConcurrentLimit: 10
+    scanNodeCollectorLimit: 1
+    scanJobsRetryDelay: 30s
+    vulnerabilityScannerEnabled: true
+    sbomGenerationEnabled: true
+    clusterSbomCacheEnabled: false
+    scannerReportTTL: "24h"
+    cacheReportTTL: "120h"
+    configAuditScannerEnabled: true
+    rbacAssessmentScannerEnabled: true
+    infraAssessmentScannerEnabled: true
+    clusterComplianceEnabled: true
+    batchDeleteLimit: 10
+    vulnerabilityScannerScanOnlyCurrentRevisions: true
+    configAuditScannerScanOnlyCurrentRevisions: true
+    batchDeleteDelay: 10s
+    accessGlobalSecretsAndServiceAccount: true
+    builtInTrivyServer: false
+    builtInServerRegistryInsecure: false
+    controllerCacheSyncTimeout: "5m"
+    trivyServerHealthCheckCacheExpiration: 10h
+    metricsFindingsEnabled: true
+    metricsVulnIdEnabled: false
+    exposedSecretScannerEnabled: true
+    metricsExposedSecretInfo: false
+    metricsConfigAuditInfo: false
+    metricsRbacAssessmentInfo: false
+    metricsInfraAssessmentInfo: false
+    metricsImageInfo: false
+    metricsClusterComplianceInfo: false
+    serverAdditionalAnnotations: {}
+    webhookBroadcastURL: ""
+    webhookBroadcastTimeout: 30s
+    webhookBroadcastCustomHeaders: ""
+    webhookSendDeletedReports: false
+    privateRegistryScanSecretsNames: {}
+    mergeRbacFindingWithConfigAudit: false
+    httpProxy: ~
+    httpsProxy: ~
+    noProxy: ~
+    valuesFromConfigMap: ""
+    valuesFromSecret: "".
+  service:
+    headless: true
+    metricsPort: 80
+    metricsAppProtocol: TCP
+    type: ClusterIP
+  serviceMonitor:
+    enabled: true
+    namespace: trivy
+    interval: 30s
+    honorLabels: true
+  trivyOperator:
+    vulnerabilityReportsPlugin: "Trivy"
+    configAuditReportsPlugin: "Trivy"
+    scanJobCompressLogs: true
+    useGCRServiceAccount: true
+    scanJobAutomountServiceAccountToken: true
+    skipInitContainers: false
+    metricsResourceLabelsPrefix: "k8s_label_"
+  trivy:
+    createConfig: true
+    image:
+      registry: ghcr.io
+      repository: aquasecurity/trivy
+      tag: 0.53.0
+    mode: Standalone
+    sbomSources: ""
+    includeDevDeps: false
+    storageClassEnabled: true
+    storageClassName: ceph-block
+    storageSize: 5Gi
+    additionalVulnerabilityReportFields: "Description,Links,CVSS,PackagePath,PackageType"
+    severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+    slow: true
+    ignoreUnfixed: false
+    offlineScan: false
+    timeout: "5m0s"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128M
+    skipJavaDBUpdate: false
+    serverInsecure: false
+
+    # -- existingSecret if a secret containing gitHubToken, serverToken or serverCustomHeaders has been created outside the chart (e.g external-secrets, sops, etc...).
+    # Keys must be at least one of the following: trivy.githubToken, trivy.serverToken, trivy.serverCustomHeaders
+    # Overrides trivy.gitHubToken, trivy.serverToken, trivy.serverCustomHeaders values.
+    # Note: The secret has to be named "trivy-operator-trivy-config".
+    # existingSecret: true
+
+    dbRegistry: "ghcr.io"
+    dbRepository: "aquasecurity/trivy-db"
+    dbRepositoryUsername: ~
+    dbRepositoryPassword: ~
+    javaDbRegistry: "ghcr.io"
+    javaDbRepository: "aquasecurity/trivy-java-db"
+    dbRepositoryInsecure: "false"
+    useBuiltinRegoPolicies: "true"
+    externalRegoPoliciesEnabled: false
+    useEmbeddedRegoPolicies: "false"
+    supportedConfigAuditKinds: "Workload,Service,Role,ClusterRole,NetworkPolicy,Ingress,LimitRange,ResourceQuota"
+    command: image
+    imageScanCacheDir: "/tmp/trivy/.cache"
+    filesystemScanCacheDir: "/var/trivyoperator/trivy-db"
+    serverUser: ""
+    serverPassword: ""
+    serverServiceName: "trivy-service"
+    server:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+
+    # -- valuesFromSecret name of a Secret to apply TRIVY_* environment variables. Will override Helm AND ConfigMap values.
+    valuesFromSecret: ""
+
+  compliance:
+    failEntriesLimit: 10
+    reportType: summary
+    cron: 0 */6 * * *
+    specs:
+      - k8s-cis-1.23
+      - k8s-nsa-1.0
+      - k8s-pss-baseline-0.1
+      - k8s-pss-restricted-0.1
+  rbac:
+    create: true
+  serviceAccount:
+    create: true
+  volumeMounts:
+    - mountPath: /tmp
+      name: cache-policies
+      readOnly: false
+  volumes:
+    - name: cache-policies
+      emptyDir: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  policiesBundle:
+    registry: ghcr.io
+    repository: aquasecurity/trivy-checks
+    tag: 0
+    registryUser: ~
+    registryPassword: ~
+
+    # -- existingSecret if a secret containing registry credentials that have been created outside the chart (e.g external-secrets, sops, etc...).
+    # Keys must be at least one of the following: policies.bundle.oci.user, policies.bundle.oci.password
+    # Overrides policiesBundle.registryUser, policiesBundle.registryPassword values.
+    # Note: The secret has to be named "trivy-operator".
+    existingSecret: false
+
+    insecure: false
+  nodeCollector:
+    useNodeSelector: true
+    registry: ghcr.io
+    repository: aquasecurity/node-collector
+    tag: 0.3.1
+    volumeMounts:
+      - name: var-lib-etcd
+        mountPath: /var/lib/etcd
+        readOnly: true
+      - name: var-lib-kubelet
+        mountPath: /var/lib/kubelet
+        readOnly: true
+      - name: var-lib-kube-scheduler
+        mountPath: /var/lib/kube-scheduler
+        readOnly: true
+      - name: var-lib-kube-controller-manager
+        mountPath: /var/lib/kube-controller-manager
+        readOnly: true
+      - name: etc-systemd
+        mountPath: /etc/systemd
+        readOnly: true
+      - name: lib-systemd
+        mountPath: /lib/systemd/
+        readOnly: true
+      - name: etc-kubernetes
+        mountPath: /etc/kubernetes
+        readOnly: true
+      - name: etc-cni-netd
+        mountPath: /etc/cni/net.d/
+        readOnly: true
+    volumes:
+      - name: var-lib-etcd
+        hostPath:
+          path: /var/lib/etcd
+      - name: var-lib-kubelet
+        hostPath:
+          path: /var/lib/kubelet
+      - name: var-lib-kube-scheduler
+        hostPath:
+          path: /var/lib/kube-scheduler
+      - name: var-lib-kube-controller-manager
+        hostPath:
+          path: /var/lib/kube-controller-manager
+      - name: etc-systemd
+        hostPath:
+          path: /etc/systemd
+      - name: lib-systemd
+        hostPath:
+          path: /lib/systemd
+      - name: etc-kubernetes
+        hostPath:
+          path: /etc/kubernetes
+      - name: etc-cni-netd
+        hostPath:
+          path: /etc/cni/net.d/
