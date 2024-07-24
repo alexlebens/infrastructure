@@ -1,0 +1,86 @@
+linkwarden:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/linkwarden/linkwarden
+            tag: v2.6.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: NEXT_PUBLIC_DISABLE_REGISTRATION
+              value: false
+            - name: NEXT_PUBLIC_CREDENTIALS_ENABLED
+              value: false
+            - name: DISABLE_NEW_SSO_USERS
+              value: false
+            - name: NEXT_PUBLIC_AUTHENTIK_ENABLED
+              value: true
+            - name: AUTHENTIK_CUSTOM_NAME
+              value: "Authentik"
+            - name: AUTHENTIK_ISSUER
+              value: https://auth.alexlebens.dev/application/o/linkwarden
+            - name: AUTHENTIK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: linkwarden-oidc-secret
+                  key: AUTHENTIK_CLIENT_ID
+            - name: AUTHENTIK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: linkwarden-oidc-secret
+                  key: AUTHENTIK_CLIENT_SECRET
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: linkwarden-postgresql-16-cluster-app
+                  key: uri
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 3000
+          targetPort: 3000
+          protocol: HTTP
+  persistence:
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 20Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+cloudflared:
+  existingSecretName: linkwarden-cloudflared-secret
+postgres-16-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: false
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/linkwarden
+    endpointCredentials: linkwarden-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d
