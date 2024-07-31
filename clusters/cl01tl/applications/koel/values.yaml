@@ -1,0 +1,164 @@
+koel:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: phanan/koel
+            tag: 7.0.9
+            pullPolicy: IfNotPresent
+          env:
+            - name: APP_NAME
+              value: Koel
+            - name: APP_ENV
+              value: production
+            - name: APP_DEBUG
+              value: false
+            - name: APP_URL
+              value: https://koel.alexlebens.dev
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: koel-config-secret
+                  key: app-key
+            - name: STREAMING_METHOD
+              value: x-accel-redirect
+            - name: OUTPUT_BIT_RATE
+              value: 320
+            - name: MEDIA_PATH
+              value: /music
+            - name: MEILISEARCH_HOST
+              value: http://koel-meilisearch.koel:7700
+            - name: MEILISEARCH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: koel-meilisearch-master-key-secret
+                  key: MEILI_MASTER_KEY
+            - name: SPOTIFY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: koel-config-secret
+                  key: spotify-client-id
+            - name: SPOTIFY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: koel-config-secret
+                  key: spotify-client-secret
+            - name: PROXY_AUTH_ENABLED
+              value: true
+            - name: PROXY_AUTH_USER_HEADER
+              value: X-authentik-email
+            - name: PROXY_AUTH_PREFERRED_NAME_HEADER
+              value: X-authentik-username
+            - name: PROXY_AUTH_ALLOW_LIST
+              value: 10.244.0.0/16,10.96.0.0/12
+            - name: DB_CONNECTION
+              value: pgsql
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: koel-postgresql-16-cluster-app
+                  key: host
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: koel-postgresql-16-cluster-app
+                  key: port
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: koel-postgresql-16-cluster-app
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: koel-postgresql-16-cluster-app
+                  key: password
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: koel-postgresql-16-cluster-app
+                  key: dbname
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 80
+          protocol: HTTP
+  persistence:
+    covers:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /var/www/html/public/img/covers
+              readOnly: false
+    search:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /var/www/html/storage/search-indexes
+              readOnly: false
+    music:
+      existingClaim: koel-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /music
+              readOnly: true
+meilisearch:
+  environment:
+    MEILI_NO_ANALYTICS: true
+    MEILI_ENV: production
+  auth:
+    existingMasterKeySecret: koel-meilisearch-master-key-secret
+  service:
+    type: ClusterIP
+    port: 7700
+  persistence:
+    enabled: true
+    storageClass: ceph-block
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  serviceMonitor:
+    enabled: true
+postgres-16-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: false
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/koel
+    endpointCredentials: koel-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d
