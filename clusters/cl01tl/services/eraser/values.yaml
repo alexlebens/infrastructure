@@ -1,0 +1,70 @@
+eraser:
+  runtimeConfig:
+    apiVersion: eraser.sh/v1alpha3
+    kind: EraserConfig
+    manager:
+      runtime:
+        name: containerd
+        address: unix:///run/containerd/containerd.sock
+      logLevel: info
+      scheduling:
+        repeatInterval: 24h
+        beginImmediately: true
+      profile:
+        enabled: false
+        port: 6060
+      imageJob:
+        successRatio: 1.0
+        cleanup:
+          delayOnSuccess: 0s
+          delayOnFailure: 24h
+      nodeFilter:
+        type: exclude
+        selectors:
+          - eraser.sh/cleanup.filter
+          - kubernetes.io/os=windows
+    components:
+      collector:
+        enabled: true
+        request:
+          cpu: 100m
+          memory: 128Mi
+      scanner:
+        enabled: false
+        request:
+          cpu: 100m
+          memory: 128Mi
+        config: "" # |
+          # cacheDir: /var/lib/trivy
+          # dbRepo: ghcr.io/aquasecurity/trivy-db
+          # deleteFailedImages: true
+          # deleteEOLImages: true
+          # vulnerabilities:
+          #   ignoreUnfixed: true
+          #   types:
+          #     - os
+          #     - library
+          #   securityChecks:
+          #     - vuln
+          #   severities:
+          #     - CRITICAL
+          #     - HIGH
+          #     - MEDIUM
+          #     - LOW
+          #   ignoredStatuses:
+          # timeout:
+          #   total: 23h
+          #   perImage: 1h
+      remover:
+        request:
+          cpu: 100m
+          memory: 128Mi
+  deploy:
+    securityContext:
+      allowPrivilegeEscalation: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    nodeSelector:
+      kubernetes.io/os: linux
