@@ -20,6 +20,11 @@ koel:
               value: true
             - name: APP_URL
               value: https://koel.alexlebens.dev
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: koel-config-secret
+                  key: app-key
             - name: STREAMING_METHOD
               value: x-accel-redirect
             - name: OUTPUT_BIT_RATE
@@ -92,26 +97,6 @@ koel:
           port: 80
           targetPort: 80
           protocol: HTTP
-  ingress:
-    main:
-      enabled: true
-      className: traefik
-      annotations:
-        traefik.ingress.kubernetes.io/router.entrypoints: websecure
-        traefik.ingress.kubernetes.io/router.tls: "true"
-        cert-manager.io/cluster-issuer: letsencrypt-issuer
-      hosts:
-        - host: koel.alexlebens.net
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: koel
-                port: 80
-      tls:
-        - secretName: koel-secret-tls
-          hosts:
-            - koel.alexlebens.net
   persistence:
     covers:
       storageClass: ceph-block
