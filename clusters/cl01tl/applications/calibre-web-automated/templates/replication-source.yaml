@@ -1,0 +1,30 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: calibre-web-automated-config-backup-source
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: calibre-web-automated-config-backup-source
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+spec:
+  sourcePVC: calibre-web-automated-config
+  trigger:
+    schedule: 0 */6 * * *
+  restic:
+    pruneIntervalDays: 7
+    repository: calibre-web-automated-config-backup-secret
+    retain:
+      hourly: 1
+      daily: 1
+      weekly: 3
+      monthly: 2
+      yearly: 4
+    moverSecurityContext:
+      runAsUser: 1000
+      runAsGroup: 100      
+    copyMethod: Snapshot
+    storageClassName: ceph-block-delete
+    volumeSnapshotClassName: ceph-blockpool-snapshot

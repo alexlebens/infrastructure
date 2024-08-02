@@ -1,0 +1,59 @@
+calibre-web-automated:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: crocodilestick/calibre-web-automated
+            tag: sha256:4cf05160e89a74848ef6ee8b6bef3fa847a9c42faff4dc501dffcc2419673ffe
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 100
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8083
+          protocol: HTTP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    ingest:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /cwa-book-ingest
+              readOnly: false
+    books:
+      existingClaim: calibre-web-automated-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /calibre-main/Calibre Library
+              readOnly: true
