@@ -1,0 +1,37 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: book-bounty
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: book-bounty
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: bookbounty.alexlebens.net
+    external-dns.alpha.kubernetes.io/target: cl01tl-endpoint.alexlebens.net
+    kubernetes.io/ingress.class: traefik
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`bookbounty.alexlebens.net`)
+      middlewares:
+        - name: authentik-book-bounty
+          namespace: {{ .Release.Namespace }}
+      priority: 10
+      services:
+        - kind: Service
+          name: book-bounty
+          port: 80
+    - kind: Rule
+      match: Host(`bookbounty.alexlebens.net`) && PathPrefix(`/outpost.goauthentik.io/`)"
+      priority: 15
+      services:
+        - kind: Service
+          name: authentik-outpost-proxy
+          port: 9000
+          namespace: authentik

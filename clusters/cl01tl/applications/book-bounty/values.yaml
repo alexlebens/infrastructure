@@ -1,0 +1,59 @@
+book-bounty:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: thewicklowwolf/bookbounty
+            tag: latest@sha256:bbf9a20ad88579067463bad999a6b82bdd457d37d6fa28096686a6d5992e746c
+            pullPolicy: IfNotPresent
+          env:
+            - name: readarr_address
+              value: http://readarr-books.readarr-books:80
+            - name: readarr_api_key
+              valueFrom:
+                secretKeyRef:
+                  name: book-bounty-secret
+                  key: readarr_api_key
+            - name: sleep_interval
+              value: 360
+            - name: sync_schedule
+              value: 4
+            - name: selected_path_type
+              value: folder
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 5000
+          protocol: HTTP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /bookbounty/config
+              readOnly: false
+    books:
+      existingClaim: book-bounty-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /bookbounty/downloads
+              readOnly: false
