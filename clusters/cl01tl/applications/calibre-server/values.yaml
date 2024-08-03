@@ -1,0 +1,74 @@
+calibre-server:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/linuxserver/calibre
+            tag: v7.12.0-ls285
+            pullPolicy: IfNotPresent
+          env:
+            - name: PGID
+              value: "1001"
+            - name: PUID
+              value: "1001"
+            - name: TZ
+              value: US/Central
+            - name: UMASK_SET
+              value: "022"
+            - name: CUSTOM_USER
+              value: calibre
+            - name: TITLE
+              value: Calibre Server
+            - name: NO_DECOR
+              value: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+  serviceAccount:
+    create: true
+  service:
+    web:
+      controller: main
+      ports:
+        http:
+          port: 8080
+          targetPort: 8080
+          protocol: HTTP
+    content:
+      controller: main
+      ports:
+        http:
+          port: 8081
+          targetPort: 8081
+          protocol: HTTP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    books:
+      existingClaim: calibre-server-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /books
+              readOnly: false
+    import:
+      existingClaim: calibre-server-import-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /import
+              readOnly: false
