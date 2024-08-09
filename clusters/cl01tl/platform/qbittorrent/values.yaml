@@ -29,13 +29,22 @@ qbittorrent:
         gluetun:
           image:
             repository: ghcr.io/qdm12/gluetun
-            tag: v3.38.0
+            tag: v3.39.0
             pullPolicy: IfNotPresent
           env:
             - name: VPN_SERVICE_PROVIDER
-              value: custom
+              value: protonvpn
             - name: VPN_TYPE
               value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: qbittorrent-wireguard-conf
+                  key: private-key
+            - name: VPN_PORT_FORWARDING
+              value: "on"
+            - name: PORT_FORWARD_ONLY
+              value: "on"
             - name: FIREWALL_OUTBOUND_SUBNETS
               value: 192.168.1.0/24,10.244.0.0/16
             - name: FIREWALL_INPUT_PORTS
@@ -130,17 +139,6 @@ qbittorrent:
           qbittorrent:
             - path: /mnt/store
               readOnly: false
-    wireguard-config:
-      enabled: true
-      type: secret
-      name: qbittorrent-wireguard-conf
-      advancedMounts:
-        main:
-          gluetun:
-            - path: /gluetun/wireguard/wg0.conf
-              readOnly: true
-              mountPropagation: None
-              subPath: wg0.conf
     tunnel-device:
       enabled: true
       type: hostPath
