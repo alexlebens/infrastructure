@@ -176,6 +176,26 @@ roundcube:
           port: 80
           targetPort: 80
           protocol: HTTP
+  ingress:
+    main:
+      enabled: true
+      className: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: mail.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: roundcube
+                port: 80
+      tls:
+        - secretName: roundcube-secret-tls
+          hosts:
+            - mail.alexlebens.net
   persistence:
     data:
       storageClass: ceph-block
@@ -208,9 +228,6 @@ roundcube:
               readOnly: true
               mountPropagation: None
               subPath: default.conf
-cloudflared-roundcube:
-  existingSecretName: cloudflared-secret
-  name: cloudflared-roundcube
 postgres-16-cluster:
   mode: standalone
   cluster:
