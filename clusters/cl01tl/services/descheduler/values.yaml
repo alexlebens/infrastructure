@@ -1,0 +1,70 @@
+descheduler:
+  kind: Deployment
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    privileged: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+  deschedulingInterval: 5m
+  replicas: 1
+  leaderElection:
+    enabled: false
+  command:
+  - "/bin/descheduler"
+  cmdOptions:
+    v: 3
+  deschedulerPolicyAPIVersion: "descheduler/v1alpha2"
+  deschedulerPolicy:
+    profiles:
+      - name: default
+        pluginConfig:
+          - name: DefaultEvictor
+            args:
+              ignorePvcPods: true
+              evictLocalStoragePods: false
+              evictDaemonSetPods: false
+          - name: RemoveDuplicates
+          - name: RemovePodsViolatingNodeAffinity
+            args:
+              nodeAffinityType:
+              - requiredDuringSchedulingIgnoredDuringExecution
+          - name: RemovePodsViolatingNodeTaints
+          - name: RemovePodsViolatingInterPodAntiAffinity
+          - name: RemovePodsViolatingTopologySpreadConstraint
+          - name: LowNodeUtilization
+            args:
+              thresholds:
+                cpu: 20
+                memory: 20
+                pods: 20
+              targetThresholds:
+                cpu: 60
+                memory: 60
+                pods: 60
+        plugins:
+          balance:
+            enabled:
+              - RemoveDuplicates
+              - RemovePodsViolatingTopologySpreadConstraint
+              - LowNodeUtilization
+          deschedule:
+            enabled:
+              - RemovePodsViolatingNodeTaints
+              - RemovePodsViolatingNodeAffinity
+              - RemovePodsViolatingInterPodAntiAffinity
+  rbac:
+    create: true
+  serviceAccount:
+    create: true
+  service:
+    enabled: false
+  serviceMonitor:
+    enabled: true
