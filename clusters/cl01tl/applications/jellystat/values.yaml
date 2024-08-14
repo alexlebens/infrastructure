@@ -1,0 +1,119 @@
+jellystat:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: cyfershepard/jellystat
+            tag: 1.1.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-secret
+                  key: secret-key
+            - name: JS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-secret
+                  key: user
+            - name: JS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-secret
+                  key: password
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-postgresql-16-cluster-app
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-postgresql-16-cluster-app
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-postgresql-16-cluster-app
+                  key: dbname
+            - name: POSTGRES_IP
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-postgresql-16-cluster-app
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-postgresql-16-cluster-app
+                  key: port
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 3000
+          protocol: HTTP
+  ingress:
+    main:
+      enabled: true
+      className: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer
+      hosts:
+        - host: jellystat.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: jellystat
+                port: 80
+      tls:
+        - secretName: jellystat-secret-tls
+          hosts:
+            - jellystat.alexlebens.net
+  persistence:
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /app/backend/backup-data
+              readOnly: false
+postgres-16-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: false
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/jellystat
+    endpointCredentials: jellystat-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d
