@@ -1,0 +1,59 @@
+lidatube:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: thewicklowwolf/lidatube
+            tag: 0.1.6
+            pullPolicy: IfNotPresent
+          env:
+            - name: lidarr_address
+              value: http://lidarr2.lidarr2:80
+            - name: lidarr_api_key
+              valueFrom:
+                secretKeyRef:
+                  name: lidatube-secret
+                  key: lidarr_api_key
+            - name: sleep_interval
+              value: 360
+            - name: sync_schedule
+              value: 4
+            - name: attempt_lidarr_import
+              value: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 5000
+          protocol: HTTP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /lidatube/config
+              readOnly: false
+    music:
+      existingClaim: lidatube-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /lidatube/downloads
+              readOnly: false
