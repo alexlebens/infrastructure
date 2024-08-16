@@ -32,7 +32,7 @@ jellyfin:
       replicas: 1
       strategy: Recreate
       revisionHistoryLimit: 3
-      containers:              
+      containers:
         main:
           image:
             repository: ghcr.io/jellyfin/jellyfin-vue
@@ -57,7 +57,7 @@ jellyfin:
           protocol: HTTP
     vue:
       controller: vue
-      ports:          
+      ports:
         http:
           port: 80
           targetPort: 80
@@ -100,7 +100,35 @@ jellyfin:
       tls:
         - secretName: jellyfin-vue-secret-tls
           hosts:
-            - jellyfin-vue.alexlebens.net            
+            - jellyfin-vue.alexlebens.net
+    tailscale-main:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: jellyfin-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: jellyfin-main
+                port: 80
+      tls:
+        - hosts:
+            - jellyfin-cl01tl
+    tailscale-vue:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: jellyfin-vue-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: jellyfin-vue
+                port: 80
+      tls:
+        - hosts:
+            - jellyfin-vue-cl01tl
   persistence:
     config:
       storageClass: ceph-block
