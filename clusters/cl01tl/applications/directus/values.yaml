@@ -30,7 +30,7 @@ directus:
             pullPolicy: IfNotPresent
           env:
             - name: PUBLIC_URL
-              value: https://directus.alexlebens.net
+              value: https://directus.alexlebens.dev
             - name: WEBSOCKETS_ENABLED
               value: true
             - name: ADMIN_EMAIL
@@ -83,7 +83,7 @@ directus:
             - name: REDIS_ENABLED
               value: false
             - name: REDIS_HOST
-              value: site-profile-valkey-master
+              value: directus-valkey-master
             - name: REDIS_PORT
               value: 6379
             - name: REDIS_USERNAME
@@ -102,30 +102,30 @@ directus:
               value: local
             - name: STORAGE_LOCAL_ROOT
               value: /directus/data
-            # - name: AUTH_PROVIDERS
-            #   value: AUTHENTIK
-            # - name: AUTH_AUTHENTIK_DRIVER
-            #   value: openid
-            # - name: AUTH_AUTHENTIK_CLIENT_ID
-            #   valueFrom:
-            #     secretKeyRef:
-            #       name: directus-oidc-secret
-            #       key: OIDC_CLIENT_ID
-            # - name: AUTH_AUTHENTIK_CLIENT_SECRET
-            #   valueFrom:
-            #     secretKeyRef:
-            #       name: directus-oidc-secret
-            #       key: OIDC_CLIENT_SECRET
-            # - name: AUTH_AUTHENTIK_SCOPE
-            #   value: openid profile email
-            # - name: AUTH_AUTHENTIK_ISSUER_URL
-            #   value: https://auth.alexlebens.net/application/o/directus/.well-known/openid-configuration
-            # - name: AUTH_AUTHENTIK_IDENTIFIER_KEY
-            #   value: email
-            # - name: AUTH_AUTHENTIK_ALLOW_PUBLIC_REGISTRATION
-            #   value: true
-            # - name: AUTH_AUTHENTIK_LABEL
-            #   value: Authentik Login
+            - name: AUTH_PROVIDERS
+              value: AUTHENTIK
+            - name: AUTH_AUTHENTIK_DRIVER
+              value: openid
+            - name: AUTH_AUTHENTIK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: directus-oidc-secret
+                  key: OIDC_CLIENT_ID
+            - name: AUTH_AUTHENTIK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: directus-oidc-secret
+                  key: OIDC_CLIENT_SECRET
+            - name: AUTH_AUTHENTIK_SCOPE
+              value: openid profile email
+            - name: AUTH_AUTHENTIK_ISSUER_URL
+              value: https://auth.alexlebens.dev/application/o/directus/.well-known/openid-configuration
+            - name: AUTH_AUTHENTIK_IDENTIFIER_KEY
+              value: email
+            - name: AUTH_AUTHENTIK_ALLOW_PUBLIC_REGISTRATION
+              value: true
+            - name: AUTH_AUTHENTIK_LABEL
+              value: Authentik Login
             - name: TELEMETRY
               value: false
           resources:
@@ -142,26 +142,6 @@ directus:
           port: 80
           targetPort: 8055
           protocol: TCP
-  ingress:
-    traefik:
-      enabled: true
-      className: traefik
-      annotations:
-        traefik.ingress.kubernetes.io/router.entrypoints: websecure
-        traefik.ingress.kubernetes.io/router.tls: "true"
-        cert-manager.io/cluster-issuer: letsencrypt-issuer      
-      hosts:
-        - host: directus.alexlebens.net
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: directus
-                port: 80
-      tls:
-        - hosts:
-            - directus.alexlebens.net
-          secretName: directus-tls-secret  
   persistence:
     data:
       storageClass: ceph-block
