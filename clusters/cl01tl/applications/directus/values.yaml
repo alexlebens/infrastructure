@@ -5,23 +5,6 @@ directus:
       replicas: 1
       strategy: Recreate
       revisionHistoryLimit: 3
-      initContainers:
-        init-chmod-data:
-          securityContext:
-            runAsUser: 0
-          image:
-            repository: busybox
-            tag: 1.36.1
-            pullPolicy: IfNotPresent
-          command:
-            - /bin/sh
-            - -ec
-            - |
-              /bin/chown -R 1000:1000 /directus/data
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
       containers:
         main:
           image:
@@ -97,11 +80,25 @@ directus:
                   name: directus-valkey-config
                   key: password
             - name: STORAGE_LOCATIONS
-              value: LOCAL
-            - name: STORAGE_LOCAL_DRIVER
-              value: local
-            - name: STORAGE_LOCAL_ROOT
-              value: /directus/data
+              value: s3
+            - name: STORAGE_S3_DRIVER
+              value: s3
+            - name: STORAGE_S3_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: directus-minio-user-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: STORAGE_S3_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: directus-minio-user-secret
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: STORAGE_S3_BUCKET
+              value: directus
+            - name: STORAGE_S3_ENDPOINT
+              value: http://minio:9000
+            - name: STORAGE_S3_S3_FORCE_PATH_STYLE
+              value: "true"
             - name: AUTH_PROVIDERS
               value: AUTHENTIK
             - name: AUTH_AUTHENTIK_DRIVER
@@ -142,20 +139,38 @@ directus:
           port: 80
           targetPort: 8055
           protocol: TCP
-  persistence:
-    data:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 10Gi
-      retain: true
-      advancedMounts:
-        main:
-          init-chmod-data:
-            - path: /directus/data
-              readOnly: false
-          main:
-            - path: /directus/data
-              readOnly: false
+minio:
+  existingSecret:
+    name: directus-minio-root-secret
+  tenant:
+    name: minio-directus
+    configuration:
+      name: directus-minio-config-secret
+    pools:
+      - servers: 3
+        name: pool
+        volumesPerServer: 2
+        size: 10Gi
+        storageClassName: ceph-block
+    mountPath: /export
+    subPath: /data
+    metrics:
+      enabled: true
+      port: 9000
+      protocol: http
+    certificate:
+      requestAutoCert: false
+  ingress:
+    console:
+      enabled: true
+      ingressClassName: tailscale
+      tls:
+        - secretName: minio-directus-cl01tl
+          hosts:
+            - minio-directus-cl01tl
+      host: minio-directus-cl01tl
+      path: /
+      pathType: Prefix
 valkey:
   architecture: standalone
   auth:
@@ -164,7 +179,10 @@ valkey:
     existingSecretPasswordKey: password
 cloudflared-directus:
   name: cloudflared-directus
-  existingSecretName: directus-cloudflared-api-secret
+  existingSecretName: directus-cloudflared-secret
+cloudflared-minio:
+  name: cloudflared-directus-minio
+  existingSecretName: directus-minio-cloudflared-secret
 postgres-16-cluster:
   mode: standalone
   cluster:
