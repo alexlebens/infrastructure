@@ -1,0 +1,205 @@
+directus:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      initContainers:
+        init-chmod-data:
+          securityContext:
+            runAsUser: 0
+          image:
+            repository: busybox
+            tag: 1.36.1
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              /bin/chown -R 1000:1000 /directus/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      containers:
+        main:
+          image:
+            repository: directus/directus
+            tag: 11.0.2
+            pullPolicy: IfNotPresent
+          env:
+            - name: PUBLIC_URL
+              value: https://directus.alexlebens.net
+            - name: WEBSOCKETS_ENABLED
+              value: true
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: directus-config
+                  key: admin-email
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: directus-config
+                  key: admin-password
+            - name: SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: directus-config
+                  key: secret
+            - name: KEY
+              valueFrom:
+                secretKeyRef:
+                  name: directus-config
+                  key: key
+            - name: DB_CLIENT
+              value: postgres
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: directus-postgresql-16-cluster-app
+                  key: host
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: directus-postgresql-16-cluster-app
+                  key: dbname
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: directus-postgresql-16-cluster-app
+                  key: port
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: directus-postgresql-16-cluster-app
+                  key: user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: directus-postgresql-16-cluster-app
+                  key: password
+            - name: REDIS_ENABLED
+              value: false
+            - name: REDIS_HOST
+              value: site-profile-valkey-master
+            - name: REDIS_PORT
+              value: 6379
+            - name: REDIS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: directus-valkey-config
+                  key: user
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: directus-valkey-config
+                  key: password
+            - name: STORAGE_LOCATIONS
+              value: LOCAL
+            - name: STORAGE_LOCAL_DRIVER
+              value: local
+            - name: STORAGE_LOCAL_ROOT
+              value: /directus/data
+            - name: AUTH_PROVIDERS
+              value: AUTHENTIK
+            - name: AUTH_AUTHENTIK_DRIVER
+              value: openid
+            - name: AUTH_AUTHENTIK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: directus-oidc-secret
+                  key: OIDC_CLIENT_ID
+            - name: AUTH_AUTHENTIK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: directus-oidc-secret
+                  key: OIDC_CLIENT_SECRET
+            - name: AUTH_AUTHENTIK_SCOPE
+              value: openid profile email
+            - name: AUTH_AUTHENTIK_ISSUER_URL
+              value: https://auth.alexlebens.net/application/o/directus/.well-known/openid-configuration
+            - name: AUTH_AUTHENTIK_IDENTIFIER_KEY
+              value: email
+            - name: AUTH_AUTHENTIK_ALLOW_PUBLIC_REGISTRATION
+              value: true
+            - name: AUTH_AUTHENTIK_LABEL
+              value: Authentik Login
+            - name: TELEMETRY
+              value: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8055
+          protocol: TCP
+  ingress:
+    traefik:
+      enabled: true
+      className: traefik
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-issuer      
+      hosts:
+        - host: directus.alexlebens.net
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: directus
+                port: 80
+      tls:
+        - hosts:
+            - directus.alexlebens.net
+          secretName: directus-tls-secret  
+  persistence:
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        main:
+          init-chmod-data:
+            - path: /directus/data
+              readOnly: false
+          main:
+            - path: /directus/data
+              readOnly: false
+valkey:
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: directus-valkey-config
+    existingSecretPasswordKey: password
+cloudflared-directus:
+  name: cloudflared-directus
+  existingSecretName: directus-cloudflared-api-secret
+postgres-16-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: false
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/directus
+    endpointCredentials: directus-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: 14d
