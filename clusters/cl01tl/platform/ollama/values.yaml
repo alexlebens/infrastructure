@@ -1,0 +1,162 @@
+ollama:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ollama/ollama
+            tag: 0.3.12
+            pullPolicy: IfNotPresent
+          env:
+            - name: OLLAMA_KEEP_ALIVE
+              value: 24h
+            - name: OLLAMA_HOST
+              value: 0.0.0.0
+          resources:
+            limits:
+              cpu: 5000m
+              memory: 8Gi
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 100m
+              memory: 8Gi
+              gpu.intel.com/i915: 1
+    web:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/open-webui/open-webui
+            tag: 0.3.12
+            pullPolicy: IfNotPresent
+          env:
+            - name: ENV
+              value: prod
+            - name: WEBUI_AUTH
+              value: true
+            - name: WEBUI_NAME
+              value: Ollama
+            - name: WEBUI_URL
+              value: http://ollama-cl01tl.boreal-beaufort.ts.net
+            - name: ENABLE_LOGIN_FORM
+              value: false
+            - name: DEFAULT_USER_ROLE
+              value: admin
+            - name: WEBUI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ollama-secret-key
+                  key: key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ollama-web-postgresql-16-cluster-app
+                  key: uri
+            - name: OLLAMA_BASE_URL
+              value: http://ollama-main.ollama:11434
+            - name: ENABLE_OAUTH_SIGNUP
+              value: true
+            - name: OAUTH_USERNAME_CLAIM
+              value: preferred_username
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ollama-oidc-secret
+                  key: secret
+            - name: OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ollama-oidc-secret
+                  key: client
+            - name: OAUTH_PROVIDER_NAME
+              value: Authentik
+            - name: OPENID_PROVIDER_URL
+              value: https://auth-cl01tl.boreal-beaufort.ts.net/application/o/ollama-web/.well-known/openid-configuration
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 11434
+          targetPort: 11434
+          protocol: HTTP
+    web:
+      controller: web
+      ports:
+        http:
+          port: 80
+          targetPort: 8080
+          protocol: HTTP
+  ingress:
+    main:
+      className: tailscale
+      hosts:
+        - host: ollama-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: ollama-web
+                port: 80
+      tls:
+        - secretName: ollama-cl01tl
+          hosts:
+            - ollama-cl01tl
+  persistence:
+    root:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /root/.ollama
+              readOnly: false
+    web-data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        web:
+          main:
+            - path: /app/backend/data
+              readOnly: false
+postgres-16-cluster:
+  nameOverride: ollama-web-postgresql-16
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: false
+  backup:
+    enabled: true
+    endpointURL: https://s3.us-east-2.amazonaws.com
+    destinationPath: s3://cl01tl-postgresql-backups/ollama-web
+    endpointCredentials: ollama-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    tags:
+      backupRetentionPolicy: "expire"
+      user: "cl01tl-ollama-web-postgresql"
+    historyTags:
+      backupRetentionPolicy: "keep"
+      user: "cl01tl-ollama-web-postgresql"
