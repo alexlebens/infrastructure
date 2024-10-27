@@ -2,29 +2,11 @@ rook-ceph:
   crds:
     enabled: true
   csi:
-    enableRbdDriver: true
-    enableCephfsDriver: true
-    enableCSIHostNetwork: true
-    enableCephfsSnapshotter: true
-    enableNFSSnapshotter: true
-    enableRBDSnapshotter: true
-    enablePluginSelinuxHostMount: false
-    enableCSIEncryption: false
     enableMetadata: true
     provisionerReplicas: 3
-    clusterName:
-    logLevel: 0
     serviceMonitor:
       enabled: true
-      interval: 5s
-    csiAddons:
-      enabled: false
-    nfs:
-      enabled: false
-    topology:
-      enabled: false
   enableDiscoveryDaemon: true
-  scaleDownOperator: false
   monitoring:
     enabled: true
 
@@ -35,22 +17,14 @@ rook-ceph-cluster:
   monitoring:
     enabled: true
     createPrometheusRules: true
-  pspEnable: false
   cephClusterSpec:
     cephVersion:
       # https://quay.io/repository/ceph/ceph?tab=tags
       image: quay.io/ceph/ceph:v18.2.2-20240311
-      allowUnsupported: false
-    dataDirHostPath: /var/lib/rook
-    skipUpgradeChecks: false
-    continueUpgradeAfterChecksEvenIfNotHealthy: false
-    waitTimeoutForHealthyOSDInMinutes: 10
     mon:
       count: 3
-      allowMultiplePerNode: false
     mgr:
       count: 1
-      allowMultiplePerNode: false
       modules:
         - name: pg_autoscaler
           enabled: true
@@ -66,14 +40,6 @@ rook-ceph-cluster:
         compression:
           enabled: true
         requireMsgr2: true
-    crashCollector:
-      disable: false
-    logCollector:
-      enabled: true
-      periodicity: daily
-      maxLogSize: 500M
-    cleanupPolicy:
-      confirmation: ""
     placement:
       all:
         nodeAffinity:
@@ -102,13 +68,13 @@ rook-ceph-cluster:
           cpu: 2000m
         requests:
           cpu: 100m
-          memory: 1Gi
+          memory: 512Mi
       mon:
         limits:
           cpu: 2000m
         requests:
           cpu: 100m
-          memory: 512Mi
+          memory: 1Gi
       osd:
         limits:
           cpu: 5000m
@@ -119,7 +85,6 @@ rook-ceph-cluster:
         requests:
           cpu: 100m
           memory: 128Mi
-    removeOSDsIfOutAndSafeToRemove: false
     storage:
       useAllNodes: true
       useAllDevices: true
@@ -179,7 +144,3 @@ rook-ceph-cluster:
     name: ceph-blockpool-snapshot
     isDefault: false
     deletionPolicy: Retain
-  cephFileSystems:
-  cephFileSystemVolumeSnapshotClass:
-    enabled: false
-  cephObjectStores:
