@@ -26,17 +26,6 @@ jellyplist:
                 secretKeyRef:
                   name: jellyplist-secret
                   key: jellyfin-admin-password
-            - name: SPOTDL_OUTPUT_FORMAT
-              value: "{artist}/{album}/{title}"
-            - name: LIDARR_URL
-              value: http://lidarr2.lidarr2:80
-            - name: LIDARR_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-secret
-                  key: lidarr-key
-            - name: MUSIC_STORAGE_BASE_PATH
-              value: /mnt/store/Music Downloads/
             - name: SPOTIFY_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -47,8 +36,11 @@ jellyplist:
                 secretKeyRef:
                   name: jellyplist-secret
                   key: spotify-client-secret
-            - name: REDIS_URL
-              value: redis://jellyplist-valkey-primary.jellyplist:6379/0
+            - name: JELLYPLIST_DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: jellyplist-postgresql-16-cluster-app
+                  key: host
             - name: JELLYPLIST_DB_USER
               valueFrom:
                 secretKeyRef:
@@ -59,159 +51,23 @@ jellyplist:
                 secretKeyRef:
                   name: jellyplist-postgresql-16-cluster-app
                   key: password
-            - name: JELLYPLIST_DB_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-postgresql-16-cluster-app
-                  key: host
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-    worker:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      containers:
-        worker:
-          image:
-            repository: ghcr.io/kamilkosek/jellyplist
-            tag: v0.1.9
-            pullPolicy: IfNotPresent
-          args:
-            - celery
-            - -A
-            - app.celery
-            - worker
-            - --loglevel=info
-          env:
-            - name: SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-secret
-                  key: secret-key
-            - name: JELLYFIN_SERVER_URL
-              value: http://jellyfin-main.jellyfin:80
-            - name: JELLYFIN_ADMIN_USER
-              value: jellyplist
-            - name: JELLYFIN_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-secret
-                  key: jellyfin-admin-password
-            - name: SPOTDL_OUTPUT_FORMAT
-              value: "{artist}/{album}/{title}"
-            - name: LIDARR_URL
-              value: http://lidarr2.lidarr2:80
             - name: LIDARR_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: jellyplist-secret
                   key: lidarr-key
-            - name: MUSIC_STORAGE_BASE_PATH
-              value: /mnt/store/Music Downloads/
-            - name: SPOTIFY_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-secret
-                  key: spotify-client-id
-            - name: SPOTIFY_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-secret
-                  key: spotify-client-secret
-            - name: REDIS_URL
-              value: redis://jellyplist-valkey-primary.jellyplist:6379/0
-            - name: JELLYPLIST_DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-postgresql-16-cluster-app
-                  key: username
-            - name: JELLYPLIST_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-postgresql-16-cluster-app
-                  key: password
-            - name: JELLYPLIST_DB_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-postgresql-16-cluster-app
-                  key: host
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-    beat:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      containers:
-        beat:
-          image:
-            repository: ghcr.io/kamilkosek/jellyplist
-            tag: v0.1.9
-            pullPolicy: IfNotPresent
-          args:
-            - celery
-            - -A
-            - app.celery
-            - beat
-            - --loglevel=info
-          env:
-            - name: SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-secret
-                  key: secret-key
-            - name: JELLYFIN_SERVER_URL
-              value: http://jellyfin-main.jellyfin:80
-            - name: JELLYFIN_ADMIN_USER
-              value: jellyplist
-            - name: JELLYFIN_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-secret
-                  key: jellyfin-admin-password
-            - name: SPOTDL_OUTPUT_FORMAT
-              value: "{artist}/{album}/{title}"
             - name: LIDARR_URL
               value: http://lidarr2.lidarr2:80
-            - name: LIDARR_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-secret
-                  key: lidarr-key
+            - name: SPOTIFY_COOKIE_FILE
+              value: /jellyplist/cookies.txt
+            - name: SPOTIFY_COUNTRY_CODE
+              value: US
             - name: MUSIC_STORAGE_BASE_PATH
               value: /mnt/store/Music Downloads/
-            - name: SPOTIFY_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-secret
-                  key: spotify-client-id
-            - name: SPOTIFY_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-secret
-                  key: spotify-client-secret
+            - name: SPOTDL_OUTPUT_FORMAT
+              value: "{artist}/{album}/{artist} - {album} - {title}"
             - name: REDIS_URL
               value: redis://jellyplist-valkey-primary.jellyplist:6379/0
-            - name: JELLYPLIST_DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-postgresql-16-cluster-app
-                  key: username
-            - name: JELLYPLIST_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-postgresql-16-cluster-app
-                  key: password
-            - name: JELLYPLIST_DB_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: jellyplist-postgresql-16-cluster-app
-                  key: host
           resources:
             requests:
               cpu: 100m
@@ -253,31 +109,11 @@ jellyplist:
               readOnly: true
               mountPropagation: None
               subPath: cookies.txt
-        beat:
-          beat:
-            - path: /jellyplist/cookies.txt
-              readOnly: true
-              mountPropagation: None
-              subPath: cookies.txt
-        worker:
-          worker:
-            - path: /jellyplist/cookies.txt
-              readOnly: true
-              mountPropagation: None
-              subPath: cookies.txt
     music:
       existingClaim: jellyplist-nfs-storage
       advancedMounts:
         main:
           main:
-            - path: /mnt/store/Music Downloads
-              readOnly: false
-        beat:
-          beat:
-            - path: /mnt/store/Music Downloads
-              readOnly: false
-        worker:
-          worker:
             - path: /mnt/store/Music Downloads
               readOnly: false
 valkey:
