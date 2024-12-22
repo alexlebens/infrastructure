@@ -141,29 +141,8 @@ lidarr2:
           main:
             - path: /mnt/store
               readOnly: false
-postgres-16-cluster:
-  mode: standalone
-  cluster:
-    enableSuperuserAccess: true
-    walStorage:
-      storageClass: local-path
-    storage:
-      storageClass: local-path
-    monitoring:
-      enabled: true
-    initdb:
-      postInitSQL:
-        - CREATE DATABASE "lidarr-main" OWNER "app";
-        - CREATE DATABASE "lidarr-log" OWNER "app";
-  backup:
-    enabled: true
-    endpointURL: https://nyc3.digitaloceanspaces.com
-    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/lidarr2/lidarr2-postgresql-16-cluster
-    endpointCredentials: lidarr2-postgresql-16-cluster-backup-secret
-    backupIndex: 1
-    retentionPolicy: "7d"
 postgres-17-cluster:
-  mode: replica
+  mode: standalone
   cluster:
     image:
       repository: ghcr.io/cloudnative-pg/postgresql
@@ -174,21 +153,13 @@ postgres-17-cluster:
       storageClass: local-path
     monitoring:
       enabled: true
-  replica:
-    importType: monolith
-    importDatabases:
-      - lidarr-main
-      - lidarr-log
-    externalCluster:
-      connectionParameters:
-        host: lidarr2-postgresql-16-cluster-rw
-        user: postgres
-        dbname: postgres
-      password:
-        name: lidarr2-postgresql-16-cluster-superuser
-        key: password
+  bootstrap:
+    initdb:
+      postInitSQL:
+        - CREATE DATABASE "lidarr-main" OWNER "app";
+        - CREATE DATABASE "lidarr-log" OWNER "app";
   backup:
-    enabled: false
+    enabled: true
     endpointURL: https://nyc3.digitaloceanspaces.com
     destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/lidarr2/lidarr2-postgresql-17-cluster
     endpointCredentials: lidarr2-postgresql-17-cluster-backup-secret
