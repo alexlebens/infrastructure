@@ -39,17 +39,17 @@ jellyplist:
             - name: JELLYPLIST_DB_HOST
               valueFrom:
                 secretKeyRef:
-                  name: jellyplist-postgresql-16-cluster-app
+                  name: jellyplist-postgresql-17-cluster-app
                   key: host
             - name: JELLYPLIST_DB_USER
               valueFrom:
                 secretKeyRef:
-                  name: jellyplist-postgresql-16-cluster-app
+                  name: jellyplist-postgresql-17-cluster-app
                   key: username
             - name: JELLYPLIST_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: jellyplist-postgresql-16-cluster-app
+                  name: jellyplist-postgresql-17-cluster-app
                   key: password
             - name: LIDARR_API_KEY
               valueFrom:
@@ -139,7 +139,7 @@ postgres-16-cluster:
     endpointCredentials: jellyplist-postgresql-16-cluster-backup-secret
     backupIndex: 1
 postgres-17-cluster:
-  mode: replica
+  mode: standalone
   cluster:
     image:
       repository: ghcr.io/cloudnative-pg/postgresql
@@ -150,20 +150,11 @@ postgres-17-cluster:
       storageClass: local-path
     monitoring:
       enabled: true
-  replica:
-    importType: microservice
-    importDatabases:
-      - jellyplist
-    externalCluster:
-      connectionParameters:
-        host: jellyplist-postgresql-16-cluster-rw
-        user: app
-        dbname: jellyplist
-      password:
-        name: jellyplist-postgresql-16-cluster-app
-        key: password
+    initdb:
+      postInitSQL:
+        - CREATE DATABASE "jellyplist" OWNER "app";
   backup:
-    enabled: false
+    enabled: true
     endpointURL: https://nyc3.digitaloceanspaces.com
     destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/jellyplist/jellyplist-postgresql-17-cluster
     endpointCredentials: jellyplist-postgresql-17-cluster-backup-secret
