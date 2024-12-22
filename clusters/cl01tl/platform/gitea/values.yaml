@@ -6,20 +6,6 @@ gitea:
     tag: 1.22.4
   ingress:
     enabled: false
-    className: traefik
-    annotations:
-      traefik.ingress.kubernetes.io/router.entrypoints: websecure
-      traefik.ingress.kubernetes.io/router.tls: "true"
-      cert-manager.io/cluster-issuer: letsencrypt-issuer
-    hosts:
-      - host: gitea.alexlebens.net
-        paths:
-          - path: /
-            pathType: Prefix
-    tls:
-      - secretName: gitea-secret-tls
-        hosts:
-          - gitea.alexlebens.net
   serviceAccount:
     create: true
     automountServiceAccountToken: true
@@ -167,23 +153,8 @@ backup:
           s3:
             - path: /opt/backup
               readOnly: false
-postgres-16-cluster:
-  mode: standalone
-  cluster:
-    walStorage:
-      storageClass: local-path
-    storage:
-      storageClass: local-path
-    monitoring:
-      enabled: true
-  backup:
-    enabled: true
-    endpointURL: https://nyc3.digitaloceanspaces.com
-    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/gitea/gitea-postgresql-16-cluster
-    endpointCredentials: gitea-postgresql-16-cluster-backup-secret
-    backupIndex: 1
 postgres-17-cluster:
-  mode: replica
+  mode: standalone
   cluster:
     image:
       repository: ghcr.io/cloudnative-pg/postgresql
@@ -194,20 +165,8 @@ postgres-17-cluster:
       storageClass: local-path
     monitoring:
       enabled: true
-  replica:
-    importType: microservice
-    importDatabases:
-      - app
-    externalCluster:
-      connectionParameters:
-        host: gitea-postgresql-16-cluster-rw
-        user: app
-        dbname: app
-      password:
-        name: gitea-postgresql-16-cluster-app
-        key: password
   backup:
-    enabled: false
+    enabled: true
     endpointURL: https://nyc3.digitaloceanspaces.com
     destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/gitea/gitea-postgresql-17-cluster
     endpointCredentials: gitea-postgresql-17-cluster-backup-secret
