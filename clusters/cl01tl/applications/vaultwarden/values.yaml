@@ -21,7 +21,7 @@ vaultwarden:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: vaultwarden-postgresql-16-cluster-app
+                  name: vaultwarden-postgresql-17-cluster-app
                   key: uri
           resources:
             requests:
@@ -66,7 +66,7 @@ postgres-16-cluster:
     endpointCredentials: vaultwarden-postgresql-16-cluster-backup-secret
     backupIndex: 1
 postgres-17-cluster:
-  mode: replica
+  mode: standalone
   cluster:
     image:
       repository: ghcr.io/cloudnative-pg/postgresql
@@ -77,20 +77,8 @@ postgres-17-cluster:
       storageClass: local-path
     monitoring:
       enabled: true
-  replica:
-    importType: microservice
-    importDatabases:
-      - app
-    externalCluster:
-      connectionParameters:
-        host: vaultwarden-postgresql-16-cluster-rw
-        user: app
-        dbname: app
-      password:
-        name: vaultwarden-postgresql-16-cluster-app
-        key: password
   backup:
-    enabled: false
+    enabled: true
     endpointURL: https://nyc3.digitaloceanspaces.com
     destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/vaultwarden/vaultwarden-postgresql-17-cluster
     endpointCredentials: vaultwarden-postgresql-17-cluster-backup-secret
