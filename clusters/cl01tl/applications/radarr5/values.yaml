@@ -2,7 +2,7 @@ radarr5:
   controllers:
     main:
       type: deployment
-      replicas: 0
+      replicas: 1
       strategy: Recreate
       revisionHistoryLimit: 3
       pod:
@@ -91,24 +91,6 @@ radarr5:
             requests:
               cpu: 100m
               memory: 256Mi
-    pgloader:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      containers:
-        main:
-          image:
-            repository: ghcr.io/roxedus/pgloader
-            tag: latest
-            pullPolicy: IfNotPresent
-          command:
-            - "sleep"
-            - "604800"
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
   serviceAccount:
     create: true
   service:
@@ -145,17 +127,13 @@ radarr5:
       size: 20Gi
       retain: true
       advancedMounts:
-        pgloader:
+        main:
           main:
             - path: /config
               readOnly: false
-      #  main:
-      #    main:
-      #      - path: /config
-      #        readOnly: false
-      #    metrics:
-      #      - path: /config
-      #        readOnly: true
+          metrics:
+            - path: /config
+              readOnly: true
     media:
       existingClaim: radarr5-nfs-storage
       advancedMounts:
