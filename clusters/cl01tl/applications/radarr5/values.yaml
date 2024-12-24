@@ -144,6 +144,7 @@ radarr5:
 postgres-16-cluster:
   mode: standalone
   cluster:
+    enableSuperuserAccess: true
     walStorage:
       storageClass: local-path
     storage:
@@ -162,4 +163,43 @@ postgres-16-cluster:
     destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr5/radarr5-postgresql-16-cluster
     endpointCredentials: radarr5-postgresql-16-cluster-backup-secret
     backupIndex: 2
+    retentionPolicy: "7d"
+postgres-17-cluster:
+  mode: replica
+  cluster:
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: "17.2-22"
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      postInitSQL:
+        - CREATE DATABASE "radarr-main" OWNER "app";
+        - CREATE DATABASE "radarr-log" OWNER "app";
+  replica:
+    importType: monolith
+    importDatabases:
+      - radarr-main
+      - radarr-log
+    externalCluster:
+      connectionParameters:
+        host: radarr5-postgresql-16-cluster-rw
+        user: postgres
+        dbname: postgres
+      password:
+        name: radarr5-postgresql-16-cluster-superuser
+        key: password
+  backup:
+    enabled: false
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr5/radarr5-postgresql-16-cluster
+    endpointCredentials: radarr5-postgresql-16-cluster-backup-secret
+    backupIndex: 1
     retentionPolicy: "7d"
