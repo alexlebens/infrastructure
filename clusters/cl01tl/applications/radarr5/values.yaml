@@ -32,22 +32,22 @@ radarr5:
             - name: RADARR__POSTGRES_HOST
               valueFrom:
                 secretKeyRef:
-                  name: radarr5-postgresql-16-cluster-app
+                  name: radarr5-postgresql-17-cluster-app
                   key: host
             - name: RADARR__POSTGRES_PORT
               valueFrom:
                 secretKeyRef:
-                  name: radarr5-postgresql-16-cluster-app
+                  name: radarr5-postgresql-17-cluster-app
                   key: port
             - name: RADARR__POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: radarr5-postgresql-16-cluster-app
+                  name: radarr5-postgresql-17-cluster-app
                   key: username
             - name: RADARR__POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: radarr5-postgresql-16-cluster-app
+                  name: radarr5-postgresql-17-cluster-app
                   key: password
           probes:
             liveness:
@@ -165,7 +165,7 @@ postgres-16-cluster:
     backupIndex: 2
     retentionPolicy: "7d"
 postgres-17-cluster:
-  mode: replica
+  mode: standalone
   cluster:
     image:
       repository: ghcr.io/cloudnative-pg/postgresql
@@ -183,21 +183,8 @@ postgres-17-cluster:
       postInitSQL:
         - CREATE DATABASE "radarr-main" OWNER "app";
         - CREATE DATABASE "radarr-log" OWNER "app";
-  replica:
-    importType: monolith
-    importDatabases:
-      - radarr-main
-      - radarr-log
-    externalCluster:
-      connectionParameters:
-        host: radarr5-postgresql-16-cluster-rw
-        user: postgres
-        dbname: postgres
-      password:
-        name: radarr5-postgresql-16-cluster-superuser
-        key: password
   backup:
-    enabled: false
+    enabled: true
     endpointURL: https://nyc3.digitaloceanspaces.com
     destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr5/radarr5-postgresql-16-cluster
     endpointCredentials: radarr5-postgresql-16-cluster-backup-secret
