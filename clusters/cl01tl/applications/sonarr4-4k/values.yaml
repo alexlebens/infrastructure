@@ -32,22 +32,22 @@ sonarr4-4k:
             - name: SONARR__POSTGRES_HOST
               valueFrom:
                 secretKeyRef:
-                  name: sonarr4-4k-postgresql-16-cluster-app
+                  name: sonarr4-4k-postgresql-17-cluster-app
                   key: host
             - name: SONARR__POSTGRES_PORT
               valueFrom:
                 secretKeyRef:
-                  name: sonarr4-4k-postgresql-16-cluster-app
+                  name: sonarr4-4k-postgresql-17-cluster-app
                   key: port
             - name: SONARR__POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: sonarr4-4k-postgresql-16-cluster-app
+                  name: sonarr4-4k-postgresql-17-cluster-app
                   key: username
             - name: SONARR__POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: sonarr4-4k-postgresql-16-cluster-app
+                  name: sonarr4-4k-postgresql-17-cluster-app
                   key: password
           probes:
             liveness:
@@ -141,31 +141,8 @@ sonarr4-4k:
           main:
             - path: /mnt/store
               readOnly: false
-postgres-16-cluster:
-  mode: standalone
-  cluster:
-    enableSuperuserAccess: true
-    walStorage:
-      storageClass: local-path
-    storage:
-      storageClass: local-path
-    monitoring:
-      enabled: true
-    initdb:
-      database: app
-      owner: app
-      postInitSQL:
-        - CREATE DATABASE "sonarr-main" OWNER "app";
-        - CREATE DATABASE "sonarr-log" OWNER "app";
-  backup:
-    enabled: true
-    endpointURL: https://nyc3.digitaloceanspaces.com
-    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/sonarr4-4k/sonarr4-4k-postgresql-16-cluster
-    endpointCredentials: sonarr4-4k-postgresql-16-cluster-backup-secret
-    backupIndex: 1
-    retentionPolicy: "7d"
 postgres-17-cluster:
-  mode: replica
+  mode: standalone
   cluster:
     image:
       repository: ghcr.io/cloudnative-pg/postgresql
@@ -183,18 +160,6 @@ postgres-17-cluster:
       postInitSQL:
         - CREATE DATABASE "sonarr-main" OWNER "app";
         - CREATE DATABASE "sonarr-log" OWNER "app";
-  replica:
-    importType: monolith
-    importDatabases:
-      - app
-    externalCluster:
-      connectionParameters:
-        host: sonarr4-4k-postgresql-16-cluster-rw
-        user: postgres
-        dbname: postgres
-      password:
-        name: sonarr4-4k-postgresql-16-cluster-superuser
-        key: password
   backup:
     enabled: false
     endpointURL: https://nyc3.digitaloceanspaces.com
