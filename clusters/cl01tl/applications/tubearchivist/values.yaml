@@ -14,9 +14,37 @@ tubearchivist:
           env:
             - name: TZ
               value: US/Central
+            - name: HOST_UID
+              value: 1000
+            - name: HOST_GID
+              value: 1000
+            - name: ES_URL
+              value: http://tubearchivist-elasticsearch:9200
+            - name: REDIS_HOST
+              value: tubearchivist-redis-headless
+            - name: TA_HOST
+              value: tubearchivist-cl01tl.boreal-beaufort.ts.net
+            - name: TA_USERNAME
+              value: admin
           envFrom:
             - secretRef:
                 name: tubearchivist-config-secret
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /usr/bin/env
+                    - bash
+                    - -c
+                    - curl --fail http://localhost:8000/health
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 30
+                successThreshold: 1
+                timeoutSeconds: 10
           resources:
             requests:
               cpu: 100m
