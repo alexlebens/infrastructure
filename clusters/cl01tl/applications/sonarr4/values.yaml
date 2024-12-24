@@ -144,6 +144,7 @@ sonarr4:
 postgres-16-cluster:
   mode: standalone
   cluster:
+    enableSuperuserAccess: true
     walStorage:
       storageClass: local-path
     storage:
@@ -161,5 +162,44 @@ postgres-16-cluster:
     endpointURL: https://nyc3.digitaloceanspaces.com
     destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/sonarr4/sonarr4-postgresql-16-cluster
     endpointCredentials: sonarr4-postgresql-16-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: "7d"
+postgres-17-cluster:
+  mode: replica
+  cluster:
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: "17.2-22"
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      postInitSQL:
+        - CREATE DATABASE "sonarr-main" OWNER "app";
+        - CREATE DATABASE "sonarr-log" OWNER "app";
+  replica:
+    importType: monolith
+    importDatabases:
+      - sonarr-main
+      - sonarr-log
+    externalCluster:
+      connectionParameters:
+        host: sonarr4-postgresql-16-cluster-rw
+        user: postgres
+        dbname: postgres
+      password:
+        name: sonarr4-postgresql-16-cluster-superuser
+        key: password
+  backup:
+    enabled: false
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/sonarr4/sonarr4-postgresql-17-cluster
+    endpointCredentials: sonarr4-postgresql-17-cluster-backup-secret
     backupIndex: 1
     retentionPolicy: "7d"
