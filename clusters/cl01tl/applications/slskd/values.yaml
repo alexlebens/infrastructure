@@ -1,0 +1,148 @@
+slskd:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          supplementalGroups:
+            - 44
+            - 100
+            - 109
+            - 65539
+      containers:
+        main:
+          image:
+            repository: slskd/slskd
+            tag: 0.22.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+        soularr:
+          image:
+            repository: mrusse08/soularr
+            tag: latest@sha256:6b82fa0d93582424e3001790645514fa11a7766dad780da649965f74a9cb92ca
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+            - name: SCRIPT_INTERVAL
+              value: 300
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+        gluetun:
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.39.1@sha256:6a8058e626763cbf735ac2f78c774dbb24fec2490bd9d9f7d67e22592cb4a991
+            pullPolicy: IfNotPresent
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: slskd-wireguard-conf
+                  key: private-key
+            - name: VPN_PORT_FORWARDING
+              value: "on"
+            - name: PORT_FORWARD_ONLY
+              value: "on"
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 192.168.1.0/24,10.244.0.0/16
+            - name: FIREWALL_INPUT_PORTS
+              value: 5030,50300
+            - name: DOT
+              value: "off"
+          securityContext:
+            privileged: True
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+          resources:
+            limits:
+              squat.ai/tun: "1"
+            requests:
+              cpu: 100m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 5030
+          protocol: HTTP
+  ingress:
+    tailscale:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: slskd-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: slskd
+                port: 80
+      tls:
+        - hosts:
+            - slskd-cl01tl
+  persistence:
+    slskd-config:
+      enabled: true
+      type: secret
+      name: slskd-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /app/slskd.yml
+              readOnly: true
+              mountPropagation: None
+              subPath: slskd.yml
+    soularr-config:
+      enabled: true
+      type: secret
+      name: soularr-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/config.ini
+              readOnly: true
+              mountPropagation: None
+              subPath: config.ini
+    data:
+      existingClaim: slskd-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: false
+          soularr:
+            - path: /mnt/store
+              readOnly: false
