@@ -23,7 +23,7 @@ slskd:
             - -ec
             - |
               sysctl -w net.ipv4.ip_forward=1;
-              sysctl -w net.ipv6.conf.all.disable_ipv6=1            
+              sysctl -w net.ipv6.conf.all.disable_ipv6=1
       containers:
         main:
           image:
@@ -37,24 +37,6 @@ slskd:
               value: 1000
             - name: PGID
               value: 1000
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-        soularr:
-          image:
-            repository: mrusse08/soularr
-            tag: latest@sha256:6b82fa0d93582424e3001790645514fa11a7766dad780da649965f74a9cb92ca
-            pullPolicy: IfNotPresent
-          env:
-            - name: TZ
-              value: US/Central
-            - name: PUID
-              value: 1000
-            - name: PGID
-              value: 1000
-            - name: SCRIPT_INTERVAL
-              value: 300
           resources:
             requests:
               cpu: 100m
@@ -96,6 +78,30 @@ slskd:
             requests:
               cpu: 100m
               memory: 128Mi
+    soularr:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: mrusse08/soularr
+            tag: latest@sha256:6b82fa0d93582424e3001790645514fa11a7766dad780da649965f74a9cb92ca
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+            - name: SCRIPT_INTERVAL
+              value: 300
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
   serviceAccount:
     create: true
   service:
@@ -138,8 +144,8 @@ slskd:
       type: secret
       name: soularr-config-secret
       advancedMounts:
-        main:
-          soularr:
+        soularr:
+          main:
             - path: /data/config.ini
               readOnly: true
               mountPropagation: None
@@ -151,6 +157,7 @@ slskd:
           main:
             - path: /mnt/store
               readOnly: false
-          soularr:
+        soularr:
+          main:
             - path: /mnt/store
               readOnly: false
