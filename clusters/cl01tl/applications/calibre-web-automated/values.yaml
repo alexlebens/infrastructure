@@ -24,6 +24,45 @@ calibre-web-automated:
             requests:
               cpu: 100m
               memory: 256Mi
+    downloader:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/calibrain/calibre-web-automated-book-downloader
+            tag: latest@sha256:3929e131e796f9080cec073f42538736b1513df85f34d38c89664ef98078371a
+            pullPolicy: IfNotPresent
+          env:
+            - name: FLASK_PORT
+              value: 8084
+            - name: UID
+              value: 1000
+            - name: GID
+              value: 100
+            - name: USE_CF_BYPASS
+              value: true
+            - name: CLOUDFLARE_PROXY_URL
+              value: http://localhost:8000
+            - name: INGEST_DIR
+              value: /cwa-book-ingest
+            - name: BOOK_LANGUAGE
+              value: end
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+        bypass:
+          image:
+            repository: ghcr.io/sarperavci/cloudflarebypassforscraping
+            tag: latest@sha256:d663ad7fa933f72fdb5b4505d784800dc433d4c475835696632bc23623c1a49c
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
   serviceAccount:
     create: true
   service:
@@ -33,6 +72,13 @@ calibre-web-automated:
         http:
           port: 80
           targetPort: 8083
+          protocol: HTTP
+    downloader:
+      controller: downloader
+      ports:
+        http:
+          port: 8084
+          targetPort: 8084
           protocol: HTTP
   ingress:
     tailscale:
@@ -49,6 +95,20 @@ calibre-web-automated:
       tls:
         - hosts:
             - calibre-cl01tl
+    tailscale-downloader:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: calibre-downloader-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: calibre-web-automated-downloader
+                port: 8084
+      tls:
+        - hosts:
+            - calibre-downloader-cl01tl
   persistence:
     config:
       storageClass: ceph-block
@@ -82,6 +142,10 @@ calibre-web-automated:
       existingClaim: calibre-web-automated-ingest-nfs-storage
       advancedMounts:
         main:
+          main:
+            - path: /cwa-book-ingest
+              readOnly: false
+        downloader:
           main:
             - path: /cwa-book-ingest
               readOnly: false
