@@ -1,0 +1,160 @@
+komodo:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/mbecker20/komodo
+            tag: 1.16.12
+            pullPolicy: IfNotPresent
+          env:
+            - name: COMPOSE_KOMODO_IMAGE_TAG
+              value: 1.16.12
+            - name: COMPOSE_LOGGING_DRIVER
+              value: none
+            - name: PASSKEY
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-secret
+                  key: passkey
+            - name: KOMODO_MONITORING_INTERVAL
+              value: 15-sec
+            - name: KOMODO_RESOURCE_POLL_INTERVAL
+              value: 5-min
+            - name: KOMODO_PASSKEY
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-secret
+                  key: passkey
+            - name: KOMODO_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-secret
+                  key: webhook
+            - name: KOMODO_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-secret
+                  key: jwt
+            - name: KOMODO_LOCAL_AUTH
+              value: false
+            - name: KOMODO_ENABLE_NEW_USERS
+              value: true
+            - name: KOMODO_DISABLE_NON_ADMIN_CREATE
+              value: true
+            - name: KOMODO_TRANSPARENT_MODE
+              value: false
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-cluster-app
+                  key: user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-cluster-app
+                  key: password
+            - name: KOMODO_DATABASE_URI
+              value: mongodb://${DB_USERNAME}:${DB_PASSWORD}@localhost:27017/komodo?authMechanism=PLAIN
+            - name: KOMODO_OIDC_ENABLED
+              value: true
+            - name: KOMODO_OIDC_PROVIDER
+              value: https://auth-cl01tl.boreal-beaufort.ts.net/application/o/komodo/
+            - name: KOMODO_OIDC_REDIRECT_HOST
+              value: https://auth-cl01tl.boreal-beaufort.ts.net
+            - name: KOMODO_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-secret
+                  key: oidc-client-id
+            - name: KOMODO_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-secret
+                  key: oidc-client-secret
+            - name: KOMODO_OIDC_USE_FULL_EMAIL
+              value: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+        ferretdb:
+          image:
+            repository: ghcr.io/ferretdb/ferretdb:1.24.0
+            tag: 1.24.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: FERRETDB_POSTGRESQL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-cluster-app
+                  key: uri
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 9120
+          protocol: HTTP
+  ingress:
+    tailscale:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: komodo-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: komodo
+                port: 80
+      tls:
+        - hosts:
+            - komodo-cl01tl
+  persistence:
+    cache:
+      storageClass: ceph-block-delete
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /repo-cache
+              readOnly: false
+    syncs:
+      storageClass: ceph-block-delete
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /syncs
+              readOnly: false
+postgres-17-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  backup:
+    enabled: false
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-cluster
+    endpointCredentials: komodo-postgresql-17-cluster-backup-secret
+    backupIndex: 1
