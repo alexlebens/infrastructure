@@ -1,18 +1,54 @@
+---
+version: "3.7"
+
 services:
     traefik:
-        command: traefik
+        image: docker.io/traefik:v3.3
         container_name: traefik
+        command:
+            - "--global.checkNewVersion=false"
+            - "--global.sendAnonymousUsage=false"
+            - "--api.insecure=false"
+            - "--api.dashboard=true"
+            - "--log.level=INFO"
+            - "--providers.docker=true"
+            - "--providers.docker.exposedbydefault=false"
+            - "--entryPoints.web.address=:80"
+            - "--entrypoints.web.http.redirections.entryPoint.to=web-secure"
+            - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+            - "--entryPoints.web-secure.address=:443"
+            - "--entryPoints.web-secure.http.tls.options=default"
+            - "--entryPoints.web-secure.http.tls.certResolver=cloudflare"
+            - "--entryPoints.web-secure.http.tls.domains[0].main=*.alexlebens.net"
+            - "--entryPoints.web-secure.http.tls.domains[0].sans[0]=alexlebens.net"
+            - "--certificatesresolvers.cloudflare.acme.dnschallenge=true"
+            - "--certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare"
+            - "--certificatesresolvers.cloudflare.acme.dnschallenge.delaybeforecheck=10"
+            - "--certificatesresolvers.cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53"
+            - "--certificatesresolvers.cloudflare.acme.email=alexanderlebens@gmail.com"
+            - "--certificatesresolvers.cloudflare.acme.storage=acme.json"
+            - "--metrics.prometheus=true"
+            - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
+            - "--metrics.prometheus.addEntryPointsLabels=true"
+            - "--metrics.prometheus.addRoutersLabels=true"
+            - "--metrics.prometheus.addServicesLabels=true"
+            - "--metrics.prometheus.entryPoint=web-secure"
+            - "--metrics.prometheus.manualRouting=true"
         env_file:
             - .env
-        image: docker.io/traefik:v3.2
         labels:
-            traefik.docker.network: traefik
             traefik.enable: true
-            traefik.http.routers.dashboard.entrypoints: websecure
+            traefik.docker.network: internal
+            traefik.http.routers.dashboard.entrypoints: web-secure
             traefik.http.routers.dashboard.rule: (Host(`traefik-ps08rp.alexlebens.net`) && (PathPrefix(`/api/`) || PathPrefix(`/dashboard/`)))
             traefik.http.routers.dashboard.service: api@internal
             traefik.http.routers.dashboard.tls: true
             traefik.http.routers.dashboard.tls.certresolver: cloudflare
+            traefik.http.routers.metrics.entrypoints: web-secure
+            traefik.http.routers.metrics.rule: (Host(`traefik-ps08rp.alexlebens.net`) && Path(`/metrics`))
+            traefik.http.routers.metrics.service: prometheus@internal
+            traefik.http.routers.metrics.tls: true
+            traefik.http.routers.metrics.tls.certresolver: cloudflare
         networks:
             internal: null
         ports:
@@ -21,9 +57,12 @@ services:
         privileged: true
         restart: always
         volumes:
-            - ./traefik_config:/etc/traefik
+            - letsencrypt:/letsencrypt
             - /var/run/docker.sock:/var/run/docker.sock:ro
 
 networks:
     internal:
         name: internal
+
+volumes:
+    letsencrypt:
