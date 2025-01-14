@@ -1,14 +1,19 @@
 gitea:
-  strategy:
-    type: Recreate
   image:
     repository: gitea/gitea
     tag: 1.22.6
   ingress:
     enabled: false
-  serviceAccount:
-    create: true
-    automountServiceAccountToken: true
+  persistence:
+    storageClass: ceph-block
+  extraVolumes:
+    - name: gitea-nfs-storage-backup
+      persistentVolumeClaim:
+        claimName: gitea-nfs-storage-backup
+  extraVolumeMounts:
+    - mountPath: /opt/backup
+      name: gitea-nfs-storage-backup
+      readOnly: false
   gitea:
     admin:
       existingSecret: gitea-admin-secret
@@ -72,21 +77,19 @@ gitea:
           secretKeyRef:
             name: gitea-postgresql-17-cluster-app
             key: password
-  persistence:
-    storageClass: ceph-block
-  extraVolumes:
-    - name: gitea-nfs-storage-backup
-      persistentVolumeClaim:
-        claimName: gitea-nfs-storage-backup
-  extraVolumeMounts:
-    - mountPath: /opt/backup
-      name: gitea-nfs-storage-backup
-      readOnly: false
+  memcached:
+    enabled: true
+  redis:
+    enabled: false
+  redis-cluster:
+    enabled: false
   postgresql:
     enabled: false
   postgresql-ha:
     enabled: false
-  redis-cluster:
+  mysql:
+    enabled: false
+  mariadb:
     enabled: false
 cloudflared:
   existingSecretName: gitea-cloudflared-secret
