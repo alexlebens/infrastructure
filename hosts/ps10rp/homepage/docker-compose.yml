@@ -1,48 +1,54 @@
+---
 services:
-    homepage:
-        container_name: homepage
-        dns:
-            - 172.19.0.3
-            - 1.1.1.1
-        image: ghcr.io/gethomepage/homepage:latest
-        labels:
-            traefik.docker.network: traefik
-            traefik.enable: true
-            traefik.http.routers.homepage.entrypoints: websecure
-            traefik.http.routers.homepage.rule: Host(`www.lebens-home.net`)
-            traefik.http.routers.homepage.service: homepage
-            traefik.http.services.homepage.loadbalancer.server.port: 3000
-        networks:
-            traefik: null
+    tailscale-homepage:
+        image: ghcr.io/tailscale/tailscale:v1.78.3
+        container_name: tailscale-homepage
+        cap_add:
+            - net_admin
+            - sys_module
+        environment:
+            - TS_STATE_DIR=/var/lib/tailscale
+            - TS_ENABLE_METRICS=true
+            - TS_HOSTNAME=homepage-ps10rp
+        network_mode: service:homepage
         restart: always
         volumes:
-            - config:/app/config
+            - tailscale:/var/lib/tailscale
+        devices:
+            - /dev/net/tun:/dev/net/tun
 
     dockerproxy:
+        image: ghcr.io/tecnativa/docker-socket-proxy:0.3.0
         container_name: homepage-dockerproxy
-        dns:
-            - 172.19.0.3
-            - 1.1.1.1
         environment:
             - CONTAINERS=1
             - POST=0
-        image: ghcr.io/tecnativa/docker-socket-proxy:latest
-        networks:
-            traefik: null
+        network_mode: service:homepage
         privileged: true
         restart: always
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock:ro
 
+    homepage:
+        image: ghcr.io/gethomepage/homepage:latest
+        container_name: homepage
+        labels:
+            traefik.enable: true
+            traefik.docker.network: traefik
+            traefik.http.routers.homepage.entrypoints: websecure
+            traefik.http.routers.homepage.rule: Host(`www.lebens-home.net`)
+            traefik.http.routers.homepage.service: homepage
+            traefik.http.services.homepage.loadbalancer.server.port: 3000
+        networks:
+            internal: null
+        restart: always
+        volumes:
+            - ./homepage_config:/app/config
+
 networks:
-    traefik:
-        name: traefik
+    internal:
+        name: internal
         external: true
 
 volumes:
-    config:
-        driver: local
-        driver_opts:
-            type: none
-            o: bind
-            device: /mnt/data/containers/homepage/config
+    tailscale:
