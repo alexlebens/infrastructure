@@ -1,12 +1,27 @@
 ---
 services:
+    tailscale-blocky:
+        image: ghcr.io/tailscale/tailscale:v1.78.3
+        container_name: tailscale-blocky
+        cap_add:
+            - net_admin
+            - sys_module
+        environment:
+            - TS_STATE_DIR=/var/lib/tailscale
+            - TS_ENABLE_METRICS=true
+            - TS_HOSTNAME=blocky-ps09rp
+        network_mode: service:blocky
+        restart: always
+        volumes:
+            - tailscale:/var/lib/tailscale
+        devices:
+            - /dev/net/tun:/dev/net/tun
+
     blocky:
         image: ghcr.io/0xerr0r/blocky:v0.24
         container_name: blocky
         environment:
             - TZ=America/Chicago
-        dns:
-            - 1.1.1.1
         ports:
             - 53:53/tcp
             - 53:53/udp
