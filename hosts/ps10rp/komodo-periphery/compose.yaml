@@ -1,0 +1,62 @@
+---
+version: "3.7"
+
+services:
+    tailscale-komodo-periphery:
+        image: ghcr.io/tailscale/tailscale:latest
+        container_name: tailscale-komodo-periphery
+        cap_add:
+            - net_admin
+            - sys_module
+        environment:
+            - TS_STATE_DIR=/var/lib/tailscale
+            - TS_ENABLE_METRICS=true
+            - TS_HOSTNAME=komodo-periphery-ps10rp
+        env_file:
+            - .ts-env
+        labels:
+            - "com.centurylinklabs.watchtower.scope=komodo"
+        network_mode: service:komodo-periphery
+        restart: always
+        volumes:
+            - tailscale:/var/lib/tailscale
+        devices:
+            - /dev/net/tun:/dev/net/tun
+
+    watchtower:
+        image: ghcr.io/containrrr/watchtower:latest
+        container_name: komodo-periphery-watchtower
+        command: --scope komodo
+        environment:
+            - TZ=America/Chicago
+            - WATCHTOWER_HTTP_API_METRICS=true
+            - WATCHTOWER_HTTP_API_TOKEN=token
+            - WATCHTOWER_CLEANUP=true
+            - WATCHTOWER_POLL_INTERVAL=3600
+        labels:
+            - "com.centurylinklabs.watchtower.scope=komodo"
+        network_mode: service:komodo-periphery
+        restart: always
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+
+    komodo-periphery:
+        image: ghcr.io/mbecker20/periphery:latest
+        container_name: komodo-periphery
+        env_file:
+            - .env
+        environment:
+            - TZ=America/Chicago
+        labels:
+            - "com.centurylinklabs.watchtower.scope=komodo"
+        restart: always
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - /proc:/proc
+            - komodo-periphery-repos:/etc/komodo/repos
+            - komodo-periphery-stacks:/etc/komodo/stacks
+
+volumes:
+    tailscale:
+    komodo-periphery-repos:
+    komodo-periphery-stacks:
