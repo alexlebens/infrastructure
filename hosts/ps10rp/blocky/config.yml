@@ -1,0 +1,117 @@
+upstreams:
+  init:
+    strategy: fast
+  groups:
+    default:
+      - tcp-tls:1.1.1.1:853
+      - tcp-tls:1.0.0.1:853
+  strategy: parallel_best
+  timeout: 2s
+
+connectIPVersion: v4
+
+customDNS:
+  filterUnmappedTypes: false
+  zone: |
+    $ORIGIN lebens-home.net.
+    $TTL 86400
+
+    ;; Name Server
+                                    IN      NS      patryk.ns.cloudflare.com.
+                                    IN      NS      veda.ns.cloudflare.com.
+                                    IN      NS      dns1.
+
+    dns1                            IN      A       192.168.5.41
+
+
+    ;; Computer Names
+    nw02un                          IN      A       192.168.5.1
+
+    ps10rp                          IN      A       192.168.5.41  ; PiBox
+
+    pd05wd                          IN      A       192.168.5.64  ; Desktop
+    pl02mc                          IN      A       192.168.5.249 ; Laptop
+
+    dv03pr                          IN      A       192.168.5.27  ; 3D Printer
+
+
+    ;; Common Names
+    unifi                           IN      CNAME   nw02un
+    cockpit-ps10rp                  IN      CNAME   ps10rp
+    printer                         IN      CNAME   dv03pr
+
+
+    ;; Application Names
+    treafik-ps10rp                  IN      CNAME   ps10rp
+    gitea                           IN      CNAME   ps10rp
+    www                             IN      CNAME   ps10rp
+    homepage                        IN      CNAME   ps10rp
+
+blocking:
+  denylists:
+    sus:
+      - https://v.firebog.net/hosts/static/w3kbl.txt
+    ads:
+      - https://v.firebog.net/hosts/AdguardDNS.txt
+      - https://v.firebog.net/hosts/Admiral.txt
+      - https://v.firebog.net/hosts/Easylist.txt
+      - https://adaway.org/hosts.txt
+    priv:
+      - https://v.firebog.net/hosts/Easyprivacy.txt
+      - https://v.firebog.net/hosts/Prigent-Ads.txt
+    mal:
+      - https://v.firebog.net/hosts/Prigent-Crypto.txt
+      - https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt
+    pro:
+      - https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/pro.txt
+  clientGroupsBlock:
+    default:
+      - sus
+      - ads
+      - priv
+      - mal
+      - pro
+  blockType: zeroIp
+  blockTTL: 1m
+  loading:
+    refreshPeriod: 24h
+    downloads:
+      timeout: 60s
+      attempts: 5
+      cooldown: 10s
+    concurrency: 16
+    strategy: fast
+    maxErrorsPerSource: 5
+
+caching:
+  minTime: 5m
+  maxTime: 30m
+  maxItemsCount: 0
+  prefetching: true
+  prefetchExpires: 2h
+  prefetchThreshold: 5
+  prefetchMaxItemsCount: 0
+  cacheTimeNegative: 30m
+
+prometheus:
+  enable: true
+  path: /metrics
+
+queryLog:
+  type: console
+  logRetentionDays: 7
+  creationAttempts: 1
+  creationCooldown: 2s
+  flushInterval: 30s
+
+minTlsServeVersion: 1.3
+
+ports:
+  dns: 53
+  http: 4000
+
+log:
+  level: info
+  format: text
+  timestamp: true
+  privacy: false
