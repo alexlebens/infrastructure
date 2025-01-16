@@ -25,6 +25,7 @@ services:
         command:
             - "--global.checkNewVersion=false"
             - "--global.sendAnonymousUsage=false"
+            - "--api=true"
             - "--api.insecure=false"
             - "--api.dashboard=true"
             - "--log.level=INFO"
@@ -39,6 +40,7 @@ services:
             - "--entryPoints.web-secure.http.tls.domains[0].main=*.lebens-home.net"
             - "--entryPoints.web-secure.http.tls.domains[0].sans[0]=lebens-home.net"
             - "--entryPoints.traefik.address=:8080"
+            - "--entryPoints.metrics.address=:8082"
             - "--certificatesresolvers.cloudflare.acme.dnschallenge=true"
             - "--certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare"
             - "--certificatesresolvers.cloudflare.acme.dnschallenge.delaybeforecheck=10"
@@ -50,7 +52,7 @@ services:
             - "--metrics.prometheus.addEntryPointsLabels=true"
             - "--metrics.prometheus.addRoutersLabels=true"
             - "--metrics.prometheus.addServicesLabels=true"
-            - "--metrics.prometheus.entryPoint=traefik"
+            - "--metrics.prometheus.entryPoint=metrics"
             - "--metrics.prometheus.manualRouting=true"
         env_file:
             - .env
@@ -59,12 +61,9 @@ services:
         labels:
             traefik.enable: true
             traefik.docker.network: internal
-            traefik.http.routers.dashboard.entrypoints: traefik
-            traefik.http.routers.dashboard.rule: (Host(`traefik-ps10rp.lebens-home.net`) && (PathPrefix(`/api/`) || PathPrefix(`/dashboard/`)))
+            traefik.http.routers.dashboard.entrypoints: web-secure
+            traefik.http.routers.dashboard.rule: (Host(`traefik-ps10rp.lebens-home.net`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard/`))"
             traefik.http.routers.dashboard.service: api@internal
-            traefik.http.routers.metrics.entrypoints: traefik
-            traefik.http.routers.metrics.rule: (Host(`traefik-ps10rp.lebens-home.net`) && Path(`/metrics`))
-            traefik.http.routers.metrics.service: prometheus@internal
         networks:
             internal: null
         ports:
