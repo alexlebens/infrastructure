@@ -6,23 +6,22 @@ photoview:
       strategy: Recreate
       revisionHistoryLimit: 3
       initContainers:
-        init-sysctl:
+        init-chmod-data:
+          securityContext:
+            runAsUser: 0
           image:
             repository: busybox
             tag: 1.37.0
             pullPolicy: IfNotPresent
-          securityContext:
-            privileged: True
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              /bin/chown -R 999:999 /app/cache
           resources:
             requests:
               cpu: 100m
               memory: 128Mi
-          command:
-            - /bin/sh
-          args:
-            - -ec
-            - |
-              chown -R 999:999 /app/cache
       containers:
         main:
           image:
@@ -88,6 +87,9 @@ photoview:
       retain: false
       advancedMounts:
         main:
+          init-chmod-data:
+            - path: /app/cache
+              readOnly: false
           main:
             - path: /app/cache
               readOnly: false
