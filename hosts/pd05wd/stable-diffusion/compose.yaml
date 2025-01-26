@@ -1,30 +1,32 @@
 ---
 services:
-    tailscale-ollama:
+    tailscale-stable-diffusion:
         image: ghcr.io/tailscale/tailscale:latest
-        container_name: tailscale-ollama
+        container_name: tailscale-stable-diffusion
         cap_add:
             - net_admin
             - sys_module
         environment:
             - TS_STATE_DIR=/var/lib/tailscale
             - TS_ENABLE_METRICS=true
-            - TS_HOSTNAME=ollama-pd05wd
+            - TS_HOSTNAME=stable-diffusion-pd05wd
+            - TS_SERVE_CONFIG=/config/serve.json
         env_file:
             - .ts-env
         labels:
-            - "com.centurylinklabs.watchtower.scope=ollama"
-        network_mode: service:ollama
+            - "com.centurylinklabs.watchtower.scope=stable-diffusion"
+        network_mode: service:stable-diffusion
         restart: always
         volumes:
             - tailscale:/var/lib/tailscale
+            - ${PWD}/serve.json:/config/serve.json
         devices:
             - /dev/net/tun:/dev/net/tun
 
     watchtower:
         image: ghcr.io/containrrr/watchtower:latest
-        container_name: ollama-watchtower
-        command: --scope ollama
+        container_name: stable-diffusion-watchtower
+        command: --scope stable-diffusion
         environment:
             - TZ=America/Chicago
             - WATCHTOWER_HTTP_API_METRICS=true
@@ -32,19 +34,23 @@ services:
             - WATCHTOWER_CLEANUP=true
             - WATCHTOWER_POLL_INTERVAL=3600
         labels:
-            - "com.centurylinklabs.watchtower.scope=ollama"
-        network_mode: service:ollama
+            - "com.centurylinklabs.watchtower.scope=stable-diffusion"
+        network_mode: service:stable-diffusion
         restart: always
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
 
-    ollama:
-        image: ollama/ollama:latest
-        container_name: ollama
+    stable-diffusion:
+        image: ghcr.io/ai-dock/stable-diffusion-webui:latest-cpu
+        container_name: stable-diffusion
         environment:
-            - OLLAMA_KEEP_ALIVE=24h
+            - WEBUI_ARGS="--api --listen"
+            - CF_QUICK_TUNNELS=false
+            - WEB_ENABLE_AUTH=false
+            - PORT="7860"
+            - SUPERVISOR_NO_AUTOSTART=jupyter,syncthing
         labels:
-            - "com.centurylinklabs.watchtower.scope=ollama"
+            - "com.centurylinklabs.watchtower.scope=stable-diffusion"
         restart: always
         deploy:
             resources:
@@ -54,8 +60,9 @@ services:
                           capabilities: ["gpu"]
                           count: all
         volumes:
-            - ollama:/root/.ollama
+            - workspace:/workspace:rshared
+            - ./models:/opt/stable-diffusion-webui/models/Stable-diffusion
 
 volumes:
     tailscale:
-    ollama:
+    workspace:
