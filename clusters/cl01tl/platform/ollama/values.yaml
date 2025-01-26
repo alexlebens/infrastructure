@@ -1,10 +1,94 @@
 ollama:
   controllers:
-    main:
+    server-1:
       type: deployment
+      labels:
+        ollama-type: server
       replicas: 1
       strategy: Recreate
       revisionHistoryLimit: 3
+      pod:
+        affinity:
+          podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchExpressions:
+                      - key: ollama-type
+                        operator: In
+                        values:
+                          - server
+      containers:
+        main:
+          image:
+            repository: ollama/ollama
+            tag: 0.5.7
+            pullPolicy: IfNotPresent
+          env:
+            - name: OLLAMA_KEEP_ALIVE
+              value: 24h
+            - name: OLLAMA_HOST
+              value: 0.0.0.0
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+              gpu.intel.com/i915: 1
+            limits:
+              cpu: 4
+              gpu.intel.com/i915: 1
+    server-2:
+      type: deployment
+      labels:
+        ollama-type: server
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        affinity:
+          podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchExpressions:
+                      - key: ollama-type
+                        operator: In
+                        values:
+                          - server
+      containers:
+        main:
+          image:
+            repository: ollama/ollama
+            tag: 0.5.7
+            pullPolicy: IfNotPresent
+          env:
+            - name: OLLAMA_KEEP_ALIVE
+              value: 24h
+            - name: OLLAMA_HOST
+              value: 0.0.0.0
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+              gpu.intel.com/i915: 1
+            limits:
+              cpu: 4
+              gpu.intel.com/i915: 1
+    server-3:
+      type: deployment
+      labels:
+        ollama-type: server
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        affinity:
+          podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchExpressions:
+                      - key: ollama-type
+                        operator: In
+                        values:
+                          - server
       containers:
         main:
           image:
@@ -59,7 +143,7 @@ ollama:
                   name: ollama-web-postgresql-17-cluster-app
                   key: uri
             - name: OLLAMA_BASE_URL
-              value: http://ollama-main.ollama:11434
+              value: http://ollama-server-1.ollama:11434
             - name: ENABLE_OAUTH_SIGNUP
               value: true
             - name: OAUTH_USERNAME_CLAIM
@@ -85,8 +169,22 @@ ollama:
   serviceAccount:
     create: true
   service:
-    main:
-      controller: main
+    server-1:
+      controller: server-1
+      ports:
+        http:
+          port: 11434
+          targetPort: 11434
+          protocol: HTTP
+    server-2:
+      controller: server-2
+      ports:
+        http:
+          port: 11434
+          targetPort: 11434
+          protocol: HTTP
+    server-3:
+      controller: server-3
       ports:
         http:
           port: 11434
@@ -115,13 +213,33 @@ ollama:
           hosts:
             - ollama-cl01tl
   persistence:
-    root:
-      storageClass: ceph-block
+    server-1:
+      storageClass: ceph-block-delete
       accessMode: ReadWriteOnce
-      size: 100Gi
+      size: 40Gi
       retain: true
       advancedMounts:
-        main:
+        server-1:
+          main:
+            - path: /root/.ollama
+              readOnly: false
+    server-2:
+      storageClass: ceph-block-delete
+      accessMode: ReadWriteOnce
+      size: 40Gi
+      retain: true
+      advancedMounts:
+        server-2:
+          main:
+            - path: /root/.ollama
+              readOnly: false
+    server-3:
+      storageClass: ceph-block-delete
+      accessMode: ReadWriteOnce
+      size: 40Gi
+      retain: true
+      advancedMounts:
+        server-3:
           main:
             - path: /root/.ollama
               readOnly: false
