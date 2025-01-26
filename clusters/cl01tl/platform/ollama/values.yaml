@@ -24,41 +24,6 @@ ollama:
             limits:
               cpu: 4
               gpu.intel.com/i915: 1
-    stable-diffusion:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      containers:
-        main:
-          image:
-            repository: ghcr.io/ai-dock/stable-diffusion-webui
-            tag: v2-cpu-22.04
-            pullPolicy: IfNotPresent
-          env:
-            - name: CIVITAI_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: ollama-key-secret
-                  key: civitai-key
-            - name: WEBUI_ARGS
-              value: --api --listen --always-batch-cond-uncond --opt-split-attention --device-id=0
-            - name: CF_QUICK_TUNNELS
-              value: false
-            - name: WEB_ENABLE_AUTH
-              value: false
-            - name: PORT
-              value: "7860"
-            - name: SUPERVISOR_NO_AUTOSTART
-              value: jupyter,syncthing
-          resources:
-            requests:
-              cpu: 100m
-              memory: 1Gi
-              gpu.intel.com/i915: 1
-            limits:
-              cpu: 4
-              gpu.intel.com/i915: 1
     web:
       type: deployment
       replicas: 1
@@ -127,13 +92,6 @@ ollama:
           port: 11434
           targetPort: 11434
           protocol: HTTP
-    stable-diffusion:
-      controller: stable-diffusion
-      ports:
-        http:
-          port: 7860
-          targetPort: 7860
-          protocol: HTTP
     web:
       controller: web
       ports:
@@ -166,36 +124,6 @@ ollama:
         main:
           main:
             - path: /root/.ollama
-              readOnly: false
-    # provisioning-script:
-    #   enabled: true
-    #   type: secret
-    #   name: stable-diffusion-script
-    #   defaultMode: 0755
-    #   advancedMounts:
-    #     stable-diffusion:
-    #       main:
-    #         - path: /opt/ai-dock/bin/provisioning.sh
-    #           readOnly: true
-    #           mountPropagation: None
-    #           subPath: provisioning-script.sh
-    workspace:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 50Gi
-      retain: true
-      advancedMounts:
-        stable-diffusion:
-          main:
-            - path: /workspace
-              readOnly: false
-    models:
-      type: persistentVolumeClaim
-      existingClaim: stable-diffusion-nfs-storage-models
-      advancedMounts:
-        stable-diffusion:
-          main:
-            - path: /opt/stable-diffusion-webui/models/Stable-diffusion
               readOnly: false
     web-data:
       storageClass: ceph-block
