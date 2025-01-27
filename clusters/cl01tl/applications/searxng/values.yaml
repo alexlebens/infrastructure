@@ -1,0 +1,65 @@
+searxng:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: docker.io/searxng/searxng
+            tag: 2025.1.26-70f1b6500
+            pullPolicy: IfNotPresent
+          env:
+            - name: SEARXNG_BASE_URL
+              value: https://searxng-cl01tl.boreal-beaufort.ts.net/
+            - name: SEARXNG_REDIS_URL
+              value: redis://searxng-valkey-primary.searxng:6379/0
+            - name: UWSGI_WORKERS
+              value: 4
+            - name: UWSGI_THREADS
+              value: 4
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        mail:
+          port: 80
+          targetPort: 8080
+          protocol: HTTP
+  ingress:
+    tailscale:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: searxng-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: searxng
+                port: 80
+      tls:
+        - hosts:
+            - searxng-cl01tl
+  persistence:
+    data:
+      storageClass: ceph-block-delete
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /etc/searxng
+              readOnly: false
+valkey:
+  architecture: standalone
+  auth:
+    enabled: false
