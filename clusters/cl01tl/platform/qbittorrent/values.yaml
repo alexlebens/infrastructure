@@ -1,0 +1,164 @@
+qbittorrent:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      initContainers:
+        init-sysctl:
+          image:
+            repository: busybox
+            tag: 1.37.0
+            pullPolicy: IfNotPresent
+          securityContext:
+            privileged: True
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - |
+              sysctl -w net.ipv4.ip_forward=1;
+              sysctl -w net.ipv6.conf.all.disable_ipv6=1
+      containers:
+        qbittorrent:
+          image:
+            repository: ghcr.io/linuxserver/qbittorrent
+            tag: 5.0.2@sha256:00360a0160872bffeaea5e232acfdb086063be5f03e0cba48b129b7087cb7ba1
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: UMASK_SET
+              value: "002"
+            - name: WEBUI_PORT
+              value: 8080
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+        gluetun:
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.40.0@sha256:2b42bfa046757145a5155acece417b65b4443c8033fb88661a8e9dcf7fda5a00
+            pullPolicy: IfNotPresent
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: qbittorrent-wireguard-conf
+                  key: private-key
+            - name: VPN_PORT_FORWARDING
+              value: "on"
+            - name: VPN_PORT_FORWARDING_UP_COMMAND
+              value: '/bin/sh -c "/gluetun/update.sh {{ printf "{{PORTS}}" }}"'
+            - name: PORT_FORWARD_ONLY
+              value: "on"
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 192.168.1.0/24,10.244.0.0/16
+            - name: FIREWALL_INPUT_PORTS
+              value: 8080,9022
+            - name: DOT
+              value: "off"
+          securityContext:
+            privileged: True
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+          resources:
+            limits:
+              squat.ai/tun: "1"
+            requests:
+              cpu: 10m
+              memory: 64Mi
+        exporter:
+          image:
+            repository: esanchezm/prometheus-qbittorrent-exporter
+            tag: v1.6.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: QBITTORRENT_HOST
+              value: localhost
+            - name: QBITTORRENT_PORT
+              value: "8080"
+            - name: EXPORTER_PORT
+              value: "9022"
+            - name: EXPORTER_LOG_LEVEL
+              value: INFO
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 8080
+          targetPort: 8080
+          protocol: HTTP
+        health:
+          port: 9999
+          targetPort: 9999
+          protocol: HTTP
+        metrics:
+          port: 9022
+          targetPort: 9022
+          protocol: HTTP
+  ingress:
+    tailscale:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: qbittorrent-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: qbittorrent
+                port: 8080
+      tls:
+        - hosts:
+            - qbittorrent-cl01tl
+  persistence:
+    config:
+      type: persistentVolumeClaim
+      existingClaim: qbittorrent-config
+      advancedMounts:
+        main:
+          qbittorrent:
+            - path: /config
+              readOnly: false
+    update-script:
+      enabled: true
+      type: configMap
+      name: glutun-update-script
+      defaultMode: 0755
+      advancedMounts:
+        main:
+          gluetun:
+            - path: /gluetun/update.sh
+              subPath: update.sh
+    storage:
+      type: persistentVolumeClaim
+      existingClaim: qbittorrent-nfs-storage
+      advancedMounts:
+        main:
+          qbittorrent:
+            - path: /mnt/store
+              readOnly: false
