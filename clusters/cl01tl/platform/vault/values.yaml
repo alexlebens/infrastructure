@@ -207,8 +207,8 @@ snapshot:
               memory: 64Mi
         backup:
           image:
-            repository: amazon/aws-cli
-            tag: 2.24.5
+            repository: d3fk/s3cmd
+            tag: latest@sha256:ae12ef40440ee069dac63d98a3590da0e02acc56ea4f60e9e4c5353d585a9140
             pullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -216,7 +216,7 @@ snapshot:
             - -ec
             - |
               until [ -f /opt/backup/vault-snapshot-s3.snap ]; do sleep 5; done;
-              aws s3 cp /opt/backup/vault-snapshot-s3.snap s3://cl01tl/cl01tl-vault-snapshots/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
+              s3cmd put /opt/backup/vault-snapshot-s3.snap s3://cl01tl/cl01tl-vault-snapshots/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
               rm /opt/backup/vault-snapshot-s3.snap;
           envFrom:
             - secretRef:
@@ -238,6 +238,17 @@ snapshot:
           backup:
             - path: /opt/backup
               readOnly: false
+    s3cmd-config:
+      enabled: true
+      type: secret
+      name: vault-s3cmd-config
+      advancedMounts:
+        snapshot:
+          backup:
+            - path: /root/.s3cfg
+              readOnly: true
+              mountPropagation: None
+              subPath: .s3cfg
 unseal:
   global:
     fullnameOverride: vault-unseal
