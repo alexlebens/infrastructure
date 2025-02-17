@@ -1,0 +1,146 @@
+rook-ceph:
+  crds:
+    enabled: true
+  csi:
+    enableMetadata: true
+    provisionerReplicas: 3
+    serviceMonitor:
+      enabled: true
+  enableDiscoveryDaemon: true
+  monitoring:
+    enabled: true
+
+rook-ceph-cluster:
+  operatorNamespace: rook-ceph
+  toolbox:
+    enabled: true
+  monitoring:
+    enabled: true
+    createPrometheusRules: true
+  cephClusterSpec:
+    cephVersion:
+      # https://quay.io/repository/ceph/ceph?tab=tags
+      image: quay.io/ceph/ceph:v19.2.1-20250202
+    mon:
+      count: 3
+    mgr:
+      count: 1
+      modules:
+        - name: pg_autoscaler
+          enabled: true
+        - name: rook
+          enabled: true
+    dashboard:
+      enabled: true
+      ssl: false
+    network:
+      connections:
+        encryption:
+          enabled: true
+        compression:
+          enabled: true
+        requireMsgr2: true
+    placement:
+      all:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/rook-osd-node
+                    operator: Exists
+      mon:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/rook-mon-node
+                    operator: Exists
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+        tolerations:
+          - key: node-role.kubernetes.io/rook-mon-node
+            operator: Exists
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+    resources:
+      mgr:
+        limits:
+          cpu: 2000m
+        requests:
+          cpu: 100m
+          memory: 512Mi
+      mon:
+        limits:
+          cpu: 2000m
+        requests:
+          cpu: 200m
+          memory: 256Mi
+      osd:
+        limits:
+          cpu: 5000m
+        requests:
+          cpu: 100m
+          memory: 2Gi
+      prepareosd:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    storage:
+      useAllNodes: true
+      useAllDevices: true
+      deviceFilter: sda
+      config:
+          osdsPerDevice: "1"
+    csi:
+      readAffinity:
+        enabled: true
+  ingress:
+    dashboard:
+      ingressClassName: tailscale
+      host:
+        name: ceph-cl01tl
+        path: /
+      tls:
+        - secretName: ceph-cl01tl
+          hosts:
+            - ceph-cl01tl
+      rules:
+        - host: ceph-cl01tl
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: rook-ceph-mgr-dashboard
+                    port:
+                      name: http-dashboard
+  cephBlockPools:
+    - name: ceph-blockpool
+      spec:
+        failureDomain: host
+        replicated:
+          size: 3
+        enableRBDStats: false
+      storageClass:
+        enabled: true
+        name: ceph-block
+        isDefault: true
+        reclaimPolicy: Delete
+        allowVolumeExpansion: true
+        volumeBindingMode: "Immediate"
+        parameters:
+          imageFormat: "2"
+          imageFeatures: layering,exclusive-lock,object-map,fast-diff
+          csi.storage.k8s.io/provisioner-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/provisioner-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/controller-expand-secret-name: rook-csi-rbd-provisioner
+          csi.storage.k8s.io/controller-expand-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/node-stage-secret-name: rook-csi-rbd-node
+          csi.storage.k8s.io/node-stage-secret-namespace: "{{ .Release.Namespace }}"
+          csi.storage.k8s.io/fstype: ext4
+  cephBlockPoolsVolumeSnapshotClass:
+    enabled: true
+    name: ceph-blockpool-snapshot
+    isDefault: false
+    deletionPolicy: Delete
