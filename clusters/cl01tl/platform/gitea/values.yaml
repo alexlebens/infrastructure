@@ -118,7 +118,7 @@ backup:
         failedJobsHistory: 3
         backoffLimit: 3
         parallelism: 1
-      containers:
+      initContainers:
         backup:
           image:
             repository: bitnami/kubectl
@@ -135,18 +135,18 @@ backup:
             requests:
               cpu: 100m
               memory: 128Mi
+      containers:
         s3:
           image:
-            repository: amazon/aws-cli
-            tag: 2.24.0
+            repository: d3fk/s3cmd
+            tag: latest@sha256:ae12ef40440ee069dac63d98a3590da0e02acc56ea4f60e9e4c5353d585a9140
             pullPolicy: IfNotPresent
           command:
             - /bin/sh
           args:
             - -ec
             - |
-              until [ -f /opt/backup/gitea-backup.zip ]; do sleep 5; done;
-              aws s3 cp /opt/backup/gitea-backup.zip s3://cl01tl-gitea-backups/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
+              s3cmd put --no-check-md5 --no-check-certificate /opt/backup/gitea-backup.zip s3://gitea-backups-8ba8dae3674a2f53354c600e/cl01tl/cl01tl-gitea-backups/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
               mv /opt/backup/gitea-backup.zip /opt/backup/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
           envFrom:
             - secretRef:
@@ -165,6 +165,17 @@ backup:
           s3:
             - path: /opt/backup
               readOnly: false
+    s3cmd-config:
+      enabled: true
+      type: secret
+      name: gitea-s3cmd-config
+      advancedMounts:
+        backup:
+          s3:
+            - path: /root/.s3cfg
+              readOnly: true
+              mountPropagation: None
+              subPath: .s3cfg
 postgres-17-cluster:
   mode: recovery
   cluster:
@@ -177,6 +188,7 @@ postgres-17-cluster:
   recovery:
     endpointURL: https://nyc3.digitaloceanspaces.com
     destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/gitea/gitea-postgresql-17-cluster
+    endpointCredentials: gitea-postgresql-17-cluster-backup-secret
     recoveryIndex: 1
   backup:
     enabled: false
