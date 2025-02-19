@@ -1,0 +1,124 @@
+jellyfin:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/jellyfin/jellyfin
+            tag: 10.10.5
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: JELLYFIN_hostwebclient
+              value: true
+            - name: JELLYFIN_PublishedServerUrl
+              value: https://jellyfin-cl01tl.boreal-beaufort.ts.net/
+          resources:
+            requests:
+              gpu.intel.com/i915: 1
+              cpu: 1
+              memory: 2Gi
+            limits:
+              gpu.intel.com/i915: 1
+              cpu: 4
+    vue:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/jellyfin/jellyfin-vue
+            tag: unstable.2025-02-18.9a51881
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8096
+          protocol: HTTP
+    vue:
+      controller: vue
+      ports:
+        http:
+          port: 80
+          targetPort: 80
+          protocol: HTTP
+  ingress:
+    tailscale-main:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: jellyfin-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: jellyfin-main
+                port: 80
+      tls:
+        - hosts:
+            - jellyfin-cl01tl
+    tailscale-vue:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: jellyfin-vue-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: jellyfin-vue
+                port: 80
+      tls:
+        - hosts:
+            - jellyfin-vue-cl01tl
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 60Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /cache
+              readOnly: false
+    media:
+      existingClaim: jellyfin-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: false
+    youtube:
+      existingClaim: jellyfin-youtube-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/youtube
+              readOnly: true
