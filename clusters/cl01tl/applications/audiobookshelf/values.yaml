@@ -1,0 +1,80 @@
+audiobookshelf:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/advplyr/audiobookshelf
+            tag: 2.19.2
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 80
+          protocol: HTTP
+  ingress:
+    tailscale:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: audiobookshelf-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: audiobookshelf
+                port: 80
+      tls:
+        - hosts:
+            - audiobookshelf-cl01tl
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    metadata:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /metadata
+              readOnly: false
+    backup:
+      existingClaim: audiobookshelf-nfs-storage-backup
+      advancedMounts:
+        main:
+          main:
+            - path: /metadata/backups
+              readOnly: false
+    audiobooks:
+      existingClaim: audiobookshelf-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store/
+              readOnly: false
