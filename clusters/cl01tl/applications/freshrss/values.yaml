@@ -1,0 +1,136 @@
+freshrss:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: freshrss/freshrss
+            tag: 1.25.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: PGID
+              value: "568"
+            - name: PUID
+              value: "568"
+            - name: TZ
+              value: US/Central
+            - name: FRESHRSS_ENV
+              value: production
+            - name: CRON_MIN
+              value: 13,43
+            - name: BASE_URL
+              value: https://rss.alexlebens.dev
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: freshrss-postgresql-17-cluster-app
+                  key: host
+            - name: DB_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: freshrss-postgresql-17-cluster-app
+                  key: dbname
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: freshrss-postgresql-17-cluster-app
+                  key: user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: freshrss-postgresql-17-cluster-app
+                  key: password
+            - name: FRESHRSS_INSTALL
+              value: |
+                --api-enabled
+                --base-url $(BASE_URL)
+                --db-base $(DB_BASE)
+                --db-host $(DB_HOST)
+                --db-password $(DB_PASSWORD)
+                --db-type pgsql
+                --db-user $(DB_USER)
+                --auth-type http_auth
+                --default-user admin
+                --language en
+            - name: FRESHRSS_USER
+              value: |
+                --api-password $(ADMIN_API_PASSWORD)
+                --email $(ADMIN_EMAIL)
+                --language en
+                --password $(ADMIN_PASSWORD)
+                --user admin
+            - name: OIDC_ENABLED
+              value: 1
+            - name: OIDC_PROVIDER_METADATA_URL
+              value: https://auth.alexlebens.dev/application/o/freshrss/.well-known/openid-configuration
+            - name: OIDC_X_FORWARDED_HEADERS
+              value: X-Forwarded-Port X-Forwarded-Proto X-Forwarded-Host
+            - name: OIDC_SCOPES
+              value: openid email profile
+            - name: OIDC_REMOTE_USER_CLAIM
+              value: preferred_username
+          envFrom:
+            - secretRef:
+                name: freshrss-oidc-secret
+            - secretRef:
+                name: freshrss-install-secret
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 80
+          protocol: HTTP
+  persistence:
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /var/www/FreshRSS/data
+              readOnly: false
+    extensions:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /var/www/FreshRSS/extensions
+              readOnly: false
+cloudflared:
+  existingSecretName: freshrss-cloudflared-secret
+postgres-17-cluster:
+  mode: recovery
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  recovery:
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/freshrss/freshrss-postgresql-17-cluster
+    endpointCredentials: freshrss-postgresql-17-cluster-backup-secret
+  backup:
+    enabled: false
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/freshrss/freshrss-postgresql-17-cluster
+    endpointCredentials: freshrss-postgresql-17-cluster-backup-secret
+    backupIndex: 1
