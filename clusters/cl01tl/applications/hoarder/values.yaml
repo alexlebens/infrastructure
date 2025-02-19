@@ -1,0 +1,128 @@
+hoarder:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/hoarder-app/hoarder
+            tag: 0.22.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: DATA_DIR
+              value: /data
+            - name: NEXTAUTH_URL
+              value: https://hoarder.alexlebens.dev/
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hoarder-key-secret
+                  key: key
+            - name: MEILI_ADDR
+              value: http://hoarder-meilisearch.hoarder:7700
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hoarder-meilisearch-master-key-secret
+                  key: MEILI_MASTER_KEY
+            - name: BROWSER_WEB_URL
+              value: http://hoarder.hoarder:9222
+            - name: DISABLE_SIGNUPS
+              value: true
+            - name: OAUTH_PROVIDER_NAME
+              value: "Authentik"
+            - name: OAUTH_WELLKNOWN_URL
+              value: https://auth.alexlebens.dev/application/o/hoarder/.well-known/openid-configuration
+            - name: OAUTH_SCOPE
+              value: "openid email profile"
+            - name: OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: hoarder-oidc-secret
+                  key: AUTHENTIK_CLIENT_ID
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hoarder-oidc-secret
+                  key: AUTHENTIK_CLIENT_SECRET
+            - name: OLLAMA_BASE_URL
+              value: http://ollama-server-1.ollama:11434
+            - name: OLLAMA_KEEP_ALIVE
+              value: 5m
+            - name: INFERENCE_TEXT_MODEL
+              value: llama3.1:8b
+            - name: INFERENCE_IMAGE_MODEL
+              value: llama3.2-vision:11b
+            - name: EMBEDDING_TEXT_MODEL
+              value: mxbai-embed-large
+            - name: INFERENCE_JOB_TIMEOUT_SEC
+              value: 720
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+        chrome:
+          image:
+            repository: gcr.io/zenika-hub/alpine-chrome
+            tag: 124
+            pullPolicy: IfNotPresent
+          args:
+            - --no-sandbox
+            - --disable-gpu
+            - --disable-dev-shm-usage
+            - --remote-debugging-address=0.0.0.0
+            - --remote-debugging-port=9222
+            - --hide-scrollbars
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 3000
+          targetPort: 3000
+          protocol: HTTP
+        chrome:
+          port: 9222
+          targetPort: 9222
+          protocol: HTTP
+  persistence:
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+meilisearch:
+  environment:
+    MEILI_NO_ANALYTICS: true
+    MEILI_ENV: production
+  auth:
+    existingMasterKeySecret: hoarder-meilisearch-master-key-secret
+  service:
+    type: ClusterIP
+    port: 7700
+  persistence:
+    enabled: true
+    storageClass: ceph-block
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 10m
+      memory: 128Mi
+  serviceMonitor:
+    enabled: true
+cloudflared:
+  existingSecretName: hoarder-cloudflared-secret
