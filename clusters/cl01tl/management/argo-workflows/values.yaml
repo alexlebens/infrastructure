@@ -1,0 +1,113 @@
+argo-workflows:
+  controller:
+    metricsConfig:
+      enabled: true
+    persistence:
+      connectionPool:
+        maxIdleConns: 100
+        maxOpenConns: 0
+      nodeStatusOffLoad: true
+      archive: true
+      postgresql:
+        host: argo-workflows-postgresql-17-cluster-rw
+        port: 5432
+        database: app
+        tableName: app
+        userNameSecret:
+          name: argo-workflows-postgresql-17-cluster-app
+          key: username
+        passwordSecret:
+          name: argo-workflows-postgresql-17-cluster-app
+          key: password
+        ssl: false
+        sslMode: disable
+    workflowWorkers: 2
+    workflowTTLWorkers: 1
+    podCleanupWorkers: 1
+    cronWorkflowWorkers: 1
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+    serviceMonitor:
+      enabled: true
+    name: workflow-controller
+    workflowNamespaces:
+      - argocd
+  server:
+    authModes:
+      - sso
+    ingress:
+      enabled: true
+      ingressClassName: tailscale
+      hosts:
+        - argo-workflows-cl01tl
+      tls:
+        - secretName: argo-workflows-cl01tl
+          hosts:
+            - argo-workflows-cl01tl
+    sso:
+      enabled: true
+      issuer: https://auth-cl01tl.boreal-beaufort.ts.net/application/o/argo-workflows/
+      clientId:
+        name: argo-workflows-oidc-secret
+        key: client
+      clientSecret:
+        name: argo-workflows-oidc-secret
+        key: secret
+      redirectUrl: https://argo-workflows-cl01tl.boreal-beaufort.ts.net/oauth2/callback
+      rbac:
+        enabled: false
+      scopes:
+        - openid
+        - email
+        - profile
+  useStaticCredentials: true
+  artifactRepository:
+    archiveLogs: false
+    s3: {}
+      # accessKeySecret:
+      #   name: "{{ .Release.Name }}-minio"
+      #   key: accesskey
+      # secretKeySecret:
+      #   name: "{{ .Release.Name }}-minio"
+      #   key: secretkey
+      # insecure: true
+      # bucket:
+      # endpoint:
+      # region:
+      # encryptionOptions:
+      #   enableEncryption: true
+
+argo-events:
+  controller:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        namespace: argocd
+  webhook:
+    enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+postgres-17-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  backup:
+    enabled: true
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/argo-workflows/argo-workflows-postgresql-17-cluster
+    endpointCredentials: argo-workflows-postgresql-17-cluster-backup-secret
+    backupIndex: 1
