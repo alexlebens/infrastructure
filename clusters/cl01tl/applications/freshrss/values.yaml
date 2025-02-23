@@ -5,6 +5,51 @@ freshrss:
       replicas: 1
       strategy: Recreate
       revisionHistoryLimit: 3
+      initContainers:
+        init-download-extension-1:
+          securityContext:
+            runAsUser: 568
+          image:
+            repository: busybox
+            tag: 1.37.0
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cd /tmp;
+              git clone -n --depth=1 --filter=tree:0 https://github.com/cn-tools/cntools_FreshRssExtensions.git;
+              cd cntools_FreshRssExtensions;
+              git sparse-checkout set --no-cone /xExtension-YouTubeChannel2RssFeed;
+              git checkout;
+              rm -rf /var/www/FreshRSS/extensions/xExtension-YouTubeChannel2RssFeed
+              cp -r xExtension-YouTubeChannel2RssFeed /var/www/FreshRSS/extensions
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+        init-download-extension-2:
+          securityContext:
+            runAsUser: 568
+          image:
+            repository: busybox
+            tag: 1.37.0
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cd /tmp;
+              git clone -n --depth=1 --filter=tree:0 https://github.com/FreshRSS/Extensions.git;
+              cd cntools_FreshRssExtensions;
+              git sparse-checkout set --no-cone /xExtension-ImageProxy;
+              git checkout;
+              rm -rf /var/www/FreshRSS/extensions/xExtension-ImageProxy
+              cp -r xExtension-ImageProxy /var/www/FreshRSS/extensions
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
       containers:
         main:
           image:
@@ -110,6 +155,12 @@ freshrss:
       retain: true
       advancedMounts:
         main:
+          init-download-extension-1:
+            - path: /var/www/FreshRSS/extensions
+              readOnly: false
+          init-download-extension-2:
+            - path: /var/www/FreshRSS/extensions
+              readOnly: false
           main:
             - path: /var/www/FreshRSS/extensions
               readOnly: false
