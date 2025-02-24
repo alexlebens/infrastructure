@@ -1,0 +1,147 @@
+lidarr2:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+      containers:
+        main:
+          image:
+            repository: ghcr.io/linuxserver/lidarr
+            tag: version-2.8.2.4493@sha256:108ecf0fcbd8f77b6e8a513be6f3446feb47666dd1b45ea360569e9aac0960e4
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                  - /usr/bin/env
+                  - bash
+                  - -c
+                  - curl --fail localhost:8686/api/v1/system/status?apiKey=`IFS=\> && while
+                    read -d \< E C; do if [[ $E = "ApiKey" ]]; then echo $C; fi; done < /config/config.xml`
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+        metrics:
+          image:
+            repository: ghcr.io/onedr0p/exportarr
+            tag: v2.0.1
+            pullPolicy: IfNotPresent
+          args: ["lidarr"]
+          env:
+            - name: URL
+              value: http://localhost
+            - name: CONFIG
+              value: /config/config.xml
+            - name: PORT
+              value: 9792
+            - name: ENABLE_ADDITIONAL_METRICS
+              value: false
+            - name: ENABLE_UNKNOWN_QUEUE_ITEMS
+              value: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8686
+          protocol: HTTP
+        metrics:
+          port: 9792
+          targetPort: 9792
+          protocol: TCP
+  ingress:
+    tailscale:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: lidarr-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: lidarr2
+                port: 80
+      tls:
+        - hosts:
+            - lidarr-cl01tl
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+          metrics:
+            - path: /config
+              readOnly: true
+    media:
+      existingClaim: lidarr2-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: false
+postgres-17-cluster:
+  mode: recovery
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: 200m
+    monitoring:
+      enabled: true
+  bootstrap:
+    initdb:
+      postInitSQL:
+        - CREATE DATABASE "lidarr-main" OWNER "app";
+        - CREATE DATABASE "lidarr-log" OWNER "app";
+  recovery:
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/lidarr2/lidarr2-postgresql-17-cluster
+    endpointCredentials: lidarr2-postgresql-17-cluster-backup-secret
+  backup:
+    enabled: true
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/lidarr2/lidarr2-postgresql-17-cluster
+    endpointCredentials: lidarr2-postgresql-17-cluster-backup-secret
+    backupIndex: 1
+    retentionPolicy: "7d"
