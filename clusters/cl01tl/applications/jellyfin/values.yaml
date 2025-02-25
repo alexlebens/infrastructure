@@ -26,24 +26,6 @@ jellyfin:
             limits:
               gpu.intel.com/i915: 1
               cpu: 4
-    vue:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      containers:
-        main:
-          image:
-            repository: ghcr.io/jellyfin/jellyfin-vue
-            tag: unstable.2025-02-18.9a51881
-            pullPolicy: IfNotPresent
-          env:
-            - name: TZ
-              value: US/Central
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
   serviceAccount:
     create: true
   service:
@@ -53,13 +35,6 @@ jellyfin:
         http:
           port: 80
           targetPort: 8096
-          protocol: HTTP
-    vue:
-      controller: vue
-      ports:
-        http:
-          port: 80
-          targetPort: 80
           protocol: HTTP
   ingress:
     tailscale-main:
@@ -76,20 +51,6 @@ jellyfin:
       tls:
         - hosts:
             - jellyfin-cl01tl
-    tailscale-vue:
-      enabled: true
-      className: tailscale
-      hosts:
-        - host: jellyfin-vue-cl01tl
-          paths:
-            - path: /
-              pathType: Prefix
-              service:
-                name: jellyfin-vue
-                port: 80
-      tls:
-        - hosts:
-            - jellyfin-vue-cl01tl
   persistence:
     config:
       storageClass: ceph-block
