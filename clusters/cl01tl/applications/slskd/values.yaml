@@ -1,0 +1,170 @@
+slskd:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      initContainers:
+        init-sysctl:
+          image:
+            repository: busybox
+            tag: 1.37.0
+            pullPolicy: IfNotPresent
+          securityContext:
+            privileged: True
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - |
+              sysctl -w net.ipv4.ip_forward=1;
+              sysctl -w net.ipv6.conf.all.disable_ipv6=1
+      containers:
+        main:
+          image:
+            repository: slskd/slskd
+            tag: 0.22.2
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+            - name: SLSKD_UMASK
+              value: 000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+        gluetun:
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.40.0@sha256:2b42bfa046757145a5155acece417b65b4443c8033fb88661a8e9dcf7fda5a00
+            pullPolicy: IfNotPresent
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: slskd-wireguard-conf
+                  key: private-key
+            - name: VPN_PORT_FORWARDING
+              value: "on"
+            - name: PORT_FORWARD_ONLY
+              value: "on"
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 192.168.1.0/24,10.244.0.0/16
+            - name: FIREWALL_INPUT_PORTS
+              value: 5030,50300
+            - name: DOT
+              value: "off"
+          securityContext:
+            privileged: True
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+          resources:
+            requests:
+              squat.ai/tun: "1"
+              cpu: 10m
+              memory: 128Mi
+            limits:
+              squat.ai/tun: "1"
+    soularr:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+      containers:
+        main:
+          image:
+            repository: mrusse08/soularr
+            tag: latest@sha256:11187ea58ea7b3686f4a2d328e721a5a8ca4d5815c43d90e9d67f5c61ca275c8
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+            - name: SCRIPT_INTERVAL
+              value: 300
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 5030
+          targetPort: 5030
+          protocol: HTTP
+  ingress:
+    tailscale:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: slskd-cl01tl
+          paths:
+            - path: /
+              pathType: Prefix
+              service:
+                name: slskd
+                port: 5030
+      tls:
+        - hosts:
+            - slskd-cl01tl
+  persistence:
+    slskd-config:
+      enabled: true
+      type: secret
+      name: slskd-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /app/slskd.yml
+              readOnly: true
+              mountPropagation: None
+              subPath: slskd.yml
+    soularr-config:
+      enabled: true
+      type: secret
+      name: soularr-config-secret
+      advancedMounts:
+        soularr:
+          main:
+            - path: /data/config.ini
+              readOnly: true
+              mountPropagation: None
+              subPath: config.ini
+    data:
+      existingClaim: slskd-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: false
+        soularr:
+          main:
+            - path: /mnt/store
+              readOnly: false
