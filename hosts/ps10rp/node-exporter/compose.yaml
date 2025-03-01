@@ -1,0 +1,32 @@
+---
+services:
+    tailscale-node-exporter:
+        image: ghcr.io/tailscale/tailscale:v1.80.0
+        container_name: tailscale-node-exporter
+        cap_add:
+            - net_admin
+            - sys_module
+        environment:
+            - TS_STATE_DIR=/var/lib/tailscale
+            - TS_ENABLE_METRICS=true
+            - TS_HOSTNAME=node-exporter-ps10rp
+        network_mode: service:node-exporter
+        restart: always
+        volumes:
+            - tailscale:/var/lib/tailscale
+        devices:
+            - /dev/net/tun:/dev/net/tun
+
+    node-exporter:
+        image: quay.io/prometheus/node-exporter:v1.9.0
+        container_name: node-exporter
+        command:
+            - '--path.procfs=/host/proc'
+            - '--path.rootfs=/rootfs'
+            - '--path.sysfs=/host/sys'
+        pid: host
+        restart: always
+        volumes:
+            - /proc:/host/proc:ro
+            - /sys:/host/sys:ro
+            - /:/rootfs:ro
