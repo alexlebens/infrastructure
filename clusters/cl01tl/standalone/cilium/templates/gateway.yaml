@@ -1,10 +1,10 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: headlamp-https-gateway
+  name: https-gateway
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: headlamp-https-gateway
+    app.kubernetes.io/name: https-gateway
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/version: {{ .Chart.AppVersion }}
     app.kubernetes.io/component: web
@@ -17,23 +17,16 @@ spec:
       value: 10.232.1.23
   gatewayClassName: cilium
   listeners:
-    - name: http
-      protocol: HTTP
-      hostname: headlamp.alexlebens.net
-      port: 80
-      allowedRoutes:
-        namespaces:
-          from: All
     - name: https
       protocol: HTTPS
       port: 443
-      hostname: headlamp.alexlebens.net
-      # allowedRoutes:
-      #   namespaces:
-      #     from: Selector
-      #     selector:
-      #       matchLabels:
-      #         https-gateway-access: "true"
+      hostname: "*.alexlebens.net"
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              https-gateway-access: "true"
       tls:
         mode: Terminate
         certificateRefs:
