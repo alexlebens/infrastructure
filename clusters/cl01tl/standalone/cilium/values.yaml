@@ -1,43 +1,36 @@
 cilium:
-  securityContext:
-    capabilities:
-      ciliumAgent:
-        - CHOWN
-        - KILL
-        - NET_ADMIN
-        - NET_RAW
-        - IPC_LOCK
-        - SYS_ADMIN
-        - SYS_RESOURCE
-        - DAC_OVERRIDE
-        - FOWNER
-        - SETGID
-        - SETUID
-      cleanCiliumState:
-        - NET_ADMIN
-        - SYS_ADMIN
-        - SYS_RESOURCE
-  envoy:
-    securityContext:
-      capabilities:
-        envoy:
-          - NET_ADMIN
-          - PERFMON
-          - BPF
-        keepCapNetBindService: true
-  enableK8sEndpointSlice: true
-  enableCiliumEndpointSlice: true
+  debug:
+    enabled: true
+  k8sServiceHost: "localhost"
+  k8sServicePort: "7445"
+  k8sClientRateLimit:
+    qps: 50
+    burst: 100
   rollOutCiliumPods: true
+  l2announcements:
+    enabled: true
+  bgpControlPlane:
+    enabled: true
+  enableK8sEndpointSlice: true
+  ciliumEndpointSlice:
+    enabled: true
   ingressController:
     enabled: false
+    secretsNamespace:
+      create: true
+      name: cilium-secrets
+      sync: true
   gatewayAPI:
     enabled: true
     secretsNamespace:
       create: false
       name: kube-system
       sync: false
+  externalIPs:
+    enabled: true
   socketLB:
-    hostNamespaceOnly: true
+    enabled: true
+    hostNamespaceOnly: truev
   hubble:
     enabled: true
     metrics:
@@ -66,26 +59,32 @@ cilium:
   ipv6:
     enabled: false
   kubeProxyReplacement: "true"
-  k8sServiceHost: "localhost"
-  k8sServicePort: "7445"
-  l2announcements:
+  l7Proxy: true
+  nodePort:
     enabled: true
-  externalIPs:
-    enabled: true
-  k8sClientRateLimit:
-    qps: 50
-    burst: 100
   prometheus:
     enabled: true
-    port: 9962
     serviceMonitor:
       enabled: true
+  envoy:
+    log:
+      defaultLevel: debug
+    securityContext:
+      capabilities:
+        envoy:
+          - NET_ADMIN
+          - PERFMON
+          - BPF
+        keepCapNetBindService: true
+    prometheus:
+      enabled: true
+      serviceMonitor:
+        enabled: true
   operator:
     enabled: true
     rollOutPods: true
     prometheus:
       enabled: true
-      port: 9963
       serviceMonitor:
         enabled: true
   cgroup:
