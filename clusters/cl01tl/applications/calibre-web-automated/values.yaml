@@ -1,0 +1,122 @@
+calibre-web-automated:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: crocodilestick/calibre-web-automated
+            tag: V3.0.4
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 100
+            - name: DOCKER_MODS
+              value: lscr.io/linuxserver/mods:universal-calibre-v7.23.0
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+    downloader:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/calibrain/calibre-web-automated-book-downloader
+            tag: latest@sha256:90d16b6d27c054f607a17ad47d99944e474b5957be5a43400e9341af52c5c3f7
+            pullPolicy: IfNotPresent
+          env:
+            - name: FLASK_PORT
+              value: 8084
+            - name: UID
+              value: 1000
+            - name: GID
+              value: 100
+            - name: USE_CF_BYPASS
+              value: true
+            - name: CLOUDFLARE_PROXY_URL
+              value: http://localhost:8000
+            - name: INGEST_DIR
+              value: /cwa-book-ingest
+            - name: BOOK_LANGUAGE
+              value: end
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+        bypass:
+          image:
+            repository: ghcr.io/sarperavci/cloudflarebypassforscraping
+            tag: latest@sha256:e937223b9321168efec4ce4b60958d399b6dde37791ea6dc67d05b057c0f167e
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 8083
+          targetPort: 8083
+          protocol: HTTP
+    downloader:
+      controller: downloader
+      ports:
+        http:
+          port: 8084
+          targetPort: 8084
+          protocol: HTTP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    gmail:
+      enabled: true
+      type: secret
+      name: calibre-web-automated-gmail-config
+      advancedMounts:
+        main:
+          main:
+            - path: /app/calibre-web/gmail.json
+              readOnly: true
+              mountPropagation: None
+              subPath: gmail.json
+    books:
+      existingClaim: calibre-web-automated-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /calibre-library
+              readOnly: false
+    ingest:
+      existingClaim: calibre-web-automated-ingest-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /cwa-book-ingest
+              readOnly: false
+        downloader:
+          main:
+            - path: /cwa-book-ingest
+              readOnly: false
