@@ -1,0 +1,210 @@
+directus:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: directus/directus
+            tag: 11.5.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: PUBLIC_URL
+              value: https://directus.alexlebens.dev
+            - name: WEBSOCKETS_ENABLED
+              value: true
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: directus-config
+                  key: admin-email
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: directus-config
+                  key: admin-password
+            - name: SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: directus-config
+                  key: secret
+            - name: KEY
+              valueFrom:
+                secretKeyRef:
+                  name: directus-config
+                  key: key
+            - name: DB_CLIENT
+              value: postgres
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: directus-postgresql-17-cluster-app
+                  key: host
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: directus-postgresql-17-cluster-app
+                  key: dbname
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: directus-postgresql-17-cluster-app
+                  key: port
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: directus-postgresql-17-cluster-app
+                  key: user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: directus-postgresql-17-cluster-app
+                  key: password
+            - name: REDIS_ENABLED
+              value: true
+            - name: REDIS_HOST
+              value: directus-valkey-primary
+            - name: REDIS_PORT
+              value: 6379
+            - name: REDIS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: directus-valkey-config
+                  key: user
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: directus-valkey-config
+                  key: password
+            - name: STORAGE_LOCATIONS
+              value: s3
+            - name: STORAGE_S3_DRIVER
+              value: s3
+            - name: STORAGE_S3_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: directus-minio-user-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: STORAGE_S3_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: directus-minio-user-secret
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: STORAGE_S3_BUCKET
+              value: directus
+            - name: STORAGE_S3_REGION
+              value: us-east-1
+            - name: STORAGE_S3_ENDPOINT
+              value: http://minio.directus:80
+            - name: STORAGE_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: AUTH_PROVIDERS
+              value: AUTHENTIK
+            - name: AUTH_AUTHENTIK_DRIVER
+              value: openid
+            - name: AUTH_AUTHENTIK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: directus-oidc-secret
+                  key: OIDC_CLIENT_ID
+            - name: AUTH_AUTHENTIK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: directus-oidc-secret
+                  key: OIDC_CLIENT_SECRET
+            - name: AUTH_AUTHENTIK_SCOPE
+              value: openid profile email
+            - name: AUTH_AUTHENTIK_ISSUER_URL
+              value: https://auth.alexlebens.dev/application/o/directus/.well-known/openid-configuration
+            - name: AUTH_AUTHENTIK_IDENTIFIER_KEY
+              value: email
+            - name: AUTH_AUTHENTIK_ALLOW_PUBLIC_REGISTRATION
+              value: true
+            - name: AUTH_AUTHENTIK_LABEL
+              value: Authentik Login
+            - name: TELEMETRY
+              value: false
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8055
+          protocol: TCP
+minio:
+  existingSecret:
+    name: directus-minio-root-secret
+  tenant:
+    name: minio-directus
+    configuration:
+      name: directus-minio-config-secret
+    pools:
+      - servers: 3
+        name: pool
+        volumesPerServer: 2
+        size: 10Gi
+        storageClassName: ceph-block
+    mountPath: /export
+    subPath: /data
+    metrics:
+      enabled: true
+      port: 9000
+      protocol: http
+    certificate:
+      requestAutoCert: false
+  ingress:
+    console:
+      enabled: true
+      ingressClassName: tailscale
+      tls:
+        - secretName: minio-directus-cl01tl
+          hosts:
+            - minio-directus-cl01tl
+      host: minio-directus-cl01tl
+      path: /
+      pathType: Prefix
+valkey:
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: directus-valkey-config
+    existingSecretPasswordKey: password
+    usePasswordFiles: false
+  primary:
+    persistence:
+      enabled: false
+  replica:
+    persistence:
+      enabled: false
+cloudflared-directus:
+  name: cloudflared-directus
+  existingSecretName: directus-cloudflared-secret
+postgres-17-cluster:
+  mode: recovery
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  recovery:
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/directus/directus-postgresql-17-cluster
+    endpointCredentials: directus-postgresql-17-cluster-backup-secret
+  backup:
+    enabled: false
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/directus/directus-postgresql-17-cluster
+    endpointCredentials: directus-postgresql-17-cluster-backup-secret
+    backupIndex: 2
