@@ -1,0 +1,57 @@
+unpoller:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/unpoller/unpoller
+            tag: v2.14.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: UP_UNIFI_CONTROLLER_0_SAVE_ALARMS
+              value: 'false'
+            - name: UP_UNIFI_CONTROLLER_0_SAVE_ANOMALIES
+              value: 'false'
+            - name: UP_UNIFI_CONTROLLER_0_SAVE_DPI
+              value: 'false'
+            - name: UP_UNIFI_CONTROLLER_0_SAVE_EVENTS
+              value: 'false'
+            - name: UP_UNIFI_CONTROLLER_0_SAVE_IDS
+              value: 'false'
+            - name: UP_UNIFI_CONTROLLER_0_SAVE_SITES
+              value: 'true'
+            - name: UP_UNIFI_CONTROLLER_0_URL
+              value: https://unifi.alexlebens.net/
+            - name: UP_UNIFI_CONTROLLER_0_VERIFY_SSL
+              value: 'false'
+            - name: UP_INFLUXDB_DISABLE
+              value: 'true'
+            - name: UP_PROMETHEUS_HTTP_LISTEN
+              value: 0.0.0.0:9130
+            - name: UP_PROMETHEUS_NAMESPACE
+              value: unpoller
+            - name: UP_POLLER_DEBUG
+              value: 'false'
+            - name: UP_POLLER_QUIET
+              value: 'false'
+          envFrom:
+            - secretRef:
+                name: unpoller-unifi-secret
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        metrics:
+          port: 9130
+          targetPort: 9130
+          protocol: TCP
