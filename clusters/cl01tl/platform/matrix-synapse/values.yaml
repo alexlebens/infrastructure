@@ -1,0 +1,347 @@
+matrix-synapse:
+  serverName: alexlebens.dev
+  publicServerName: matrix.alexlebens.dev
+  argoCD: true
+  signingkey:
+    job:
+      enabled: false
+  config:
+    reportStats: false
+    enableRegistration: true
+    trustedKeyServers: []
+  extraConfig:
+    enable_metrics: true
+    enable_registration_without_verification: true
+    password_config:
+      enabled: false
+    sso:
+      client_whitelist:
+        - https://chat.alexlebens.dev/
+      update_profile_information: true
+  synapse:
+    strategy:
+      type: Recreate
+    extraVolumes:
+      - name: matrix-synapse-config-secret
+        secret:
+          secretName: matrix-synapse-config-secret
+      - name: matrix-hookshot-config-secret
+        secret:
+          secretName: matrix-hookshot-config-secret
+      # - name: mautrix-discord-config-secret
+      #   secret:
+      #     secretName: mautrix-discord-config-secret
+      # - name: mautrix-whatsapp-config-secret
+      #   secret:
+      #     secretName: mautrix-whatsapp-config-secret
+      - name: double-puppet-registration-secret
+        secret:
+          secretName: double-puppet-registration-secret
+    extraVolumeMounts:
+      - name: matrix-synapse-config-secret
+        mountPath: /synapse/config/conf.d/oidc.yaml
+        subPath: oidc.yaml
+        readOnly: true
+      - name: matrix-synapse-config-secret
+        mountPath: /synapse/config/conf.d/config.yaml
+        subPath: config.yaml
+        readOnly: true
+      - name: matrix-hookshot-config-secret
+        mountPath: /synapse/config/conf.d/hookshot-registration.yaml
+        subPath: hookshot-registration.yaml
+        readOnly: true
+      # - name: mautrix-discord-config-secret
+      #   mountPath: /synapse/config/conf.d/mautrix-discord-registration.yaml
+      #   subPath: mautrix-discord-registration.yaml
+      #   readOnly: true
+      # - name: mautrix-whatsapp-config-secret
+      #   mountPath: /synapse/config/conf.d/mautrix-whatsapp-registration.yaml
+      #   subPath: mautrix-whatsapp-registration.yaml
+      #   readOnly: true
+      - name: double-puppet-registration-secret
+        mountPath: /synapse/config/conf.d/double-puppet-registration.yaml
+        subPath: double-puppet-registration.yaml
+        readOnly: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+  workers:
+    default:
+      replicaCount: 0
+    generic_worker:
+      enabled: false
+    pusher:
+      enabled: false
+    appservice:
+      enabled: false
+    federation_sender:
+      enabled: false
+    media_repository:
+      enabled: false
+    user_dir:
+      enabled: false
+  wellknown:
+    enabled: true
+    server:
+      m.server: matrix.alexlebens.dev:443
+    client:
+      m.homeserver:
+        base_url: https://matrix.alexlebens.dev
+  postgresql:
+    enabled: false
+  externalPostgresql:
+    host: matrix-synapse-postgresql-17-cluster-rw
+    port: 5432
+    username: app
+    database: app
+    existingSecret: matrix-synapse-postgresql-17-cluster-app
+    existingSecretPasswordKey: password
+  redis:
+    enabled: false
+  externalRedis:
+    host: matrix-synapse-valkey-primary
+    port: 6379
+    existingSecret: matrix-synapse-valkey-secret
+    existingSecretPasswordKey: password
+  persistence:
+    enabled: true
+    storageClass: ceph-block
+    accessMode: ReadWriteOnce
+    size: 10Gi
+  volumePermissions:
+    enabled: true
+    uid: 666
+    gid: 666
+  ingress:
+    enabled: false
+matrix-hookshot:
+  global:
+    fullnameOverride: matrix-hookshot
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: halfshot/matrix-hookshot
+            tag: 6.0.3
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        webhook:
+          port: 9000
+          targetPort: 9000
+          protocol: HTTP
+        metrics:
+          port: 9001
+          targetPort: 9001
+          protocol: HTTP
+        appservice:
+          port: 9002
+          targetPort: 9002
+          protocol: HTTP
+        homeserver:
+          port: 9993
+          targetPort: 9993
+          protocol: HTTP
+  persistence:
+    config:
+      enabled: true
+      type: secret
+      name: matrix-hookshot-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/config.yml
+              readOnly: true
+              mountPropagation: None
+              subPath: config.yml
+    registration:
+      enabled: true
+      type: secret
+      name: matrix-hookshot-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/registration.yml
+              readOnly: true
+              mountPropagation: None
+              subPath: registration.yml
+    passkey:
+      enabled: true
+      type: secret
+      name: matrix-hookshot-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/passkey.pem
+              readOnly: true
+              mountPropagation: None
+              subPath: passkey.pem
+mautrix-discord:
+  global:
+    fullnameOverride: mautrix-discord
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: dock.mau.dev/mautrix/discord
+            tag: v0.7.2
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 29334
+          targetPort: 29334
+          protocol: HTTP
+  persistence:
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 500Mi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+    config:
+      enabled: true
+      type: secret
+      name: mautrix-discord-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/config.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: config.yaml
+mautrix-whatsapp:
+  global:
+    fullnameOverride: mautrix-whatsapp
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: dock.mau.dev/mautrix/whatsapp
+            tag: v0.11.3
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 29333
+          targetPort: 29333
+          protocol: HTTP
+  persistence:
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 500Mi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+    config:
+      enabled: true
+      type: secret
+      name: mautrix-whatsapp-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/config.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: config.yaml
+valkey-synapse:
+  fullnameOverride: matrix-synapse-valkey
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: matrix-synapse-valkey-secret
+    existingSecretPasswordKey: password
+  primary:
+    persistence:
+      enabled: false
+  replica:
+    persistence:
+      enabled: false
+valkey-hookshot:
+  fullnameOverride: matrix-hookshot-valkey
+  architecture: standalone
+  auth:
+    enabled: false
+    usePasswordFiles: false
+  primary:
+    persistence:
+      enabled: false
+  replica:
+    persistence:
+      enabled: false
+cloudflared-synapse:
+  name: cloudflared-synapse
+  existingSecretName: matrix-synapse-cloudflared-synapse-secret
+cloudflared-hookshot:
+  name: cloudflared-hookshot
+  existingSecretName: matrix-synapse-cloudflared-hookshot-secret
+postgres-17-cluster:
+  mode: recovery
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    resources:
+      requests:
+        cpu: 200m
+    monitoring:
+      enabled: true
+  recovery:
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/matrix-synapse/matrix-synapse-postgresql-17-cluster
+    endpointCredentials: matrix-synapse-postgresql-17-cluster-backup-secret
+  backup:
+    enabled: true
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/matrix-synapse/matrix-synapse-postgresql-17-cluster
+    endpointCredentials: matrix-synapse-postgresql-17-cluster-backup-secret
+    backupIndex: 1
