@@ -4,27 +4,28 @@ traefik:
   ingressClass:
     enabled: false
     isDefaultClass: true
-  experimental:
   kubernetesGateway:
     enabled: true
   gateway:
     enabled: true
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-issuer
     listeners:
       web:
         port: 8000
         hostname: "*.alexlebens.net"
         protocol: HTTP
         namespacePolicy: All
-      # websecure:
-      #   port: 443
-      #   hostname: "*.alexlebens.net"
-      #   protocol: HTTPS
-      #   namespacePolicy: All
-      #   certificateRefs:
-      #     - kind: Secret
-      #       name: websecure-gateway-cert
-      #       namespace: traefik
-      #   mode: Terminate
+      websecure:
+        port: 8443
+        hostname: "*.alexlebens.net"
+        protocol: HTTPS
+        namespacePolicy: All
+        certificateRefs:
+          - kind: Secret
+            name: websecure-gateway-cert
+            namespace: traefik
+        mode: Terminate
   ingressRoute:
     dashboard:
       enabled: true
@@ -103,10 +104,6 @@ traefik:
     metrics:
       expose:
         default: false
-  tlsStore:
-    default:
-      defaultCertificate:
-        secretName: traefik-secret-tls
   service:
     enabled: true
     type: LoadBalancer
