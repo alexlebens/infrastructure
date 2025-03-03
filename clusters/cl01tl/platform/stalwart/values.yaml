@@ -1,0 +1,103 @@
+stalwart:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: stalwartlabs/mail-server
+            tag: v0.11.6
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8080
+          protocol: HTTP
+        smtp:
+          port: 25
+          targetPort: 25
+          protocol: TCP
+        smtps:
+          port: 465
+          targetPort: 465
+          protocol: TCP
+        imap:
+          port: 143
+          targetPort: 143
+          protocol: TCP
+        imaps:
+          port: 993
+          targetPort: 993
+          protocol: TCP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /opt/stalwart-mail
+              readOnly: false
+valkey:
+  architecture: standalone
+  auth:
+    enabled: false
+    usePasswordFiles: false
+  primary:
+    persistence:
+      enabled: false
+  replica:
+    persistence:
+      enabled: false
+elasticsearch:
+  global:
+    storageClass: ceph-block
+  extraEnvVars:
+    - name: discovery.type
+      value: single-node
+    - name: xpack.security.enabled
+      value: "true"
+  extraEnvVarsSecret: stalwart-elasticsearch-secret
+  master:
+    masterOnly: false
+    replicaCount: 1
+  data:
+    replicaCount: 0
+  coordinating:
+    replicaCount: 0
+  ingest:
+    enabled: false
+    replicaCount: 0
+postgres-17-cluster:
+  mode: recovery
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  recovery:
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/stalwart/stalwart-postgresql-17-cluster
+    endpointCredentials: stalwart-postgresql-17-cluster-backup-secret
+  backup:
+    enabled: false
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/stalwart/stalwart-postgresql-17-cluster
+    endpointCredentials: stalwart-postgresql-17-cluster-backup-secret
+    backupIndex: 2
