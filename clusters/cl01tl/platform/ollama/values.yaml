@@ -1,0 +1,263 @@
+ollama:
+  controllers:
+    server-1:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        labels:
+          ollama-type: server
+        affinity:
+          podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchExpressions:
+                      - key: ollama-type
+                        operator: In
+                        values:
+                          - server
+                  topologyKey: kubernetes.io/hostname
+      containers:
+        main:
+          image:
+            repository: ollama/ollama
+            tag: 0.5.12
+            pullPolicy: IfNotPresent
+          env:
+            - name: OLLAMA_KEEP_ALIVE
+              value: 24h
+            - name: OLLAMA_HOST
+              value: 0.0.0.0
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+              # gpu.intel.com/i915: 1
+            limits:
+              cpu: 4
+              # gpu.intel.com/i915: 1
+    server-2:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        labels:
+          ollama-type: server
+        affinity:
+          podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchExpressions:
+                      - key: ollama-type
+                        operator: In
+                        values:
+                          - server
+                  topologyKey: kubernetes.io/hostname
+      containers:
+        main:
+          image:
+            repository: ollama/ollama
+            tag: 0.5.12
+            pullPolicy: IfNotPresent
+          env:
+            - name: OLLAMA_KEEP_ALIVE
+              value: 24h
+            - name: OLLAMA_HOST
+              value: 0.0.0.0
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+              # gpu.intel.com/i915: 1
+            limits:
+              cpu: 4
+              # gpu.intel.com/i915: 1
+    server-3:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        labels:
+          ollama-type: server
+        affinity:
+          podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchExpressions:
+                      - key: ollama-type
+                        operator: In
+                        values:
+                          - server
+                  topologyKey: kubernetes.io/hostname
+      containers:
+        main:
+          image:
+            repository: ollama/ollama
+            tag: 0.5.12
+            pullPolicy: IfNotPresent
+          env:
+            - name: OLLAMA_KEEP_ALIVE
+              value: 24h
+            - name: OLLAMA_HOST
+              value: 0.0.0.0
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+              # gpu.intel.com/i915: 1
+            limits:
+              cpu: 4
+              # gpu.intel.com/i915: 1
+    web:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/open-webui/open-webui
+            tag: 0.5.16
+            pullPolicy: IfNotPresent
+          env:
+            - name: ENV
+              value: prod
+            - name: WEBUI_AUTH
+              value: true
+            - name: WEBUI_NAME
+              value: Ollama
+            - name: WEBUI_URL
+              value: http://ollama.alexlebens.net
+            - name: ENABLE_LOGIN_FORM
+              value: false
+            - name: DEFAULT_USER_ROLE
+              value: admin
+            - name: WEBUI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ollama-key-secret
+                  key: key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ollama-web-postgresql-17-cluster-app
+                  key: uri
+            - name: OLLAMA_BASE_URL
+              value: http://ollama-server-1.ollama:11434
+            - name: ENABLE_OAUTH_SIGNUP
+              value: true
+            - name: OAUTH_USERNAME_CLAIM
+              value: preferred_username
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ollama-oidc-secret
+                  key: secret
+            - name: OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ollama-oidc-secret
+                  key: client
+            - name: OAUTH_PROVIDER_NAME
+              value: Authentik
+            - name: OPENID_PROVIDER_URL
+              value: https://auth.alexlebens.dev/application/o/ollama/.well-known/openid-configuration
+          resources:
+            requests:
+              cpu: 10m
+              memory: 1Gi
+  serviceAccount:
+    create: true
+  service:
+    server-1:
+      controller: server-1
+      ports:
+        http:
+          port: 11434
+          targetPort: 11434
+          protocol: HTTP
+    server-2:
+      controller: server-2
+      ports:
+        http:
+          port: 11434
+          targetPort: 11434
+          protocol: HTTP
+    server-3:
+      controller: server-3
+      ports:
+        http:
+          port: 11434
+          targetPort: 11434
+          protocol: HTTP
+    web:
+      controller: web
+      ports:
+        http:
+          port: 80
+          targetPort: 8080
+          protocol: HTTP
+  persistence:
+    server-1:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 40Gi
+      retain: true
+      advancedMounts:
+        server-1:
+          main:
+            - path: /root/.ollama
+              readOnly: false
+    server-2:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 40Gi
+      retain: true
+      advancedMounts:
+        server-2:
+          main:
+            - path: /root/.ollama
+              readOnly: false
+    server-3:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 40Gi
+      retain: true
+      advancedMounts:
+        server-3:
+          main:
+            - path: /root/.ollama
+              readOnly: false
+    web-data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        web:
+          main:
+            - path: /app/backend/data
+              readOnly: false
+postgres-17-cluster:
+  nameOverride: ollama-web-postgresql-17
+  mode: recovery
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  recovery:
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/ollama/ollama-web-postgresql-17-cluster
+    endpointCredentials: ollama-web-postgresql-17-cluster-backup-secret
+  backup:
+    enabled: false
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/ollama/ollama-web-postgresql-17-cluster
+    endpointCredentials: ollama-web-postgresql-17-cluster-backup-secret
+    backupIndex: 2
