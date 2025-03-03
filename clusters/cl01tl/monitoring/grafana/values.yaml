@@ -1,0 +1,144 @@
+grafana:
+  deploymentStrategy:
+    type: Recreate
+  createConfigmap: true
+  serviceMonitor:
+    enabled: true
+  ingress:
+    enabled: false
+  persistence:
+    enabled: true
+    storageClassName: ceph-block
+  admin:
+    existingSecret: grafana-auth-secret
+    userKey: admin-user
+    passwordKey: admin-password
+  envFromSecret: grafana-oauth-secret
+  plugins:
+    - grafana-clock-panel
+    - grafana-worldmap-panel
+    - grafana-lokiexplore-app
+    - isovalent-hubble-datasource
+    - marcusolsson-treemap-panel
+    - camptocamp-prometheus-alertmanager-datasource
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          uid: prometheus
+          url: http://kube-prometheus-stack-prometheus.kube-prometheus-stack:9090/
+          access: proxy
+          isDefault: true
+          jsonData:
+            timeInterval: 30s
+        - name: Loki
+          type: loki
+          url: http://loki.loki:3100
+          jsonData:
+            httpHeaderName1: "X-Scope-OrgID"
+          secureJsonData:
+            httpHeaderValue1: "1"
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: "app-gitea"
+          orgId: 1
+          folder: "Application"
+          type: file
+          disableDeletion: true
+          editable: false
+          options:
+            path: /var/lib/grafana/dashboards/app-gitea
+        - name: "srv-gitea"
+          orgId: 1
+          folder: "Service"
+          type: file
+          disableDeletion: true
+          editable: false
+          options:
+            path: /var/lib/grafana/dashboards/srv-gitea
+        - name: "sys-gitea"
+          orgId: 1
+          folder: "System"
+          type: file
+          disableDeletion: true
+          editable: false
+          options:
+            path: /var/lib/grafana/dashboards/sys-gitea
+  dashboards:
+    app-gitea:
+      immich:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/application/immich.json
+      radarr:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/application/radarr.json
+      sonarr:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/application/sonarr.json
+    srv-gitea:
+      alertmanager:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/alertmanager.json
+      argocd:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/argocd.json
+      authentik:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/authentik.json
+      blocky:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/blocky.json
+      cert-manager:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/cert-manager.json
+      cloudnativepg:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/cloudnativepg.json
+      coredns:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/coredns.json
+      descheduler:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/descheduler.json
+      minio:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/minio.json
+      speedtest-exporter:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/speedtest-exporter.json
+      spegel:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/spegel.json
+      traefik:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/traefik.json
+      trivy:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/trivy.json
+      unpoller:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/unpoller.json
+      vault:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/vault.json
+      volsync:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/service/volsync.json
+    sys-gitea:
+      ceph:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/system/ceph.json
+      etcd:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/system/etcd.json
+      loki:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/system/loki.json
+      node-full:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/system/node-full.json
+      node-short:
+        url: http://gitea-http.gitea:3000/alexlebens/grafana-dashboards/raw/branch/main/dashboards/system/node-short.json
+  grafana.ini:
+    analytics:
+      check_for_updates: false
+    server:
+      domain: alexlebens.net
+      root_url: https://grafana.alexlebens.net
+    users:
+      auto_assign_org: true
+      auto_assign_org_id: 1
+    auth:
+      disable_login_form: true
+      oauth_auto_login: true
+      signout_redirect_url: https://authentik.alexlebens.net/application/o/grafana/end-session/
+    auth.generic_oauth:
+      enabled: true
+      name: Authentik
+      allow_sign_up: true
+      scopes: openid profile email
+      auth_url: https://authentik.alexlebens.net/application/o/authorize/
+      token_url: https://authentik.alexlebens.net/application/o/token/
+      api_url: https://authentik.alexlebens.net/application/o/userinfo/
+      role_attribute_path: contains(groups, 'Grafana Admins') && 'Admin' || contains(groups, 'Grafana Editors') && 'Editor' || 'Viewer'
