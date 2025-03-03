@@ -2,8 +2,29 @@ traefik:
   deployment:
     kind: DaemonSet
   ingressClass:
-    enabled: true
+    enabled: false
     isDefaultClass: true
+  experimental:
+  kubernetesGateway:
+    enabled: true
+  gateway:
+    enabled: true
+    listeners:
+      web:
+        port: 8000
+        hostname: "*.alexlebens.net"
+        protocol: HTTP
+        namespacePolicy: All
+      # websecure:
+      #   port: 443
+      #   hostname: "*.alexlebens.net"
+      #   protocol: HTTPS
+      #   namespacePolicy: All
+      #   certificateRefs:
+      #     - kind: Secret
+      #       name: websecure-gateway-cert
+      #       namespace: traefik
+      #   mode: Terminate
   ingressRoute:
     dashboard:
       enabled: true
@@ -14,9 +35,15 @@ traefik:
       allowCrossNamespace: true
       allowEmptyServices: true
     kubernetesIngress:
+      enabled: false
       allowEmptyServices: true
       publishedService:
         enabled: true
+    kubernetesGateway:
+      enabled: true
+      experimentalChannel: true
+      statusAddress:
+        ip: 10.232.1.21
   metrics:
     prometheus:
       service:
@@ -29,6 +56,7 @@ traefik:
   globalArguments: []
   ports:
     web:
+      port: 8000
       expose:
         default: true
       exposedPort: 80
@@ -84,5 +112,3 @@ traefik:
     type: LoadBalancer
     externalIPs:
       - 10.232.1.21
-      - 10.232.1.22
-      - 10.232.1.23
