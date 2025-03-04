@@ -1,0 +1,159 @@
+tdarr:
+  controllers:
+    server:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/haveagitgat/tdarr
+            tag: 2.35.02
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: "1001"
+            - name: PGID
+              value: "1001"
+            - name: UMASK_SET
+              value: "002"
+            - name: ffmpegVersion
+              value: "6"
+            - name: internalNode
+              value: "false"
+            - name: inContainer
+              value: "true"
+            - name: nodeName
+              value: tdarr-server
+            - name: serverIP
+              value: 0.0.0.0
+            - name: serverPort
+              value: "8266"
+            - name: webUIPort
+              value: "8265"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 1Gi
+    node:
+      type: daemonset
+      revisionHistoryLimit: 3
+      pod:
+        nodeSelector:
+          intel.feature.node.kubernetes.io/gpu: "true"
+      containers:
+        main:
+          image:
+            repository: ghcr.io/haveagitgat/tdarr_node
+            tag: 2.35.02
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: "1001"
+            - name: PGID
+              value: "1001"
+            - name: UMASK_SET
+              value: "002"
+            - name: ffmpegVersion
+              value: "6"
+            - name: inContainer
+              value: "true"
+            - name: nodeName
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: serverIP
+              value: tdarr-api
+            - name: serverPort
+              value: "8266"
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+              cpu: 2000m
+            requests:
+              gpu.intel.com/i915: 1
+              cpu: 10m
+              memory: 512Mi
+  serviceAccount:
+    create: true
+  service:
+    api:
+      controller: server
+      ports:
+        http:
+          port: 8266
+          targetPort: 8266
+          protocol: HTTP
+    web:
+      controller: server
+      ports:
+        http:
+          port: 8265
+          targetPort: 8265
+          protocol: HTTP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 50Gi
+      retain: true
+      advancedMounts:
+        server:
+          main:
+            - path: /app/configs
+              readOnly: false
+    server:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 50Gi
+      retain: true
+      advancedMounts:
+        server:
+          main:
+            - path: /app/server
+              readOnly: false
+    server-cache:
+      type: emptyDir
+      advancedMounts:
+        server:
+          main:
+            - path: /tcache
+              readOnly: false
+    node-cache:
+      type: emptyDir
+      advancedMounts:
+        node:
+          main:
+            - path: /tcache
+              readOnly: false
+    media:
+      existingClaim: tdarr-nfs-storage
+      advancedMounts:
+        server:
+          main:
+            - path: /mnt/store
+              readOnly: true
+        node:
+          main:
+            - path: /mnt/store
+              readOnly: true
+tdarr-exporter:
+  image:
+    name: homeylab/tdarr-exporter
+    tag: 1.4.2
+  metrics:
+    serviceMonitor:
+      enabled: true
+  settings:
+    config:
+      url: http://tdarr-web.tdarr:8265
+      verify_ssl: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
