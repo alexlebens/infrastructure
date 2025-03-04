@@ -1,0 +1,126 @@
+searxng:
+  controllers:
+    api:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: docker.io/searxng/searxng
+            tag: 2025.1.26-70f1b6500
+            pullPolicy: IfNotPresent
+          env:
+            - name: SEARXNG_BASE_URL
+              value: http://searxng-api.searxng:8080
+            - name: SEARXNG_QUERY_URL
+              value: http://searxng-api.searxng:8080/search?q=<query>
+            - name: SEARXNG_HOSTNAME
+              value: searxng-api.searxng
+            - name: UWSGI_WORKERS
+              value: 4
+            - name: UWSGI_THREADS
+              value: 4
+            - name: ENABLE_RAG_WEB_SEARCH
+              value: true
+            - name: RAG_WEB_SEARCH_ENGINE
+              value: searxng
+            - name: RAG_WEB_SEARCH_RESULT_COUNT
+              value: 3
+            - name: RAG_WEB_SEARCH_CONCURRENT_REQUESTS
+              value: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+    browser:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: docker.io/searxng/searxng
+            tag: 2025.1.26-70f1b6500
+            pullPolicy: IfNotPresent
+          env:
+            - name: SEARXNG_BASE_URL
+              value: https://searxng.alexlebens.net/
+            - name: SEARXNG_QUERY_URL
+              value: https://searxng.alexlebens.net/search?q=<query>
+            - name: SEARXNG_HOSTNAME
+              value: searxng.alexlebens.net
+            - name: SEARXNG_REDIS_URL
+              value: redis://searxng-valkey-primary.searxng:6379/0
+            - name: UWSGI_WORKERS
+              value: 4
+            - name: UWSGI_THREADS
+              value: 4
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    api:
+      controller: api
+      ports:
+        mail:
+          port: 8080
+          targetPort: 8080
+          protocol: HTTP
+    browser:
+      controller: browser
+      ports:
+        mail:
+          port: 80
+          targetPort: 8080
+          protocol: HTTP
+  persistence:
+    config:
+      enabled: true
+      type: secret
+      name: searxng-api-config-secret
+      advancedMounts:
+        api:
+          main:
+            - path: /etc/searxng/settings.yml
+              readOnly: true
+              mountPropagation: None
+              subPath: settings.yml
+            - path: /etc/searxng/limiter.toml
+              readOnly: true
+              mountPropagation: None
+              subPath: limiter.toml
+    api-data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        api:
+          main:
+            - path: /etc/searxng
+              readOnly: false
+    browser-data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        browser:
+          main:
+            - path: /etc/searxng
+              readOnly: false
+valkey:
+  architecture: standalone
+  auth:
+    enabled: false
+    usePasswordFiles: false
+  primary:
+    persistence:
+      enabled: false
+  replica:
+    persistence:
+      enabled: false
