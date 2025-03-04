@@ -1,0 +1,136 @@
+radarr:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+      containers:
+        main:
+          image:
+            repository: ghcr.io/linuxserver/radarr
+            tag: 5.19.3@sha256:0a8020afc5e3dcad1413ba125a980729a2b16ff0d88d108b3e1779111ef1c896
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+          probes:
+            liveness:
+              enabled: false
+              custom: true
+              spec:
+                exec:
+                  command:
+                  - /usr/bin/env
+                  - bash
+                  - -c
+                  - curl --fail localhost:7878/api/v1/system/status?apiKey=`IFS=\> && while
+                    read -d \< E C; do if [[ $E = "ApiKey" ]]; then echo $C; fi; done < /config/config.xml`
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+        metrics:
+          image:
+            repository: ghcr.io/onedr0p/exportarr
+            tag: v2.0.1
+            pullPolicy: IfNotPresent
+          args: ["radarr"]
+          env:
+            - name: URL
+              value: http://localhost
+            - name: CONFIG
+              value: /config/config.xml
+            - name: PORT
+              value: 9793
+            - name: ENABLE_ADDITIONAL_METRICS
+              value: false
+            - name: ENABLE_UNKNOWN_QUEUE_ITEMS
+              value: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 7878
+          protocol: HTTP
+        metrics:
+          port: 9793
+          targetPort: 9793
+          protocol: TCP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 20Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+          metrics:
+            - path: /config
+              readOnly: true
+    media:
+      existingClaim: radarr-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: false
+postgres-17-cluster:
+  nameOverride: radarr5-postgresql-17
+  mode: recovery
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: 200m
+    monitoring:
+      enabled: true
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      postInitSQL:
+        - CREATE DATABASE "radarr-main" OWNER "app";
+        - CREATE DATABASE "radarr-log" OWNER "app";
+  recovery:
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr5/radarr5-postgresql-17-cluster
+    endpointCredentials: radarr-postgresql-17-cluster-backup-secret
+    backupIndex: 2
+  backup:
+    enabled: false
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr5/radarr5-postgresql-17-cluster
+    endpointCredentials: radarr-postgresql-17-cluster-backup-secret
+    backupIndex: 3
+    retentionPolicy: "7d"
