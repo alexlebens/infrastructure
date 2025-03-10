@@ -1,0 +1,71 @@
+home-assistant:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/home-assistant/home-assistant
+            tag: 2025.3.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+          resources:
+            requests:
+              cpu: 1
+              memory: 2Gi
+        code-server:
+          image:
+            repository: ghcr.io/linuxserver/code-server
+            tag: 4.97.2@sha256:3d1f7bd7399b4b54622e580a7f14afd6886ff698fc11dd1978afd04cc6e7b529
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+            - name: DEFAULT_WORKSPACE
+              value: /config
+          envFrom:
+            - secretRef:
+                name: home-assistant-code-server-password-secret
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8123
+          protocol: TCP
+    code-server:
+      controller: main
+      ports:
+        http:
+          port: 8443
+          targetPort: 8443
+          protocol: HTTP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+          code-server:
+            - path: /config/home-assistant
+              readOnly: false
