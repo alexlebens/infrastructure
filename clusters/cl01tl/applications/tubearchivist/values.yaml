@@ -9,7 +9,7 @@ tubearchivist:
         main:
           image:
             repository: bbilly1/tubearchivist
-            tag: v0.4.13
+            tag: v0.5.0
             pullPolicy: IfNotPresent
           env:
             - name: TZ
@@ -20,10 +20,10 @@ tubearchivist:
               value: 1000
             - name: ES_URL
               value: http://tubearchivist-elasticsearch:9200
-            - name: REDIS_HOST
-              value: tubearchivist-redis-headless
+            - name: REDIS_CON
+              value: redis://tubearchivist-valkey-headless.tubearchivist:6379
             - name: TA_HOST
-              value: tubearchivist.alexlebens.net tubearchivist.tubearchivist
+              value: https://tubearchivist.alexlebens.net http://tubearchivist.tubearchivist:80/
             - name: TA_PORT
               value: 24000
             - name: TA_USERNAME
@@ -121,20 +121,17 @@ tubearchivist:
           main:
             - path: /youtube
               readOnly: false
-redis:
-  image:
-    repository: redis/redis-stack-server
-    tag: 7.2.0-v13
+valkey:
   architecture: standalone
   auth:
     enabled: false
-  commonConfiguration: |-
-    # Enable AOF https://redis.io/topics/persistence#append-only-file
-    appendonly yes
-    # Disable RDB persistence, AOF persistence already enabled.
-    save ""
-    # Enable Redis Json module
-    loadmodule /opt/redis-stack/lib/rejson.so
+    usePasswordFiles: false
+  primary:
+    persistence:
+      enabled: false
+  replica:
+    persistence:
+      enabled: false
 elasticsearch:
   global:
     storageClass: ceph-block
