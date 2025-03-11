@@ -59,6 +59,9 @@ gitea:
         SCHEMA: public
       oauth2_client:
         ENABLE_AUTO_REGISTRATION: true
+      cache:
+        ADAPTER: redis
+        HOST: redis://gitea-valkey-headless.gitea:6379
       service:
         REGISTER_MANUAL_CONFIRM: true
         SHOW_REGISTRATION_BUTTON: false
@@ -91,7 +94,7 @@ gitea:
             name: gitea-postgresql-17-cluster-app
             key: password
   memcached:
-    enabled: true
+    enabled: false
   redis:
     enabled: false
   redis-cluster:
@@ -104,8 +107,6 @@ gitea:
     enabled: false
   mariadb:
     enabled: false
-cloudflared:
-  existingSecretName: gitea-cloudflared-secret
 backup:
   global:
     fullnameOverride: gitea-backup
@@ -213,6 +214,20 @@ backup:
               readOnly: true
               mountPropagation: None
               subPath: .s3cfg
+valkey:
+  architecture: standalone
+  auth:
+    enabled: false
+    usePasswordFiles: false
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+  replica:
+    persistence:
+      enabled: false
+cloudflared:
+  existingSecretName: gitea-cloudflared-secret
 postgres-17-cluster:
   mode: standalone
   cluster:
