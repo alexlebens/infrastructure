@@ -150,8 +150,10 @@ backup:
           args:
             - -ec
             - |
-              s3cmd put --no-check-md5 --no-check-certificate -v /opt/backup/gitea-backup.zip s3://gitea-backups-8ba8dae3674a2f53354c600e/cl01tl/cl01tl-gitea-backups/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
+              echo ">> Running S3 backup for Gitea"
+              s3cmd put --no-check-md5 --no-check-certificate -v /opt/backup/gitea-backup.zip ${S3_REPOSITORY}/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
               mv /opt/backup/gitea-backup.zip /opt/backup/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
+              echo ">> Completed S3 backup for Gitea"
           envFrom:
             - secretRef:
                 name: gitea-backup-s3
@@ -170,12 +172,14 @@ backup:
             - -ec
             - |
               export WEEK_AGO=$(date -d @$(( $(date +%s) - 604800 )) +%Y-%m-%d\ %H:%M:%S);
-
-              s3cmd ls -v s3://gitea-backups-8ba8dae3674a2f53354c600e/cl01tl/cl01tl-gitea-backups/ |
+              echo ">> Running S3 prune for Gitea backup repository"
+              echo ">> Backups prior to '$WEEK_AGO' will be removed"
+              s3cmd ls -v $S3_REPOSITORY |
                 awk -v week_ago="$WEEK_AGO" '$1 < week_ago {print $4}' |
                 while read file;
                   do s3cmd del -v "$file";
                 done;
+              echo ">> Completed S3 prune for Gitea backup repository"
           envFrom:
             - secretRef:
                 name: gitea-backup-s3

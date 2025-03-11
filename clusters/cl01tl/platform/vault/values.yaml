@@ -178,10 +178,12 @@ snapshot:
             - -ec
             - |
               apk add --no-cache jq;
+              echo ">> Running Vault snapshot"
               export VAULT_TOKEN=$(vault write auth/approle/login role_id=$VAULT_APPROLE_ROLE_ID secret_id=$VAULT_APPROLE_SECRET_ID -format=json | jq -r .auth.client_token);
               vault operator raft snapshot save /opt/backup/vault-snapshot-latest.snap;
               cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
               cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-s3.snap;
+              echo ">> Completed Vault snapshot"
           envFrom:
             - secretRef:
                 name: vault-snapshot-agent-token
@@ -203,8 +205,10 @@ snapshot:
           args:
             - -ec
             - |
+              echo ">> Running S3 backup for Vault snapshot"
               s3cmd put --no-check-md5 --no-check-certificate -v /opt/backup/vault-snapshot-s3.snap ${S3_REPOSITORY}/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
               rm -f /opt/backup/vault-snapshot-s3.snap;
+              echo ">> Completed S3 backup for Vault snapshot"
           envFrom:
             - secretRef:
                 name: vault-snapshot-s3
@@ -223,12 +227,14 @@ snapshot:
             - -ec
             - |
               export MONTH_AGO=$(date -d @$(( $(date +%s) - 2592000 )) +%Y-%m-%d\ %H:%M:%S);
-
+              echo ">> Running S3 prune for Vault snapshot repository"
+              echo ">> Backups prior to '$MONTH_AGO' will be removed"
               s3cmd ls -v $S3_REPOSITORY |
                 awk -v month_ago="$MONTH_AGO" '$1 < month_ago {print $4}' |
                 while read file;
                   do s3cmd del -v "$file";
                 done;
+              echo ">> Completed S3 prune for Vault snapshot repository"
           envFrom:
             - secretRef:
                 name: vault-snapshot-s3
