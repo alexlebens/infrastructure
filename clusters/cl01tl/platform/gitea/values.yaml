@@ -69,6 +69,11 @@ gitea:
       session:
         PROVIDER: redis
         PROVIDER_CONFIG: redis://gitea-valkey-primary.gitea:6379
+      indexer:
+        ISSUE_INDEXER_CONN_STR: http://gitea-meilisearch.gitea:7700
+        ISSUE_INDEXER_ENABLED: true
+        ISSUE_INDEXER_TYPE: meilisearch
+        REPO_INDEXER_ENABLED: false
       service:
         REGISTER_MANUAL_CONFIRM: true
         SHOW_REGISTRATION_BUTTON: false
@@ -221,6 +226,49 @@ backup:
               readOnly: true
               mountPropagation: None
               subPath: .s3cfg
+minio:
+  existingSecret:
+    name: gitea-minio-root-secret
+  tenant:
+    name: minio-gitea
+    configuration:
+      name: gitea-minio-config-secret
+    pools:
+      - servers: 3
+        name: pool
+        volumesPerServer: 2
+        size: 10Gi
+        storageClassName: ceph-block
+    mountPath: /export
+    subPath: /data
+    metrics:
+      enabled: true
+      port: 9000
+      protocol: http
+    certificate:
+      requestAutoCert: false
+  ingress:
+    console:
+      enabled: false
+meilisearch:
+  environment:
+    MEILI_NO_ANALYTICS: true
+    MEILI_ENV: production
+  auth:
+    existingMasterKeySecret: gitea-meilisearch-master-key-secret
+  service:
+    type: ClusterIP
+    port: 7700
+  persistence:
+    enabled: true
+    storageClass: ceph-block
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 10m
+      memory: 128Mi
+  serviceMonitor:
+    enabled: true
 valkey:
   architecture: replication
   auth:
