@@ -76,21 +76,6 @@ gitea:
         ISSUE_INDEXER_ENABLED: true
         ISSUE_INDEXER_TYPE: meilisearch
         REPO_INDEXER_ENABLED: false
-      # attachment:
-      #   STORAGE_TYPE: minio
-      # lfs:
-      #   STORAGE_TYPE: minio
-      # picture:
-      #   AVATAR_STORAGE_TYPE: minio
-      # "storage.packages":
-      #   STORAGE_TYPE: local
-      # storage:
-      #   STORAGE_TYPE: minio
-      #   MINIO_ENDPOINT: minio-gitea-hl.gitea.svc.cluster.local:9000
-      #   MINIO_LOCATION: us-east-1
-      #   MINIO_BUCKET: gitea
-      #   MINIO_USE_SSL: false
-      #   SERVE_DIRECT: false
       # actions:
       #   ENABLED: true
       service:
@@ -124,16 +109,6 @@ gitea:
           secretKeyRef:
             name: gitea-postgresql-17-cluster-app
             key: password
-      # - name: GITEA__STORAGE__MINIO_ACCESS_KEY_ID
-      #   valueFrom:
-      #     secretKeyRef:
-      #       name: gitea-minio-user-secret
-      #       key: AWS_ACCESS_KEY_ID
-      # - name: GITEA__STORAGE__MINIO_SECRET_ACCESS_KEY
-      #   valueFrom:
-      #     secretKeyRef:
-      #       name: gitea-minio-user-secret
-      #       key: AWS_SECRET_ACCESS_KEY
       - name: GITEA__INDEXER__ISSUE_INDEXER_CONN_STR
         valueFrom:
           secretKeyRef:
@@ -260,30 +235,6 @@ backup:
               readOnly: true
               mountPropagation: None
               subPath: .s3cfg
-minio:
-  existingSecret:
-    name: gitea-minio-root-secret
-  tenant:
-    name: minio-gitea
-    configuration:
-      name: gitea-minio-config-secret
-    pools:
-      - servers: 3
-        name: pool
-        volumesPerServer: 2
-        size: 10Gi
-        storageClassName: ceph-block
-    mountPath: /export
-    subPath: /data
-    metrics:
-      enabled: true
-      port: 9000
-      protocol: http
-    certificate:
-      requestAutoCert: false
-  ingress:
-    console:
-      enabled: false
 meilisearch:
   environment:
     MEILI_NO_ANALYTICS: true
