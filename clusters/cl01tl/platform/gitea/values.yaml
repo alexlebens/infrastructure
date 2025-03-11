@@ -18,7 +18,10 @@ gitea:
   ingress:
     enabled: false
   persistence:
-    storageClass: ceph-block
+    storageClass: ceph-filesystem
+    size: 10Gi
+    accessModes:
+      - ReadWriteMany
   extraVolumes:
     - name: gitea-nfs-storage-backup
       persistentVolumeClaim:
@@ -73,6 +76,19 @@ gitea:
         ISSUE_INDEXER_ENABLED: true
         ISSUE_INDEXER_TYPE: meilisearch
         REPO_INDEXER_ENABLED: false
+      attachment:
+        STORAGE_TYPE: minio
+      lfs:
+        STORAGE_TYPE: minio
+      picture:
+        AVATAR_STORAGE_TYPE: minio
+      "storage.packages":
+        STORAGE_TYPE: minio
+      storage:
+        MINIO_ENDPOINT: minio.gitea:80
+        MINIO_LOCATION: us-east-1
+        MINIO_BUCKET: gitea
+        MINIO_USE_SSL: false
       service:
         REGISTER_MANUAL_CONFIRM: true
         SHOW_REGISTRATION_BUTTON: false
@@ -104,6 +120,16 @@ gitea:
           secretKeyRef:
             name: gitea-postgresql-17-cluster-app
             key: password
+      - name: GITEA__DATABASE__MINIO_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: gitea-minio-user-secret
+            key: AWS_ACCESS_KEY_ID
+      - name: GITEA__DATABASE__MINIO_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: gitea-minio-user-secret
+            key: AWS_SECRET_ACCESS_KEY
       - name: GITEA__INDEXER__ISSUE_INDEXER_CONN_STR
         valueFrom:
           secretKeyRef:
