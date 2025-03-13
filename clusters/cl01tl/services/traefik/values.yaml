@@ -27,6 +27,11 @@ traefik:
             name: websecure-gateway-cert
             namespace: traefik
         mode: Terminate
+      ssh:
+        port: 2222
+        hostname: "*.alexlebens.net"
+        protocol: TCP
+        namespacePolicy: All
   ingressRoute:
     dashboard:
       enabled: true
@@ -38,9 +43,6 @@ traefik:
       allowEmptyServices: true
     kubernetesIngress:
       enabled: false
-      allowEmptyServices: true
-      publishedService:
-        enabled: true
     kubernetesGateway:
       enabled: true
       experimentalChannel: true
@@ -54,7 +56,7 @@ traefik:
       serviceMonitor:
         enabled: true
       prometheusRule:
-        enabled: false
+        enabled: true
   globalArguments: []
   ports:
     web:
@@ -86,6 +88,27 @@ traefik:
       expose:
         default: true
       exposedPort: 443
+      forwardedHeaders:
+        trustedIPs:
+          - 10.0.0.0/8
+          - 172.16.0.0/16
+          - 192.168.0.0/16
+          - fc00::/7
+        insecure: false
+      proxyProtocol:
+        trustedIPs:
+          - 10.0.0.0/8
+          - 172.16.0.0/16
+          - 192.168.0.0/16
+          - fc00::/7
+        insecure: false
+      tls:
+        enabled: true
+    ssh:
+      port: 2222
+      expose:
+        default: true
+      exposedPort: 22
       forwardedHeaders:
         trustedIPs:
           - 10.0.0.0/8

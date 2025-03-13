@@ -1,0 +1,28 @@
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: tcp-route-gitea-ssh
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: tcp-route-gitea-ssh
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  rules:
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: gitea-ssh
+          port: 2222
+          weight: 100
