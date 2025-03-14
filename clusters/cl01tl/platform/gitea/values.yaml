@@ -132,6 +132,88 @@ gitea:
     enabled: false
   mariadb:
     enabled: false
+renovate:
+  global:
+    fullnameOverride: gitea-renovate
+  controllers:
+    main:
+      type: cronjob
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Forbid
+        timeZone: US/Central
+        schedule: 0 * * * *
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 3
+        failedJobsHistory: 3
+        backoffLimit: 3
+        parallelism: 1
+      containers:
+        main:
+          image:
+            repository: renovate/renovate
+            tag: 39.200.2
+            pullPolicy: IfNotPresent
+          env:
+            - name: RENOVATE_PLATFORM
+              value: gitea
+            - name: RENOVATE_AUTODISCOVER
+              value: 'true'
+            - name: RENOVATE_ONBOARDING
+              value: 'true'
+            - name: RENOVATE_BASE_DIR
+              value: /tmp/renovate/
+            - name: RENOVATE_CONFIG_FILE
+              value: /opt/renovate/config.json
+            - name: RENOVATE_REDIS_URL
+              value: redis://gitea-renovate-valkey-primary.gitea:6379
+            - name: LOG_LEVEL
+              value: debug
+          envFrom:
+            - secretRef:
+                name: gitea-renovate-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+  configMaps:
+    renovate-config:
+      enabled: true
+      data:
+        config.json: |
+          {
+            "repositories": ["orgname/repo","username/repo"],
+            "dryRun" : "full"
+          }
+  persistence:
+    config:
+      enabled: true
+      type: configMap
+      name: gitea-renovate-config
+      advancedMounts:
+        main:
+          main:
+            - path: /opt/renovate/config.json
+              readOnly: true
+              mountPropagation: None
+              subPath: config.json
+    ssh:
+      enabled: true
+      type: secret
+      name: gitea-renovate-ssh-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /home/ubuntu/.ssh
+              readOnly: true
+              mountPropagation: None
+    cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp/renovate/
+              readOnly: false
 backup:
   global:
     fullnameOverride: gitea-backup
@@ -271,6 +353,18 @@ valkey:
     persistence:
       enabled: true
       size: 5Gi
+valkey-renovate:
+  nameOverride: renovate-valkey
+  architecture: standalone
+  auth:
+    enabled: disable
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+  replica:
+    persistence:
+      enabled: false
 cloudflared:
   existingSecretName: gitea-cloudflared-secret
 postgres-17-cluster:
