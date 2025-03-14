@@ -130,6 +130,50 @@ gitea:
     enabled: false
   mariadb:
     enabled: false
+act-runners:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        # alexlebens/helm-charts
+        runner-1:
+          image:
+            repository: gitea/act_runner
+            tag: 0.2.10-dind-rootless
+            pullPolicy: IfNotPresent
+          env:
+            - name: DOCKER_HOST
+              value: tcp://localhost:2376
+            - name: DOCKER_CERT_PATH
+              value: /certs/client
+            - name: DOCKER_TLS_VERIFY
+              value: "1"
+            - name: GITEA_INSTANCE_URL
+              value: http://gitea-http.gitea.svc.cluster.local:3000
+            - name: GITEA_RUNNER_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-runner-secret
+                  key: token-1
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  persistence:
+    data-1:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      advancedMounts:
+        main:
+          runner-1:
+            - path: /data
+              readOnly: false
 renovate:
   global:
     fullnameOverride: gitea-renovate
