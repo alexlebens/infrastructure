@@ -42,7 +42,8 @@ gitea:
           cpu: 100m
           memory: 256Mi
       actRunner:
-        # See full example here: https://gitea.com/gitea/act_runner/src/branch/main/internal/pkg/config/config.example.yaml
+        repository: gitea/act_runner
+        tag: 0.2.11-dind-rootless
         config: |
           log:
             level: debug
@@ -50,10 +51,19 @@ gitea:
             enabled: false
           container:
             privileged: true
+          runner:
+            labels:
+              - "ubuntu-latest:docker://gitea/runner-images:ubuntu-latest"
+              - "ubuntu-22.04:docker://gitea/runner-images:ubuntu-22.04"
+              - "ubuntu-20.04:docker://gitea/runner-images:ubuntu-20.04"
+          container:
+            options: "-v /var/run/user/1000/docker.sock:/dockersock/docker.sock:ro -e DOCKER_HOST=unix:///dockersock/docker.sock"
+            valid_volumes:
+              - '**'
     provisioning:
-      enabled: false
-    existingSecret: gitea-runner-secret
-    existingSecretKey: token
+      enabled: true
+    # existingSecret: gitea-runner-secret
+    # existingSecretKey: token
   gitea:
     metrics:
       enabled: true
