@@ -1,0 +1,41 @@
+eigenfocus:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: eigenfocus/eigenfocus
+            tag: 1.1.0-free
+            pullPolicy: IfNotPresent
+          env:
+            - name: DEFAULT_HOST_URL
+              value: https://eigenfocus.alexlebens.net
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 3000
+          protocol: HTTP
+  persistence:
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /eigenfocus-app/app-data
+              readOnly: false
