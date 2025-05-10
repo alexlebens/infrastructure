@@ -1,0 +1,57 @@
+actual:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/actualbudget/actual
+            tag: 25.5.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          probes:
+            liveness:
+              enabled: false
+              custom: true
+              spec:
+                exec:
+                  command:
+                  - /usr/bin/env
+                  - bash
+                  - -c
+                  - node src/scripts/health-check.js
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 10
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 5006
+          protocol: HTTP
+  persistence:
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
