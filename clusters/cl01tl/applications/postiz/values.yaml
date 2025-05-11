@@ -1,0 +1,139 @@
+postiz:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/gitroomhq/postiz-app
+            tag: v1.43.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: MAIN_URL
+              value: https://postiz.alexlebens.dev
+            - name: FRONTEND_URL
+              value: https://postiz.alexlebens.dev
+            - name: NEXT_PUBLIC_BACKEND_URL
+              value: https://postiz.alexlebens.dev/api
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-config-secret
+                  key: JWT_SECRET
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-postgresql-17-cluster-app
+                  key: uri
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-valkey-config
+                  key: REDIS_URL
+            - name: BACKEND_INTERNAL_URL
+              value: http://localhost:3000
+            - name: IS_GENERAL
+              value: true
+            - name: DISABLE_REGISTRATION
+              value: false
+            - name: STORAGE_PROVIDER
+              value: local
+            - name: UPLOAD_DIRECTORY
+              value: /uploads
+            - name: NEXT_PUBLIC_UPLOAD_DIRECTORY
+              value: /uploads
+            - name: NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME
+              value: Authentik
+            - name: NEXT_PUBLIC_POSTIZ_OAUTH_LOGO_URL
+              value: https://cdn.jsdelivr.net/gh/selfhst/icons/png/authentik.png
+            - name: POSTIZ_GENERIC_OAUTH
+              value: falseß
+            - name: POSTIZ_OAUTH_URL
+              value: https://auth.alexlebens.dev
+            - name: POSTIZ_OAUTH_AUTH_URL
+              value: https://auth.alexlebens.dev/application/o/postiz/.well-known/openid-configuration
+            - name: POSTIZ_OAUTH_TOKEN_URL
+              value: https://auth.alexlebens.dev/application/o/postiz/.well-known/openid-configuration
+            - name: POSTIZ_OAUTH_USERINFO_URL
+              value: https://auth.alexlebens.dev/application/o/postiz/.well-known/openid-configuration
+            - name: POSTIZ_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-oidc-secret
+                  key: client
+            - name: POSTIZ_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-oidc-secret
+                  key: secret
+            - name: POSTIZ_OAUTH_SCOPE
+              value: openid profile email
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 5000
+          protocol: HTTP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    uploads:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /uploads
+              readOnly: false
+valkey:
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: postiz-valkey-config
+    existingSecretPasswordKey: password
+    usePasswordFiles: false
+  primary:
+    persistence:
+      enabled: false
+  replica:
+    persistence:
+      enabled: false
+cloudflared:
+  name: cloudflared-postiz
+  existingSecretName: postiz-cloudflared-secret
+postgres-17-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  backup:
+    enabled: false
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/postiz/postiz-postgresql-17-cluster
+    endpointCredentials: postiz-postgresql-17-cluster-backup-secret
+    backupIndex: 1
