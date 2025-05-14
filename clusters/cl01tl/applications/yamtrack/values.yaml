@@ -1,0 +1,103 @@
+yamtrack:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/fuzzygrim/yamtrack
+            tag: 0.22.7
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: URLS
+              value: https://yamtrack.alexlebens.net
+            - name: REGISTRATION
+              value: true
+            - name: SOCIAL_PROVIDERS
+              value: allauth.socialaccount.providers.openid_connect
+            - name: SOCIALACCOUNT_PROVIDERS
+              valueFrom:
+                secretKeyRef:
+                  name: yamtrack-oidc-secret
+                  key: SOCIALACCOUNT_PROVIDERS
+            - name: SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: yamtrack-config-secret
+                  key: SECRET
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: yamtrack-config-secret
+                  key: REDIS_URL
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: yamtrack-postgresql-17-cluster-app
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: yamtrack-postgresql-17-cluster-app
+                  key: password
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: yamtrack-postgresql-17-cluster-app
+                  key: dbname
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: yamtrack-postgresql-17-cluster-app
+                  key: host
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: yamtrack-postgresql-17-cluster-app
+                  key: port
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+  serviceAccount:
+    create: true
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8000
+          protocol: HTTP
+valkey:
+  architecture: standalone
+  auth:
+    enabled: false
+    usePasswordFiles: false
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+  replica:
+    persistence:
+      enabled: false
+postgres-17-cluster:
+  mode: standalone
+  cluster:
+    walStorage:
+      storageClass: local-path
+    storage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+  backup:
+    enabled: true
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/yamtrack/yamtrack-postgresql-17-cluster
+    endpointCredentials: yamtrack-postgresql-17-cluster-backup-secret
+    backupIndex: 1
