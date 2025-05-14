@@ -206,15 +206,16 @@ postgres-16-cluster:
   #--- https://github.com/immich-app/immich/discussions/9060
   #--- https://docs.pgvecto.rs/admin/kubernetes.html
   #--- https://github.com/tensorchord/cloudnative-pgvecto.rs
+  #--- https://github.com/immich-app/immich/discussions/17025
   type: tensorchord
   mode: standalone
   cluster:
     image:
       repository: ghcr.io/tensorchord/cloudnative-pgvecto.rs
       tag: 16.3-v0.2.1
-    walStorage:
-      storageClass: local-path
     storage:
+      storageClass: local-path
+    walStorage:
       storageClass: local-path
     resources:
       requests:
@@ -222,9 +223,18 @@ postgres-16-cluster:
         cpu: 200m
     monitoring:
       enabled: true
+      prometheusRule:
+        enabled: false
     postgresql:
       parameters:
         shared_buffers: 256MB
+  recovery:
+    method: objectStore
+    objectStore:
+      endpointURL: https://nyc3.digitaloceanspaces.com
+      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-17-cluster
+      endpointCredentials: immich-postgresql-17-cluster-backup-secret
+      recoveryIndex: 2
   backup:
     enabled: true
     endpointURL: https://nyc3.digitaloceanspaces.com
