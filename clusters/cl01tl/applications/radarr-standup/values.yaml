@@ -103,12 +103,14 @@ postgres-17-cluster:
   nameOverride: radarr5-standup-postgresql-17
   mode: standalone
   cluster:
-    walStorage:
-      storageClass: local-path
     storage:
+      storageClass: local-path
+    walStorage:
       storageClass: local-path
     monitoring:
       enabled: true
+      prometheusRule:
+        enabled: false
   bootstrap:
     initdb:
       database: app
@@ -116,6 +118,13 @@ postgres-17-cluster:
       postInitSQL:
         - CREATE DATABASE "radarr-main" OWNER "app";
         - CREATE DATABASE "radarr-log" OWNER "app";
+  recovery:
+    method: objectStore
+    objectStore:
+      endpointURL: https://nyc3.digitaloceanspaces.com
+      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr5-standup/radarr5-standup-postgresql-17-cluster
+      endpointCredentials: radarr-standup-postgresql-17-cluster-backup-secret
+      recoveryIndex: 3
   backup:
     enabled: true
     endpointURL: https://nyc3.digitaloceanspaces.com
