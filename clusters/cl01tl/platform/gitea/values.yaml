@@ -276,14 +276,16 @@ backup:
           args:
             - -ec
             - |
-              export WEEK_AGO=$(date -d @$(( $(date +%s) - 604800 )) +%Y-%m-%d\ %H:%M:%S);
+              export 1_WEEK_AGO=$(date -d @$(( $(date +%s) - 604800 )) +%Y-%m-%d\ %H:%M:%S);
+              export 2_WEEK_AGO=$(date -d @$(( $(date +%s) - 1209600 )) +%Y-%m-%d\ %H:%M:%S);
+              export TIME_RANGE="$2_WEEK_AGO"
               echo ">> Running S3 prune for Gitea backup repository"
-              echo ">> Backups prior to '$WEEK_AGO' will be removed"
+              echo ">> Backups prior to '$TIME_RANGE' will be removed"
               echo ">> File list:"
               s3cmd ls -v $S3_REPOSITORY
               echo ">> Deleting ..."
               s3cmd ls -v $S3_REPOSITORY |
-                awk -v week_ago="$WEEK_AGO" '$1 < week_ago {print $4}' |
+                awk -v time_range="$TIME_RANGE" '$1 < time_range {print $4}' |
                 while read file;
                   do s3cmd del -v "$file";
                   echo ">> Deleted $file";
