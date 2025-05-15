@@ -1,0 +1,107 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: Grafana
+metadata:
+  name: grafana-main
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: grafana-main
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+spec:
+  config:
+    analytics:
+      check_for_updates: false
+    server:
+      domain: alexlebens.net
+      root_url: https://grafana.alexlebens.net
+    log:
+      mode: "console"
+    security:
+      admin_user: ${ADMIN_USER}
+      admin_password: ${ADMIN_PASSWORD}
+    users:
+      auto_assign_org: true
+      auto_assign_org_id: 1
+    auth:
+      disable_login_form: true
+      oauth_auto_login: true
+      signout_redirect_url: https://authentik.alexlebens.net/application/o/grafana/end-session/
+    auth.generic_oauth:
+      enabled: true
+      name: Authentik
+      allow_sign_up: true
+      client_id: ${AUTH_CLIENT_ID}
+      client_secret: ${AUTH_CLIENT_SECRET}
+      scopes: openid profile email
+      auth_url: https://authentik.alexlebens.net/application/o/authorize/
+      token_url: https://authentik.alexlebens.net/application/o/token/
+      api_url: https://authentik.alexlebens.net/application/o/userinfo/
+      role_attribute_path: contains(groups, 'Grafana Admins') && 'Admin' || contains(groups, 'Grafana Editors') && 'Editor' || 'Viewer'
+    database:
+      type: postgres
+      host: "${DB_HOST}:${DB_PORT}"
+      name: ${DB_DATABASE}
+      user: ${DB_USER}
+      password: ${DB_PASSWORD}
+    unified_alerting:
+      enabled: true
+      ha_listen_address: "${POD_IP}:9094"
+      ha_peers: "grafana-alerting:9094"
+      ha_advertise_address: "${POD_IP}:9094"
+      ha_peer_timeout: 15s
+      ha_reconnect_timeout: 2m
+  deployment:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: grafana
+              image: grafana/grafana:12.0.0
+              env:
+                - name: AUTH_CLIENT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-oauth-secret
+                      key: AUTH_CLIENT_ID
+                - name: AUTH_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-oauth-secret
+                      key: AUTH_CLIENT_SECRET
+                - name: ADMIN_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-auth-secret
+                      key: admin-user
+                - name: ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-auth-secret
+                      key: admin-password
+                - name: DB_HOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-operator-postgresql-17-cluster-app
+                      key: host
+                - name: DB_DATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-operator-postgresql-17-cluster-app
+                      key: dbname
+                - name: DB_PORT
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-operator-postgresql-17-cluster-app
+                      key: port
+                - name: DB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-operator-postgresql-17-cluster-app
+                      key: user
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-operator-postgresql-17-cluster-app
+                      key: password
