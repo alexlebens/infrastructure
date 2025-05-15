@@ -1,0 +1,95 @@
+etcd-backup:
+  controllers:
+    main:
+      type: cronjob
+      pod:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Forbid
+        timeZone: US/Central
+        schedule: "0 0 * * *"
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 3
+        failedJobsHistory: 3
+        backoffLimit: 3
+        parallelism: 1
+      containers:
+        main:
+          image:
+            repository: ghcr.io/siderolabs/talos-backup
+            tag: v0.1.0-beta.3@sha256:05c86663b251a407551dc948097e32e163a345818117eb52c573b0447bd0c7a7
+            pullPolicy: IfNotPresent
+          command:
+            - /talos-backup
+          workingDir: /tmp
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-secret
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_REGION
+              value: nyc3
+            - name: CUSTOM_S3_ENDPOINT
+              value: https://nyc3.digitaloceanspaces.com
+            - name: BUCKET
+              value: talos-backups-bee8585f7b8a4d0239c9b823
+            - name: S3_PREFIX
+              value: "cl01tl"
+            - name: CLUSTER_NAME
+              value: "cl01tl"
+            - name: AGE_X25519_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-secret
+                  key: AGE_X25519_PUBLIC_KEY
+            - name: USE_PATH_STYLE
+              value: "false"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+  persistence:
+    transcode:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+              readOnly: false
+    config:
+      enabled: true
+      type: secret
+      name: talos-etcd-backup-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /var/run/secrets/talos.dev
+              readOnly: true
+              mountPropagation: None
