@@ -54,6 +54,20 @@ kube-prometheus-stack:
     enabled: false
   kubeEtcd:
     enabled: true
+    service:
+      selector:
+        k8s-app: kube-controller-manager
+    serviceMonitor:
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          separator: ;
+          regex: ^(.*)$
+          targetLabel: nodename
+          replacement: $1
+          action: replace
+      metricRelabelings:
+        - action: labeldrop
+          regex: pod
   kubeScheduler:
     enabled: false
   kubeProxy:
