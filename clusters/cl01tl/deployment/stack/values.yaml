@@ -18,7 +18,6 @@ applicationSet:
         prune: true
       syncOptions:
         serverSideApply: true
-        RespectIgnoreDifferences: true
   - name: deployment
     namespace: argocd
     syncPolicy:
@@ -54,26 +53,33 @@ applicationSet:
         kind: Service
         jqPathExpressions:
           - .spec.externalName
-      # - kind: StatefulSet
-      #   jqPathExpressions:
-      #     - .spec.volumeClaimTemplates[].apiVersion
-      #     - .spec.volumeClaimTemplates[].kind
+      - kind: StatefulSet
+        jqPathExpressions:
+          - .spec.volumeClaimTemplates[].apiVersion
+          - .spec.volumeClaimTemplates[].kind
     syncPolicy:
       automated:
         prune: true
       syncOptions:
         serverSideApply: true
-        RespectIgnoreDifferences: true
   - name: services
     ignoreDifferences:
       - group: ""
         kind: GpuDevicePlugin
         jqPathExpressions:
           - .metadata.annotations[]
-      # - kind: StatefulSet
-      #   jqPathExpressions:
-      #     - .spec.volumeClaimTemplates[].apiVersion
-      #     - .spec.volumeClaimTemplates[].kind
+      - group: "apps"
+        kind: "Deployment"
+        jsonPointers:
+          - /spec/template/metadata/annotations/checksum~1secret
+          - /spec/template/metadata/annotations/checksum~1secret-core
+          - /spec/template/metadata/annotations/checksum~1secret-jobservice
+          - /spec/template/metadata/annotations/checksum~1tls
+      - group: "apps"
+        kind: "StatefulSet"
+        jsonPointers:
+          - /spec/template/metadata/annotations/checksum~1secret
+          - /spec/template/metadata/annotations/checksum~1tls
     syncPolicy:
       automated:
         prune: true
@@ -85,4 +91,3 @@ applicationSet:
         prune: true
       syncOptions:
         serverSideApply: true
-        RespectIgnoreDifferences: true
