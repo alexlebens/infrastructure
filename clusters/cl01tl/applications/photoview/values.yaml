@@ -42,8 +42,6 @@ photoview:
             requests:
               cpu: 10m
               memory: 512Mi
-  serviceAccount:
-    create: true
   service:
     main:
       controller: main
@@ -53,14 +51,8 @@ photoview:
           targetPort: 80
           protocol: HTTP
   persistence:
-    media:
-      existingClaim: photoview-nfs-storage
-      advancedMounts:
-        main:
-          main:
-            - path: /photos
-              readOnly: true
     cache:
+      forceRename: photoview-cache
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 10Gi
@@ -73,6 +65,13 @@ photoview:
           main:
             - path: /app/cache
               readOnly: false
+    media:
+      existingClaim: photoview-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /photos
+              readOnly: true
 postgres-17-cluster:
   mode: standalone
   cluster:
