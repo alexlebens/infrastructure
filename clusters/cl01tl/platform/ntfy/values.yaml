@@ -1,0 +1,106 @@
+ntfy:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: binwiederhier/ntfy
+            tag: v2.11.0
+            pullPolicy: IfNotPresent
+          args: ["serve", "--cache-file", "/var/cache/ntfy/cache.db"]
+          env:
+            - name: TZ
+              value: US/Central
+            - name: NTFY_BASE_URL
+              value: https://ntfy.alexlebens.net
+            - name: NTFY_LISTEN_HTTP
+              value: :80
+            - name: NTFY_CACHE_FILE
+              value: /var/lib/ntfy/cache.db
+            - name: NTFY_CACHE_DURATION
+              value: 36h
+            - name: NTFY_CACHE_STARTUP_QUERIES
+              value: |
+                pragma journal_mode = WAL;
+                pragma synchronous = normal;
+                pragma temp_store = memory;
+                pragma busy_timeout = 15000;
+                vacuum;
+            - name: NTFY_BEHIND_PROXY
+              value: true
+            - name: NTFY_ATTACHMENT_CACHE_DIR
+              value: /var/lib/ntfy/attachments
+            - name: NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT
+              value: 4G
+            - name: NTFY_ATTACHMENT_FILE_SIZE_LIMIT
+              value: 15M
+            - name: NTFY_ATTACHMENT_EXPIRY_DURATION
+              value: 36h
+            - name: NTFY_ENABLE_SIGNUP
+              value: true
+            - name: NTFY_ENABLE_LOGIN
+              value: true
+            - name: NTFY_ENABLE_RESERVATIONS
+              value: false
+            - name: NTFY_UPSTREAM_BASE_URL
+              value: https://ntfy.sh
+            # - name: NTFY_UPSTREAM_ACCESS_TOKEN
+            #   value: ""
+            # - name: NTFY_WEB_PUSH_PUBLIC_KEY
+            #   value: ""
+            # - name: NTFY_WEB_PUSH_PRIVATE_KEY
+            #   value: ""
+            # - name: NTFY_WEB_PUSH_FILE
+            #   value: /var/lib/ntfy/webpush.db
+            # - name: NTFY_WEB_PUSH_EMAIL_ADDRESS
+            #   value: ""
+            - name: NTFY_METRICS_LISTEN_HTTP
+              value: 9090
+            - name: NTFY_LOG_LEVEL
+              value: info
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                  - /usr/bin/env
+                  - bash
+                  - -c
+                  - wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 60
+                successThreshold: 1
+                timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 80
+          protocol: HTTP
+        metrics:
+          port: 9090
+          targetPort: 9090
+          protocol: HTTP
+  persistence:
+    cache:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /var/cache/ntfy
+              readOnly: false
