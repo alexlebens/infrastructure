@@ -12,19 +12,6 @@ harbor:
         storageClass: ceph-block
         accessMode: ReadWriteOnce
         size: 80Gi
-      jobservice:
-        jobLog:
-          storageClass: ceph-block
-          accessMode: ReadWriteOnce
-          size: 5Gi
-      redis:
-        storageClass: ceph-block
-        accessMode: ReadWriteOnce
-        size: 5Gi
-      trivy:
-        storageClass: ceph-block
-        accessMode: ReadWriteOnce
-        size: 5Gi
   existingSecretAdminPassword: harbor-secret
   existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
   ipFamily:
@@ -35,35 +22,46 @@ harbor:
   updateStrategy:
     type: Recreate
   existingSecretSecretKey: harbor-secret
+  enableMigrateHelmHook: true
   metrics:
     enabled: true
     serviceMonitor:
       enabled: true
   cache:
-    enabled: true
+    enabled: false
+  nginx:
+    image:
+      repository: goharbor/nginx-photon
+      tag: v2.13.0
+    replicas: 0
   portal:
     image:
-      repository: ghcr.io/goharbor/harbor-portal
+      repository: goharbor/harbor-portal
       tag: v2.13.0
+    replicas: 2
   core:
     image:
-      repository: ghcr.io/goharbor/harbor-core
+      repository: goharbor/harbor-core
       tag: v2.13.0
+    replicas: 2
     # existingSecret: harbor-secret
   jobservice:
     image:
-      repository: ghcr.io/goharbor/harbor-jobservice
+      repository: goharbor/harbor-jobservice
       tag: v2.13.0
+    replicas: 2
+    jobLoggers:
+      - stdout
     # existingSecret: harbor-secret
     # existingSecretKey: JOBSERVICE_SECRET
   registry:
     registry:
       image:
-        repository: ghcr.io/goharbor/registry-photon
+        repository: goharbor/registry-photon
         tag: v2.13.0
     controller:
       image:
-        repository: ghcr.io/goharbor/harbor-registryctl
+        repository: goharbor/harbor-registryctl
         tag: v2.13.0
     # existingSecret: harbor-secret
     # existingSecretKey: REGISTRY_HTTP_SECRET
@@ -86,15 +84,26 @@ harbor:
       coreDatabase: app
       existingSecret: harbor-postgresql-17-cluster-app
   redis:
-    type: internal
-    internal:
-      image:
-        repository: goharbor/redis-photon
-        tag: v2.13.0
+    type: external
+    external:
+      addr: "harbor-valkey-headless.harbor:6379"
   exporter:
     image:
       repository: ghcr.io/goharbor/harbor-exporter
       tag: v2.13.0
+valkey:
+  architecture: replication
+  auth:
+    enabled: false
+    usePasswordFiles: false
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+  replica:
+    persistence:
+      enabled: true
+      size: 5Gi
 postgres-17-cluster:
   mode: standalone
   cluster:
