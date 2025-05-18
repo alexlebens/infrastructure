@@ -19,7 +19,7 @@ kube-prometheus-stack:
         group_wait: 30s
         group_interval: 5m
         repeat_interval: 24h
-        receiver: discord
+        receiver: "null"
         routes:
           - receiver: "null"
             matchers:
@@ -30,17 +30,25 @@ kube-prometheus-stack:
             repeat_interval: 24h
             matchers:
               - severity = "critical"
+          - receiver: "ntfy"
+            group_wait: 10s
+            group_interval: 5m
+            repeat_interval: 24h
+            matchers:
+              - severity = "warning|info"
       receivers:
-        - name: "null"
-        - name: discord
-          discord_configs:
-            - send_resolved: true
-              webhook_url_file: /etc/alertmanager/secrets/alertmanager-config-secret/discord_webhook
         - name: pushover
           pushover_configs:
             - send_resolved: true
-              user_key_file: /etc/alertmanager/secrets/alertmanager-config-secret/user_key
+              user_key_file: /etc/alertmanager/secrets/alertmanager-config-secret/pushover_user_key
               token_file: /etc/alertmanager/secrets/alertmanager-config-secret/pushover_token
+        - name: "ntfy"
+          webhook_configs:
+            - url: "http://127.0.0.1:8080"
+              http_config:
+                basic_auth:
+                  username: ntfy-alertmanager
+                  password_file: /etc/alertmanager/secrets/alertmanager-config-secret/ntfy_password
     alertmanagerSpec:
       secrets:
         - alertmanager-config-secret
@@ -169,3 +177,63 @@ kube-prometheus-stack:
             resources:
               requests:
                 storage: 200Gi
+ntfy-alertmanager:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: xenrox/ntfy-alertmanager
+            tag: 0.4.0
+            pullPolicy: IfNotPresent
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: http
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: http
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8080
+          protocol: HTTP
+  persistence:
+    config:
+      enabled: true
+      type: secret
+      name: ntfy-alertmanager-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /etc/ntfy-alertmanager/config
+              readOnly: true
+              mountPropagation: None
+              subPath: config
+valkey-ntfy-alertmanager:
+  fullnameOverride: ntfy-alertmanager-valkey
+  architecture: standalone
+  auth:
+    enabled: false
+    usePasswordFiles: false
+  primary:
+    persistence:
+      enabled: false
+  replica:
+    persistence:
+      enabled: false
