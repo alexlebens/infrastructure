@@ -181,7 +181,11 @@ renovate:
             - name: RENOVATE_ONBOARDING
               value: 'true'
             - name: RENOVATE_BASE_DIR
-              value: /tmp/renovate/
+              value: /tmp/renovate
+            - name: RENOVATE_PERSIST_REPO_DATA
+              value: true
+            - name: RENOVATE_REPOSITORY_CACHE
+              value: true
             - name: RENOVATE_REDIS_URL
               value: redis://gitea-renovate-valkey-primary.gitea:6379
             - name: LOG_LEVEL
@@ -194,6 +198,16 @@ renovate:
               cpu: 100m
               memory: 128Mi
   persistence:
+    base:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        web:
+          main:
+            - path: /tmp/renovate
+              readOnly: false
     ssh:
       enabled: true
       type: secret
@@ -204,13 +218,6 @@ renovate:
             - path: /home/ubuntu/.ssh
               readOnly: true
               mountPropagation: None
-    cache:
-      type: emptyDir
-      advancedMounts:
-        renovate:
-          main:
-            - path: /tmp/renovate/
-              readOnly: false
 backup:
   global:
     fullnameOverride: gitea-backup
