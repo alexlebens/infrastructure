@@ -1,0 +1,139 @@
+gatus:
+  readinessProbe:
+    enabled: true
+  livenessProbe:
+    enabled: true
+  image:
+    repository: ghcr.io/twin/gatus
+    tag: v5.17.0
+  annotations:
+    reloader.stakater.com/auto: "true"
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  ingress:
+    enabled: false
+  env:
+    NTFY_TOKEN:
+      valueFrom:
+        secretKeyRef:
+          name: gatus-config-secret
+          key: NTFY_TOKEN
+    OIDC_CLIENT_ID:
+      valueFrom:
+        secretKeyRef:
+          name: gatus-oidc-secret
+          key: OIDC_CLIENT_ID
+    OIDC_CLIENT_SECRET:
+      valueFrom:
+        secretKeyRef:
+          name: gatus-oidc-secret
+          key: OIDC_CLIENT_SECRET
+    POSTGRES_USER:
+      valueFrom:
+        secretKeyRef:
+          name: gatus-postgresql-17-cluster-app
+          key: username
+    POSTGRES_PASSWORD:
+      valueFrom:
+        secretKeyRef:
+          name: gatus-postgresql-17-cluster-app
+          key: password
+    POSTGRES_HOST:
+      valueFrom:
+        secretKeyRef:
+          name: gatus-postgresql-17-cluster-app
+          key: host
+    POSTGRES_PORT:
+      valueFrom:
+        secretKeyRef:
+          name: gatus-postgresql-17-cluster-app
+          key: port
+    POSTGRES_DB:
+      valueFrom:
+        secretKeyRef:
+          name: gatus-postgresql-17-cluster-app
+          key: dbname
+  resources:
+    requests:
+      cpu: 10m
+      memory: 128Mi
+  persistence:
+    enabled: true
+    size: 1Gi
+    mountPath: /data
+    accessModes:
+      - ReadWriteOnce
+    finalizers:
+      - kubernetes.io/pvc-protection
+    storageClassName: ceph-block
+  serviceMonitor:
+    enabled: true
+    interval: 1m
+    path: /metrics
+    scheme: http
+    scrapeTimeout: 30s
+  networkPolicy:
+    enabled: false
+  config:
+    metrics: true
+    connectivity:
+      checker:
+        target: 1.1.1.1:53
+        interval: 60s
+    alerting:
+      ntfy:
+        topic: "gatus-alerts"
+        priority: 3
+        url: http://ntfy.ntfy
+        token: ${NTFY_TOKEN}
+        default-alert:
+          failure-threshold: 3
+          send-on-resolved: true
+        click: "https://gatus.alexlebens.net"
+    security:
+      oidc:
+        issuer-url: https://authentik.alexlebens.net/application/o/gatus/
+        client-id: ${OIDC_CLIENT_ID}
+        client-secret: ${OIDC_CLIENT_SECRET}
+        redirect-url: https://gatus.alexlebens.net/authorization-code/callback
+        scopes: [openid]
+    storage:
+      type: postgres
+      path: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
+    endpoints:
+      - name: homepage
+        url: https://homepage.alexlebens.net
+        interval: 60s
+        conditions:
+          - "[STATUS] == 200"
+          - "[DOMAIN_EXPIRATION] > 720h"
+          - "[CERTIFICATE_EXPIRATION] > 240h"
+
+postgres-17-cluster:
+  mode: standalone
+  cluster:
+    storage:
+      storageClass: local-path
+    walStorage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: true
+  recovery:
+    method: objectStore
+    objectStore:
+      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/gatus/gatus-postgresql-17-cluster
+      index: 1
+  backup:
+    enabled: false
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/gatus/gatus-postgresql-17-cluster
+        index: 1
+    scheduledBackups:
+      - name: daily-backup
+        schedule: "0 0 */3 * *"
+        backupName: external
