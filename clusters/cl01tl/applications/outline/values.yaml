@@ -70,21 +70,24 @@ outline:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: outline-minio-user-secret
+                  name: ceph-bucket-outline
                   key: AWS_ACCESS_KEY_ID
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: outline-minio-user-secret
+                  name: ceph-bucket-outline
                   key: AWS_SECRET_ACCESS_KEY
             - name: AWS_REGION
               value: us-east-1
             - name: AWS_S3_UPLOAD_BUCKET_NAME
-              value: outline
+              valueFrom:
+                configMapKeyRef:
+                  name: ceph-bucket-outline
+                  key: BUCKET_NAME
             - name: AWS_S3_UPLOAD_BUCKET_URL
-              value: https://outline-storage.alexlebens.dev/outline
+              value: https://objects.alexlebens.dev
             - name: AWS_S3_ACCELERATE_URL
-              value: https://outline-storage.alexlebens.dev/outline
+              value: https://objects.alexlebens.dev
             - name: AWS_S3_FORCE_PATH_STYLE
               value: false
             - name: AWS_S3_ACL
@@ -141,30 +144,6 @@ outline:
           port: 3000
           targetPort: 3000
           protocol: HTTP
-minio:
-  existingSecret:
-    name: outline-minio-root-secret
-  tenant:
-    name: minio-outline
-    configSecret:
-      name: outline-minio-config-secret
-    pools:
-      - servers: 3
-        name: pool
-        volumesPerServer: 2
-        size: 10Gi
-        storageClassName: ceph-block
-    mountPath: /export
-    subPath: /data
-    metrics:
-      enabled: true
-      port: 9000
-      protocol: http
-    certificate:
-      requestAutoCert: false
-  ingress:
-    console:
-      enabled: false
 valkey:
   architecture: replication
   auth:
@@ -190,9 +169,6 @@ valkey:
 cloudflared-outline:
   existingSecretName: outline-cloudflared-secret
   name: cloudflared-outline
-cloudflared-minio:
-  existingSecretName: outline-minio-cloudflared-secret
-  name: cloudflared-minio
 postgres-17-cluster:
   mode: standalone
   cluster:
