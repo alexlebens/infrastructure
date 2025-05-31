@@ -6,19 +6,22 @@ shelly-plug:
       strategy: Recreate
       revisionHistoryLimit: 3
       initContainers:
-        init-clone-repo:
+        init-fetch-repo:
           securityContext:
             runAsUser: 0
           image:
             repository: alpine/git
             tag: latest
             pullPolicy: IfNotPresent
-          args:
-            - clone
-            - '--single-branch'
-            - '--'
-            - 'https://github.com/geerlingguy/shelly-plug-prometheus.git'
-            - '/var/www/html'
+          command:
+            - /bin/sh
+            - -ec
+            - |
+            - cd /var/www/html
+            - git init
+            - git remote add origin https://github.com/geerlingguy/shelly-plug-prometheus.git
+            - git fetch origin
+            - git checkout origin/master -ft
           resources:
             requests:
               cpu: 10m
@@ -55,7 +58,7 @@ shelly-plug:
       retain: true
       advancedMounts:
         main:
-          init-clone-repo:
+          init-fetch-repo:
             - path: /var/www/html
               readOnly: false
           main:
