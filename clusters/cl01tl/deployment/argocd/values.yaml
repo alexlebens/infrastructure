@@ -23,11 +23,44 @@ argo-cd:
           name: authentik
           type: oidc
           id: authentik
+    params:
+      server.insecure: true
     rbac:
       policy.csv: |
         g, ArgoCD Admins, role:admin
-    params:
-      server.insecure: true
+    cmp:
+      create: true
+      plugins:
+        cdk8s:
+          init:
+            command: [cdk8s]
+            args: [import]
+          generate:
+            command: [cdk8s, synth]
+            args: [--stdout]
+          discover:
+            fileName: "*.go"
+  controller:
+    replicas: 1
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+  dex:
+    enabled: true
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+    livenessProbe:
+      enabled: true
+    readinessProbe:
+      enabled: true
+  redis-ha:
+    enabled: true
+    auth: false
+  redisSecretInit:
+    enabled: true
   server:
     replicas: 2
     ingress:
@@ -36,21 +69,26 @@ argo-cd:
       enabled: true
       serviceMonitor:
         enabled: true
-  dex:
-    enabled: true
-  redis-ha:
-    enabled: true
-    auth: false
-  redisSecretInit:
-    enabled: true
-  controller:
-    replicas: 1
-    metrics:
-      enabled: true
-      serviceMonitor:
-        enabled: true
   repoServer:
     replicas: 2
+    extraContainers:
+      - name: cmp-cdk8s
+        command:
+          - /var/run/argocd/argocd-cmp-server
+        image: ghcr.io/akuity/cdk8s-cmp-typescript:1.0
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 999
+        volumeMounts:
+          - mountPath: /var/run/argocd
+            name: var-files
+          - mountPath: /home/argocd/cmp-server/plugins
+            name: plugins
+          - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+            subPath: plugin.yaml
+            name: my-plugin-config
+          - mountPath: /tmp
+            name: cmp-tmp
     metrics:
       enabled: true
       serviceMonitor:
@@ -61,3 +99,17 @@ argo-cd:
       enabled: true
       serviceMonitor:
         enabled: true
+    livenessProbe:
+      enabled: true
+    readinessProbe:
+      enabled: true
+  notifications:
+    enabled: true
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+    livenessProbe:
+      enabled: true
+    readinessProbe:
+      enabled: true
