@@ -111,6 +111,8 @@ argo-cd:
       enabled: true
   notifications:
     enabled: true
+    context:
+      argocdUrl: https://argocd.alexlebens.net
     secret:
       create: false
       name: argocd-notifications-secret
@@ -122,8 +124,6 @@ argo-cd:
       service.webhook.ntfy: |
         url: http://ntfy.ntfy/
         headers:
-          - name: Title
-            value: ArgoCD
           - name: Authorization
             value: Bearer $ntfy-token
     livenessProbe:
@@ -147,92 +147,106 @@ argo-cd:
         webhook:
           ntfy:
             method: POST
-            path: argocd
-            headers:
-              - name: Priority
-                value: 4
             body: |
-              Application {{.app.metadata.name}} has been created.
+              {
+                "topic": "argocd",
+                "message": "{{.app.metadata.name}} has been created.",
+                "title": "Created: {{.app.metadata.name}}",
+                "tags": ["building_construction"],
+                "priority": 4,
+                "click": "{{.context.argocdUrl}}/applications/argocd/{{.app.metadata.name}}"
+              }
       template.app-deleted: |
         webhook:
           ntfy:
             method: POST
-            path: argocd
-            headers:
-              - name: Priority
-                value: 4
             body: |
-              Application {{.app.metadata.name}} has been deleted.
+              {
+                "topic": "argocd",
+                "message": "{{.app.metadata.name}} has been deleted",
+                "title": "Deleted: {{.app.metadata.name}}",
+                "tags": ["warning"],
+                "priority": 4,
+                "click": "{{.context.argocdUrl}}"
+              }
       template.app-deployed: |
         webhook:
           ntfy:
             method: POST
-            path: argocd
-            headers:
-              - name: Priority
-                value: 4
             body: |
-              Application {{.app.metadata.name}} is now running new version of deployments manifests.
+              {
+                "topic": "argocd",
+                "message": "{{.app.metadata.name}} is now running new version of deployments manifests",
+                "title": "Deployed: {{.app.metadata.name}}",
+                "tags": ["+1"],
+                "priority": 3,
+                "click": "{{.context.argocdUrl}}/applications/argocd/{{.app.metadata.name}}"
+              }
       template.app-health-degraded: |
         webhook:
           ntfy:
             method: POST
-            path: argocd
-            headers:
-              - name: Priority
-                value: 5
             body: |
-              Application {{.app.metadata.name}} has degraded.
-              Application details: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}.
+              {
+                "topic": "argocd",
+                "message": "{{.app.metadata.name}} health has degraded",
+                "title": "Degraded: {{.app.metadata.name}}",
+                "tags": ["rotating_light"],
+                "priority": 5,
+                "click": "{{.context.argocdUrl}}/applications/argocd/{{.app.metadata.name}}"
+              }
       template.app-sync-failed: |
         webhook:
           ntfy:
             method: POST
-            path: argocd
-            headers:
-              - name: Priority
-                value: 5
             body: |
-              The sync operation of application {{.app.metadata.name}} has failed at {{.app.status.operationState.finishedAt}} with the following error: {{.app.status.operationState.message}}
-              Sync operation details are available at: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true .
+              {
+                "topic": "argocd",
+                "message": "{{.app.metadata.name}} sync has failed at {{.app.status.operationState.finishedAt}} with the following error: {{.app.status.operationState.message}}",
+                "title": "Sync Failed: {{.app.metadata.name}}",
+                "tags": ["rotating_light"],
+                "priority": 5,
+                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true"
+              }
       template.app-sync-running: |
         webhook:
           ntfy:
             method: POST
-            path: argocd
-            headers:
-              - name: Priority
-                value: 3
             body: |
-              The sync operation of application {{.app.metadata.name}} has started at {{.app.status.operationState.startedAt}}.
-              Sync operation details are available at: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true .
+              {
+                "topic": "argocd",
+                "message": "{{.app.metadata.name}} sync has started at {{.app.status.operationState.startedAt}}",
+                "title": "Sync Running: {{.app.metadata.name}}",
+                "tags": ["runner"],
+                "priority": 3,
+                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true"
+              }
       template.app-sync-status-unknown: |
         webhook:
           ntfy:
             method: POST
-            path: argocd
-            headers:
-              - name: Priority
-                value: 4
             body: |
-              {{if eq .serviceType "slack"}}:exclamation:{{end}} Application {{.app.metadata.name}} sync is 'Unknown'.
-              Application details: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}.
-              {{if ne .serviceType "slack"}}
-              {{range $c := .app.status.conditions}}
-                  * {{$c.message}}
-              {{end}}
-              {{end}}
+              {
+                "topic": "argocd",
+                "message": "{{.app.metadata.name}} sync status is unknown",
+                "title": "Sync Unknown: {{.app.metadata.name}}",
+                "tags": ["question"],
+                "priority": 5,
+                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"
+              }
       template.app-sync-succeeded: |
         webhook:
           ntfy:
             method: POST
-            path: argocd
-            headers:
-              - name: Priority
-                value: 3
             body: |
-              Application {{.app.metadata.name}} has been successfully synced at {{.app.status.operationState.finishedAt}}.
-              Sync operation details are available at: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true .
+              {
+                "topic": "argocd",
+                "message": "{{.app.metadata.name}} has been successfully synced at {{.app.status.operationState.finishedAt}}",
+                "title": "Sync Succeeded: {{.app.metadata.name}}",
+                "tags": ["+1"],
+                "priority": 3,
+                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true"
+              }
     triggers:
       trigger.on-created: |
         - description: Application {{.app.metadata.name}} has been created.
