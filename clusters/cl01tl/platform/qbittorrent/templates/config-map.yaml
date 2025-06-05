@@ -16,3 +16,130 @@ data:
     fi;
     echo "updating port with $1";
     curl -i -X POST -d "json={\"listen_port\": \"${1}\"}" "http://localhost:8080/api/v2/app/setPreferences";
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qbit-manage-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: qbit-manage-config
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+data:
+  config.yml: |
+    # Please refer to the link below for more details on how to set up the configuration file
+    # https://github.com/StuffAnThings/qbit_manage/wiki/Config-Setup
+
+    commands:
+      dry_run: True
+      recheck: False
+      cat_update: False
+      tag_update: False
+      rem_unregistered: False
+      tag_tracker_error: False
+      rem_orphaned: False
+      tag_nohardlinks: False
+      share_limits: False
+      skip_qb_version_check: False
+      skip_cleanup: False
+
+    qbt:
+      host: "localhost:8080"
+
+    settings:
+      force_auto_tmm: True
+      tracker_error_tag: tracker-error
+      share_limits_tag: share-limit
+      share_limits_min_seeding_time_tag: seed-time-not-reached
+      cat_filter_completed: False
+      share_limits_filter_completed: False
+      rem_unregistered_filter_completed: False
+      cat_update_all: True
+      disable_qbt_default_share_limits: True
+      tag_stalled_torrents: True
+
+    directory:
+      root_dir: "/mnt/store/Torrent/"
+      recycle_bin: "/qbittorrent/Trash"
+      torrents_dir: "/qbittorrent/qBittorrent/BT_backup"
+      orphaned_dir: "/qbittorrent/Orphaned"
+
+    cat:
+      lidarr: "/mnt/store/Torrent/FINISHED/LIDARR"
+      prowlarr: "/mnt/store/Torrent/FINISHED/SAVE"
+      radarr: "/mnt/store/Torrent/FINISHED/RADARR"
+      radarr-4k: "/mnt/store/Torrent/FINISHED/RADARR4K"
+      radarr-anime: "/mnt/store/Torrent/FINISHED/RADARRANIME"
+      radarr-standup: "/mnt/store/Torrent/FINISHED/RADARRSTANDUP"
+      sonarr: "/mnt/store/Torrent/FINISHED/SONARR"
+      sonarr-4k: "/mnt/store/Torrent/FINISHED/SONARR4K"
+      sonarr-anime: "/mnt/store/Torrent/FINISHED/SONARRANIME"
+      "-&lt; ZIM": "/mnt/store/Kiwix"
+      "-&lt; SAVE": "/mnt/store/Torrent/FINISHED/SAVE"
+      "-&lt; IMPORT": "/mnt/store/Torrent/FINISHED/IMPORT"
+      "-&lt; COMPLETED": /mnt/store/Torrent/FINISHED/COMPLETED
+
+    tracker:
+      alpharatio.cc:
+        tag: AlphaRatio
+      avistaz:
+        tag: Avistaz
+      cathod-ray.tube:
+        tag: CathodeRayTube
+      mvgroup.org:
+        tag: MVGroup
+      torrentleech|tleechreload:
+        tag: TorrentLeech
+
+    share_limits:
+      private
+        priority: 1
+        include_all_tags:
+          - AlphaRatio
+          - TorrentLeech
+        categories:
+          - "-&lt; COMPLETED"
+        max_ratio: 2.0
+        min_seeding_time: 14d
+        max_seeding_time: 30d
+        min_num_seeds: 2
+        last_active: 3d
+        cleanup: false
+      default:
+        priority: 999
+        categories:
+          - "-&lt; COMPLETED"
+        max_ratio: 2.0
+        max_seeding_time: 7d
+        limit_upload_speed: 100
+        cleanup: false
+
+    recyclebin:
+      enabled: true
+      empty_after_x_days: 7
+      save_torrents: true
+      split_by_category: true
+
+    orphaned:
+      empty_after_x_days: 30
+      exclude_patterns:
+        - "**/.DS_Store"
+        - "**/Thumbs.db"
+        - "**/@eaDir"
+        - "/data/torrents/temp/**"
+        - "**/*.!qB"
+        - "**/*_unpackerred"
+      max_orphaned_files_to_delete: 50
+
+    apprise:
+      notify_url: !ENV QBIT_NTFY_URL
+
+    webhooks:
+      error: apprise
+      run_start: apprise
+      run_end: apprise
+      function:
+        rem_orphaned: apprise
+        cleanup_dirs: apprise
