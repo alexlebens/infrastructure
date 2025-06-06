@@ -123,6 +123,29 @@ qbittorrent:
             requests:
               cpu: 10m
               memory: 64Mi
+    qbit-manage:
+      type: deployment
+      annotations:
+        reloader.stakater.com/auto: "true"
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      initContainers:
+        init-copy-config:
+          image:
+            repository: busybox
+            tag: 1.37.0
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cp /config/config.yml /app/config/config.yml
+      containers:
         qbit-manage:
           image:
             repository: ghcr.io/stuffanthings/qbit_manage
@@ -170,7 +193,7 @@ qbittorrent:
                   name: qbittorrent-qbit-manage-config
                   key: ntfy-url
             - name: ALLOWED_HOSTS
-              value: localhost qbittorrent.qbittorrent
+              value: localhost qbittorrent.qbittorrent qbittorrent.alexlebens.net
           resources:
             requests:
               cpu: 10m
@@ -178,6 +201,7 @@ qbittorrent:
   service:
     main:
       controller: main
+      nameOverride: ""
       ports:
         http:
           port: 8080
@@ -191,6 +215,9 @@ qbittorrent:
           port: 9022
           targetPort: 9022
           protocol: HTTP
+    qbit-manage:
+      controller: main
+      ports:
         apprise:
           port: 8000
           targetPort: 8000
@@ -204,6 +231,7 @@ qbittorrent:
           qbittorrent:
             - path: /config
               readOnly: false
+        qbit-manage:
           qbit-manage:
             - path: /qbittorrent
               readOnly: false
@@ -233,7 +261,7 @@ qbittorrent:
       size: 1Gi
       retain: true
       advancedMounts:
-        main:
+        qbit-manage:
           init-copy-config:
             - path: /app/config
               readOnly: false
@@ -245,7 +273,7 @@ qbittorrent:
       type: configMap
       name: qbit-manage-config
       advancedMounts:
-        main:
+        qbit-manage:
           init-copy-config:
             - path: /config/config.yml
               readOnly: true
@@ -259,7 +287,7 @@ qbittorrent:
     qbit-manage-config-var:
       type: emptyDir
       advancedMounts:
-        main:
+        qbit-manage:
           qbit-manage:
             - path: /app/var
               readOnly: false
@@ -271,6 +299,7 @@ qbittorrent:
           qbittorrent:
             - path: /mnt/store
               readOnly: false
+        qbit-manage:
           qbit-manage:
             - path: /mnt/store
               readOnly: false
