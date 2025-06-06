@@ -129,6 +129,8 @@ qbittorrent:
             tag: v4.3.0
             pullPolicy: IfNotPresent
           env:
+            - name: TZ
+              value: US/Central
             - name: QBT_SCHEDULE
               value: 0 * * * *
             - name: QBT_STARTUP_DELAY
@@ -148,6 +150,37 @@ qbittorrent:
             requests:
               cpu: 10m
               memory: 64Mi
+        apprise-api:
+          image:
+            repository: caronc/apprise
+            tag: 1.2.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PGID
+              value: "1000"
+            - name: PUID
+              value: "1000"
+            - name: IPV4_ONLY
+              value: true
+            - name: APPRISE_STORAGE_MODE
+              value: memory
+            - name: APPRISE_STATEFUL_MODE
+              value: disabled
+            - name: APPRISE_WORKER_COUNT
+              value: 1
+            - name: APPRISE_STATELESS_URLS
+              valueFrom:
+                secretKeyRef:
+                  name: qbittorrent-qbit-manage-config
+                  key: ntfy-url
+            - name: ALLOWED_HOSTS
+              value: localhost
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
   service:
     main:
       controller: main
@@ -163,6 +196,10 @@ qbittorrent:
         metrics:
           port: 9022
           targetPort: 9022
+          protocol: HTTP
+        apprise:
+          port: 8000
+          targetPort: 8000
           protocol: HTTP
   persistence:
     config:
