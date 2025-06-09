@@ -35,11 +35,11 @@ jobs:
           set -e  # Exit immediately if a command exits with a non-zero status.
 
           TARGET_BRANCH="origin/${{ github.base_ref }}"
-          echo "Target branch for diff is: $TARGET_BRANCH"
+          echo ">> Target branch for diff is: $TARGET_BRANCH"
 
           CHANGED_FILES=$(git diff --name-only "$TARGET_BRANCH" -- 'clusters/**')
 
-          echo "Found changed files:"
+          echo ">> Found changed files:"
           echo "$CHANGED_FILES"
 
           # For each changed file, find its parent chart directory (the one with Chart.yaml).
@@ -55,16 +55,16 @@ jobs:
           done | sort -u)
 
           if [[ -z "$CHANGED_CHARTS" ]]; then
-            echo "Could not determine changed charts. This could happen if only files outside a chart were changed."
+            echo ">> Could not determine changed charts. This could happen if only files outside a chart were changed."
             exit 0
           fi
 
-          echo "Running helm lint on changed charts:"
+          echo ">> Running helm lint on changed charts:"
           echo "$CHANGED_CHARTS"
 
           echo "$CHANGED_CHARTS" | while read -r chart; do
-            echo "Building dependency for "$chart" ..."
+            echo ">> Building dependency for "$chart" ..."
             helm dependency build "$chart"
-            echo "Linting $chart..."
+            echo ">> Linting $chart..."
             helm lint "$chart"
           done
