@@ -1,0 +1,75 @@
+name: tag-old-issues
+
+on:
+  schedule:
+    - cron: "@daily"
+
+jobs:
+  tag-old-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Tag Old Issues
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          INSTANCE_URL: ${{ vars.INSTANCE_URL }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.repository_name }}
+          TAG_NAME: 'stale'
+          DAYS_OLD: 3
+          EXCLUDE_TAG_NAME: ''
+          REQUIRED_TAG: 'automerge'
+        run: |
+          # Install necessary tools
+          apt-get update && apt-get install -y jq curl
+
+          # --- Conditionally build the API URL ---
+          API_URL="${GITEA_INSTANCE_URL}/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues?state=open"
+          if [[ -n "${REQUIRED_TAG}" ]]; then
+            echo "Filtering for issues with the required tag: ${REQUIRED_TAG}"
+            # URL-encode the tag to handle special characters
+            ENCODED_TAG=$(jq -s -R -r @uri <<< "${REQUIRED_TAG}")
+            API_URL="${API_URL}&labels=${ENCODED_TAG}"
+          else
+            echo "No required tag specified. Checking all open issues."
+          fi
+
+          # Fetch issues using the constructed URL
+          ISSUES=$(curl -s -X GET \
+            -H "Authorization: token ${BOT_TOKEN}" \
+            -H "Accept: application/json" \
+            "${API_URL}")
+
+          # Calculate the date ${DAYS_OLD} days ago in ISO 8601 format
+          OLDER_THAN_DATE=$(date -d "-${DAYS_OLD} days" -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Filter issues older than the specified date and without the exclusion tag
+          echo "$ISSUES" | jq -c '.[] | select(.created_at < "'"$OLDER_THAN_DATE"'")' | while read -r issue; do
+            ISSUE_NUMBER=$(echo "$issue" | jq -r '.number')
+            LABELS=$(echo "$issue" | jq -r '.labels[].name')
+
+            # Check if the issue has the exclusion tag
+            if ! echo "$LABELS" | grep -q -w "${EXCLUDE_TAG_NAME}"; then
+              echo "Tagging issue #${ISSUE_NUMBER} as ${TAG_NAME}"
+
+              # Get existing labels for the issue
+              EXISTING_LABELS=$(curl -s -X GET \
+                -H "Authorization: token ${BOT_TOKEN}" \
+                -H "Accept: application/json" \
+                "${INSTANCE_URL}/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues/${ISSUE_NUMBER}/labels" | jq -r '.[].name')
+
+              # Add the new tag to the list of existing labels
+              NEW_LABELS=$(echo -e "${EXISTING_LABELS}\n${TAG_NAME}" | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+              # Update the issue with the new set of labels
+              curl -s -X PUT \
+                -H "Authorization: token ${BOT_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "{\"labels\": $(echo "$NEW_LABELS" | jq -r 'map(select(. != ""))')}" \
+                "${INSTANCE_URL}/api/v1/repos/${REPO_OWNER}/${REPO_NAME}/issues/${ISSUE_NUMBER}/labels"
+            else
+              echo "Skipping issue #${ISSUE_NUMBER} because it has the '${EXCLUDE_TAG_NAME}' tag."
+            fi
+          done
