@@ -1,0 +1,65 @@
+name: lint-test-docker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'hosts/**'
+      - ! 'hosts/archive'
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'hosts/**'
+      - ! 'hosts/archive'
+
+jobs:
+  docker-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Lint Docker Compose
+        run: |
+          set -e  # Exit immediately if a command exits with a non-zero status.
+
+          TARGET_BRANCH="origin/${{ github.base_ref }}"
+          echo ">> Target branch for diff is: $TARGET_BRANCH"
+
+          CHANGED_FILES=$(git diff --name-only "$TARGET_BRANCH" -- 'hosts/**')
+
+          echo ">> Found changed files:"
+          echo "$CHANGED_FILES"
+
+          # For each changed file, find its parent chart directory (the one with compose.yaml).
+          # Then, create a unique list of those directories.
+          CHANGED_COMPOSE=$(echo "$CHANGED_FILES" | while read -r file; do
+            dir=$(dirname "$file")
+            while [[ "$dir" != "." && ! -f "$dir/compose.yaml" ]]; do
+              dir=$(dirname "$dir")
+            done
+            if [[ "$dir" != "." ]]; then
+              echo "$dir"
+            fi
+          done | sort -u)
+
+          if [[ -z "$CHANGED_COMPOSE" ]]; then
+            echo ">> Could not determine changed compose files. This will happen if only files outside a compose file were changed."
+            exit 0
+          fi
+
+          echo ">> Running dclint on changed compose files:"
+          echo "$CHANGED_COMPOSE"
+
+          echo "$CHANGED_COMPOSE" | while read -r compose; do
+            echo ">> Linting $compose ..."
+            npx dclint $compose
+          done
