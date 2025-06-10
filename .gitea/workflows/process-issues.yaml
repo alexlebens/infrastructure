@@ -1,0 +1,35 @@
+name: process-issues
+
+on:
+  schedule:
+    - cron: '@daily'
+
+jobs:
+  process-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Python Script
+        uses: actions/checkout@v4
+        with:
+          repository: alexlebens/workflow-scripts
+          ref: main
+          token: ${{ secrets.BOT_TOKEN }}
+          path: scripts
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run Script
+        env:
+          INSTANCE_URL: ${{ vars.INSTANCE_URL }}
+          REPOSITORY: ${{ gitea.repository }}
+          TOKEN: ${{ secrets.BOT_TOKEN }}
+          STALE_DAYS: 3
+          STALE_TAG: 'stale'
+          EXCLUDE_TAG: 'renovate'
+        run: python ./scripts/scripts/process-issues.py
