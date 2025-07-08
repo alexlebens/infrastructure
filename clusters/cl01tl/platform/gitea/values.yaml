@@ -200,12 +200,15 @@ backup:
             - -ec
             - |
               echo ">> Running S3 backup for Gitea"
-              s3cmd put --no-check-md5 --no-check-certificate -v /opt/backup/gitea-backup.zip ${S3_REPOSITORY}/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
+              s3cmd put --no-check-md5 --no-check-certificate -v /opt/backup/gitea-backup.zip ${BUCKET}/cl01tl/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
               mv /opt/backup/gitea-backup.zip /opt/backup/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
               echo ">> Completed S3 backup for Gitea"
-          envFrom:
-            - secretRef:
-                name: gitea-backup-s3
+          env:
+            - name: BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-s3cmd-config
+                  key: BUCKET
           resources:
             requests:
               cpu: 100m
@@ -226,18 +229,21 @@ backup:
               echo ">> Running S3 prune for Gitea backup repository"
               echo ">> Backups prior to '$TIME_RANGE' will be removed"
               echo ">> File list:"
-              s3cmd ls -v $S3_REPOSITORY
+              s3cmd ls -v ${BUCKET}/cl01tl/
               echo ">> Deleting ..."
-              s3cmd ls -v $S3_REPOSITORY |
+              s3cmd ls -v ${BUCKET}/cl01tl/ |
                 awk -v time_range="$TIME_RANGE" '$1 < time_range {print $4}' |
                 while read file;
                   do s3cmd del -v "$file";
                   echo ">> Deleted $file";
                 done;
               echo ">> Completed S3 prune for Gitea backup repository"
-          envFrom:
-            - secretRef:
-                name: gitea-backup-s3
+          env:
+            - name: BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-s3cmd-config
+                  key: BUCKET
           resources:
             requests:
               cpu: 100m
