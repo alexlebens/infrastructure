@@ -56,7 +56,7 @@ etcd-backup:
             - name: BUCKET
               value: talos-backups-bee8585f7b8a4d0239c9b823
             - name: S3_PREFIX
-              value: "cl01tl"
+              value: "cl01tl/etcd"
             - name: CLUSTER_NAME
               value: "cl01tl"
             - name: AGE_X25519_PUBLIC_KEY
@@ -66,6 +66,41 @@ etcd-backup:
                   key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
               value: "false"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+        s3-prune:
+          image:
+            repository: d3fk/s3cmd
+            tag: latest@sha256:e9f00f479587ce03d52eb1c650e589b14dc13baf5345cb6ac752105e08305eca
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - |
+              export ONE_WEEK_AGO=$(date -d @$(( $(date +%s) - 604800 )) +%Y-%m-%d\ %H:%M:%S);
+              export TWO_WEEK_AGO=$(date -d @$(( $(date +%s) - 1209600 )) +%Y-%m-%d\ %H:%M:%S);
+              export TIME_RANGE="$TWO_WEEK_AGO"
+              echo ">> Running S3 prune for Gitea backup repository"
+              echo ">> Backups prior to '$TIME_RANGE' will be removed"
+              echo ">> File list:"
+              s3cmd ls -v ${BUCKET}/cl01tl/etcd/
+              echo ">> Deleting ..."
+              s3cmd ls -v ${BUCKET}/cl01tl/etcd/ |
+                awk -v time_range="$TIME_RANGE" '$1 < time_range {print $4}' |
+                while read file;
+                  do s3cmd del -v "$file";
+                  echo ">> Deleted $file";
+                done;
+              echo ">> Completed S3 prune for Gitea backup repository"
+          env:
+            - name: BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-s3cmd-config
+                  key: BUCKET
           resources:
             requests:
               cpu: 100m
@@ -97,3 +132,14 @@ etcd-backup:
             - path: /var/run/secrets/talos.dev
               readOnly: true
               mountPropagation: None
+    s3cmd-config:
+      enabled: true
+      type: secret
+      name: talos-etcd-backup-secret
+      advancedMounts:
+        backup:
+          s3-backup:
+            - path: /root/.s3cfg
+              readOnly: true
+              mountPropagation: None
+              subPath: .s3cfg
