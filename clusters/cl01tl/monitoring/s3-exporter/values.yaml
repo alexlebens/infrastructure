@@ -1,0 +1,33 @@
+s3-exporter:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/unpoller/unpoller
+            tag: v2.15.3
+            pullPolicy: IfNotPresent
+          env:
+            - name: S3_EXPORTER_WEB_LISTEN_ADDRESS
+              value: 9340
+            - name: S3_EXPORTER_S3_ENDPOINT_URL
+              value: https://nyc3.digitaloceanspaces.com
+          envFrom:
+            - secretRef:
+                name: s3-do-home-infra-secret
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+  service:
+    main:
+      controller: main
+      ports:
+        metrics:
+          port: 9340
+          targetPort: 9340
+          protocol: TCP
