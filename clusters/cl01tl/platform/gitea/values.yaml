@@ -227,14 +227,14 @@ backup:
               export FILE_MATCH="$BUCKET/cl01tl/gitea-backup-$DATE_RANGE-09-00.zip"
               echo ">> Running S3 prune for Gitea backup repository"
               echo ">> Backups prior to '$DATE_RANGE' will be removed"
-              echo ">> File list:"
-              s3cmd ls ${BUCKET}/cl01tl/
+              echo ">> Backups to be removed:"
+              s3cmd ls ${BUCKET}/cl01tl/ |
+                awk file_match="$FILE_MATCH" '$4 < file_match {print $4}'
               echo ">> Deleting ..."
               s3cmd ls ${BUCKET}/cl01tl/ |
                 awk file_match="$FILE_MATCH" '$4 < file_match {print $4}' |
-                while read file;
-                  do s3cmd del "$file";
-                  echo ">> Deleted $file";
+                while read file; do
+                  s3cmd del "$file";
                 done;
               echo ">> Completed S3 prune for Gitea backup repository"
           env:
