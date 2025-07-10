@@ -80,13 +80,13 @@ etcd-backup:
           args:
             - -ec
             - |
-              export ONE_WEEK_AGO=$(date -d @$(( $(date +%s) - 604800 )) +%Y-%m-%d\ %H:%M:%S);
-              export TWO_WEEK_AGO=$(date -d @$(( $(date +%s) - 1209600 )) +%Y-%m-%d\ %H:%M:%S);
-              export TIME_RANGE="$TWO_WEEK_AGO"
-              echo ">> Running S3 prune for Gitea backup repository"
-              echo ">> Backups prior to '$TIME_RANGE' will be removed"
-              echo ">> File list:"
-              s3cmd ls -v ${BUCKET}/cl01tl/etcd/
+              export DATE_RANGE=$(date -d @$(( $(date +%s) - 1209600 )) +%Y-%m-%dT%H:%M:%SZ);
+              export FILE_MATCH="$BUCKET/cl01tl/etcd/cl01tl-$DATE_RANGE.snap.age"
+              echo ">> Running S3 prune for Talos backup repository"
+              echo ">> Backups prior to '$DATE_RANGE' will be removed"
+              echo ">> Backups to be removed:"
+              s3cmd ls ${BUCKET}/cl01tl/etcd/ |
+                awk -v file_match="$FILE_MATCH" '$4 < file_match {print $4}'
               echo ">> Deleting ..."
               s3cmd ls -v ${BUCKET}/cl01tl/etcd/ |
                 awk -v time_range="$TIME_RANGE" '$1 < time_range {print $4}' |
