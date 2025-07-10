@@ -1,6 +1,6 @@
 s3-exporter:
   controllers:
-    main:
+    digital-ocean:
       type: deployment
       replicas: 1
       strategy: Recreate
@@ -8,30 +8,42 @@ s3-exporter:
       containers:
         main:
           image:
-            repository: ribbybibby/s3-exporter
-            tag: v0.5.0
+            repository: molu8bits/s3bucket_exporter
+            tag: 1.0.2
             pullPolicy: IfNotPresent
           env:
-            - name: S3_EXPORTER_WEB_LISTEN_ADDRESS
-              value: :9340
-            - name: S3_EXPORTER_S3_ENDPOINT_URL
-              value: https://postgres-backups-ce540ddf106d186bbddca68a.nyc3.digitaloceanspaces.com
-            - name: S3_EXPORTER_S3_FORCE_PATH_STYLE
-              value: false
-            - name: S3_EXPORTER_LOG_LEVEL
+            - name: S3_NAME
+              value: digital-ocean
+            - name: S3_ENDPOINT
+              value: https://nyc3.digitaloceanspaces.com
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-do-home-infra-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-do-home-infra-secret
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: s3-do-home-infra-secret
+                  key: AWS_REGION
+            - name: LOG_LEVEL
               value: debug
-          envFrom:
-            - secretRef:
-                name: s3-do-home-infra-secret
+            - name: S3_FORCE_PATH_STYLE
+              value: false
           resources:
             requests:
               cpu: 10m
               memory: 64Mi
   service:
-    main:
-      controller: main
+    digital-ocean:
+      controller: digital-ocean
       ports:
         metrics:
-          port: 9340
-          targetPort: 9340
+          port: 9655
+          targetPort: 9655
           protocol: TCP
