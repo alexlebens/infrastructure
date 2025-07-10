@@ -219,39 +219,6 @@ snapshot:
             requests:
               cpu: 100m
               memory: 128Mi
-        s3-prune:
-          image:
-            repository: d3fk/s3cmd
-            tag: latest@sha256:dacbd4baa0c66df934e96a9325b9e34563c2ab8e4dd0fe9fd1bd9793d53fb606
-            pullPolicy: IfNotPresent
-          command:
-            - /bin/sh
-          args:
-            - -ec
-            - |
-              export MONTH_AGO=$(date -d @$(( $(date +%s) - 2592000 )) +%Y-%m-%d\ %H:%M:%S);
-              export TIME_RANGE="$MONTH_AGO"
-              echo ">> Running S3 prune for Vault snapshot repository"
-              echo ">> Backups prior to '$TIME_RANGE' will be removed"
-              echo ">> File list:"
-              s3cmd ls -v ${BUCKET}/cl01tl/cl01tl-vault-snapshots/
-              echo ">> Deleting ..."
-              s3cmd ls -v ${BUCKET}/cl01tl/cl01tl-vault-snapshots/ |
-                awk -v month_ago="$MONTH_AGO" '$1 < month_ago {print $4}' |
-                while read file;
-                  do s3cmd del -v "$file";
-                done;
-              echo ">> Completed S3 prune for Vault snapshot repository"
-          env:
-            - name: BUCKET
-              valueFrom:
-                secretKeyRef:
-                  name: vault-s3cmd-config
-                  key: BUCKET
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
   persistence:
     config:
       existingClaim: vault-nfs-storage-backup
@@ -270,11 +237,6 @@ snapshot:
       advancedMounts:
         snapshot:
           s3-backup:
-            - path: /root/.s3cfg
-              readOnly: true
-              mountPropagation: None
-              subPath: .s3cfg
-          s3-prune:
             - path: /root/.s3cfg
               readOnly: true
               mountPropagation: None
