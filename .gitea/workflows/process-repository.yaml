@@ -1,11 +1,11 @@
-name: process-pull-requests
+name: process-repository
 
 on:
   schedule:
-    - cron: '@daily'
+    - cron: "@daily"
 
 jobs:
-  process-pull-requests:
+  process-repository:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Python Script
@@ -14,22 +14,27 @@ jobs:
           repository: alexlebens/workflow-scripts
           ref: main
           token: ${{ secrets.BOT_TOKEN }}
-          path: scripts
+          path: workflow-scripts
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: "3.13"
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests immutabledict
 
       - name: Run Script
         env:
           INSTANCE_URL: ${{ vars.INSTANCE_URL }}
+          OWNER: ${{ gitea.owner }}
           REPOSITORY: ${{ gitea.repository }}
           TOKEN: ${{ secrets.BOT_TOKEN }}
-          STALE_DAYS: 3
-          STALE_TAG: 16
-          REQUIRED_TAG: 15
-        run: python ./scripts/scripts/process-pull-requests.py
+          LOG_LEVEL: DEBUG
+          ISSUE_STALE_DAYS: 3
+          ISSUE_STALE_TAG: 16
+          ISSUE_EXCLUDE_TAG: 20
+          PULL_REQUEST_STALE_DAYS: 3
+          PULL_REQUEST_STALE_TAG: 16
+          PULL_REQUEST_REQUIRED_TAG: 15
+        run: python ./workflow-scripts/scripts/process-repository.py
