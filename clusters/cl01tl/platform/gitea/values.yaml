@@ -25,10 +25,24 @@ gitea:
     - name: gitea-nfs-storage-backup
       persistentVolumeClaim:
         claimName: gitea-nfs-storage-backup
-  extraVolumeMounts:
+    - name: gitea-theme-storage
+      persistentVolumeClaim:
+        claimName: gitea-theme-storage
+  extraInitVolumeMounts:
+    - name: gitea-theme-storage
+      readOnly: true
+      mountPath: /data/gitea/public/assets/css
+  extraContainerVolumeMounts:
     - mountPath: /opt/backup
       name: gitea-nfs-storage-backup
       readOnly: false
+    - name: gitea-theme-storage
+      readOnly: true
+      mountPath: /data/gitea/public/assets/css
+  initPreScript: |
+    git clone https://github.com/catppuccin/gitea.git;
+    cp -r ./gitea/src/* /data/gitea/public/assets/css;
+    rm -rf ./gitea;
   gitea:
     metrics:
       enabled: true
@@ -83,6 +97,8 @@ gitea:
         REQUIRE_SIGNIN_VIEW: true
       webhook:
         ALLOWED_HOST_LIST: private
+      ui:
+        THEMES: catppuccin-rosewater-auto,catppuccin-flamingo-auto,catppuccin-pink-auto,catppuccin-mauve-auto,catppuccin-red-auto,catppuccin-maroon-auto,catppuccin-peach-auto,catppuccin-yellow-auto,catppuccin-green-auto,catppuccin-teal-auto,catppuccin-sky-auto,catppuccin-sapphire-auto,catppuccin-blue-auto,catppuccin-lavender-auto
       mirror:
         DEFAULT_INTERVAL: 10m
     additionalConfigFromEnvs:
