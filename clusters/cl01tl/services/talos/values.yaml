@@ -169,16 +169,26 @@ etcd-defrag:
         main:
           image:
             repository: ghcr.io/siderolabs/talosctl
-            tag: v1.10.4
+            tag: alpine:3
             pullPolicy: IfNotPresent
-          args:
-              - etcd
-              - defrag
-              - -n 10.232.1.13
-          env:
-            - name: TALOSCONFIG
-              value: /tmp/.talos/config
+          command:
+            - sh
+            - -c
+            - |
+              wget -O /usr/local/bin/talosctl https://github.com/siderolabs/talos/releases/download/v1.10.4/talosctl-linux-amd64
+              chmod +x /usr/local/bin/talosctl
+              while true; talosctl -n 10.232.1.11 version; do sleep 1; done
           workingDir: /tmp
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             requests:
               cpu: 100m
@@ -195,11 +205,10 @@ etcd-defrag:
     secret:
       enabled: true
       type: secret
-      name: talos-etcd-defrag-secret
+      name: talos-etcd-secrets
       advancedMounts:
-        defrag:
+        main:
           main:
-            - path: /tmp/.talos/config
+            - path: /var/run/secrets/talos.dev
               readOnly: true
               mountPropagation: None
-              subPath: config
