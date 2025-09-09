@@ -142,3 +142,63 @@ etcd-backup:
               readOnly: true
               mountPropagation: None
               subPath: .s3cfg
+etcd-defrag:
+  controllers:
+    main:
+      type: cronjob
+      pod:
+        nodeSelector:
+          node-role.kubernetes.io/control-plane: ""
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Forbid
+        timeZone: US/Central
+        schedule: "0 0 * * 0"
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 3
+        failedJobsHistory: 3
+        backoffLimit: 3
+        parallelism: 1
+      containers:
+        main:
+          image:
+            repository: ghcr.io/siderolabs/talosctl
+            tag: v1.10.4
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - |
+              talosctl -n 10.232.1.11 etcd defrag;
+              talosctl -n 10.232.1.12 etcd defrag;
+              talosctl -n 10.232.1.13 etcd defrag;
+          workingDir: /tmp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+  persistence:
+    tmp:
+      type: emptyDir
+      medium: Memory
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+              readOnly: false
+    secret:
+      enabled: true
+      type: secret
+      name: talos-etcd-defrag-secret
+      advancedMounts:
+        main:
+          main:
+            - path: ~/.talos/config
+              readOnly: true
+              mountPropagation: None
+              subPath: config
