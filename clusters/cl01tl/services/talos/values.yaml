@@ -146,7 +146,7 @@ etcd-defrag:
   global:
     fullnameOverride: etcd-defrag
   controllers:
-    defrag:
+    defrag-1:
       type: cronjob
       pod:
         nodeSelector:
@@ -183,21 +183,109 @@ etcd-defrag:
             requests:
               cpu: 100m
               memory: 128Mi
+    defrag-2:
+      type: cronjob
+      pod:
+        nodeSelector:
+          node-role.kubernetes.io/control-plane: ""
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Forbid
+        timeZone: US/Central
+        schedule: "10 0 * * 0"
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 3
+        failedJobsHistory: 3
+        backoffLimit: 3
+        parallelism: 1
+      containers:
+        main:
+          image:
+            repository: ghcr.io/siderolabs/talosctl
+            tag: v1.10.4
+            pullPolicy: IfNotPresent
+          args:
+            - etcd
+            - defrag
+            - -n
+            - "10.232.1.12"
+          env:
+            - name: TALOSCONFIG
+              value: /tmp/.talos/config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+    defra-3:
+      type: cronjob
+      pod:
+        nodeSelector:
+          node-role.kubernetes.io/control-plane: ""
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Forbid
+        timeZone: US/Central
+        schedule: "20 0 * * 0"
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 3
+        failedJobsHistory: 3
+        backoffLimit: 3
+        parallelism: 1
+      containers:
+        main:
+          image:
+            repository: ghcr.io/siderolabs/talosctl
+            tag: v1.10.4
+            pullPolicy: IfNotPresent
+          args:
+            - etcd
+            - defrag
+            - -n
+            - "10.232.1.13"
+          env:
+            - name: TALOSCONFIG
+              value: /tmp/.talos/config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
   persistence:
-    tmp:
-      type: emptyDir
-      medium: Memory
-      advancedMounts:
-        defrag:
-          main:
-            - path: /tmp
-              readOnly: false
-    talos-config:
+    talos-config-1:
       enabled: true
       type: secret
       name: talos-etcd-defrag-secret
       advancedMounts:
-        defrag:
+        defrag-1:
+          main:
+            - path: /tmp/.talos/config
+              readOnly: true
+              mountPropagation: None
+              subPath: config
+    talos-config-2:
+      enabled: true
+      type: secret
+      name: talos-etcd-defrag-secret
+      advancedMounts:
+        defrag-2:
+          main:
+            - path: /tmp/.talos/config
+              readOnly: true
+              mountPropagation: None
+              subPath: config
+    talos-config-3:
+      enabled: true
+      type: secret
+      name: talos-etcd-defrag-secret
+      advancedMounts:
+        defrag-3:
           main:
             - path: /tmp/.talos/config
               readOnly: true
