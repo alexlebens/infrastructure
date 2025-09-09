@@ -176,17 +176,9 @@ etcd-defrag:
             - defrag
             - -n
             - "10.232.1.11"
-          workingDir: /tmp
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
+          env:
+            - name: TALOSCONFIG
+              value: /tmp/.talos/config
           resources:
             requests:
               cpu: 100m
@@ -200,13 +192,14 @@ etcd-defrag:
           main:
             - path: /tmp
               readOnly: false
-    secret:
+    talos-config:
       enabled: true
       type: secret
-      name: talos-etcd-secrets
+      name: talos-etcd-defrag-secret
       advancedMounts:
-        defrag:
-          main:
-            - path: /var/run/secrets/talos.dev
+        snapshot:
+          s3-backup:
+            - path: /tmp/.talos/config
               readOnly: true
               mountPropagation: None
+              subPath: config
