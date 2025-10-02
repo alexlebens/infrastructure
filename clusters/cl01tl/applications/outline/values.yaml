@@ -146,7 +146,7 @@ cloudflared-outline:
   existingSecretName: outline-cloudflared-secret
   name: cloudflared-outline
 postgres-17-cluster:
-  mode: standalone
+  mode: recovery
   cluster:
     storage:
       storageClass: local-path
@@ -159,14 +159,17 @@ postgres-17-cluster:
   recovery:
     method: objectStore
     objectStore:
-      endpointURL: https://nyc3.digitaloceanspaces.com
       destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/outline/outline-postgresql-17-cluster
-      endpointCredentials: outline-postgresql-17-cluster-backup-secret
-      recoveryIndex: 2
+      index: 2
   backup:
     enabled: true
-    endpointURL: https://nyc3.digitaloceanspaces.com
-    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/outline/outline-postgresql-17-cluster
-    endpointCredentials: outline-postgresql-17-cluster-backup-secret
-    backupIndex: 2
-    retentionPolicy: "3d"
+    method: objectStore
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/outline/outline-postgresql-17-cluster
+        index: 2
+        retentionPolicy: "3d"
+    scheduledBackups:
+      - name: daily-backup
+        schedule: "0 0 0 * * *"
+        backupName: external
