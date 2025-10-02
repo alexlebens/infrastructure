@@ -36,7 +36,7 @@ postiz:
             - name: BACKEND_INTERNAL_URL
               value: http://localhost:3000
             - name: IS_GENERAL
-              value: 'true'
+              value: "true"
             - name: STORAGE_PROVIDER
               value: local
             - name: UPLOAD_DIRECTORY
@@ -48,7 +48,7 @@ postiz:
             - name: NEXT_PUBLIC_POSTIZ_OAUTH_LOGO_URL
               value: https://cdn.jsdelivr.net/gh/selfhst/icons/png/authentik.png
             - name: POSTIZ_GENERIC_OAUTH
-              value: 'true'
+              value: "true"
             - name: POSTIZ_OAUTH_URL
               value: https://auth.alexlebens.dev
             - name: POSTIZ_OAUTH_AUTH_URL
@@ -119,14 +119,33 @@ postgres-17-cluster:
   recovery:
     method: objectStore
     objectStore:
-      endpointURL: https://nyc3.digitaloceanspaces.com
+      name: recovery
       destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/postiz/postiz-postgresql-17-cluster
+      endpointURL: https://nyc3.digitaloceanspaces.com
+      index: 1
       endpointCredentials: postiz-postgresql-17-cluster-backup-secret
-      recoveryIndex: 1
   backup:
     enabled: true
-    endpointURL: https://nyc3.digitaloceanspaces.com
-    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/postiz/postiz-postgresql-17-cluster
-    endpointCredentials: postiz-postgresql-17-cluster-backup-secret
-    backupIndex: 1
-    retentionPolicy: "3d"
+    method: objectStore
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/postiz/postiz-postgresql-17-cluster
+        endpointURL: https://nyc3.digitaloceanspaces.com
+        index: 1
+        endpointCredentials: postiz-postgresql-17-cluster-backup-secret
+        retentionPolicy: "3d"
+        isWALArchiver: true
+        wal:
+          compression: snappy
+          maxParallel: 1
+        data:
+          compression: snappy
+          jobs: 1
+    scheduledBackups:
+      - name: daily-backup
+        schedule: "0 0 0 * * *"
+        immediate: false
+        suspend: false
+        backupOwnerReference: self
+        plugin: barman-cloud.cloudnative-pg.io
+        backupName: external
