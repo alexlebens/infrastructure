@@ -89,7 +89,7 @@ komodo:
         ferretdb:
           image:
             repository: ghcr.io/ferretdb/ferretdb
-            tag: 1.24.2
+            tag: 2.5.0
             pullPolicy: IfNotPresent
           env:
             - name: FERRETDB_POSTGRESQL_URL
@@ -155,5 +155,63 @@ postgres-17-cluster:
     scheduledBackups:
       - name: daily-backup
         suspend: false
+        schedule: "0 0 0 * * *"
+        backupName: external
+postgres-17-fdb-cluster:
+  nameOverride: komodo-postgresql-17-fdb
+  mode: import
+  cluster:
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: "17-0.106.0-ferretdb-2.5.0"
+    storage:
+      storageClass: local-path
+    walStorage:
+      storageClass: local-path
+    postgresUID: 999
+    postgresGID: 999
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: true
+    postgresql:
+      shared_preload_libraries:
+        - pg_cron
+        - pg_documentdb_core
+        - pg_documentdb
+      parameters:
+        cron.database_name: 'postgres'
+        shared_buffers: 128MB
+        max_slot_wal_keep_size: 2000MB
+        hot_standby_feedback: "on"
+    initdb:
+      postInitSQL:
+        - 'CREATE EXTENSION IF NOT EXISTS documentdb CASCADE;'
+  recovery:
+    method: objectStore
+    objectStore:
+      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-cluster
+      index: 2
+    import:
+      type: "microservice"
+      databases:
+        - app
+      source:
+        host: komodo-postgresql-17-cluster-rw
+        port: 5432
+        username: app
+        database: app
+        passwordSecret:
+          name: komodo-postgresql-17-cluster-app
+          key: "password"
+  backup:
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-cluster
+        index: 3
+        retentionPolicy: "3d"
+    scheduledBackups:
+      - name: daily-backup
+        suspend: true
         schedule: "0 0 0 * * *"
         backupName: external
