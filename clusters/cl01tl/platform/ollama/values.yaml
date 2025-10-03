@@ -238,7 +238,7 @@ ollama:
               readOnly: false
 postgres-17-cluster:
   nameOverride: ollama-web-postgresql-17
-  mode: standalone
+  mode: recovery
   cluster:
     storage:
       storageClass: local-path
@@ -251,14 +251,16 @@ postgres-17-cluster:
   recovery:
     method: objectStore
     objectStore:
-      endpointURL: https://nyc3.digitaloceanspaces.com
       destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/ollama/ollama-web-postgresql-17-cluster
-      endpointCredentials: ollama-web-postgresql-17-cluster-backup-secret
-      recoveryIndex: 2
+      index: 2
   backup:
-    enabled: true
-    endpointURL: https://nyc3.digitaloceanspaces.com
-    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/ollama/ollama-web-postgresql-17-cluster
-    endpointCredentials: ollama-web-postgresql-17-cluster-backup-secret
-    backupIndex: 2
-    retentionPolicy: "3d"
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/ollama/ollama-web-postgresql-17-cluster
+        index: 2
+        retentionPolicy: "3d"
+    scheduledBackups:
+      - name: daily-backup
+        suspend: false
+        schedule: "0 0 0 * * *"
+        backupName: external
