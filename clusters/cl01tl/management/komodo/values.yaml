@@ -128,6 +128,48 @@ komodo:
             requests:
               cpu: 10m
               memory: 128Mi
+    copy:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/moghtech/komodo-cli
+            tag: latest
+            pullPolicy: IfNotPresent
+          command: ["km"]
+          args: ["database", "copy", "-y"]
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-cluster-app
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-cluster-app
+                  key: password
+            - name: KOMODO_DATABASE_URI
+              value: mongodb://$(DB_USERNAME):$(DB_PASSWORD)@komodo-ferretdb.komodo:27017/komodo?authMechanism=PLAIN
+            - name: KOMODO_DATABASE_DB_NAME
+              value: komodo
+            - name: TARGET_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-fdb-cluster-app
+                  key: username
+            - name: TARGET_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-fdb-cluster-app
+                  key: password
+            - name: KOMODO_CLI_DATABASE_TARGET_URI
+              value: mongodb://$(DB_USERNAME):$(DB_PASSWORD)@komodo-ferretdb-2.komodo:27017/ferretDB
+            - name: KOMODO_CLI_DATABASE_TARGET_DB_NAME
+              value: komodo
   service:
     main:
       controller: main
