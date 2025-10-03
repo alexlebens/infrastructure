@@ -85,38 +85,38 @@ radarr:
               readOnly: false
 postgres-17-cluster:
   nameOverride: radarr5-postgresql-17
-  mode: standalone
+  mode: recovery
   cluster:
     storage:
       storageClass: local-path
     walStorage:
       storageClass: local-path
-    resources:
-      requests:
-        memory: 1Gi
-        cpu: 200m
     monitoring:
       enabled: true
       prometheusRule:
         enabled: true
-  bootstrap:
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: 200m
     initdb:
-      database: app
-      owner: app
       postInitSQL:
         - CREATE DATABASE "radarr-main" OWNER "app";
         - CREATE DATABASE "radarr-log" OWNER "app";
   recovery:
     method: objectStore
     objectStore:
-      endpointURL: https://nyc3.digitaloceanspaces.com
       destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr5/radarr5-postgresql-17-cluster
-      endpointCredentials: radarr-postgresql-17-cluster-backup-secret
-      recoveryIndex: 5
+      index: 5
   backup:
     enabled: true
-    endpointURL: https://nyc3.digitaloceanspaces.com
-    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr5/radarr5-postgresql-17-cluster
-    endpointCredentials: radarr-postgresql-17-cluster-backup-secret
-    backupIndex: 5
-    retentionPolicy: "3d"
+    method: objectStore
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr5/radarr5-postgresql-17-cluster
+        index: 5
+        retentionPolicy: "3d"
+    scheduledBackups:
+      - name: daily-backup
+        schedule: "0 0 0 * * *"
+        backupName: external
