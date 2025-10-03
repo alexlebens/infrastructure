@@ -317,7 +317,7 @@ meilisearch:
 cloudflared:
   existingSecretName: gitea-cloudflared-secret
 postgres-17-cluster:
-  mode: standalone
+  mode: recovery
   cluster:
     storage:
       storageClass: local-path
@@ -330,14 +330,16 @@ postgres-17-cluster:
   recovery:
     method: objectStore
     objectStore:
-      endpointURL: https://nyc3.digitaloceanspaces.com
       destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/gitea/gitea-postgresql-17-cluster
-      endpointCredentials: gitea-postgresql-17-cluster-backup-secret
-      recoveryIndex: 3
+      index: 3
   backup:
-    enabled: true
-    endpointURL: https://nyc3.digitaloceanspaces.com
-    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/gitea/gitea-postgresql-17-cluster
-    endpointCredentials: gitea-postgresql-17-cluster-backup-secret
-    backupIndex: 3
-    retentionPolicy: "3d"
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/gitea/gitea-postgresql-17-cluster
+        index: 3
+        retentionPolicy: "3d"
+    scheduledBackups:
+      - name: daily-backup
+        suspend: false
+        schedule: "0 0 0 * * *"
+        backupName: external
