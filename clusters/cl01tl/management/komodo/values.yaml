@@ -113,6 +113,11 @@ komodo:
             tag: 2.5.0
             pullPolicy: IfNotPresent
           env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-fdb-cluster-superuser
+                  key: user
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -124,7 +129,7 @@ komodo:
                   name: komodo-postgresql-17-fdb-cluster-superuser
                   key: host
             - name: FERRETDB_POSTGRESQL_URL
-              value: postgresql://postgres:$(DB_PASSWORD)@$(DB_HOST).komodo:5432/postgres
+              value: postgresql://$(DB_USERNAME):$(DB_PASSWORD)@$(DB_HOST).komodo:5432/postgres
           resources:
             requests:
               cpu: 10m
@@ -157,6 +162,11 @@ komodo:
               value: mongodb://$(DB_USERNAME):$(DB_PASSWORD)@komodo-main.komodo:27017/komodo?authMechanism=PLAIN
             - name: KOMODO_DATABASE_DB_NAME
               value: komodo
+            - name: TARGETDB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-fdb-cluster-superuser
+                  key: user
             - name: TARGETDB_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -168,7 +178,7 @@ komodo:
                   name: komodo-postgresql-17-fdb-cluster-superuser
                   key: host
             - name: KOMODO_CLI_DATABASE_TARGET_URI
-              value: mongodb://postgres:${TARGETDB_PASSWORD}@komodo-ferretdb.komodo:27017
+              value: mongodb://${TARGETDB_USERNAME}:${TARGETDB_PASSWORD}@komodo-ferretdb.komodo:27017
             - name: KOMODO_CLI_DATABASE_TARGET_DB_NAME
               value: komodo
   service:
