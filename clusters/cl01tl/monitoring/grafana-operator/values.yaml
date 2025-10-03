@@ -13,7 +13,7 @@ grafana-operator:
   dashboard:
     enabled: false
 postgres-17-cluster:
-  mode: standalone
+  mode: recovery
   cluster:
     storage:
       storageClass: local-path
@@ -26,14 +26,16 @@ postgres-17-cluster:
   recovery:
     method: objectStore
     objectStore:
-      endpointURL: https://nyc3.digitaloceanspaces.com
       destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/grafana-operator/grafana-operator-postgresql-17-cluster
-      endpointCredentials: grafana-operator-postgresql-17-cluster-backup-secret
-      recoveryIndex: 1
+      index: 1
   backup:
-    enabled: true
-    endpointURL: https://nyc3.digitaloceanspaces.com
-    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/grafana-operator/grafana-operator-postgresql-17-cluster
-    endpointCredentials: grafana-operator-postgresql-17-cluster-backup-secret
-    backupIndex: 1
-    retentionPolicy: "3d"
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/grafana-operator/grafana-operator-postgresql-17-cluster
+        index: 1
+        retentionPolicy: "3d"
+    scheduledBackups:
+      - name: daily-backup
+        suspend: false
+        schedule: "0 0 0 * * *"
+        backupName: external
