@@ -107,6 +107,27 @@ komodo:
             requests:
               cpu: 10m
               memory: 128Mi
+    ferretdb-2:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/ferretdb/ferretdb
+            tag: 2.5.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: FERRETDB_POSTGRESQL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-fdb-cluster-app
+                  key: uri
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
   service:
     main:
       controller: main
@@ -117,6 +138,13 @@ komodo:
           protocol: HTTP
     ferretdb:
       controller: ferretdb
+      ports:
+        http:
+          port: 27017
+          targetPort: 27017
+          protocol: HTTP
+    ferretdb-2:
+      controller: ferretdb-2
       ports:
         http:
           port: 27017
@@ -168,5 +196,67 @@ postgres-17-cluster:
     scheduledBackups:
       - name: daily-backup
         suspend: false
+        schedule: "0 0 0 * * *"
+        backupName: external
+postgresql-17-fdb-cluster:
+  nameOverride: komodo-postgresql-17-fdb
+  mode: standalone
+  cluster:
+    image:
+      repository: ghcr.io/ferretdb/postgres-documentdb
+      tag: "17-0.106.0-ferretdb-2.5.0"
+    storage:
+      storageClass: local-path
+    walStorage:
+      storageClass: local-path
+    postgresUID: 999
+    postgresGID: 999
+    enableSuperuserAccess: true
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: true
+    postgresql:
+      parameters:
+        cron.database_name: 'ferretDB'
+        documentdb.enableCompact: "true"
+        documentdb.enableLetAndCollationForQueryMatch: "true"
+        documentdb.enableNowSystemVariable: "true"
+        documentdb.enableSortbyIdPushDownToPrimaryKey: "true"
+        documentdb.enableSchemaValidation: "true"
+        documentdb.enableBypassDocumentValidation: "true"
+        documentdb.enableUserCrud: "true"
+        documentdb.maxUserLimit: "100"
+        shared_buffers: 128MB
+        max_slot_wal_keep_size: 2000MB
+        hot_standby_feedback: "on"
+      pg_hba:
+        - host ferretDB postgres localhost trust
+        - host ferretDB ferret localhost trust
+      shared_preload_libraries:
+        - pg_cron
+        - pg_documentdb_core
+        - pg_documentdb
+    initdb:
+      database: ferretDB
+      owner: ferret
+      postInitApplicationSQL:
+        - create extension if not exists pg_cron;
+        - create extension if not exists documentdb cascade;
+        - grant documentdb_admin_role to ferret;
+  recovery:
+    method: objectStore
+    objectStore:
+      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-fdb-cluster
+      index: 1
+  backup:
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-fdb-cluster
+        index: 1
+        retentionPolicy: "3d"
+    scheduledBackups:
+      - name: daily-backup
+        suspend: true
         schedule: "0 0 0 * * *"
         backupName: external
