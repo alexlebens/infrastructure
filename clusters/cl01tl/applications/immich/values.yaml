@@ -229,3 +229,59 @@ postgres-16-cluster:
     endpointCredentials: immich-postgresql-16-cluster-backup-secret
     backupIndex: 2
     retentionPolicy: "3d"
+postgres-17-cluster:
+  nameOverride: immich-postgresql-17
+  mode: recovery
+  cluster:
+    image:
+      repository: ghcr.io/tensorchord/cloudnative-vectorchord
+      tag: 17.6-0.5.2
+    storage:
+      storageClass: local-path
+    walStorage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: true
+    postgresql:
+      parameters:
+        shared_buffers: 256MB
+      shared_preload_libraries:
+        - "vchord.so"
+    initdb:
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS "vector";
+        - CREATE EXTENSION IF NOT EXISTS "vchord" CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS "cube" CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS "earthdistance" CASCADE;
+  recovery:
+    method: import
+    objectStore:
+      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-17-cluster
+      index: 1
+    import:
+      type: "microservice"
+      databases:
+        - app
+      source:
+        host: immich-postgresql-16-cluster-rw
+        port: 5432
+        username: app
+        database: app
+        sslMode: "disable"
+        passwordSecret:
+          create: false
+          name: immich-postgresql-16-cluster-app
+          key: password
+  backup:
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-17-cluster
+        index: 1
+        retentionPolicy: "3d"
+    scheduledBackups:
+      - name: daily-backup
+        suspend: true
+        schedule: "0 0 0 * * *"
+        backupName: external
