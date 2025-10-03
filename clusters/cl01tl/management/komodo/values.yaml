@@ -101,6 +101,47 @@ komodo:
             requests:
               cpu: 10m
               memory: 128Mi
+        ferretdb2:
+          image:
+            repository: ghcr.io/ferretdb/ferretdb
+            tag: 2.5.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: FERRETDB_POSTGRESQL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-fdb-cluster-superuser
+                  key: uri
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+        copy_database:
+          image:
+            repository: ghcr.io/moghtech/komodo-cli
+            tag: latest
+            pullPolicy: IfNotPresent
+          arg:
+            - km database copy -y
+          env:
+            - name: KOMODO_DATABASE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-cluster-app
+                  key: uri
+            - name: KOMODO_DATABASE_DB_NAME
+              value: app
+            - name: KOMODO_CLI_DATABASE_TARGET_URI
+              valueFrom:
+                secretKeyRef:
+                  name: komodo-postgresql-17-fdb-cluster-superuser
+                  key: uri
+            - name: KOMODO_CLI_DATABASE_TARGET_DB_NAME
+              value: postgres
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
   service:
     main:
       controller: main
@@ -159,7 +200,7 @@ postgres-17-cluster:
         backupName: external
 postgres-17-fdb-cluster:
   nameOverride: komodo-postgresql-17-fdb
-  mode: standalone
+  mode: recovery
   cluster:
     image:
       repository: ghcr.io/ferretdb/postgres-documentdb
