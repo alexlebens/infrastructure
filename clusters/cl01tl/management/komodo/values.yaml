@@ -86,27 +86,6 @@ komodo:
             requests:
               cpu: 10m
               memory: 128Mi
-    ferretdb:
-      type: deployment
-      replicas: 0
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      containers:
-        main:
-          image:
-            repository: ghcr.io/ferretdb/ferretdb
-            tag: 1.24.2
-            pullPolicy: IfNotPresent
-          env:
-            - name: FERRETDB_POSTGRESQL_URL
-              valueFrom:
-                secretKeyRef:
-                  name: komodo-postgresql-17-cluster-app
-                  key: uri
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
     ferretdb-2:
       type: deployment
       replicas: 1
@@ -128,48 +107,6 @@ komodo:
             requests:
               cpu: 10m
               memory: 128Mi
-    copy:
-      type: deployment
-      replicas: 0
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      containers:
-        main:
-          image:
-            repository: ghcr.io/moghtech/komodo-cli
-            tag: latest
-            pullPolicy: IfNotPresent
-          command: ["km"]
-          args: ["database", "copy", "-y"]
-          env:
-            - name: DB_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: komodo-postgresql-17-cluster-app
-                  key: username
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: komodo-postgresql-17-cluster-app
-                  key: password
-            - name: KOMODO_DATABASE_URI
-              value: mongodb://$(DB_USERNAME):$(DB_PASSWORD)@komodo-ferretdb.komodo:27017/komodo?authMechanism=PLAIN
-            - name: KOMODO_DATABASE_DB_NAME
-              value: komodo
-            - name: TARGET_DB_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: komodo-postgresql-17-fdb-cluster-app
-                  key: username
-            - name: TARGET_DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: komodo-postgresql-17-fdb-cluster-app
-                  key: password
-            - name: KOMODO_CLI_DATABASE_TARGET_URI
-              value: mongodb://$(TARGET_DB_USERNAME):$(TARGET_DB_PASSWORD)@komodo-ferretdb-2.komodo:27017/ferretDB
-            - name: KOMODO_CLI_DATABASE_TARGET_DB_NAME
-              value: komodo
   service:
     main:
       controller: main
@@ -177,13 +114,6 @@ komodo:
         http:
           port: 80
           targetPort: 9120
-          protocol: HTTP
-    ferretdb:
-      controller: ferretdb
-      ports:
-        http:
-          port: 27017
-          targetPort: 27017
           protocol: HTTP
     ferretdb-2:
       controller: ferretdb-2
@@ -213,33 +143,6 @@ komodo:
           main:
             - path: /syncs
               readOnly: false
-postgres-17-cluster:
-  mode: recovery
-  cluster:
-    storage:
-      storageClass: local-path
-    walStorage:
-      storageClass: local-path
-    monitoring:
-      enabled: true
-      prometheusRule:
-        enabled: true
-  recovery:
-    method: objectStore
-    objectStore:
-      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-cluster
-      index: 2
-  backup:
-    objectStore:
-      - name: external
-        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-cluster
-        index: 2
-        retentionPolicy: "3d"
-    scheduledBackups:
-      - name: daily-backup
-        suspend: false
-        schedule: "0 0 0 * * *"
-        backupName: external
 postgresql-17-fdb-cluster:
   nameOverride: komodo-postgresql-17-fdb
   mode: standalone
