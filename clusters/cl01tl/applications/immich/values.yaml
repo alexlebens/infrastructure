@@ -188,60 +188,6 @@ immich:
           main:
             - path: /usr/src/app/upload
               readOnly: false
-postgres-16-b-cluster:
-  nameOverride: immich-postgresql-16-b
-  mode: recovery
-  cluster:
-    image:
-      repository: ghcr.io/tensorchord/cloudnative-vectorchord
-      tag: 16.9-0.4.3
-    storage:
-      storageClass: local-path
-    walStorage:
-      storageClass: local-path
-    postgresUID: 26
-    postgresGID: 26
-    enableSuperuserAccess: true
-    monitoring:
-      enabled: true
-      prometheusRule:
-        enabled: true
-    postgresql:
-      parameters:
-        shared_buffers: 256MB
-      shared_preload_libraries:
-        - "vchord.so"
-    initdb:
-      postInitSQL:
-        - CREATE EXTENSION IF NOT EXISTS "vector";
-        - CREATE EXTENSION IF NOT EXISTS "vchord" CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS "cube" CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS "earthdistance" CASCADE;
-  recovery:
-    method: import
-    recoveryServerName: immich-postgresql-16-backup-2
-    objectStore:
-      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-16-cluster
-      index: 2
-    import:
-      type: "microservice"
-      databases:
-        - app
-      postImportApplicationSQL:
-        - CREATE EXTENSION IF NOT EXISTS "vector";
-        - CREATE EXTENSION IF NOT EXISTS "vchord" CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS "cube" CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS "earthdistance" CASCADE;
-      source:
-        host: immich-postgresql-16-cluster-rw
-        port: 5432
-        username: postgres
-        database: postgres
-        sslMode: disable
-        passwordSecret:
-          name: immich-postgresql-16-cluster-superuser
-          key: password
-
 postgres-17-cluster:
   mode: recovery
   cluster:
@@ -252,7 +198,6 @@ postgres-17-cluster:
       storageClass: local-path
     walStorage:
       storageClass: local-path
-    enableSuperuserAccess: true
     monitoring:
       enabled: true
       prometheusRule:
@@ -281,6 +226,6 @@ postgres-17-cluster:
         retentionPolicy: "3d"
     scheduledBackups:
       - name: daily-backup
-        suspend: true
+        suspend: false
         schedule: "0 0 0 * * *"
         backupName: external
