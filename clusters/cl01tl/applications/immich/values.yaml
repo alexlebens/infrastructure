@@ -2,7 +2,7 @@ immich:
   controllers:
     main:
       type: deployment
-      replicas: 1
+      replicas: 0
       strategy: Recreate
       revisionHistoryLimit: 3
       containers:
@@ -92,7 +92,7 @@ immich:
               memory: 512Mi
     machine-learning:
       type: deployment
-      replicas: 1
+      replicas: 0
       strategy: Recreate
       revisionHistoryLimit: 3
       containers:
@@ -195,7 +195,7 @@ postgres-16-cluster:
   #--- https://github.com/tensorchord/cloudnative-pgvecto.rs
   #--- https://github.com/immich-app/immich/discussions/17025
   type: tensorchord
-  mode: recovery
+  mode: standalone
   cluster:
     image:
       repository: ghcr.io/tensorchord/cloudnative-pgvecto.rs
@@ -223,12 +223,13 @@ postgres-16-cluster:
       endpointCredentials: immich-postgresql-17-cluster-backup-secret
       recoveryIndex: 2
   backup:
-    enabled: true
-    endpointURL: https://nyc3.digitaloceanspaces.com
-    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-16-cluster
-    endpointCredentials: immich-postgresql-16-cluster-backup-secret
-    backupIndex: 2
-    retentionPolicy: "3d"
+    enabled: false
+    # endpointURL: https://nyc3.digitaloceanspaces.com
+    # destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-16-cluster
+    # endpointCredentials: immich-postgresql-16-cluster-backup-secret
+    # backupIndex: 2
+    # retentionPolicy: "3d"
+
 postgres-17-cluster:
   nameOverride: immich-postgresql-17
   mode: recovery
@@ -273,14 +274,14 @@ postgres-17-cluster:
           create: false
           name: immich-postgresql-16-cluster-app
           key: password
-  backup:
-    objectStore:
-      - name: external
-        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-17-cluster
-        index: 1
-        retentionPolicy: "3d"
-    scheduledBackups:
-      - name: daily-backup
-        suspend: true
-        schedule: "0 0 0 * * *"
-        backupName: external
+  # backup:
+  #   objectStore:
+  #     - name: external
+  #       destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-17-cluster
+  #       index: 1
+  #       retentionPolicy: "3d"
+  #   scheduledBackups:
+  #     - name: daily-backup
+  #       suspend: true
+  #       schedule: "0 0 0 * * *"
+  #       backupName: external
