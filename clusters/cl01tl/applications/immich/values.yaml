@@ -2,7 +2,7 @@ immich:
   controllers:
     main:
       type: deployment
-      replicas: 1
+      replicas: 0
       strategy: Recreate
       revisionHistoryLimit: 3
       containers:
@@ -27,27 +27,27 @@ immich:
             - name: DB_HOSTNAME
               valueFrom:
                 secretKeyRef:
-                  name: immich-postgresql-16-b-cluster-app
+                  name: immich-postgresql-17-cluster-app
                   key: host
             - name: DB_DATABASE_NAME
               valueFrom:
                 secretKeyRef:
-                  name: immich-postgresql-16-b-cluster-app
+                  name: immich-postgresql-17-cluster-app
                   key: dbname
             - name: DB_PORT
               valueFrom:
                 secretKeyRef:
-                  name: immich-postgresql-16-b-cluster-app
+                  name: immich-postgresql-17-cluster-app
                   key: port
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: immich-postgresql-16-b-cluster-superuser
+                  name: immich-postgresql-17-cluster-app
                   key: user
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: immich-postgresql-16-b-cluster-superuser
+                  name: immich-postgresql-17-cluster-app
                   key: password
           probes:
             liveness:
@@ -92,7 +92,7 @@ immich:
               memory: 512Mi
     machine-learning:
       type: deployment
-      replicas: 1
+      replicas: 0
       strategy: Recreate
       revisionHistoryLimit: 3
       containers:
@@ -188,49 +188,6 @@ immich:
           main:
             - path: /usr/src/app/upload
               readOnly: false
-postgres-16-cluster:
-  # Tensorchord
-  #--- https://github.com/immich-app/immich/discussions/9060
-  #--- https://docs.pgvecto.rs/admin/kubernetes.html
-  #--- https://github.com/tensorchord/cloudnative-pgvecto.rs
-  #--- https://github.com/immich-app/immich/discussions/17025
-  type: tensorchord
-  mode: standalone
-  cluster:
-    image:
-      repository: ghcr.io/tensorchord/cloudnative-pgvecto.rs
-      tag: 16.3-v0.2.1
-    storage:
-      storageClass: local-path
-    walStorage:
-      storageClass: local-path
-    resources:
-      requests:
-        memory: 384Mi
-        cpu: 200m
-    enableSuperuserAccess: true
-    monitoring:
-      enabled: true
-      prometheusRule:
-        enabled: true
-    postgresql:
-      parameters:
-        shared_buffers: 256MB
-  recovery:
-    method: objectStore
-    objectStore:
-      endpointURL: https://nyc3.digitaloceanspaces.com
-      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-16-cluster
-      endpointCredentials: immich-postgresql-17-cluster-backup-secret
-      recoveryIndex: 2
-  backup:
-    enabled: false
-    # endpointURL: https://nyc3.digitaloceanspaces.com
-    # destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-16-cluster
-    # endpointCredentials: immich-postgresql-16-cluster-backup-secret
-    # backupIndex: 2
-    # retentionPolicy: "3d"
-
 postgres-16-b-cluster:
   nameOverride: immich-postgresql-16-b
   mode: recovery
@@ -283,6 +240,56 @@ postgres-16-b-cluster:
         sslMode: disable
         passwordSecret:
           name: immich-postgresql-16-cluster-superuser
+          key: password
+
+postgres-17-cluster:
+  mode: recovery
+  cluster:
+    image:
+      repository: ghcr.io/tensorchord/cloudnative-vectorchord
+      tag: 17.5-0.4.3
+    storage:
+      storageClass: local-path
+    walStorage:
+      storageClass: local-path
+    enableSuperuserAccess: true
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: true
+    postgresql:
+      parameters:
+        shared_buffers: 256MB
+      shared_preload_libraries:
+        - "vchord.so"
+    initdb:
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS "vector";
+        - CREATE EXTENSION IF NOT EXISTS "vchord" CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS "cube" CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS "earthdistance" CASCADE;
+  recovery:
+    method: import
+    objectStore:
+      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-17-cluster
+      index: 1
+    import:
+      type: "microservice"
+      databases:
+        - app
+      postImportApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS "vector";
+        - CREATE EXTENSION IF NOT EXISTS "vchord" CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS "cube" CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS "earthdistance" CASCADE;
+      source:
+        host: immich-postgresql-16-b-cluster-rw
+        port: 5432
+        username: postgres
+        database: postgres
+        sslMode: disable
+        passwordSecret:
+          name: immich-postgresql-16-b-cluster-superuser
           key: password
 
   # backup:
