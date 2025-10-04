@@ -2,7 +2,7 @@ immich:
   controllers:
     main:
       type: deployment
-      replicas: 0
+      replicas: 1
       strategy: Recreate
       revisionHistoryLimit: 3
       containers:
@@ -92,7 +92,7 @@ immich:
               memory: 512Mi
     machine-learning:
       type: deployment
-      replicas: 0
+      replicas: 1
       strategy: Recreate
       revisionHistoryLimit: 3
       containers:
@@ -269,37 +269,18 @@ postgres-17-cluster:
         - CREATE EXTENSION IF NOT EXISTS "cube" CASCADE;
         - CREATE EXTENSION IF NOT EXISTS "earthdistance" CASCADE;
   recovery:
-    method: import
+    method: objectStore
     objectStore:
       destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-17-cluster
       index: 1
-    import:
-      type: "microservice"
-      databases:
-        - app
-      postImportApplicationSQL:
-        - CREATE EXTENSION IF NOT EXISTS "vector";
-        - CREATE EXTENSION IF NOT EXISTS "vchord" CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS "cube" CASCADE;
-        - CREATE EXTENSION IF NOT EXISTS "earthdistance" CASCADE;
-      source:
-        host: immich-postgresql-16-b-cluster-rw
-        port: 5432
-        username: postgres
-        database: postgres
-        sslMode: disable
-        passwordSecret:
-          name: immich-postgresql-16-b-cluster-superuser
-          key: password
-
-  # backup:
-  #   objectStore:
-  #     - name: external
-  #       destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-17-cluster
-  #       index: 1
-  #       retentionPolicy: "3d"
-  #   scheduledBackups:
-  #     - name: daily-backup
-  #       suspend: true
-  #       schedule: "0 0 0 * * *"
-  #       backupName: external
+  backup:
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-17-cluster
+        index: 1
+        retentionPolicy: "3d"
+    scheduledBackups:
+      - name: daily-backup
+        suspend: true
+        schedule: "0 0 0 * * *"
+        backupName: external
