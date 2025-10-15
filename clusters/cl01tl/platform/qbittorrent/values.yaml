@@ -177,6 +177,40 @@ qbittorrent:
             requests:
               cpu: 10m
               memory: 128Mi
+    qui:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        qui:
+          image:
+            repository: ghcr.io/autobrr/qui
+            tag: v1.4.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: QUI__METRICS_ENABLED
+              value: true
+            - name: QUI__OIDC_ENABLED
+              value: true
+            - name: QUI__OIDC_ISSUER
+              value: https://auth.alexlebens.dev/application/o/qui/
+            - name: QUI__OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: qui-oidc-secret
+                  key: client
+            - name: QUI__OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: qui-oidc-secret
+                  key: secret
+            - name: QUI__OIDC_DISABLE_BUILT_IN_LOGIN
+              value: false
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
   service:
     main:
       controller: main
@@ -200,6 +234,17 @@ qbittorrent:
         apprise:
           port: 8000
           targetPort: 8000
+          protocol: HTTP
+    qui:
+      controller: qui
+      ports:
+        http:
+          port: 80
+          targetPort: 7476
+          protocol: HTTP
+        metrics:
+          port: 9074
+          targetPort: 9074
           protocol: HTTP
   persistence:
     config:
@@ -269,6 +314,16 @@ qbittorrent:
         qbit-manage:
           qbit-manage:
             - path: /app/var
+              readOnly: false
+    qui-config-data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        qui:
+          iqui:
+            - path: /config
               readOnly: false
     storage:
       type: persistentVolumeClaim
