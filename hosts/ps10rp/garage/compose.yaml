@@ -1,0 +1,43 @@
+services:
+    tailscale-garage:
+        image: ghcr.io/tailscale/tailscale:v1.88.4
+        container_name: tailscale-garage
+        cap_add:
+            - net_admin
+            - sys_module
+        environment:
+            - TS_STATE_DIR=/var/lib/tailscale
+            - TS_ENABLE_METRICS=true
+            - TS_HOSTNAME=garage-ps10rp
+            - TS_SERVE_CONFIG=/config/serve.json
+        network_mode: service:garage
+        restart: always
+        volumes:
+            - tailscale:/var/lib/tailscale
+            - ${PWD}/serve.json:/config/serve.json:ro
+        devices:
+            - /dev/net/tun:/dev/net/tun
+
+    garage:
+        image: dxflrs/garage:v2.1.0
+        container_name: garage
+        restart: always
+        volumes:
+            - ${PWD}/garage.toml:/etc/garage.toml:ro
+            - meta:/var/lib/garage/meta
+            - data:/var/lib/garage/data
+
+    webui:
+        image: khairul169/garage-webui:1.1.0
+        container_name: garage-webui
+        restart: always
+        volumes:
+            - ${PWD}/garage.toml:/etc/garage.toml:ro
+        environment:
+            API_BASE_URL: "http://127.0.0.1:3903"
+            S3_ENDPOINT_URL: "http://127.0.0.1:3900"
+
+volumes:
+    tailscale:
+    meta:
+    data:
