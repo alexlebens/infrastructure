@@ -10,8 +10,8 @@ services:
             - TS_ENABLE_METRICS=true
             - TS_HOSTNAME=garage-ps10rp
             - TS_SERVE_CONFIG=/config/serve.json
-        network_mode: service:garage
         restart: always
+        network_mode: service:garage
         volumes:
             - tailscale:/var/lib/tailscale
             - ${PWD}/serve.json:/config/serve.json:ro
@@ -24,6 +24,8 @@ services:
         env_file:
             - .env
         restart: always
+        networks:
+            internal: null
         volumes:
             - ${PWD}/garage.toml:/etc/garage.toml:ro
             - meta:/var/lib/garage/meta
@@ -32,15 +34,27 @@ services:
     webui:
         image: khairul169/garage-webui:1.1.0
         container_name: garage-webui
-        network_mode: service:garage
         env_file:
             - .env
         environment:
             API_BASE_URL: "http://127.0.0.1:3903"
             S3_ENDPOINT_URL: "http://127.0.0.1:3900"
+        labels:
+            traefik.enable: true
+            traefik.docker.network: internal
+            traefik.http.routers.garage-webui.entrypoints: web-secure
+            traefik.http.routers.garage-webui.rule: Host(`garage.lebens-home.net`)
+            traefik.http.routers.garage-webui.service: garage-webui
+            traefik.http.services.garage-webui.loadbalancer.server.port: 3009
         restart: always
+        network_mode: service:garage
         volumes:
             - ${PWD}/garage.toml:/etc/garage.toml:ro
+
+networks:
+    internal:
+        name: internal
+        external: true
 
 volumes:
     tailscale:
