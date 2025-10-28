@@ -18,16 +18,22 @@ garage:
             requests:
               cpu: 10m
               memory: 128Mi
-        webui:
+    webui:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
           image:
             repository: khairul169/garage-webui
             tag: 1.1.0
             pullPolicy: IfNotPresent
           env:
             - name: API_BASE_URL
-              value: http://127.0.0.1:3903
+              value: http://garage-main.garage:3903
             - name: S3_ENDPOINT_URL
-              value: http://127.0.0.1:3900
+              value: http://garage-main.garage:3900
             - name: API_ADMIN_KEY
               valueFrom:
                 secretKeyRef:
@@ -68,15 +74,10 @@ garage:
           [admin]
           api_bind_addr = "[::]:3903"
           metrics_require_token = true
-
   service:
     main:
       controller: main
       ports:
-        webui:
-          port: 3909
-          targetPort: 3909
-          protocol: HTTP
         s3:
           port: 3900
           targetPort: 3900
@@ -93,6 +94,13 @@ garage:
           port: 3903
           targetPort: 3903
           protocol: HTTP
+    webui:
+      controller: webui
+      ports:
+        webui:
+          port: 3909
+          targetPort: 3909
+          protocol: HTTP
   persistence:
     config:
       enabled: true
@@ -105,7 +113,8 @@ garage:
               readOnly: true
               mountPropagation: None
               subPath: garage.toml
-          webui:
+        webui:
+          main:
             - path: /etc/garage.toml
               readOnly: true
               mountPropagation: None
