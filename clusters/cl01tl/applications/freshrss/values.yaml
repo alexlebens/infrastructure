@@ -207,7 +207,8 @@ postgres-17-cluster:
   recovery:
     method: objectStore
     objectStore:
-      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/freshrss/freshrss-postgresql-17-cluster
+      destinationPath: s3://postgres-backups/cl01tl/freshrss/freshrss-postgresql-17-cluster
+      endpointURL: http://garage-main.garage:3900
       index: 1
   backup:
     objectStore:
@@ -215,12 +216,20 @@ postgres-17-cluster:
         destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/freshrss/freshrss-postgresql-17-cluster
         index: 1
         retentionPolicy: "2d"
+        isWALArchiver: false
+      - name: garage-local
+        destinationPath: s3://postgres-backups/cl01tl/freshrss/freshrss-postgresql-17-cluster
+        index: 1
+        endpointURL: http://garage-main.garage:3900
+        endpointCredentials: freshrss-postgresql-17-cluster-backup-secret-garage
+        endpointCredentialsIncludeRegion: true
+        retentionPolicy: "7d"
         isWALArchiver: true
-      # - name: garage
+      # - name: garage-remote
       #   destinationPath: s3://postgres-backups/cl01tl/freshrss/freshrss-postgresql-17-cluster
       #   index: 1
       #   endpointURL: https://garage-ps10rp.boreal-beaufort.ts.net:3900
-      #   endpointCredentials: freshrss-postgresql-17-cluster-backup-secret-weekly
+      #   endpointCredentials: freshrss-postgresql-17-cluster-backup-secret-garage
       #   retentionPolicy: "30d"
       #   data:
       #     compression: bzip2
@@ -230,7 +239,12 @@ postgres-17-cluster:
         suspend: false
         schedule: "0 0 0 * * *"
         backupName: external
+      - name: live-backup
+        suspend: false
+        immediate: true
+        schedule: "0 0 0 * * *"
+        backupName: garage-local
       # - name: weekly-backup
       #   suspend: false
       #   schedule: "0 2 4 * * SAT"
-      #   backupName: garage
+      #   backupName: garage-remote
