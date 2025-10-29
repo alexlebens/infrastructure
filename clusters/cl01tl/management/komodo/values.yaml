@@ -192,17 +192,45 @@ postgresql-17-fdb-cluster:
   recovery:
     method: objectStore
     objectStore:
-      destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-fdb-cluster
-      index: 2
+      destinationPath: s3://postgres-backups/cl01tl/komodo/komodo-postgresql-17-fdb-cluster
+      endpointURL: http://garage-main.garage:3900
+      index: 1
+      endpointCredentials: komodo-postgresql-17-cluster-backup-secret-garage
   backup:
     objectStore:
       - name: external
         destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-fdb-cluster
         index: 2
-        retentionPolicy: "1d"
+        retentionPolicy: "7d"
+        isWALArchiver: false
+      - name: garage-local
+        destinationPath: s3://postgres-backups/cl01tl/komodo/komodo-postgresql-17-cluster
+        index: 1
+        endpointURL: http://garage-main.garage:3900
+        endpointCredentials: komodo-postgresql-17-cluster-backup-secret-garage
+        endpointCredentialsIncludeRegion: true
+        retentionPolicy: "7d"
         isWALArchiver: true
+      # - name: garage-remote
+      #   destinationPath: s3://postgres-backups/cl01tl/komodo/komodo-postgresql-17-cluster
+      #   index: 1
+      #   endpointURL: https://garage-ps10rp.boreal-beaufort.ts.net:3900
+      #   endpointCredentials: komodo-postgresql-17-cluster-backup-secret-garage
+      #   retentionPolicy: "30d"
+      #   data:
+      #     compression: bzip2
+      #     jobs: 2
     scheduledBackups:
       - name: daily-backup
         suspend: false
-        schedule: "0 0 */12 * * *"
+        schedule: "0 0 0 * * *"
         backupName: external
+      - name: live-backup
+        suspend: false
+        immediate: true
+        schedule: "0 0 0 * * *"
+        backupName: garage-local
+      # - name: weekly-backup
+      #   suspend: false
+      #   schedule: "0 0 4 * * SAT"
+      #   backupName: garage-remote
