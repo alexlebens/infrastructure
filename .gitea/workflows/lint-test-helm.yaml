@@ -1,0 +1,82 @@
+name: lint-test-helm
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'clusters/**'
+      - ! 'clusters/*/archive'
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'clusters/**'
+      - ! 'clusters/*/archive'
+
+jobs:
+  helm-lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Branch Exists
+        id: check-branch-exists
+        uses: GuillaumeFalourd/branch-exists@v1.1
+        with:
+          branch: "origin/${{ github.base_ref }}"
+
+      - name: Branch Does Not Exist
+        if: steps.check-branch-exists.outputs.exists == 'false'
+        run: echo "Branch origin/${{ github.base_ref }} was not found, likely already merged"
+
+      - name: Set up Helm
+        if: steps.check-branch-exists.outputs.exists == 'true'
+        uses: azure/setup-helm@v4
+        with:
+          token: ${{ secrets.GITEA_TOKEN }}
+          version: latest
+
+      - name: Lint Helm Chart
+        if: steps.check-branch-exists.outputs.exists == 'true'
+        run: |
+          set -e  # Exit immediately if a command exits with a non-zero status.
+
+          TARGET_BRANCH="origin/${{ github.base_ref }}"
+          echo ">> Target branch for diff is: $TARGET_BRANCH"
+
+          CHANGED_FILES=$(git diff --name-only "$TARGET_BRANCH" -- 'clusters/**')
+
+          echo ">> Found changed files:"
+          echo "$CHANGED_FILES"
+
+          # For each changed file, find its parent chart directory (the one with Chart.yaml).
+          # Then, create a unique list of those directories.
+          CHANGED_CHARTS=$(echo "$CHANGED_FILES" | while read -r file; do
+            dir=$(dirname "$file")
+            while [[ "$dir" != "." && ! -f "$dir/Chart.yaml" ]]; do
+              dir=$(dirname "$dir")
+            done
+            if [[ "$dir" != "." ]]; then
+              echo "$dir"
+            fi
+          done | sort -u)
+
+          if [[ -z "$CHANGED_CHARTS" ]]; then
+            echo ">> Could not determine changed charts. This could happen if only files outside a chart were changed."
+            exit 0
+          fi
+
+          echo ">> Running helm lint on changed charts:"
+          echo "$CHANGED_CHARTS"
+
+          echo "$CHANGED_CHARTS" | while read -r chart; do
+            echo ">> Building dependency for "$chart" ..."
+            helm dependency build "$chart"
+            echo ">> Linting $chart..."
+            helm lint "$chart"
+          done
