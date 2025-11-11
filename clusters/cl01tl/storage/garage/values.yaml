@@ -2,7 +2,7 @@ garage:
   controllers:
     main:
       type: deployment
-      replicas: 1
+      replicas: 0
       strategy: Recreate
       revisionHistoryLimit: 3
       containers:
@@ -52,10 +52,13 @@ garage:
 
           metadata_dir = "/var/lib/garage/meta"
           data_dir = "/var/lib/garage/data"
+          metadata_snapshots_dir = "/var/lib/garage/snapshots"
 
-          db_engine = "sqlite"
+          db_engine = "lmdb"
 
-          compression_level = 1
+          metadata_auto_snapshot_interval = "6h"
+
+          compression_level = 3
 
           rpc_bind_addr = "[::]:3901"
           rpc_public_addr = "127.0.0.1:3901"
@@ -119,6 +122,16 @@ garage:
               readOnly: true
               mountPropagation: None
               subPath: garage.toml
+    db:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /var/lib/garage/meta
+              readOnly: false
     data:
       storageClass: synology-iscsi-delete
       accessMode: ReadWriteOnce
@@ -127,5 +140,15 @@ garage:
       advancedMounts:
         main:
           main:
-            - path: /var/lib/garage
+            - path: /var/lib/garage/data
+              readOnly: false
+    snapshots:
+      storageClass: synology-iscsi-delete
+      accessMode: ReadWriteOnce
+      size: 50Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /var/lib/garage/snapshots
               readOnly: false
