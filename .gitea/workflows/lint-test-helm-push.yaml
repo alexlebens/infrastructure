@@ -8,13 +8,6 @@ on:
       - 'clusters/**'
       - ! 'clusters/*/archive'
 
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'clusters/**'
-      - ! 'clusters/*/archive'
-
 jobs:
   helm-lint:
     runs-on: ubuntu-js
@@ -24,29 +17,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check Branch Exists
-        id: check-branch-exists
-        uses: GuillaumeFalourd/branch-exists@v1.1
-        with:
-          branch: ${{ github.base_ref }}
-
-      - name: Branch Does Not Exist
-        if: steps.check-branch-exists.outputs.exists == 'false'
-        run: echo "Branch ${{ github.base_ref }} was not found, likely already merged"
-
       - name: Set up Helm
-        if: steps.check-branch-exists.outputs.exists == 'true'
         uses: azure/setup-helm@v4
         with:
           token: ${{ secrets.GITEA_TOKEN }}
           version: latest
 
       - name: Lint Helm Chart
-        if: steps.check-branch-exists.outputs.exists == 'true'
         run: |
           set -e  # Exit immediately if a command exits with a non-zero status.
 
-          TARGET_BRANCH="origin/${{ github.base_ref }}"
+          TARGET_BRANCH="origin/main"
           echo ">> Target branch for diff is: $TARGET_BRANCH"
 
           CHANGED_FILES=$(git diff --name-only "$TARGET_BRANCH" -- 'clusters/**')
@@ -80,3 +61,18 @@ jobs:
             echo ">> Linting $chart..."
             helm lint "$chart"
           done
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@master
+        if: failure()
+        with:
+          url: '${{ secrets.NTFY_URL }}'
+          topic: '${{ secrets.NTFY_TOPIC }}'
+          title: 'Gitea Action'
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: 'Helm linting for infrastructure repo has failed!'
+          icon: 'https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png'
+          actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/site-profile/actions?workflow=lint-test-docker-push.yaml", "clear": true}]'
+          image: true
