@@ -1,0 +1,77 @@
+backrest:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: garethgeorge/backrest
+            tag: v1.10.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: BACKREST_DATA
+              value: /data
+            - name: BACKREST_CONFIG
+              value: /config/config.json
+            - name: XDG_CACHE_HOME
+              value: /cache
+            - name: TMPDIR
+              value: /tmp
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 9898
+          protocol: TCP
+  persistence:
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /cache
+              readOnly: false
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+              readOnly: false
+    storage:
+      existingClaim: backrest-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /userdata
+              readOnly: true
