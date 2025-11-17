@@ -1,0 +1,122 @@
+booklore:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/booklore-app/booklore
+            tag: v1.10.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: DATABASE_URL
+              value: jdbc:mariadb://booklore-mariadb.mariadb:3306/booklore
+            - name: DATABASE_USERNAME
+              value: booklore
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: booklore-database-secret
+                  key: password
+            - name: BOOKLORE_PORT
+              value: 6060
+            - name: SWAGGER_ENABLED
+              value: false
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 6060
+          protocol: HTTP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data
+              readOnly: false
+    books:
+      existingClaim: booklore-books-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /books
+              readOnly: false
+    books-import:
+      existingClaim: booklore-books-import-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /bookdrop
+              readOnly: false
+mariadb:
+  mariadb:
+    rootPasswordSecretKeyRef:
+      name: mariadb
+      key: root-password
+    storage:
+      size: 5Gi
+    replicas: 3
+    galera:
+      enabled: true
+  databases:
+    - name: booklore
+      characterSet: utf8
+      collate: utf8_general_ci
+      cleanupPolicy: Delete
+      requeueInterval: 10h
+  users:
+    - name: booklore
+      passwordSecretKeyRef:
+        name: mariadb
+        key: password
+      host: "%"
+      cleanupPolicy: Delete
+      requeueInterval: 10h
+      retryInterval: 30s
+  grants:
+    - name: booklore
+      privileges:
+        - "ALL PRIVILEGES"
+      database: "booklore"
+      table: "*"
+      username: booklore
+      grantOption: true
+      host: "%"
+      cleanupPolicy: Delete
+      requeueInterval: 10h
+      retryInterval: 30s
+  backups:
+    - name: backup
+      schedule:
+        cron: "0 0 0 * *"
+        suspend: false
+      compression: gzip
+      maxRetention: 720h # 30 days
+      storage:
+        s3:
+          bucket: mariadb-backups-b230a2f5aecf080a4b372c08
+          prefix: cl01tl
+          endpoint: https://nyc3.digitaloceanspaces.com
+          region:  us-east-1
+          accessKeyIdSecretKeyRef:
+            name: booklore-mariadb-cluster-backup-secret
+            key: access-key-id
+          secretAccessKeySecretKeyRef:
+            name: booklore-mariadb-cluster-backup-secret
+            key: secret-access-key
