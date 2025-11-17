@@ -103,9 +103,9 @@ mariadb-cluster:
       requeueInterval: 10h
       retryInterval: 30s
   physicalBackups:
-    - name: backup
+    - name: backup-external
       schedule:
-        cron: "0 0 * * *"
+        cron: "0 0 * * 0"
         suspend: true
         immediate: true
       compression: gzip
@@ -117,8 +117,27 @@ mariadb-cluster:
           endpoint: nyc3.digitaloceanspaces.com
           region: us-east-1
           accessKeyIdSecretKeyRef:
-            name: booklore-mariadb-cluster-backup-secret
-            key: access-key-id
+            name: booklore-mariadb-cluster-backup-secret-external
+            key: access
           secretAccessKeySecretKeyRef:
-            name: booklore-mariadb-cluster-backup-secret
-            key: secret-access-key
+            name: booklore-mariadb-cluster-backup-secret-external
+            key: secret
+    - name: backup-garage
+      schedule:
+        cron: "0 0 * * *"
+        suspend: false
+        immediate: true
+      compression: gzip
+      maxRetention: 360h
+      storage:
+        s3:
+          bucket: mariadb-backups
+          prefix: cl01tl
+          endpoint: garage-main.garage:3900
+          region: us-east-1
+          accessKeyIdSecretKeyRef:
+            name: booklore-mariadb-cluster-backup-secret-garage
+            key: access
+          secretAccessKeySecretKeyRef:
+            name: booklore-mariadb-cluster-backup-secret-garage
+            key: secret
