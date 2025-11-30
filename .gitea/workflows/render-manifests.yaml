@@ -38,17 +38,24 @@ jobs:
             for chart_path in clusters/$cluster/helm/*; do
               chart_name=$(basename "$chart_path")
 
-              echo ""
-              echo "Rendering chart: $chart_name"
+              echo ">> Rendering chart: $chart_name"
 
               if [ -f "$chart_path/Chart.yaml" ]; then
                   OUTPUT_FILE="clusters/$cluster/manifests/$chart_name.yaml"
 
+                  echo ">> Building helm dependency ..."
+                  helm dependency build
+
+                  echo ">> Linting helm ..."
+                  helm lint "$chart_path" --namespace "$chart_name" --with-subcharts
+
                   helm template "$chart_name" "$chart_path" --namespace "$chart_name" > "$OUTPUT_FILE"
 
-                  echo "Manifests for $chart_name rendered to $OUTPUT_FILE"
+                  echo ">> Manifests for $chart_name rendered to $OUTPUT_FILE"
+                  echo ""
               else
-                  echo "Directory $chart_path does not contain a Chart.yaml. Skipping ..."
+                  echo ">> Directory $chart_path does not contain a Chart.yaml. Skipping ..."
+                  echo ""
               fi
             done
           done
