@@ -138,7 +138,7 @@ jobs:
           GITEA_URL: ${{ secrets.REPO_URL }}
           HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
         run: |
-          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository_owner }}/${{ gitea.repository_name }}/pulls"
+          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls"
 
           PAYLOAD=$( jq -n \
             --arg head "${HEAD_BRANCH}" \
@@ -157,23 +157,28 @@ jobs:
             curl -X POST \
               --silent \
               --write-out '%{http_code}' \
-              --output pr_response \
+              --output response_body.json \
+              --dump-header response_headers.txt \
               --data "$PAYLOAD" \
               -H "Authorization: token ${GITEA_TOKEN}" \
               -H "Content-Type: application/json" \
-              "$API_ENDPOINT"
+              "$API_ENDPOINT" 2> response_errors.txt
           )
 
           echo ">> HTTP Status Code: $HTTP_STATUS"
-          echo ">> Gitea API Response Body ..."
+          echo ">> Response Output ..."
           echo "----"
-          cat pr_response
+          cat response_body.json
+          echo "----"
+          cat response_headers.txt
+          echo "----"
+          cat response_errors.txt
           echo "----"
 
           if [ "$HTTP_STATUS" == "201" ]; then
             echo ">> Pull Request created successfully!"
 
-            PR_URL=$(cat pr_response.json | jq -r .html_url)
+            PR_URL=$(cat response_body.json | jq -r .html_url)
             echo "pull-request-url=${PR_URL}" >> $GITEA_OUTPUT
             echo "pull-request-operation=created" >> $GITEA_OUTPUT
 
