@@ -67,28 +67,48 @@ jobs:
             done
           done
 
-      - name: Create Pull Request
+      # - name: Create Pull Request
+      #   id: pull-request
+      #   uses: peter-evans/create-pull-request@v7
+      #   with:
+      #     token: ${{ secrets.PERSONAL_TOKEN }}
+      #     committer: gitea-bot <gitea-bot@alexlebens.net>
+      #     author: gitea-bot <gitea-bot@alexlebens.net>
+      #     commit-message: "chore: Update manifests after chart change"
+      #     branch: auto/update-manifests
+      #     branch-suffix: timestamp
+      #     base: manifests
+      #     title: "Manifest Update: App Changes"
+      #     body: |
+      #       This PR contains the newly rendered Kubernetes manifests.
+
+      #       * Triggered by workflow run ${{ github.run_id }}
+      #       * Review the `files changed` tab for the full YAML diff.
+      #     labels: |
+      #       manifests
+      #       automated
+      #     add-paths: |
+      #       clusters/cl01tl/manifests/*
+
+      - name: Create Gitea PR
         id: pull-request
-        uses: peter-evans/create-pull-request@v7
+        uses: infinilabs/gitea-pr@v0
         with:
-          token: ${{ secrets.BOT_TOKEN_MANIFEST }}
-          committer: gitea-bot <gitea-bot@alexlebens.net>
-          author: gitea-bot <gitea-bot@alexlebens.net>
+          url: ${{ secrets.GITEA_URL }}
+          token: ${{ secrets.GITEA_TOKEN }}
           commit-message: "chore: Update manifests after chart change"
-          branch: auto/update-manifests
-          branch-suffix: timestamp
-          base: manifests
+          committer: "gitea-bot <gitea-bot@alexlebens.net>"
+          author: "gitea-bot <gitea-bot@alexlebens.net>"
+          base: "manifests"
+          branch: "auto/update-manifests"
           title: "Manifest Update: App Changes"
           body: |
             This PR contains the newly rendered Kubernetes manifests.
 
             * Triggered by workflow run ${{ github.run_id }}
             * Review the `files changed` tab for the full YAML diff.
-          labels: |
-            manifests
-            automated
-          add-paths: |
-            clusters/cl01tl/manifests/*
+          pr-label: "manifests, automated"
+          assignee: "alexlebens"
 
       - name: ntfy Created
         uses: niniyas/ntfy-action@master
