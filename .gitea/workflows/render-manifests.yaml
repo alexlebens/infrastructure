@@ -35,7 +35,7 @@ jobs:
           for cluster in $CLUSTERS; do
             mkdir clusters/$CLUSTER/manifests
 
-            for chart_path in clusters/$CLUSTER/helm/; do
+            for chart_path in clusters/$CLUSTER/helm/*; do
               chart_name=$(basename "$chart_path")
 
               echo ""
@@ -54,11 +54,13 @@ jobs:
           done
 
       - name: Create Pull Request
+        id: pull-request
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITEA_TOKEN }}
           commit-message: "chore: Update manifests after chart change"
           branch: auto/update-manifests
+          branch-suffix: timestamp
           base: manifests
           title: "Manifest Update: App Changes"
           body: |
@@ -66,19 +68,22 @@ jobs:
 
             * Triggered by workflow run ${{ github.run_id }}
             * Review the `files changed` tab for the full YAML diff.
+          labels: |
+            manifests
+            automated
           add-paths: "clusters/*/rendered-manifests/"
 
-      - name: ntfy Success
+      - name: ntfy Created
         uses: niniyas/ntfy-action@master
-        if: success()
+        if: steps.pull-request.outputs.pull-request-operation == 'created'
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
-          title: "Manifest Render Success - Infrastructure"
+          title: "Manifest Render PR Created - Infrastructure"
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Manifest rendering for Infrastructure has succeeded"
+          details: "Manifest rendering for Infrastructure has created PR ${{ steps.pull-request.outputs.pull-request-number }}!"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
 
       - name: ntfy Failed
