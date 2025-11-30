@@ -33,7 +33,7 @@ jobs:
           CLUSTERS: cl01tl
         run: |
           for cluster in $CLUSTERS; do
-            mkdir clusters/$cluster/manifests
+            mkdir -p ${{ gitea.workspace }}/clusters/$cluster/manifests
 
             for chart_path in clusters/$cluster/helm/*; do
               chart_name=$(basename "$chart_path")
@@ -41,7 +41,8 @@ jobs:
               echo ">> Rendering chart: $chart_name"
 
               if [ -f "$chart_path/Chart.yaml" ]; then
-                  OUTPUT_FILE="clusters/$cluster/manifests/$chart_name.yaml"
+                  mkdir -p ${{ gitea.workspace }}/clusters/$cluster/manifests/$chart_name
+                  OUTPUT_FILE="${{ gitea.workspace }}/clusters/$cluster/manifests/$chart_name/$chart_name.yaml"
 
                   cd $chart_path
 
@@ -51,6 +52,7 @@ jobs:
                   echo ">> Linting helm ..."
                   helm lint --namespace "$chart_name" --with-subcharts
 
+                  echo ">> Rendering templates ..."
                   helm template "$chart_name" "$chart_path" --namespace "$chart_name" > "$OUTPUT_FILE"
 
                   echo ">> Manifests for $chart_name rendered to $OUTPUT_FILE"
