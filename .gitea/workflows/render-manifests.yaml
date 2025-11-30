@@ -68,11 +68,9 @@ jobs:
             done
           done
 
-          git restore --staged ${{ gitea.workspace }}/clusters/$cluster/helm
-
       # - name: Create Pull Request
       #   id: pull-request
-      #   uses: peter-evans/create-pull-request@v7
+      #   uses: github.com/quentinlegot/gitea-create-pull-request@c05fb67b080696dcdb2d2b7ea83051ec413f7285
       #   with:
       #     token: ${{ secrets.BOT_TOKEN }}
       #     add-paths: |
@@ -96,6 +94,8 @@ jobs:
       - name: Check for Changes
         id: check-changes
         run: |
+          git restore --staged ${{ gitea.workspace }}/clusters/**/helm
+
           if git status --porcelain | grep -q .; then
             echo ">> Changes detected"
             git status --porcelain
@@ -136,11 +136,9 @@ jobs:
         env:
           GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
           GITEA_URL: ${{ secrets.REPO_URL }}
-          OWNER: ${{ gitea.repository_owner }}
-          REPO: ${{ gitea.repository_name }}
           HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
         run: |
-          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${OWNER}/${REPO}/pulls"
+          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository_owner }}/${{ gitea.repository_name }}/pulls"
 
           PAYLOAD=$(cat <<-EOF
           {
@@ -154,22 +152,39 @@ jobs:
 
           echo ">> Creating PR from branch: ${HEAD_BRANCH} into ${BASE_BRANCH}"
 
-          curl -X POST \
-            -H "Authorization: token ${GITEA_TOKEN}" \
-            -H "Content-Type: application/json" \
-            --data "${PAYLOAD}" \
-            "${API_ENDPOINT}"
+          HTTP_STATUS=$(
+            curl -X POST \
+              -H "Authorization: token ${GITEA_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "${PAYLOAD}" \
+              "${API_ENDPOINT}" 2> /dev/stdout \
+              | tee /tmp/pr_response.json \
+              | head -n 1
+          )
 
-          echo "pull-request-operation=created" >> $GITEA_OUTPUT
+          echo ">> Gitea API Response Body ...
+          echo "----
+          cat /tmp/pr_response.json
+          echo "----
 
+          if [ "$HTTP_STATUS" == "201" ]; then
+            echo ">> Pull Request created successfully!"
 
-      - name: Cleanup Branch
-        if: failure() && steps.create-pull-request.outcome == 'failure'
-        env:
-          HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
-        run: |
-          echo ">> Removing branch: ${HEAD_BRANCH}"
-          git push origin --delete ${HEAD_BRANCH}
+            PR_URL=$(cat /tmp/pr_response.json | jq -r .html_url)
+            echo "pull-request-url=${PR_URL}" >> $GITEA_OUTPUT
+            echo "pull-request-operation=created" >> $GITEA_OUTPUT
+
+          elif [ "$HTTP_STATUS" == "422" ]; then
+            echo ">> Failed to create PR (HTTP 422: Unprocessable Entity), PR may already exist"
+
+          else
+            echo ">> Failed to create PR, HTTP status code: $HTTP_STATUS"
+
+            echo ">> Removing branch: ${HEAD_BRANCH}"
+            git push origin --delete ${HEAD_BRANCH}
+
+            exit 1
+          fi
 
       # - name: ntfy Created
       #   uses: niniyas/ntfy-action@master
