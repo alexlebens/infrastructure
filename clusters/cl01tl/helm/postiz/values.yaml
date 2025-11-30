@@ -1,0 +1,163 @@
+postiz:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/gitroomhq/postiz-app
+            tag: v2.8.3
+            pullPolicy: IfNotPresent
+          env:
+            - name: MAIN_URL
+              value: https://postiz.alexlebens.dev
+            - name: FRONTEND_URL
+              value: https://postiz.alexlebens.dev
+            - name: NEXT_PUBLIC_BACKEND_URL
+              value: https://postiz.alexlebens.dev/api
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-config-secret
+                  key: JWT_SECRET
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-postgresql-17-cluster-app
+                  key: uri
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-redis-config
+                  key: REDIS_URL
+            - name: BACKEND_INTERNAL_URL
+              value: http://localhost:3000
+            - name: IS_GENERAL
+              value: "true"
+            - name: STORAGE_PROVIDER
+              value: local
+            - name: UPLOAD_DIRECTORY
+              value: /uploads
+            - name: NEXT_PUBLIC_UPLOAD_DIRECTORY
+              value: /uploads
+            - name: NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME
+              value: Authentik
+            - name: NEXT_PUBLIC_POSTIZ_OAUTH_LOGO_URL
+              value: https://cdn.jsdelivr.net/gh/selfhst/icons/png/authentik.png
+            - name: POSTIZ_GENERIC_OAUTH
+              value: "true"
+            - name: POSTIZ_OAUTH_URL
+              value: https://auth.alexlebens.dev
+            - name: POSTIZ_OAUTH_AUTH_URL
+              value: https://auth.alexlebens.dev/application/o/authorize/
+            - name: POSTIZ_OAUTH_TOKEN_URL
+              value: https://auth.alexlebens.dev/application/o/token/
+            - name: POSTIZ_OAUTH_USERINFO_URL
+              value: https://auth.alexlebens.dev/application/o/userinfo/
+            - name: POSTIZ_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-oidc-secret
+                  key: client
+            - name: POSTIZ_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-oidc-secret
+                  key: secret
+            - name: POSTIZ_OAUTH_SCOPE
+              value: openid profile email
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 5000
+          protocol: HTTP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    uploads:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /uploads
+              readOnly: false
+cloudflared:
+  name: cloudflared-postiz
+  existingSecretName: postiz-cloudflared-secret
+postgres-17-cluster:
+  mode: recovery
+  cluster:
+    storage:
+      storageClass: local-path
+    walStorage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: true
+  recovery:
+    method: objectStore
+    objectStore:
+      destinationPath: s3://postgres-backups/cl01tl/postiz/postiz-postgresql-17-cluster
+      endpointURL: http://garage-main.garage:3900
+      index: 1
+      endpointCredentials: postiz-postgresql-17-cluster-backup-secret-garage
+  backup:
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/postiz/postiz-postgresql-17-cluster
+        index: 2
+        retentionPolicy: "30d"
+        isWALArchiver: false
+      - name: garage-local
+        destinationPath: s3://postgres-backups/cl01tl/postiz/postiz-postgresql-17-cluster
+        index: 1
+        endpointURL: http://garage-main.garage:3900
+        endpointCredentials: postiz-postgresql-17-cluster-backup-secret-garage
+        endpointCredentialsIncludeRegion: true
+        retentionPolicy: "3d"
+        isWALArchiver: true
+      # - name: garage-remote
+      #   destinationPath: s3://postgres-backups/cl01tl/postiz/postiz-postgresql-17-cluster
+      #   index: 1
+      #   endpointURL: https://garage-ps10rp.boreal-beaufort.ts.net:3900
+      #   endpointCredentials: postiz-postgresql-17-cluster-backup-secret-garage
+      #   retentionPolicy: "30d"
+      #   data:
+      #     compression: bzip2
+      #     jobs: 2
+    scheduledBackups:
+      - name: daily-backup
+        suspend: false
+        schedule: "0 0 0 * * *"
+        backupName: external
+      - name: live-backup
+        suspend: false
+        immediate: true
+        schedule: "0 0 0 * * *"
+        backupName: garage-local
+      # - name: weekly-backup
+      #   suspend: false
+      #   schedule: "0 14 4 * * SAT"
+      #   backupName: garage-remote

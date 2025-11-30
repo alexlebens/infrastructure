@@ -1,0 +1,260 @@
+immich:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/immich-app/immich-server
+            tag: v2.3.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: IMMICH_TELEMETRY_INCLUDE
+              value: all
+            - name: IMMICH_CONFIG_FILE
+              value: /config/immich.json
+            - name: IMMICH_MACHINE_LEARNING_URL
+              value: http://immich-machine-learning.immich:3003
+            - name: REDIS_HOSTNAME
+              value: redis-replication-immich-master
+            - name: DB_VECTOR_EXTENSION
+              value: vectorchord
+            - name: DB_HOSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgresql-17-cluster-app
+                  key: host
+            - name: DB_DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgresql-17-cluster-app
+                  key: dbname
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgresql-17-cluster-app
+                  key: port
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgresql-17-cluster-app
+                  key: user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: immich-postgresql-17-cluster-app
+                  key: password
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/server/ping
+                  port: 2283
+                initialDelaySeconds: 0
+                periodSeconds: 10
+                timeoutSeconds: 1
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/server/ping
+                  port: 2283
+                initialDelaySeconds: 0
+                periodSeconds: 10
+                timeoutSeconds: 1
+                failureThreshold: 3
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/server/ping
+                  port: 2283
+                initialDelaySeconds: 0
+                periodSeconds: 10
+                timeoutSeconds: 1
+                failureThreshold: 30
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              gpu.intel.com/i915: 1
+              cpu: 10m
+              memory: 512Mi
+    machine-learning:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/immich-app/immich-machine-learning
+            tag: v2.3.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: TRANSFORMERS_CACHE
+              value: /cache
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 3003
+                initialDelaySeconds: 0
+                periodSeconds: 10
+                timeoutSeconds: 1
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 3003
+                initialDelaySeconds: 0
+                periodSeconds: 10
+                timeoutSeconds: 1
+                failureThreshold: 3
+            startup:
+              enabled: false
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              gpu.intel.com/i915: 1
+              cpu: 10m
+              memory: 256Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 2283
+          targetPort: 2283
+          protocol: TCP
+        metrics-api:
+          port: 8081
+          targetPort: 8081
+          protocol: TCP
+        metrics-ms:
+          port: 8082
+          targetPort: 8082
+          protocol: TCP
+    machine-learning:
+      controller: machine-learning
+      ports:
+        http:
+          port: 3003
+          targetPort: 3003
+          protocol: TCP
+  persistence:
+    config:
+      enabled: true
+      type: secret
+      name: immich-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /config/immich.json
+              readOnly: true
+              mountPropagation: None
+              subPath: immich.json
+    cache:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        machine-learning:
+          main:
+            - path: /cache
+              readOnly: false
+    media:
+      existingClaim: immich-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /usr/src/app/upload
+              readOnly: false
+postgres-17-cluster:
+  mode: recovery
+  cluster:
+    image:
+      repository: ghcr.io/tensorchord/cloudnative-vectorchord
+      tag: 17.5-0.4.3
+    storage:
+      storageClass: local-path
+    walStorage:
+      storageClass: local-path
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: true
+    postgresql:
+      parameters:
+        shared_buffers: 256MB
+      shared_preload_libraries:
+        - "vchord.so"
+    initdb:
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS "vector";
+        - CREATE EXTENSION IF NOT EXISTS "vchord" CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS "cube" CASCADE;
+        - CREATE EXTENSION IF NOT EXISTS "earthdistance" CASCADE;
+  recovery:
+    method: objectStore
+    objectStore:
+      destinationPath: s3://postgres-backups/cl01tl/immich/immich-postgresql-17-cluster
+      endpointURL: http://garage-main.garage:3900
+      index: 1
+      endpointCredentials: immich-postgresql-17-cluster-backup-secret-garage
+  backup:
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/immich/immich-postgresql-17-cluster
+        index: 2
+        retentionPolicy: "30d"
+        isWALArchiver: false
+      - name: garage-local
+        destinationPath: s3://postgres-backups/cl01tl/immich/immich-postgresql-17-cluster
+        index: 1
+        endpointURL: http://garage-main.garage:3900
+        endpointCredentials: immich-postgresql-17-cluster-backup-secret-garage
+        endpointCredentialsIncludeRegion: true
+        retentionPolicy: "3d"
+        isWALArchiver: true
+      # - name: garage-remote
+      #   destinationPath: s3://postgres-backups/cl01tl/immich/immich-postgresql-17-cluster
+      #   index: 1
+      #   endpointURL: https://garage-ps10rp.boreal-beaufort.ts.net:3900
+      #   endpointCredentials: immich-postgresql-17-cluster-backup-secret-garage
+      #   retentionPolicy: "30d"
+      #   data:
+      #     compression: bzip2
+      #     jobs: 2
+    scheduledBackups:
+      - name: daily-backup
+        suspend: false
+        schedule: "0 0 0 * * *"
+        backupName: external
+      - name: live-backup
+        suspend: false
+        immediate: true
+        schedule: "0 0 0 * * *"
+        backupName: garage-local
+      # - name: weekly-backup
+      #   suspend: false
+      #   schedule: "0 4 4 * * SAT"
+      #   backupName: garage-remote

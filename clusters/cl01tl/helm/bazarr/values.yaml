@@ -1,0 +1,57 @@
+bazarr:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+      containers:
+        main:
+          image:
+            repository: ghcr.io/linuxserver/bazarr
+            tag: 1.5.3@sha256:2be164c02c0bb311b6c32e57d3d0ddc2813d524e89ab51a3408c1bf6fafecda5
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 6767
+          protocol: HTTP
+  persistence:
+    config:
+      forceRename: bazarr-config
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    media:
+      existingClaim: bazarr-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: false

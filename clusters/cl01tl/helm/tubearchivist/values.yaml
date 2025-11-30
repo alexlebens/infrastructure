@@ -1,0 +1,107 @@
+tubearchivist:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: bbilly1/tubearchivist
+            tag: v0.5.8
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: HOST_UID
+              value: 1000
+            - name: HOST_GID
+              value: 1000
+            - name: ES_URL
+              value: https://elasticsearch-tubearchivist-es-http.tubearchivist:9200
+            - name: ES_DISABLE_VERIFY_SSL
+              value: true
+            - name: REDIS_CON
+              value: redis://redis-replication-tubearchivist-master.tubearchivist:6379
+            - name: TA_HOST
+              value: https://tubearchivist.alexlebens.net http://tubearchivist.tubearchivist:80/
+            - name: TA_PORT
+              value: 24000
+            - name: TA_USERNAME
+              value: admin
+          envFrom:
+            - secretRef:
+                name: tubearchivist-config-secret
+          resources:
+            requests:
+              cpu: 10m
+              memory: 1Gi
+        gluetun:
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.40.3@sha256:ef4a44819a60469682c7b5e69183e6401171891feaa60186652d292c59e41b30
+            pullPolicy: IfNotPresent
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tubearchivist-wireguard-conf
+                  key: private-key
+            - name: VPN_PORT_FORWARDING
+              value: "on"
+            - name: PORT_FORWARD_ONLY
+              value: "on"
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 10.0.0.0/8
+            - name: FIREWALL_INPUT_PORTS
+              value: 80,8000,24000
+            - name: DOT
+              value: off
+            - name: DNS_KEEP_NAMESERVER
+              value: on
+            - name: DNS_PLAINTEXT_ADDRESS
+              value: 10.96.0.10
+          securityContext:
+            privileged: True
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              devic.es/tun: "1"
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 24000
+          protocol: HTTP
+  persistence:
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 40Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /cache
+              readOnly: false
+    youtube:
+      existingClaim: tubearchivist-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /youtube
+              readOnly: false

@@ -1,0 +1,148 @@
+sonarr-4k:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+      containers:
+        main:
+          image:
+            repository: ghcr.io/linuxserver/sonarr
+            tag: 4.0.16@sha256:60e5edcac39172294ad22d55d1b08c2c0a9fe658cad2f2c4d742ae017d7874de
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+        metrics:
+          image:
+            repository: ghcr.io/onedr0p/exportarr
+            tag: v2.3.0
+            pullPolicy: IfNotPresent
+          args: ["sonarr"]
+          env:
+            - name: URL
+              value: http://localhost
+            - name: CONFIG
+              value: /config/config.xml
+            - name: PORT
+              value: 9794
+            - name: ENABLE_ADDITIONAL_METRICS
+              value: false
+            - name: ENABLE_UNKNOWN_QUEUE_ITEMS
+              value: false
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8989
+          protocol: HTTP
+        metrics:
+          port: 9794
+          targetPort: 9794
+          protocol: TCP
+  persistence:
+    config:
+      forceRename: sonarr-4k-config
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 20Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+          metrics:
+            - path: /config
+              readOnly: true
+    media:
+      existingClaim: sonarr-4k-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: false
+postgres-17-cluster:
+  nameOverride: sonarr4-4k-postgresql-17
+  mode: recovery
+  cluster:
+    storage:
+      storageClass: local-path
+    walStorage:
+      storageClass: local-path
+    resources:
+      requests:
+        memory: 512Mi
+    monitoring:
+      enabled: true
+      prometheusRule:
+        enabled: true
+    initdb:
+      postInitSQL:
+        - CREATE DATABASE "sonarr-main" OWNER "app";
+        - CREATE DATABASE "sonarr-log" OWNER "app";
+  recovery:
+    method: objectStore
+    objectStore:
+      destinationPath: s3://postgres-backups/cl01tl/sonarr-4k/sonarr4-4k-postgresql-17-cluster
+      endpointURL: http://garage-main.garage:3900
+      index: 1
+      endpointCredentials: sonarr-4k-postgresql-17-cluster-backup-secret-garage
+  backup:
+    objectStore:
+      - name: external
+        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/sonarr4-4k/sonarr4-4k-postgresql-17-cluster
+        index: 1
+        endpointCredentials: sonarr-4k-postgresql-17-cluster-backup-secret
+        retentionPolicy: "30d"
+        isWALArchiver: false
+      - name: garage-local
+        destinationPath: s3://postgres-backups/cl01tl/sonarr-4k/sonarr4-4k-postgresql-17-cluster
+        index: 1
+        endpointURL: http://garage-main.garage:3900
+        endpointCredentials: sonarr-4k-postgresql-17-cluster-backup-secret-garage
+        endpointCredentialsIncludeRegion: true
+        retentionPolicy: "3d"
+        isWALArchiver: true
+      # - name: garage-remote
+      #   destinationPath: s3://postgres-backups/cl01tl/sonarr-4k/sonarr4-4k-postgresql-17-cluster
+      #   index: 1
+      #   endpointURL: https://garage-ps10rp.boreal-beaufort.ts.net:3900
+      #   endpointCredentials: sonarr-4k-postgresql-17-cluster-backup-secret-garage
+      #   retentionPolicy: "30d"
+      #   data:
+      #     compression: bzip2
+      #     jobs: 2
+    scheduledBackups:
+      - name: daily-backup
+        suspend: false
+        schedule: "0 0 0 * * *"
+        backupName: external
+      - name: live-backup
+        suspend: false
+        immediate: true
+        schedule: "0 0 0 * * *"
+        backupName: garage-local
+      # - name: weekly-backup
+      #   suspend: false
+      #   schedule: "0 28 4 * * SAT"
+      #   backupName: garage-remote

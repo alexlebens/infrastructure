@@ -1,0 +1,46 @@
+listenarr:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: therobbiedavis/listenarr
+            tag: canary-0.2.35
+            pullPolicy: IfNotPresent
+          env:
+            - name: LISTENARR_PUBLIC_URL
+              value: https://listenarr.alexlebens.net
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 5000
+          protocol: HTTP
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /app/config
+              readOnly: false
+    media:
+      existingClaim: listenarr-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false

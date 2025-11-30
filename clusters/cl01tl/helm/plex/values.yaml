@@ -1,0 +1,61 @@
+plex:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/linuxserver/plex
+            tag: 1.42.2@sha256:ab81c7313fb5dc4d1f9562e5bbd5e5877a8a3c5ca6b9f9fff3437b5096a2b123
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: VERSION
+              value: docker
+            - name: PLEX_CLAIM
+              value: claim-XmGK2o9x54PbCzQaqj-J
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              gpu.intel.com/i915: 1
+              cpu: 10m
+              memory: 512Mi
+  service:
+    main:
+      controller: main
+      type: LoadBalancer
+      ports:
+        http:
+          port: 32400
+          targetPort: 32400
+          protocol: HTTP
+  persistence:
+    config:
+      forceRename: plex-config
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 100Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    transcode:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /transcode
+              readOnly: false
+    media:
+      existingClaim: plex-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store
+              readOnly: true

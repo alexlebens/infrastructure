@@ -1,0 +1,44 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: immich
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: immich
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: immich
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints:
+    - port: metrics-api
+      interval: 3m
+      scrapeTimeout: 1m
+      path: /metrics
+    - port: metrics-ms
+      interval: 3m
+      scrapeTimeout: 1m
+      path: /metrics
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis-replication-immich
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: redis-replication-immich
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+    redis-operator: "true"
+    env: production
+spec:
+  selector:
+    matchLabels:
+      redis_setup_type: replication
+  endpoints:
+    - port: redis-exporter
+      interval: 30s
+      scrapeTimeout: 10s

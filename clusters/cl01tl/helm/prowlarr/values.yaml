@@ -1,0 +1,51 @@
+prowlarr:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          runAsUser: 568
+          runAsGroup: 568
+          fsGroup: 568
+          fsGroupChangePolicy: OnRootMismatch
+          supplementalGroups:
+            - 44
+            - 100
+            - 109
+            - 65539
+      containers:
+        main:
+          image:
+            repository: ghcr.io/linuxserver/prowlarr
+            tag: 2.3.0@sha256:475853535de3de8441b87c1457c30f2e695f4831228b12b6b7274e9da409d874
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 9696
+          protocol: HTTP
+  persistence:
+    config:
+      forceRename: prowlarr-config
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false

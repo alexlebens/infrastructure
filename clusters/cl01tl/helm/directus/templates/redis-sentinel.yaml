@@ -1,0 +1,30 @@
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisSentinel
+metadata:
+  name: redis-sentinel-directus
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: redis-sentinel-directus
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+spec:
+  clusterSize: 3
+  podSecurityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  redisSentinelConfig:
+    redisReplicationName: redis-replication-directus
+    redisReplicationPassword:
+      secretKeyRef:
+        name: directus-redis-config
+        key: password
+  kubernetesConfig:
+    image: quay.io/opstree/redis-sentinel:v7.0.15
+    imagePullPolicy: IfNotPresent
+    redisSecret:
+      name: directus-redis-config
+      key: password
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
