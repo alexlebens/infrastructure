@@ -148,27 +148,32 @@ jobs:
             '{head: $head, base: $base, title: $title, body: $body'} )
 
           echo ">> Creating PR from branch ${HEAD_BRANCH} into ${BASE_BRANCH}"
+          echo ">> With Endpoint of:"
+          echo "$API_ENDPOINT"
           echo ">> With Payload of:"
           echo "$PAYLOAD"
 
-          #HTTP_STATUS=$(
+          HTTP_STATUS=$(
             curl -X POST \
-              --output /tmp/pr_response \
+              --silent \
+              --write-out '%{http_code}' \
+              --output pr_response \
               --data "$PAYLOAD" \
               -H "Authorization: token ${GITEA_TOKEN}" \
               -H "Content-Type: application/json" \
               "$API_ENDPOINT"
-          #)
+          )
 
+          echo ">> HTTP Status Code: $HTTP_STATUS"
           echo ">> Gitea API Response Body ..."
           echo "----"
-          cat /tmp/pr_response
+          cat pr_response
           echo "----"
 
           if [ "$HTTP_STATUS" == "201" ]; then
             echo ">> Pull Request created successfully!"
 
-            PR_URL=$(cat /tmp/pr_response.json | jq -r .html_url)
+            PR_URL=$(cat pr_response.json | jq -r .html_url)
             echo "pull-request-url=${PR_URL}" >> $GITEA_OUTPUT
             echo "pull-request-operation=created" >> $GITEA_OUTPUT
 
