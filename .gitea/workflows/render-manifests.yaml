@@ -163,7 +163,7 @@ jobs:
 
           echo ">> Gitea API Response Body ...
           echo "----
-          cat /tmp/pr_response.json
+          echo "$(cat /tmp/pr_response.json)"
           echo "----
 
           if [ "$HTTP_STATUS" == "201" ]; then
@@ -175,15 +175,18 @@ jobs:
 
           elif [ "$HTTP_STATUS" == "422" ]; then
             echo ">> Failed to create PR (HTTP 422: Unprocessable Entity), PR may already exist"
-
           else
             echo ">> Failed to create PR, HTTP status code: $HTTP_STATUS"
-
-            echo ">> Removing branch: ${HEAD_BRANCH}"
-            git push origin --delete ${HEAD_BRANCH}
-
             exit 1
           fi
+
+      - name: Cleanup Branch
+        if: failure() && steps.create-pull-request.outcome == 'failure'
+        env:
+          HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
+        run: |
+            echo ">> Removing branch: ${HEAD_BRANCH}"
+            git push origin --delete ${HEAD_BRANCH}
 
       # - name: ntfy Created
       #   uses: niniyas/ntfy-action@master
