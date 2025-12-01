@@ -13,6 +13,8 @@ on:
 env:
   CLUSTERS: cl01tl
   BASE_BRANCH: manifests
+  MAIN_DIR: /workspace/alexlebens/infrastructure
+  MANIFEST_DIR: /workspace/alexlebens/infrastructure-manifests
 
 jobs:
   render-manifests-helm:
@@ -21,7 +23,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          path: infrastructure
+
+      - name: Checkout Manifests
+        uses: actions/checkout@v6
+        with:
+          ref: manifests
+          path: infrastructure-manifests
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
@@ -32,16 +40,13 @@ jobs:
       - name: Render Helm Manifests
         run: |
           for cluster in ${CLUSTERS}; do
-            mkdir -p ${{ gitea.workspace }}/clusters/$cluster/manifests
-
-            for chart_path in ${{ gitea.workspace }}/clusters/$cluster/helm/*; do
+            for chart_path in ${MAIN_DIR}/clusters/$cluster/helm/*; do
               chart_name=$(basename "$chart_path")
-
               echo ">> Rendering chart: $chart_name"
 
               if [ -f "$chart_path/Chart.yaml" ]; then
-                  mkdir -p ${{ gitea.workspace }}/clusters/$cluster/manifests/$chart_name
-                  OUTPUT_FILE="${{ gitea.workspace }}/clusters/$cluster/manifests/$chart_name/$chart_name.yaml"
+                  mkdir -p ${MANIFEST_DIR}/clusters/$cluster/manifests/$chart_name
+                  OUTPUT_FILE="${MANIFEST_DIR}/clusters/$cluster/manifests/$chart_name/$chart_name.yaml"
 
                   cd $chart_path
 
@@ -68,33 +73,10 @@ jobs:
             done
           done
 
-      # - name: Create Pull Request
-      #   id: pull-request
-      #   uses: github.com/quentinlegot/gitea-create-pull-request@c05fb67b080696dcdb2d2b7ea83051ec413f7285
-      #   with:
-      #     token: ${{ secrets.BOT_TOKEN }}
-      #     add-paths: |
-      #       clusters/cl01tl/manifests/*
-      #     commit-message: "chore: Update manifests after chart change"
-      #     committer: gitea-bot <gitea-bot@alexlebens.net>
-      #     author: gitea-bot <gitea-bot@alexlebens.net>
-      #     branch: auto/update-manifests
-      #     branch-suffix: timestamp
-      #     base: manifests
-      #     title: "Manifest Update"
-      #     body: |
-      #       This PR contains the newly rendered Kubernetes manifests.
-
-      #       * Triggered by workflow run ${{ github.run_id }}
-      #       * Review the `files changed` tab for the full YAML diff.
-      #     labels: |
-      #       manifests
-      #       automated
-
       - name: Check for Changes
         id: check-changes
         run: |
-          git restore clusters/**/helm
+          cd ${MANIFEST_DIR}
 
           if git status --porcelain | grep -q .; then
             echo ">> Changes detected"
@@ -109,6 +91,8 @@ jobs:
         id: commit-push
         if: steps.check-changes.outputs.changes-detected == 'true'
         run: |
+          cd ${MANIFEST_DIR}
+
           BRANCH_NAME="auto/update-manifests-$(date +%s)"
 
           # Configure Git
@@ -138,6 +122,8 @@ jobs:
           GITEA_URL: ${{ secrets.REPO_URL }}
           HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
         run: |
+          cd ${MANIFEST_DIR}
+
           API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls"
 
           PAYLOAD=$( jq -n \
@@ -194,33 +180,34 @@ jobs:
         env:
           HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
         run: |
-            echo ">> Removing branch: ${HEAD_BRANCH}"
-            git push origin --delete ${HEAD_BRANCH}
+          echo ">> Removing branch: ${HEAD_BRANCH}"
+          git push origin --delete ${HEAD_BRANCH}
 
-      # - name: ntfy Created
-      #   uses: niniyas/ntfy-action@master
-      #   if: steps.create-pull-request.outputs.pull-request-operation == 'created'
-      #   with:
-      #     url: "${{ secrets.NTFY_URL }}"
-      #     topic: "${{ secrets.NTFY_TOPIC }}"
-      #     title: "Manifest Render PR Created - Infrastructure"
-      #     priority: 3
-      #     headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
-      #     tags: action,successfully,completed
-      #     details: "Manifest rendering for Infrastructure has created PR ${{ steps.pull-request.outputs.pull-request-number }}!"
-      #     icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+      - name: ntfy Created
+        uses: niniyas/ntfy-action@master
+        if: steps.create-pull-request.outputs.pull-request-operation == 'created'
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ secrets.NTFY_TOPIC }}"
+          title: "Manifest Render PR Created - Infrastructure"
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,successfully,completed
+          details: "Manifest rendering for Infrastructure has created a new Pull Request!"
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions: '[{"action": "view", "label": "Open Gitea", "url": "${{ steps.create-pull-request.outputs.pull-request-url }}", "clear": true}]'
 
-      # - name: ntfy Failed
-      #   uses: niniyas/ntfy-action@master
-      #   if: failure()
-      #   with:
-      #     url: "${{ secrets.NTFY_URL }}"
-      #     topic: "${{ secrets.NTFY_TOPIC }}"
-      #     title: "Manifest Render Failure - Infrastructure"
-      #     priority: 4
-      #     headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
-      #     tags: action,failed
-      #     details: "Manifest rendering for Infrastructure has failed!"
-      #     icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
-      #     actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/infrastructure/actions?workflow=render-manifests.yaml", "clear": true}]'
-      #     image: true
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ secrets.NTFY_TOPIC }}"
+          title: "Manifest Render Failure - Infrastructure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "Manifest rendering for Infrastructure has failed!"
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/infrastructure/actions?workflow=render-manifests.yaml", "clear": true}]'
+          image: true
