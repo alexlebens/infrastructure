@@ -12,6 +12,7 @@ on:
 env:
   CLUSTERS: cl01tl
   BASE_BRANCH: manifests
+  BRANCH_NAME: auto/update-manifests
   ASSIGNEE: alexlebens
   MAIN_DIR: /workspace/alexlebens/infrastructure/infrastructure
   MANIFEST_DIR: /workspace/alexlebens/infrastructure/infrastructure-manifests
@@ -37,8 +38,28 @@ jobs:
           token: ${{ secrets.GITEA_TOKEN }}
           version: v3.17.2 # Pending https://github.com/helm/helm/pull/30743
 
-      - name: Remove Prior Manifests
+      - name: Prepare Manifest Directory
         run: |
+          # Configure Git
+          echo ">> Configure git to use gitea-bot as user ..."
+          git config user.name "gitea-bot"
+          git config user.email "gitea-bot@alexlebens.net"
+
+          # Check if pr branch exists
+          git ls-remote --exit-code --heads origin "${BRANCH_NAME}" > /dev/null 2>&1
+
+          if [ $? -eq 0 ]; then
+            echo ">> Branch '${BRANCH_NAME}' exists, pulling changes ..."
+            git fetch origin "${BRANCH_NAME}"
+            git checkout "${BRANCH_NAME}"
+            git pull --rebase
+
+          else
+            echo ">> Branch '${BRANCH_NAME}' does not exist, creating ..."
+            git checkout -b $BRANCH_NAME
+          fi
+
+          # Removing manifest files to account for any deletions and rebuilt from source
           cd ${MANIFEST_DIR}/clusters
           rm -rf ./*
 
@@ -110,25 +131,17 @@ jobs:
         run: |
           cd ${MANIFEST_DIR}
 
-          BRANCH_NAME="auto/update-manifests"
-
-          # Configure Git
-          echo ">> Configure git to use gitea-bot as user ..."
-          git config user.name "gitea-bot"
-          git config user.email "gitea-bot@alexlebens.net"
-
-          # Create a new branch and stage all changes
-          echo ">> Creating and commiting to $BRANCH_NAME ..."
-          git checkout -b $BRANCH_NAME
+          # Add all changes
+          echo ">> Commiting to ${BRANCH_NAME} ..."
           git add .
           git commit -m "chore: Update manifests after change"
 
           # Push the new branch to the remote repository
           REPO_URL="${{ secrets.REPO_URL }}/${{ gitea.repository }}"
           echo ">> Pushing changes to $REPO_URL ..."
-          git push -u "https://oauth2:${{ secrets.BOT_TOKEN }}@$(echo $REPO_URL | sed -e 's|https://||')" $BRANCH_NAME
+          git push -u "https://oauth2:${{ secrets.BOT_TOKEN }}@$(echo $REPO_URL | sed -e 's|https://||')" ${BRANCH_NAME}
 
-          echo "HEAD_BRANCH=$BRANCH_NAME" >> $GITEA_OUTPUT
+          echo "HEAD_BRANCH=${BRANCH_NAME}" >> $GITEA_OUTPUT
           echo "push=true" >> $GITEA_OUTPUT
 
       - name: Check for Pull Request
