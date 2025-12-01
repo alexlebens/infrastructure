@@ -1,0 +1,120 @@
+---
+# Source: stack/templates/application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stack-cl01tl
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: stack-cl01tl
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/part-of: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: http://gitea-http.gitea:3000/alexlebens/infrastructure
+    targetRevision: HEAD
+    path: clusters/cl01tl/manifests/stack
+  destination:
+    name: in-cluster
+    namespace: argocd
+  revisionHistoryLimit: 3
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    retry:
+      limit: 3
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 15m
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PruneLast=true
+      - RespectIgnoreDifferences=true
+---
+# Source: stack/templates/application-set.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: application-set-cl01tl
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: application-set-cl01tl
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/part-of: argocd
+spec:
+  syncPolicy:
+    applicationsSync: create-update
+    preserveResourcesOnDeletion: true
+  generators:
+    - git:
+        repoURL: http://gitea-http.gitea:3000/alexlebens/infrastructure
+        revision: HEAD
+        directories:
+          - path: clusters/cl01tl/manifests/*
+          - path: clusters/cl01tl/manifests/stack
+            exclude: true
+  template:
+    metadata:
+      name: '{{path.basename}}'
+    spec:
+      project: default
+      source:
+        repoURL: http://gitea-http.gitea:3000/alexlebens/infrastructure
+        targetRevision: HEAD
+        path: '{{.path.path}}'
+        helm:
+          releaseName: '{{path.basename}}'
+      destination:
+        name: in-cluster
+        namespace: '{{path.basename}}'
+      revisionHistoryLimit: 3
+      ignoreDifferences:
+        - group: ""
+          kind: Service
+          jqPathExpressions:
+            - .spec.externalName
+        - group: "apps"
+          kind: "Deployment"
+          jsonPointers:
+            - /spec/template/metadata/annotations/checksum~1secret
+            - /spec/template/metadata/annotations/checksum~1secret-core
+            - /spec/template/metadata/annotations/checksum~1secret-jobservice
+            - /spec/template/metadata/annotations/checksum~1tls
+        - group: "apps"
+          kind: "StatefulSet"
+          jsonPointers:
+            - /spec/template/metadata/annotations/checksum~1secret
+            - /spec/template/metadata/annotations/checksum~1tls
+        - group: "apps"
+          kind: StatefulSet
+          jqPathExpressions:
+            - .spec.volumeClaimTemplates[]?.apiVersion
+            - .spec.volumeClaimTemplates[]?.kind
+            - .spec.volumeClaimTemplates[]?.metadata.creationTimestamp
+        - group: ""
+          kind: GpuDevicePlugin
+          jqPathExpressions:
+            - .metadata.annotations[]
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: false
+        retry:
+          limit: 3
+          backoff:
+            duration: 1m
+            factor: 2
+            maxDuration: 15m
+        syncOptions:
+          - CreateNamespace=true
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+          - PruneLast=true
+          - RespectIgnoreDifferences=true
