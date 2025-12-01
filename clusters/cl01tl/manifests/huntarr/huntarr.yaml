@@ -1,0 +1,129 @@
+---
+# Source: huntarr/charts/huntarr/templates/common.yaml
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: huntarr-config
+  labels:
+    app.kubernetes.io/instance: huntarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: huntarr
+    helm.sh/chart: huntarr-4.4.0
+  namespace: huntarr
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "5Gi"
+  storageClassName: "ceph-block"
+---
+# Source: huntarr/charts/huntarr/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: huntarr
+  labels:
+    app.kubernetes.io/instance: huntarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: huntarr
+    app.kubernetes.io/service: huntarr
+    helm.sh/chart: huntarr-4.4.0
+  namespace: huntarr
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 9705
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: huntarr
+    app.kubernetes.io/name: huntarr
+---
+# Source: huntarr/charts/huntarr/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: huntarr
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: huntarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: huntarr
+    helm.sh/chart: huntarr-4.4.0
+  namespace: huntarr
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: huntarr
+      app.kubernetes.io/instance: huntarr
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: huntarr
+        app.kubernetes.io/name: huntarr
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - env:
+          - name: TZ
+            value: US/Central
+          image: ghcr.io/plexguide/huntarr:8.2.10
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+          - mountPath: /config
+            name: config
+      volumes: 
+        - name: config
+          persistentVolumeClaim:
+            claimName: huntarr-config
+---
+# Source: huntarr/templates/http-route.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-route-huntarr
+  namespace: huntarr
+  labels:
+    app.kubernetes.io/name: http-route-huntarr
+    app.kubernetes.io/instance: huntarr
+    app.kubernetes.io/part-of: huntarr
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - huntarr.alexlebens.net
+  rules:
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: huntarr
+          port: 80
+          weight: 100

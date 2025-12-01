@@ -1,0 +1,180 @@
+---
+# Source: listenarr/templates/persistent-volume.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: listenarr-nfs-storage
+  namespace: listenarr
+  labels:
+    app.kubernetes.io/name: listenarr-nfs-storage
+    app.kubernetes.io/instance: listenarr
+    app.kubernetes.io/part-of: listenarr
+spec:
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-client
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    path: /volume2/Storage/Audiobooks
+    server: synologybond.alexlebens.net
+  mountOptions:
+    - vers=4
+    - minorversion=1
+    - noac
+---
+# Source: listenarr/charts/listenarr/templates/common.yaml
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: listenarr
+  labels:
+    app.kubernetes.io/instance: listenarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: listenarr
+    helm.sh/chart: listenarr-4.4.0
+  annotations:
+    helm.sh/resource-policy: keep
+  namespace: listenarr
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "5Gi"
+  storageClassName: "ceph-block"
+---
+# Source: listenarr/templates/persistent-volume-claim.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: listenarr-nfs-storage
+  namespace: listenarr
+  labels:
+    app.kubernetes.io/name: listenarr-nfs-storage
+    app.kubernetes.io/instance: listenarr
+    app.kubernetes.io/part-of: listenarr
+spec:
+  volumeName: listenarr-nfs-storage
+  storageClassName: nfs-client
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Source: listenarr/charts/listenarr/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: listenarr
+  labels:
+    app.kubernetes.io/instance: listenarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: listenarr
+    app.kubernetes.io/service: listenarr
+    helm.sh/chart: listenarr-4.4.0
+  namespace: listenarr
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 5000
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: listenarr
+    app.kubernetes.io/name: listenarr
+---
+# Source: listenarr/charts/listenarr/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: listenarr
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: listenarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: listenarr
+    helm.sh/chart: listenarr-4.4.0
+  namespace: listenarr
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: listenarr
+      app.kubernetes.io/instance: listenarr
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: listenarr
+        app.kubernetes.io/name: listenarr
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - env:
+          - name: LISTENARR_PUBLIC_URL
+            value: https://listenarr.alexlebens.net
+          image: therobbiedavis/listenarr:canary-0.2.35
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          volumeMounts:
+          - mountPath: /app/config
+            name: config
+          - mountPath: /data
+            name: media
+      volumes: 
+        - name: config
+          persistentVolumeClaim:
+            claimName: listenarr
+        - name: media
+          persistentVolumeClaim:
+            claimName: listenarr-nfs-storage
+---
+# Source: listenarr/templates/http-route.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-route-listenarr
+  namespace: listenarr
+  labels:
+    app.kubernetes.io/name: http-route-listenarr
+    app.kubernetes.io/instance: listenarr
+    app.kubernetes.io/part-of: listenarr
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - listenarr.alexlebens.net
+  rules:
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: listenarr
+          port: 80
+          weight: 100

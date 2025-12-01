@@ -1,0 +1,307 @@
+---
+# Source: homepage/charts/homepage/templates/common.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage-dev
+  labels:
+    app.kubernetes.io/instance: homepage-dev
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: homepage
+    helm.sh/chart: homepage-4.4.0
+  namespace: homepage-dev
+data:
+  bookmarks.yaml: ""
+  docker.yaml: ""
+  kubernetes.yaml: ""
+  services.yaml: |
+    - Applications:
+        - Auth:
+            icon: sh-authentik.webp
+            description: Authentik
+            href: https://auth.alexlebens.dev
+            siteMonitor: https://auth.alexlebens.dev
+            statusStyle: dot
+        - Gitea:
+            icon: sh-gitea.webp
+            description: Gitea
+            href: https://gitea.alexlebens.dev
+            siteMonitor: https://gitea.alexlebens.dev
+            statusStyle: dot
+        - Code:
+            icon: sh-visual-studio-code.webp
+            description: VS Code
+            href: https://codeserver.alexlebens.dev
+            siteMonitor: https://codeserver.alexlebens.dev
+            statusStyle: dot
+        - Site:
+            icon: https://web-assets-3bfcb5585cbd63dc365d32a3.nyc3.cdn.digitaloceanspaces.com/alexlebens-net/logo-new-round.png
+            description: Profile Website
+            href: https://www.alexlebens.dev
+            siteMonitor: https://www.alexlebens.dev
+            statusStyle: dot
+        - Content Management:
+            icon: directus.png
+            description: Directus
+            href: https://directus.alexlebens.dev
+            siteMonitor: https://directus.alexlebens.dev
+            statusStyle: dot
+        - Social Media Management:
+            icon: sh-postiz.webp
+            description: Postiz
+            href: https://postiz.alexlebens.dev
+            siteMonitor: https://postiz.alexlebens.dev
+            statusStyle: dot
+        - Chat:
+            icon: sh-element.webp
+            description: Matrix
+            href: https://chat.alexlebens.dev
+            siteMonitor: https://chat.alexlebens.dev
+            statusStyle: dot
+        - Wiki:
+            icon: sh-outline.webp
+            description: Outline
+            href: https://wiki.alexlebens.dev
+            siteMonitor: https://wiki.alexlebens.dev
+            statusStyle: dot
+        - Passwords:
+            icon: sh-vaultwarden-light.webp
+            description: Vaultwarden
+            href: https://passwords.alexlebens.dev
+            siteMonitor: https://passwords.alexlebens.dev
+            statusStyle: dot
+        - Bookmarks:
+            icon: sh-karakeep-light.webp
+            description: Karakeep
+            href: https://karakeep.alexlebens.dev
+            siteMonitor: https://karakeep.alexlebens.dev
+            statusStyle: dot
+        - RSS:
+            icon: sh-freshrss.webp
+            description: FreshRSS
+            href: https://rss.alexlebens.dev
+            siteMonitor: https://rss.alexlebens.dev
+            statusStyle: dot
+  settings.yaml: |
+    favicon: https://web-assets-3bfcb5585cbd63dc365d32a3.nyc3.cdn.digitaloceanspaces.com/alexlebens-net/logo-new-round.svg
+    headerStyle: clean
+    hideVersion: true
+    color: zinc
+    background:
+      image: https://web-assets-3bfcb5585cbd63dc365d32a3.nyc3.cdn.digitaloceanspaces.com/alexlebens-net/background.jpg
+      brightness: 50
+    theme: dark
+    disableCollapse: true
+  widgets.yaml: |
+    - logo:
+        icon: https://web-assets-3bfcb5585cbd63dc365d32a3.nyc3.cdn.digitaloceanspaces.com/alexlebens-net/logo-new-round.png
+    - datetime:
+        text_size: xl
+        format:
+          dateStyle: long
+          timeStyle: short
+          hour12: false
+    - openmeteo:
+        label: St. Paul
+        latitude: 44.954445
+        longitude: -93.091301
+        timezone: America/Chicago
+        units: metric
+        cache: 5
+        format:
+          maximumFractionDigits: 0
+---
+# Source: homepage/charts/homepage/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: homepage-dev
+  labels:
+    app.kubernetes.io/instance: homepage-dev
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: homepage
+    app.kubernetes.io/service: homepage-dev
+    helm.sh/chart: homepage-4.4.0
+  namespace: homepage-dev
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: homepage-dev
+    app.kubernetes.io/name: homepage
+---
+# Source: homepage/charts/cloudflared/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homepage-dev-cloudflared
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: homepage-dev
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/version: 2025.10.0
+    helm.sh/chart: cloudflared-1.23.0
+  namespace: homepage-dev
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: cloudflared
+      app.kubernetes.io/instance: homepage-dev
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: homepage-dev
+        app.kubernetes.io/name: cloudflared
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - args:
+          - tunnel
+          - --protocol
+          - http2
+          - --no-autoupdate
+          - run
+          - --token
+          - $(CF_MANAGED_TUNNEL_TOKEN)
+          env:
+          - name: CF_MANAGED_TUNNEL_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: cf-tunnel-token
+                name: homepage-dev-cloudflared-secret
+          image: cloudflare/cloudflared:2025.11.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+---
+# Source: homepage/charts/homepage/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homepage-dev
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: homepage-dev
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: homepage
+    helm.sh/chart: homepage-4.4.0
+  annotations:
+    reloader.stakater.com/auto: "true"
+  namespace: homepage-dev
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: homepage
+      app.kubernetes.io/instance: homepage-dev
+  template:
+    metadata:
+      annotations: 
+        checksum/configMaps: d1306b9af923c5b3f02566a43c7a141c7168ebf8a74e5ff1a2d5d8082001c1a1
+      labels: 
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: homepage-dev
+        app.kubernetes.io/name: homepage
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - env:
+          - name: HOMEPAGE_ALLOWED_HOSTS
+            value: home.alexlebens.dev
+          image: ghcr.io/gethomepage/homepage:v1.7.0
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+          - mountPath: /app/config/bookmarks.yaml
+            mountPropagation: None
+            name: config
+            readOnly: true
+            subPath: bookmarks.yaml
+          - mountPath: /app/config/docker.yaml
+            mountPropagation: None
+            name: config
+            readOnly: true
+            subPath: docker.yaml
+          - mountPath: /app/config/kubernetes.yaml
+            mountPropagation: None
+            name: config
+            readOnly: true
+            subPath: kubernetes.yaml
+          - mountPath: /app/config/services.yaml
+            mountPropagation: None
+            name: config
+            readOnly: true
+            subPath: services.yaml
+          - mountPath: /app/config/settings.yaml
+            mountPropagation: None
+            name: config
+            readOnly: true
+            subPath: settings.yaml
+          - mountPath: /app/config/widgets.yaml
+            mountPropagation: None
+            name: config
+            readOnly: true
+            subPath: widgets.yaml
+      volumes: 
+        - configMap:
+            name: homepage-dev
+          name: config
+---
+# Source: homepage/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: homepage-dev-cloudflared-secret
+  namespace: homepage-dev
+  labels:
+    app.kubernetes.io/name: homepage-dev-cloudflared-secret
+    app.kubernetes.io/instance: homepage-dev
+    app.kubernetes.io/part-of: homepage-dev
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: cf-tunnel-token
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cloudflare/tunnels/homepage-dev
+        metadataPolicy: None
+        property: token

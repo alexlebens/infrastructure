@@ -1,0 +1,435 @@
+---
+# Source: searxng/charts/searxng/templates/common.yaml
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: searxng-api-data
+  labels:
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: searxng
+    helm.sh/chart: searxng-4.4.0
+  namespace: searxng
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "5Gi"
+  storageClassName: "ceph-block"
+---
+# Source: searxng/charts/searxng/templates/common.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: searxng-browser-data
+  labels:
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: searxng
+    helm.sh/chart: searxng-4.4.0
+  namespace: searxng
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "5Gi"
+  storageClassName: "ceph-block"
+---
+# Source: searxng/charts/searxng/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: searxng-api
+  labels:
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: searxng
+    app.kubernetes.io/service: searxng-api
+    helm.sh/chart: searxng-4.4.0
+  namespace: searxng
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: mail
+  selector:
+    app.kubernetes.io/controller: api
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/name: searxng
+---
+# Source: searxng/charts/searxng/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: searxng-browser
+  labels:
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: searxng
+    app.kubernetes.io/service: searxng-browser
+    helm.sh/chart: searxng-4.4.0
+  namespace: searxng
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: mail
+  selector:
+    app.kubernetes.io/controller: browser
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/name: searxng
+---
+# Source: searxng/charts/searxng/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng-api
+  labels:
+    app.kubernetes.io/controller: api
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: searxng
+    helm.sh/chart: searxng-4.4.0
+  namespace: searxng
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: api
+      app.kubernetes.io/name: searxng
+      app.kubernetes.io/instance: searxng
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: api
+        app.kubernetes.io/instance: searxng
+        app.kubernetes.io/name: searxng
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - env:
+          - name: SEARXNG_BASE_URL
+            value: http://searxng-api.searxng:8080
+          - name: SEARXNG_QUERY_URL
+            value: http://searxng-api.searxng:8080/search?q=<query>
+          - name: SEARXNG_HOSTNAME
+            value: searxng-api.searxng
+          - name: UWSGI_WORKERS
+            value: "4"
+          - name: UWSGI_THREADS
+            value: "4"
+          - name: ENABLE_RAG_WEB_SEARCH
+            value: "true"
+          - name: RAG_WEB_SEARCH_ENGINE
+            value: searxng
+          - name: RAG_WEB_SEARCH_RESULT_COUNT
+            value: "3"
+          - name: RAG_WEB_SEARCH_CONCURRENT_REQUESTS
+            value: "10"
+          image: searxng/searxng:latest@sha256:0124d32d77e0c7360d0b85f5d91882d1837e6ceb243c82e190f5d7e9f1401334
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+          volumeMounts:
+          - mountPath: /etc/searxng
+            name: api-data
+          - mountPath: /etc/searxng/settings.yml
+            mountPropagation: None
+            name: config
+            readOnly: true
+            subPath: settings.yml
+          - mountPath: /etc/searxng/limiter.toml
+            mountPropagation: None
+            name: config
+            readOnly: true
+            subPath: limiter.toml
+      volumes: 
+        - name: api-data
+          persistentVolumeClaim:
+            claimName: searxng-api-data
+        - name: config
+          secret:
+            secretName: searxng-api-config-secret
+---
+# Source: searxng/charts/searxng/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng-browser
+  labels:
+    app.kubernetes.io/controller: browser
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: searxng
+    helm.sh/chart: searxng-4.4.0
+  namespace: searxng
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: browser
+      app.kubernetes.io/name: searxng
+      app.kubernetes.io/instance: searxng
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: browser
+        app.kubernetes.io/instance: searxng
+        app.kubernetes.io/name: searxng
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - env:
+          - name: SEARXNG_BASE_URL
+            value: https://searxng.alexlebens.net/
+          - name: SEARXNG_QUERY_URL
+            value: https://searxng.alexlebens.net/search?q=<query>
+          - name: SEARXNG_HOSTNAME
+            value: searxng.alexlebens.net
+          - name: SEARXNG_REDIS_URL
+            value: redis://redis-replication-searxng-master.searxng:6379/0
+          - name: UWSGI_WORKERS
+            value: "4"
+          - name: UWSGI_THREADS
+            value: "4"
+          image: searxng/searxng:latest@sha256:0124d32d77e0c7360d0b85f5d91882d1837e6ceb243c82e190f5d7e9f1401334
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+          volumeMounts:
+          - mountPath: /etc/searxng
+            name: browser-data
+      volumes: 
+        - name: browser-data
+          persistentVolumeClaim:
+            claimName: searxng-browser-data
+---
+# Source: searxng/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: searxng-api-config-secret
+  namespace: searxng
+  labels:
+    app.kubernetes.io/name: searxng-api-config-secret
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/part-of: searxng
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: settings.yml
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/searxng/api/config
+        metadataPolicy: None
+        property: settings.yml
+    - secretKey: limiter.toml
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/searxng/api/config
+        metadataPolicy: None
+        property: limiter.toml
+---
+# Source: searxng/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: searxng-browser-data-backup-secret
+  namespace: searxng
+  labels:
+    app.kubernetes.io/name: searxng-browser-data-backup-secret
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/part-of: searxng
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  target:
+    template:
+      mergePolicy: Merge
+      engineVersion: v2
+      data:
+        RESTIC_REPOSITORY: "{{ .BUCKET_ENDPOINT }}/searxng/searxng-browser-data"
+  data:
+    - secretKey: BUCKET_ENDPOINT
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/volsync/restic/config
+        metadataPolicy: None
+        property: S3_BUCKET_ENDPOINT
+    - secretKey: RESTIC_PASSWORD
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/volsync/restic/config
+        metadataPolicy: None
+        property: RESTIC_PASSWORD
+    - secretKey: AWS_DEFAULT_REGION
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/volsync/restic/config
+        metadataPolicy: None
+        property: AWS_DEFAULT_REGION
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/volsync-backups
+        metadataPolicy: None
+        property: access_key
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/volsync-backups
+        metadataPolicy: None
+        property: secret_key
+---
+# Source: searxng/templates/http-route.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-route-searxng
+  namespace: searxng
+  labels:
+    app.kubernetes.io/name: http-route-searxng
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/part-of: searxng
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - searxng.alexlebens.net
+  rules:
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: searxng-browser
+          port: 80
+          weight: 100
+---
+# Source: searxng/templates/redis-replication.yaml
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis-replication-searxng
+  namespace: searxng
+  labels:
+    app.kubernetes.io/name: redis-replication-searxng
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/part-of: searxng
+spec:
+  clusterSize: 3
+  podSecurityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v8.0.3
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: ceph-block
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter:v1.48.0
+---
+# Source: searxng/templates/replication-source.yaml
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: searxng-browser-data-backup-source
+  namespace: searxng
+  labels:
+    app.kubernetes.io/name: searxng-browser-data-backup-source
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/part-of: searxng
+spec:
+  sourcePVC: searxng-browser-data
+  trigger:
+    schedule: 0 4 * * *
+  restic:
+    pruneIntervalDays: 7
+    repository: searxng-browser-data-backup-secret
+    retain:
+      hourly: 1
+      daily: 3
+      weekly: 2
+      monthly: 2
+      yearly: 4
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
+---
+# Source: searxng/templates/service-monitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis-replication-searxng
+  namespace: searxng
+  labels:
+    app.kubernetes.io/name: redis-replication-searxng
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/part-of: searxng
+    redis-operator: "true"
+    env: production
+spec:
+  selector:
+    matchLabels:
+      redis_setup_type: replication
+  endpoints:
+    - port: redis-exporter
+      interval: 30s
+      scrapeTimeout: 10s
