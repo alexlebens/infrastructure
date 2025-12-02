@@ -35,3 +35,199 @@ spec:
       - ServerSideApply=true
       - PruneLast=true
       - RespectIgnoreDifferences=true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: cilium
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/part-of: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: http://gitea-http.gitea:3000/alexlebens/infrastructure
+    targetRevision: manifests
+    path: clusters/cl01tl/manifests/cilium
+  destination:
+    name: in-cluster
+    namespace: kube-system
+  revisionHistoryLimit: 3
+  ignoreDifferences:
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+      jqPathExpressions:
+        - .spec.endpoints[]?.relabelings[]?.action
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    retry:
+      limit: 3
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 15m
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PruneLast=true
+      - RespectIgnoreDifferences=true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: coredns
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: coredns
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/part-of: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: http://gitea-http.gitea:3000/alexlebens/infrastructure
+    targetRevision: manifests
+    path: clusters/cl01tl/manifests/coredns
+  destination:
+    name: in-cluster
+    namespace: kube-system
+  revisionHistoryLimit: 3
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 3
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 15m
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PruneLast=true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: metrics-server
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/part-of: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: http://gitea-http.gitea:3000/alexlebens/infrastructure
+    targetRevision: manifests
+    path: clusters/cl01tl/manifests/metrics-server
+  destination:
+    name: in-cluster
+    namespace: kube-system
+  revisionHistoryLimit: 3
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 3
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 15m
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PruneLast=true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubelet-serving-cert-approver
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: kubelet-serving-cert-approver
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/part-of: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: http://gitea-http.gitea:3000/alexlebens/infrastructure
+    targetRevision: manifests
+    path: clusters/cl01tl/manifests/kubelet-serving-cert-approver
+  destination:
+    name: in-cluster
+    namespace: kubelet-serving-cert-approver
+  revisionHistoryLimit: 3
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    retry:
+      limit: 3
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 15m
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PruneLast=true
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-operator-crds
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: prometheus-operator-crds
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/part-of: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: http://gitea-http.gitea:3000/alexlebens/infrastructure
+    targetRevision: manifests
+    path: clusters/cl01tl/manifests/prometheus-operator-crds
+  destination:
+    name: in-cluster
+    namespace: kube-system
+  revisionHistoryLimit: 3
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    retry:
+      limit: 3
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 15m
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PruneLast=true
