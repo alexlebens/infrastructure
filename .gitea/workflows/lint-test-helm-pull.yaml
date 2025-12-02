@@ -67,6 +67,11 @@ jobs:
           echo "$CHANGED_CHARTS"
 
           echo "$CHANGED_CHARTS" | while read -r chart; do
+            helm dependency list --max-col-width 120 2> /dev/null \
+              | tail +2 | head -n -1 \
+              | awk '{ print "helm repo add " $1 " " $3 }' \
+              | while read cmd; do echo "$cmd" | sh; done || true
+
             echo ">> Building dependency for "$chart" ..."
             helm dependency build "$chart"
             echo ">> Linting $chart..."
