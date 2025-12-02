@@ -1,0 +1,4999 @@
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-controller/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+automountServiceAccountToken: true
+metadata:
+  name: argo-workflows-argo-events-controller-manager
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-controller-manager
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-webhook/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+automountServiceAccountToken: true
+metadata:
+  name: argo-workflows-argo-events-events-webhook
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-events-webhook
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: events-webhook
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-controller-sa.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argo-workflows-workflow-controller
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+---
+# Source: argo-workflows/charts/argo-workflows/templates/server/server-sa.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argo-workflows-server
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-server
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: server
+    app: server
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-controller/config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argo-workflows-argo-events-controller-manager
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-controller-manager
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+data:
+  controller-config.yaml: |
+    eventBus:
+      nats:
+        versions:
+        - version: latest
+          natsStreamingImage: nats-streaming:latest
+          metricsExporterImage: natsio/prometheus-nats-exporter:latest
+        - version: 0.22.1
+          natsStreamingImage: nats-streaming:0.22.1
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.8.0
+      jetstream:
+        # Default JetStream settings, could be overridden by EventBus JetStream specs
+        settings: |
+          # https://docs.nats.io/running-a-nats-service/configuration#jetstream
+          # Only configure "max_memory_store" or "max_file_store", do not set "store_dir" as it has been hardcoded.
+          max_memory_store: -1
+          max_file_store: -1
+        # The default properties of the streams to be created in this JetStream service
+        streamConfig: |
+          maxMsgs: 1e+06
+          maxAge: 72h
+          maxBytes: 1GB
+          replicas: 3
+          duplicates: 300s
+          retention: 0
+          discard: 0
+        versions:
+        - version: latest
+          natsImage: nats:2.10.10
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.14.0
+          configReloaderImage: natsio/nats-server-config-reloader:0.14.0
+          startCommand: /nats-server
+        - version: 2.8.1
+          natsImage: nats:2.8.1
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.9.1
+          configReloaderImage: natsio/nats-server-config-reloader:0.7.0
+          startCommand: /nats-server
+        - version: 2.8.1-alpine
+          natsImage: nats:2.8.1-alpine
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.9.1
+          configReloaderImage: natsio/nats-server-config-reloader:0.7.0
+          startCommand: nats-server
+        - version: 2.8.2
+          natsImage: nats:2.8.2
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.9.1
+          configReloaderImage: natsio/nats-server-config-reloader:0.7.0
+          startCommand: /nats-server
+        - version: 2.8.2-alpine
+          natsImage: nats:2.8.2-alpine
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.9.1
+          configReloaderImage: natsio/nats-server-config-reloader:0.7.0
+          startCommand: nats-server
+        - version: 2.9.1
+          natsImage: nats:2.9.1
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.9.1
+          configReloaderImage: natsio/nats-server-config-reloader:0.7.0
+          startCommand: /nats-server
+        - version: 2.9.12
+          natsImage: nats:2.9.12
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.9.1
+          configReloaderImage: natsio/nats-server-config-reloader:0.7.0
+          startCommand: /nats-server
+        - version: 2.9.16
+          natsImage: nats:2.9.16
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.9.1
+          configReloaderImage: natsio/nats-server-config-reloader:0.7.0
+          startCommand: /nats-server
+        - version: 2.10.10
+          natsImage: nats:2.10.10
+          metricsExporterImage: natsio/prometheus-nats-exporter:0.14.0
+          configReloaderImage: natsio/nats-server-config-reloader:0.14.0
+          startCommand: /nats-server
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-controller-config-map.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argo-workflows-workflow-controller-configmap
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-cm
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+data:
+  config: |
+    metricsConfig:
+      enabled: true
+      path: /metrics
+      port: 9090
+      ignoreErrors: false
+      secure: false
+    persistence:
+      archive: true
+      connectionPool:
+        maxIdleConns: 100
+        maxOpenConns: 0
+      nodeStatusOffLoad: true
+      postgresql:
+        database: app
+        host: argo-workflows-postgresql-17-cluster-rw
+        passwordSecret:
+          key: password
+          name: argo-workflows-postgresql-17-cluster-app
+        port: 5432
+        ssl: false
+        sslMode: disable
+        tableName: app
+        userNameSecret:
+          key: username
+          name: argo-workflows-postgresql-17-cluster-app
+    sso:
+      issuer: https://authentik.alexlebens.net/application/o/argo-workflows/
+      clientId:
+        name: argo-workflows-oidc-secret
+        key: client
+      clientSecret:
+        name: argo-workflows-oidc-secret
+        key: secret
+      redirectUrl: "https://argo-workflows.alexlebens.net/oauth2/callback"
+      rbac:
+        enabled: false
+      scopes:
+        - openid
+        - email
+        - profile
+    nodeEvents:
+      enabled: true
+    workflowEvents:
+      enabled: true
+---
+# Source: argo-workflows/charts/argo-events/templates/crds/eventbus-crd.yml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: eventbus.argoproj.io
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: argoproj.io
+  names:
+    kind: EventBus
+    listKind: EventBusList
+    plural: eventbus
+    shortNames:
+    - eb
+    singular: eventbus
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            x-kubernetes-preserve-unknown-fields: true
+          status:
+            type: object
+            x-kubernetes-preserve-unknown-fields: true
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: argo-workflows/charts/argo-events/templates/crds/eventsource-crd.yml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: eventsources.argoproj.io
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: argoproj.io
+  names:
+    kind: EventSource
+    listKind: EventSourceList
+    plural: eventsources
+    shortNames:
+    - es
+    singular: eventsource
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            x-kubernetes-preserve-unknown-fields: true
+          status:
+            type: object
+            x-kubernetes-preserve-unknown-fields: true
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: argo-workflows/charts/argo-events/templates/crds/sensor-crd.yml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sensors.argoproj.io
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: argoproj.io
+  names:
+    kind: Sensor
+    listKind: SensorList
+    plural: sensors
+    shortNames:
+    - sn
+    singular: sensor
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            x-kubernetes-preserve-unknown-fields: true
+          status:
+            type: object
+            x-kubernetes-preserve-unknown-fields: true
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: argo-workflows/charts/argo-workflows/templates/crds/argoproj.io_clusterworkflowtemplates.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clusterworkflowtemplates.argoproj.io
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: argoproj.io
+  names:
+    kind: ClusterWorkflowTemplate
+    listKind: ClusterWorkflowTemplateList
+    plural: clusterworkflowtemplates
+    shortNames:
+    - clusterwftmpl
+    - cwft
+    singular: clusterworkflowtemplate
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            x-kubernetes-map-type: atomic
+            x-kubernetes-preserve-unknown-fields: true
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+---
+# Source: argo-workflows/charts/argo-workflows/templates/crds/argoproj.io_cronworkflows.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: cronworkflows.argoproj.io
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: argoproj.io
+  names:
+    kind: CronWorkflow
+    listKind: CronWorkflowList
+    plural: cronworkflows
+    shortNames:
+    - cwf
+    - cronwf
+    singular: cronworkflow
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            x-kubernetes-map-type: atomic
+            x-kubernetes-preserve-unknown-fields: true
+          status:
+            type: object
+            x-kubernetes-map-type: atomic
+            x-kubernetes-preserve-unknown-fields: true
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+---
+# Source: argo-workflows/charts/argo-workflows/templates/crds/argoproj.io_workflowartifactgctasks.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workflowartifactgctasks.argoproj.io
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: argoproj.io
+  names:
+    kind: WorkflowArtifactGCTask
+    listKind: WorkflowArtifactGCTaskList
+    plural: workflowartifactgctasks
+    shortNames:
+    - wfat
+    singular: workflowartifactgctask
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              artifactsByNode:
+                additionalProperties:
+                  properties:
+                    archiveLocation:
+                      properties:
+                        archiveLogs:
+                          type: boolean
+                        artifactory:
+                          properties:
+                            passwordSecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            url:
+                              type: string
+                            usernameSecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                          required:
+                          - url
+                          type: object
+                        azure:
+                          properties:
+                            accountKeySecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            blob:
+                              type: string
+                            container:
+                              type: string
+                            endpoint:
+                              type: string
+                            useSDKCreds:
+                              type: boolean
+                          required:
+                          - blob
+                          - container
+                          - endpoint
+                          type: object
+                        gcs:
+                          properties:
+                            bucket:
+                              type: string
+                            key:
+                              type: string
+                            serviceAccountKeySecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                          required:
+                          - key
+                          type: object
+                        git:
+                          properties:
+                            branch:
+                              type: string
+                            depth:
+                              format: int64
+                              type: integer
+                            disableSubmodules:
+                              type: boolean
+                            fetch:
+                              items:
+                                type: string
+                              type: array
+                            insecureIgnoreHostKey:
+                              type: boolean
+                            insecureSkipTLS:
+                              type: boolean
+                            passwordSecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            repo:
+                              type: string
+                            revision:
+                              type: string
+                            singleBranch:
+                              type: boolean
+                            sshPrivateKeySecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            usernameSecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                          required:
+                          - repo
+                          type: object
+                        hdfs:
+                          properties:
+                            addresses:
+                              items:
+                                type: string
+                              type: array
+                            dataTransferProtection:
+                              type: string
+                            force:
+                              type: boolean
+                            hdfsUser:
+                              type: string
+                            krbCCacheSecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            krbConfigConfigMap:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            krbKeytabSecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            krbRealm:
+                              type: string
+                            krbServicePrincipalName:
+                              type: string
+                            krbUsername:
+                              type: string
+                            path:
+                              type: string
+                          required:
+                          - path
+                          type: object
+                        http:
+                          properties:
+                            auth:
+                              properties:
+                                basicAuth:
+                                  properties:
+                                    passwordSecret:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          default: ""
+                                          type: string
+                                        optional:
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    usernameSecret:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          default: ""
+                                          type: string
+                                        optional:
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                  type: object
+                                clientCert:
+                                  properties:
+                                    clientCertSecret:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          default: ""
+                                          type: string
+                                        optional:
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    clientKeySecret:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          default: ""
+                                          type: string
+                                        optional:
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                  type: object
+                                oauth2:
+                                  properties:
+                                    clientIDSecret:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          default: ""
+                                          type: string
+                                        optional:
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    clientSecretSecret:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          default: ""
+                                          type: string
+                                        optional:
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    endpointParams:
+                                      items:
+                                        properties:
+                                          key:
+                                            type: string
+                                          value:
+                                            type: string
+                                        required:
+                                        - key
+                                        type: object
+                                      type: array
+                                    scopes:
+                                      items:
+                                        type: string
+                                      type: array
+                                    tokenURLSecret:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          default: ""
+                                          type: string
+                                        optional:
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                  type: object
+                              type: object
+                            headers:
+                              items:
+                                properties:
+                                  name:
+                                    type: string
+                                  value:
+                                    type: string
+                                required:
+                                - name
+                                - value
+                                type: object
+                              type: array
+                            url:
+                              type: string
+                          required:
+                          - url
+                          type: object
+                        oss:
+                          properties:
+                            accessKeySecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            bucket:
+                              type: string
+                            createBucketIfNotPresent:
+                              type: boolean
+                            endpoint:
+                              type: string
+                            key:
+                              type: string
+                            lifecycleRule:
+                              properties:
+                                markDeletionAfterDays:
+                                  format: int32
+                                  type: integer
+                                markInfrequentAccessAfterDays:
+                                  format: int32
+                                  type: integer
+                              type: object
+                            secretKeySecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            securityToken:
+                              type: string
+                            useSDKCreds:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                        raw:
+                          properties:
+                            data:
+                              type: string
+                          required:
+                          - data
+                          type: object
+                        s3:
+                          properties:
+                            accessKeySecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            bucket:
+                              type: string
+                            caSecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            createBucketIfNotPresent:
+                              properties:
+                                objectLocking:
+                                  type: boolean
+                              type: object
+                            encryptionOptions:
+                              properties:
+                                enableEncryption:
+                                  type: boolean
+                                kmsEncryptionContext:
+                                  type: string
+                                kmsKeyId:
+                                  type: string
+                                serverSideCustomerKeySecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              type: object
+                            endpoint:
+                              type: string
+                            insecure:
+                              type: boolean
+                            key:
+                              type: string
+                            region:
+                              type: string
+                            roleARN:
+                              type: string
+                            secretKeySecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            sessionTokenSecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            useSDKCreds:
+                              type: boolean
+                          type: object
+                      type: object
+                    artifacts:
+                      additionalProperties:
+                        properties:
+                          archive:
+                            properties:
+                              none:
+                                type: object
+                              tar:
+                                properties:
+                                  compressionLevel:
+                                    format: int32
+                                    type: integer
+                                type: object
+                              zip:
+                                type: object
+                            type: object
+                          archiveLogs:
+                            type: boolean
+                          artifactGC:
+                            properties:
+                              podMetadata:
+                                properties:
+                                  annotations:
+                                    additionalProperties:
+                                      type: string
+                                    type: object
+                                  labels:
+                                    additionalProperties:
+                                      type: string
+                                    type: object
+                                type: object
+                              serviceAccountName:
+                                type: string
+                              strategy:
+                                enum:
+                                - ""
+                                - OnWorkflowCompletion
+                                - OnWorkflowDeletion
+                                - Never
+                                type: string
+                            type: object
+                          artifactory:
+                            properties:
+                              passwordSecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              url:
+                                type: string
+                              usernameSecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                            required:
+                            - url
+                            type: object
+                          azure:
+                            properties:
+                              accountKeySecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              blob:
+                                type: string
+                              container:
+                                type: string
+                              endpoint:
+                                type: string
+                              useSDKCreds:
+                                type: boolean
+                            required:
+                            - blob
+                            - container
+                            - endpoint
+                            type: object
+                          deleted:
+                            type: boolean
+                          from:
+                            type: string
+                          fromExpression:
+                            type: string
+                          gcs:
+                            properties:
+                              bucket:
+                                type: string
+                              key:
+                                type: string
+                              serviceAccountKeySecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                            required:
+                            - key
+                            type: object
+                          git:
+                            properties:
+                              branch:
+                                type: string
+                              depth:
+                                format: int64
+                                type: integer
+                              disableSubmodules:
+                                type: boolean
+                              fetch:
+                                items:
+                                  type: string
+                                type: array
+                              insecureIgnoreHostKey:
+                                type: boolean
+                              insecureSkipTLS:
+                                type: boolean
+                              passwordSecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              repo:
+                                type: string
+                              revision:
+                                type: string
+                              singleBranch:
+                                type: boolean
+                              sshPrivateKeySecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              usernameSecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                            required:
+                            - repo
+                            type: object
+                          globalName:
+                            type: string
+                          hdfs:
+                            properties:
+                              addresses:
+                                items:
+                                  type: string
+                                type: array
+                              dataTransferProtection:
+                                type: string
+                              force:
+                                type: boolean
+                              hdfsUser:
+                                type: string
+                              krbCCacheSecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              krbConfigConfigMap:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              krbKeytabSecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              krbRealm:
+                                type: string
+                              krbServicePrincipalName:
+                                type: string
+                              krbUsername:
+                                type: string
+                              path:
+                                type: string
+                            required:
+                            - path
+                            type: object
+                          http:
+                            properties:
+                              auth:
+                                properties:
+                                  basicAuth:
+                                    properties:
+                                      passwordSecret:
+                                        properties:
+                                          key:
+                                            type: string
+                                          name:
+                                            default: ""
+                                            type: string
+                                          optional:
+                                            type: boolean
+                                        required:
+                                        - key
+                                        type: object
+                                        x-kubernetes-map-type: atomic
+                                      usernameSecret:
+                                        properties:
+                                          key:
+                                            type: string
+                                          name:
+                                            default: ""
+                                            type: string
+                                          optional:
+                                            type: boolean
+                                        required:
+                                        - key
+                                        type: object
+                                        x-kubernetes-map-type: atomic
+                                    type: object
+                                  clientCert:
+                                    properties:
+                                      clientCertSecret:
+                                        properties:
+                                          key:
+                                            type: string
+                                          name:
+                                            default: ""
+                                            type: string
+                                          optional:
+                                            type: boolean
+                                        required:
+                                        - key
+                                        type: object
+                                        x-kubernetes-map-type: atomic
+                                      clientKeySecret:
+                                        properties:
+                                          key:
+                                            type: string
+                                          name:
+                                            default: ""
+                                            type: string
+                                          optional:
+                                            type: boolean
+                                        required:
+                                        - key
+                                        type: object
+                                        x-kubernetes-map-type: atomic
+                                    type: object
+                                  oauth2:
+                                    properties:
+                                      clientIDSecret:
+                                        properties:
+                                          key:
+                                            type: string
+                                          name:
+                                            default: ""
+                                            type: string
+                                          optional:
+                                            type: boolean
+                                        required:
+                                        - key
+                                        type: object
+                                        x-kubernetes-map-type: atomic
+                                      clientSecretSecret:
+                                        properties:
+                                          key:
+                                            type: string
+                                          name:
+                                            default: ""
+                                            type: string
+                                          optional:
+                                            type: boolean
+                                        required:
+                                        - key
+                                        type: object
+                                        x-kubernetes-map-type: atomic
+                                      endpointParams:
+                                        items:
+                                          properties:
+                                            key:
+                                              type: string
+                                            value:
+                                              type: string
+                                          required:
+                                          - key
+                                          type: object
+                                        type: array
+                                      scopes:
+                                        items:
+                                          type: string
+                                        type: array
+                                      tokenURLSecret:
+                                        properties:
+                                          key:
+                                            type: string
+                                          name:
+                                            default: ""
+                                            type: string
+                                          optional:
+                                            type: boolean
+                                        required:
+                                        - key
+                                        type: object
+                                        x-kubernetes-map-type: atomic
+                                    type: object
+                                type: object
+                              headers:
+                                items:
+                                  properties:
+                                    name:
+                                      type: string
+                                    value:
+                                      type: string
+                                  required:
+                                  - name
+                                  - value
+                                  type: object
+                                type: array
+                              url:
+                                type: string
+                            required:
+                            - url
+                            type: object
+                          mode:
+                            format: int32
+                            type: integer
+                          name:
+                            type: string
+                          optional:
+                            type: boolean
+                          oss:
+                            properties:
+                              accessKeySecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              bucket:
+                                type: string
+                              createBucketIfNotPresent:
+                                type: boolean
+                              endpoint:
+                                type: string
+                              key:
+                                type: string
+                              lifecycleRule:
+                                properties:
+                                  markDeletionAfterDays:
+                                    format: int32
+                                    type: integer
+                                  markInfrequentAccessAfterDays:
+                                    format: int32
+                                    type: integer
+                                type: object
+                              secretKeySecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              securityToken:
+                                type: string
+                              useSDKCreds:
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                          path:
+                            type: string
+                          raw:
+                            properties:
+                              data:
+                                type: string
+                            required:
+                            - data
+                            type: object
+                          recurseMode:
+                            type: boolean
+                          s3:
+                            properties:
+                              accessKeySecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              bucket:
+                                type: string
+                              caSecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              createBucketIfNotPresent:
+                                properties:
+                                  objectLocking:
+                                    type: boolean
+                                type: object
+                              encryptionOptions:
+                                properties:
+                                  enableEncryption:
+                                    type: boolean
+                                  kmsEncryptionContext:
+                                    type: string
+                                  kmsKeyId:
+                                    type: string
+                                  serverSideCustomerKeySecret:
+                                    properties:
+                                      key:
+                                        type: string
+                                      name:
+                                        default: ""
+                                        type: string
+                                      optional:
+                                        type: boolean
+                                    required:
+                                    - key
+                                    type: object
+                                    x-kubernetes-map-type: atomic
+                                type: object
+                              endpoint:
+                                type: string
+                              insecure:
+                                type: boolean
+                              key:
+                                type: string
+                              region:
+                                type: string
+                              roleARN:
+                                type: string
+                              secretKeySecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              sessionTokenSecret:
+                                properties:
+                                  key:
+                                    type: string
+                                  name:
+                                    default: ""
+                                    type: string
+                                  optional:
+                                    type: boolean
+                                required:
+                                - key
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              useSDKCreds:
+                                type: boolean
+                            type: object
+                          subPath:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: object
+                  type: object
+                type: object
+            type: object
+          status:
+            properties:
+              artifactResultsByNode:
+                additionalProperties:
+                  properties:
+                    artifactResults:
+                      additionalProperties:
+                        properties:
+                          error:
+                            type: string
+                          name:
+                            type: string
+                          success:
+                            type: boolean
+                        required:
+                        - name
+                        type: object
+                      type: object
+                  type: object
+                type: object
+            type: object
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: argo-workflows/charts/argo-workflows/templates/crds/argoproj.io_workfloweventbindings.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workfloweventbindings.argoproj.io
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: argoproj.io
+  names:
+    kind: WorkflowEventBinding
+    listKind: WorkflowEventBindingList
+    plural: workfloweventbindings
+    shortNames:
+    - wfeb
+    singular: workfloweventbinding
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              event:
+                properties:
+                  selector:
+                    type: string
+                required:
+                - selector
+                type: object
+              submit:
+                properties:
+                  arguments:
+                    properties:
+                      artifacts:
+                        items:
+                          properties:
+                            archive:
+                              properties:
+                                none:
+                                  type: object
+                                tar:
+                                  properties:
+                                    compressionLevel:
+                                      format: int32
+                                      type: integer
+                                  type: object
+                                zip:
+                                  type: object
+                              type: object
+                            archiveLogs:
+                              type: boolean
+                            artifactGC:
+                              properties:
+                                podMetadata:
+                                  properties:
+                                    annotations:
+                                      additionalProperties:
+                                        type: string
+                                      type: object
+                                    labels:
+                                      additionalProperties:
+                                        type: string
+                                      type: object
+                                  type: object
+                                serviceAccountName:
+                                  type: string
+                                strategy:
+                                  enum:
+                                  - ""
+                                  - OnWorkflowCompletion
+                                  - OnWorkflowDeletion
+                                  - Never
+                                  type: string
+                              type: object
+                            artifactory:
+                              properties:
+                                passwordSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                url:
+                                  type: string
+                                usernameSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              required:
+                              - url
+                              type: object
+                            azure:
+                              properties:
+                                accountKeySecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                blob:
+                                  type: string
+                                container:
+                                  type: string
+                                endpoint:
+                                  type: string
+                                useSDKCreds:
+                                  type: boolean
+                              required:
+                              - blob
+                              - container
+                              - endpoint
+                              type: object
+                            deleted:
+                              type: boolean
+                            from:
+                              type: string
+                            fromExpression:
+                              type: string
+                            gcs:
+                              properties:
+                                bucket:
+                                  type: string
+                                key:
+                                  type: string
+                                serviceAccountKeySecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              required:
+                              - key
+                              type: object
+                            git:
+                              properties:
+                                branch:
+                                  type: string
+                                depth:
+                                  format: int64
+                                  type: integer
+                                disableSubmodules:
+                                  type: boolean
+                                fetch:
+                                  items:
+                                    type: string
+                                  type: array
+                                insecureIgnoreHostKey:
+                                  type: boolean
+                                insecureSkipTLS:
+                                  type: boolean
+                                passwordSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                repo:
+                                  type: string
+                                revision:
+                                  type: string
+                                singleBranch:
+                                  type: boolean
+                                sshPrivateKeySecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                usernameSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              required:
+                              - repo
+                              type: object
+                            globalName:
+                              type: string
+                            hdfs:
+                              properties:
+                                addresses:
+                                  items:
+                                    type: string
+                                  type: array
+                                dataTransferProtection:
+                                  type: string
+                                force:
+                                  type: boolean
+                                hdfsUser:
+                                  type: string
+                                krbCCacheSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                krbConfigConfigMap:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                krbKeytabSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                krbRealm:
+                                  type: string
+                                krbServicePrincipalName:
+                                  type: string
+                                krbUsername:
+                                  type: string
+                                path:
+                                  type: string
+                              required:
+                              - path
+                              type: object
+                            http:
+                              properties:
+                                auth:
+                                  properties:
+                                    basicAuth:
+                                      properties:
+                                        passwordSecret:
+                                          properties:
+                                            key:
+                                              type: string
+                                            name:
+                                              default: ""
+                                              type: string
+                                            optional:
+                                              type: boolean
+                                          required:
+                                          - key
+                                          type: object
+                                          x-kubernetes-map-type: atomic
+                                        usernameSecret:
+                                          properties:
+                                            key:
+                                              type: string
+                                            name:
+                                              default: ""
+                                              type: string
+                                            optional:
+                                              type: boolean
+                                          required:
+                                          - key
+                                          type: object
+                                          x-kubernetes-map-type: atomic
+                                      type: object
+                                    clientCert:
+                                      properties:
+                                        clientCertSecret:
+                                          properties:
+                                            key:
+                                              type: string
+                                            name:
+                                              default: ""
+                                              type: string
+                                            optional:
+                                              type: boolean
+                                          required:
+                                          - key
+                                          type: object
+                                          x-kubernetes-map-type: atomic
+                                        clientKeySecret:
+                                          properties:
+                                            key:
+                                              type: string
+                                            name:
+                                              default: ""
+                                              type: string
+                                            optional:
+                                              type: boolean
+                                          required:
+                                          - key
+                                          type: object
+                                          x-kubernetes-map-type: atomic
+                                      type: object
+                                    oauth2:
+                                      properties:
+                                        clientIDSecret:
+                                          properties:
+                                            key:
+                                              type: string
+                                            name:
+                                              default: ""
+                                              type: string
+                                            optional:
+                                              type: boolean
+                                          required:
+                                          - key
+                                          type: object
+                                          x-kubernetes-map-type: atomic
+                                        clientSecretSecret:
+                                          properties:
+                                            key:
+                                              type: string
+                                            name:
+                                              default: ""
+                                              type: string
+                                            optional:
+                                              type: boolean
+                                          required:
+                                          - key
+                                          type: object
+                                          x-kubernetes-map-type: atomic
+                                        endpointParams:
+                                          items:
+                                            properties:
+                                              key:
+                                                type: string
+                                              value:
+                                                type: string
+                                            required:
+                                            - key
+                                            type: object
+                                          type: array
+                                        scopes:
+                                          items:
+                                            type: string
+                                          type: array
+                                        tokenURLSecret:
+                                          properties:
+                                            key:
+                                              type: string
+                                            name:
+                                              default: ""
+                                              type: string
+                                            optional:
+                                              type: boolean
+                                          required:
+                                          - key
+                                          type: object
+                                          x-kubernetes-map-type: atomic
+                                      type: object
+                                  type: object
+                                headers:
+                                  items:
+                                    properties:
+                                      name:
+                                        type: string
+                                      value:
+                                        type: string
+                                    required:
+                                    - name
+                                    - value
+                                    type: object
+                                  type: array
+                                url:
+                                  type: string
+                              required:
+                              - url
+                              type: object
+                            mode:
+                              format: int32
+                              type: integer
+                            name:
+                              type: string
+                            optional:
+                              type: boolean
+                            oss:
+                              properties:
+                                accessKeySecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                bucket:
+                                  type: string
+                                createBucketIfNotPresent:
+                                  type: boolean
+                                endpoint:
+                                  type: string
+                                key:
+                                  type: string
+                                lifecycleRule:
+                                  properties:
+                                    markDeletionAfterDays:
+                                      format: int32
+                                      type: integer
+                                    markInfrequentAccessAfterDays:
+                                      format: int32
+                                      type: integer
+                                  type: object
+                                secretKeySecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                securityToken:
+                                  type: string
+                                useSDKCreds:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                            path:
+                              type: string
+                            raw:
+                              properties:
+                                data:
+                                  type: string
+                              required:
+                              - data
+                              type: object
+                            recurseMode:
+                              type: boolean
+                            s3:
+                              properties:
+                                accessKeySecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                bucket:
+                                  type: string
+                                caSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                createBucketIfNotPresent:
+                                  properties:
+                                    objectLocking:
+                                      type: boolean
+                                  type: object
+                                encryptionOptions:
+                                  properties:
+                                    enableEncryption:
+                                      type: boolean
+                                    kmsEncryptionContext:
+                                      type: string
+                                    kmsKeyId:
+                                      type: string
+                                    serverSideCustomerKeySecret:
+                                      properties:
+                                        key:
+                                          type: string
+                                        name:
+                                          default: ""
+                                          type: string
+                                        optional:
+                                          type: boolean
+                                      required:
+                                      - key
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                  type: object
+                                endpoint:
+                                  type: string
+                                insecure:
+                                  type: boolean
+                                key:
+                                  type: string
+                                region:
+                                  type: string
+                                roleARN:
+                                  type: string
+                                secretKeySecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                sessionTokenSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                useSDKCreds:
+                                  type: boolean
+                              type: object
+                            subPath:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                      parameters:
+                        items:
+                          properties:
+                            default:
+                              type: string
+                            description:
+                              type: string
+                            enum:
+                              items:
+                                type: string
+                              type: array
+                            globalName:
+                              type: string
+                            name:
+                              type: string
+                            value:
+                              type: string
+                            valueFrom:
+                              properties:
+                                configMapKeyRef:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                default:
+                                  type: string
+                                event:
+                                  type: string
+                                expression:
+                                  type: string
+                                jqFilter:
+                                  type: string
+                                jsonPath:
+                                  type: string
+                                parameter:
+                                  type: string
+                                path:
+                                  type: string
+                                supplied:
+                                  type: object
+                              type: object
+                          required:
+                          - name
+                          type: object
+                        type: array
+                    type: object
+                  metadata:
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      finalizers:
+                        items:
+                          type: string
+                        type: array
+                      generateName:
+                        type: string
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      name:
+                        type: string
+                      namespace:
+                        type: string
+                    type: object
+                  workflowTemplateRef:
+                    properties:
+                      clusterScope:
+                        type: boolean
+                      name:
+                        type: string
+                    type: object
+                required:
+                - workflowTemplateRef
+                type: object
+            required:
+            - event
+            type: object
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+---
+# Source: argo-workflows/charts/argo-workflows/templates/crds/argoproj.io_workflows.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workflows.argoproj.io
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: argoproj.io
+  names:
+    kind: Workflow
+    listKind: WorkflowList
+    plural: workflows
+    shortNames:
+    - wf
+    singular: workflow
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Status of the workflow
+      jsonPath: .status.phase
+      name: Status
+      type: string
+    - description: When the workflow was started
+      format: date-time
+      jsonPath: .status.startedAt
+      name: Age
+      type: date
+    - description: Human readable message indicating details about why the workflow
+        is in this condition.
+      jsonPath: .status.message
+      name: Message
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            x-kubernetes-map-type: atomic
+            x-kubernetes-preserve-unknown-fields: true
+          status:
+            type: object
+            x-kubernetes-map-type: atomic
+            x-kubernetes-preserve-unknown-fields: true
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+---
+# Source: argo-workflows/charts/argo-workflows/templates/crds/argoproj.io_workflowtaskresults.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workflowtaskresults.argoproj.io
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: argoproj.io
+  names:
+    kind: WorkflowTaskResult
+    listKind: WorkflowTaskResultList
+    plural: workflowtaskresults
+    singular: workflowtaskresult
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          message:
+            type: string
+          metadata:
+            type: object
+          outputs:
+            properties:
+              artifacts:
+                items:
+                  properties:
+                    archive:
+                      properties:
+                        none:
+                          type: object
+                        tar:
+                          properties:
+                            compressionLevel:
+                              format: int32
+                              type: integer
+                          type: object
+                        zip:
+                          type: object
+                      type: object
+                    archiveLogs:
+                      type: boolean
+                    artifactGC:
+                      properties:
+                        podMetadata:
+                          properties:
+                            annotations:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            labels:
+                              additionalProperties:
+                                type: string
+                              type: object
+                          type: object
+                        serviceAccountName:
+                          type: string
+                        strategy:
+                          enum:
+                          - ""
+                          - OnWorkflowCompletion
+                          - OnWorkflowDeletion
+                          - Never
+                          type: string
+                      type: object
+                    artifactory:
+                      properties:
+                        passwordSecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        url:
+                          type: string
+                        usernameSecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                      required:
+                      - url
+                      type: object
+                    azure:
+                      properties:
+                        accountKeySecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        blob:
+                          type: string
+                        container:
+                          type: string
+                        endpoint:
+                          type: string
+                        useSDKCreds:
+                          type: boolean
+                      required:
+                      - blob
+                      - container
+                      - endpoint
+                      type: object
+                    deleted:
+                      type: boolean
+                    from:
+                      type: string
+                    fromExpression:
+                      type: string
+                    gcs:
+                      properties:
+                        bucket:
+                          type: string
+                        key:
+                          type: string
+                        serviceAccountKeySecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                      required:
+                      - key
+                      type: object
+                    git:
+                      properties:
+                        branch:
+                          type: string
+                        depth:
+                          format: int64
+                          type: integer
+                        disableSubmodules:
+                          type: boolean
+                        fetch:
+                          items:
+                            type: string
+                          type: array
+                        insecureIgnoreHostKey:
+                          type: boolean
+                        insecureSkipTLS:
+                          type: boolean
+                        passwordSecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        repo:
+                          type: string
+                        revision:
+                          type: string
+                        singleBranch:
+                          type: boolean
+                        sshPrivateKeySecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        usernameSecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                      required:
+                      - repo
+                      type: object
+                    globalName:
+                      type: string
+                    hdfs:
+                      properties:
+                        addresses:
+                          items:
+                            type: string
+                          type: array
+                        dataTransferProtection:
+                          type: string
+                        force:
+                          type: boolean
+                        hdfsUser:
+                          type: string
+                        krbCCacheSecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        krbConfigConfigMap:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        krbKeytabSecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        krbRealm:
+                          type: string
+                        krbServicePrincipalName:
+                          type: string
+                        krbUsername:
+                          type: string
+                        path:
+                          type: string
+                      required:
+                      - path
+                      type: object
+                    http:
+                      properties:
+                        auth:
+                          properties:
+                            basicAuth:
+                              properties:
+                                passwordSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                usernameSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              type: object
+                            clientCert:
+                              properties:
+                                clientCertSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                clientKeySecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              type: object
+                            oauth2:
+                              properties:
+                                clientIDSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                clientSecretSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                endpointParams:
+                                  items:
+                                    properties:
+                                      key:
+                                        type: string
+                                      value:
+                                        type: string
+                                    required:
+                                    - key
+                                    type: object
+                                  type: array
+                                scopes:
+                                  items:
+                                    type: string
+                                  type: array
+                                tokenURLSecret:
+                                  properties:
+                                    key:
+                                      type: string
+                                    name:
+                                      default: ""
+                                      type: string
+                                    optional:
+                                      type: boolean
+                                  required:
+                                  - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              type: object
+                          type: object
+                        headers:
+                          items:
+                            properties:
+                              name:
+                                type: string
+                              value:
+                                type: string
+                            required:
+                            - name
+                            - value
+                            type: object
+                          type: array
+                        url:
+                          type: string
+                      required:
+                      - url
+                      type: object
+                    mode:
+                      format: int32
+                      type: integer
+                    name:
+                      type: string
+                    optional:
+                      type: boolean
+                    oss:
+                      properties:
+                        accessKeySecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        bucket:
+                          type: string
+                        createBucketIfNotPresent:
+                          type: boolean
+                        endpoint:
+                          type: string
+                        key:
+                          type: string
+                        lifecycleRule:
+                          properties:
+                            markDeletionAfterDays:
+                              format: int32
+                              type: integer
+                            markInfrequentAccessAfterDays:
+                              format: int32
+                              type: integer
+                          type: object
+                        secretKeySecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        securityToken:
+                          type: string
+                        useSDKCreds:
+                          type: boolean
+                      required:
+                      - key
+                      type: object
+                    path:
+                      type: string
+                    raw:
+                      properties:
+                        data:
+                          type: string
+                      required:
+                      - data
+                      type: object
+                    recurseMode:
+                      type: boolean
+                    s3:
+                      properties:
+                        accessKeySecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        bucket:
+                          type: string
+                        caSecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        createBucketIfNotPresent:
+                          properties:
+                            objectLocking:
+                              type: boolean
+                          type: object
+                        encryptionOptions:
+                          properties:
+                            enableEncryption:
+                              type: boolean
+                            kmsEncryptionContext:
+                              type: string
+                            kmsKeyId:
+                              type: string
+                            serverSideCustomerKeySecret:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                          type: object
+                        endpoint:
+                          type: string
+                        insecure:
+                          type: boolean
+                        key:
+                          type: string
+                        region:
+                          type: string
+                        roleARN:
+                          type: string
+                        secretKeySecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        sessionTokenSecret:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        useSDKCreds:
+                          type: boolean
+                      type: object
+                    subPath:
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              exitCode:
+                type: string
+              parameters:
+                items:
+                  properties:
+                    default:
+                      type: string
+                    description:
+                      type: string
+                    enum:
+                      items:
+                        type: string
+                      type: array
+                    globalName:
+                      type: string
+                    name:
+                      type: string
+                    value:
+                      type: string
+                    valueFrom:
+                      properties:
+                        configMapKeyRef:
+                          properties:
+                            key:
+                              type: string
+                            name:
+                              default: ""
+                              type: string
+                            optional:
+                              type: boolean
+                          required:
+                          - key
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        default:
+                          type: string
+                        event:
+                          type: string
+                        expression:
+                          type: string
+                        jqFilter:
+                          type: string
+                        jsonPath:
+                          type: string
+                        parameter:
+                          type: string
+                        path:
+                          type: string
+                        supplied:
+                          type: object
+                      type: object
+                  required:
+                  - name
+                  type: object
+                type: array
+              result:
+                type: string
+            type: object
+          phase:
+            type: string
+          progress:
+            type: string
+        required:
+        - metadata
+        type: object
+    served: true
+    storage: true
+---
+# Source: argo-workflows/charts/argo-workflows/templates/crds/argoproj.io_workflowtasksets.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workflowtasksets.argoproj.io
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: argoproj.io
+  names:
+    kind: WorkflowTaskSet
+    listKind: WorkflowTaskSetList
+    plural: workflowtasksets
+    shortNames:
+    - wfts
+    singular: workflowtaskset
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            x-kubernetes-map-type: atomic
+            x-kubernetes-preserve-unknown-fields: true
+          status:
+            type: object
+            x-kubernetes-map-type: atomic
+            x-kubernetes-preserve-unknown-fields: true
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+# Source: argo-workflows/charts/argo-workflows/templates/crds/argoproj.io_workflowtemplates.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workflowtemplates.argoproj.io
+  annotations:
+    "helm.sh/resource-policy": keep
+spec:
+  group: argoproj.io
+  names:
+    kind: WorkflowTemplate
+    listKind: WorkflowTemplateList
+    plural: workflowtemplates
+    shortNames:
+    - wftmpl
+    singular: workflowtemplate
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            x-kubernetes-map-type: atomic
+            x-kubernetes-preserve-unknown-fields: true
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-controller/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-workflows-argo-events-controller-manager
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-controller-manager
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - argoproj.io
+  resources:
+  - sensors
+  - sensors/finalizers
+  - sensors/status
+  - eventsources
+  - eventsources/finalizers
+  - eventsources/status
+  - eventbus
+  - eventbus/finalizers
+  - eventbus/status
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - pods/exec
+  - configmaps
+  - services
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - statefulsets
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - update
+  - patch
+  - delete
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-webhook/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-events-webhook
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-events-webhook
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - delete
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingwebhookconfigurations
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - delete
+  - patch
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - eventbus
+  - eventsources
+  - sensors
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterroles
+  verbs:
+  - get
+  - list
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-aggregate-roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-workflows-view
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+- apiGroups:
+  - argoproj.io
+  resources:
+  - workflows
+  - workflows/finalizers
+  - workfloweventbindings
+  - workfloweventbindings/finalizers
+  - workflowtemplates
+  - workflowtemplates/finalizers
+  - cronworkflows
+  - cronworkflows/finalizers
+  - clusterworkflowtemplates
+  - clusterworkflowtemplates/finalizers
+  - workflowtasksets
+  - workflowtasksets/finalizers
+  - workflowtaskresults
+  - workflowtaskresults/finalizers
+  - workflowartifactgctasks
+  - workflowartifactgctasks/finalizers
+  verbs:
+  - get
+  - list
+  - watch
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-aggregate-roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-workflows-edit
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-server
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: server
+    app: server
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+- apiGroups:
+  - argoproj.io
+  resources:
+  - workflows
+  - workflows/finalizers
+  - workfloweventbindings
+  - workfloweventbindings/finalizers
+  - workflowtemplates
+  - workflowtemplates/finalizers
+  - cronworkflows
+  - cronworkflows/finalizers
+  - clusterworkflowtemplates
+  - clusterworkflowtemplates/finalizers
+  - workflowtasksets
+  - workflowtasksets/finalizers
+  - workflowtaskresults
+  - workflowtaskresults/finalizers
+  - workflowartifactgctasks
+  - workflowartifactgctasks/finalizers
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-aggregate-roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-workflows-admin
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-server
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: server
+    app: server
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules:
+- apiGroups:
+  - argoproj.io
+  resources:
+  - workflows
+  - workflows/finalizers
+  - workfloweventbindings
+  - workfloweventbindings/finalizers
+  - workflowtemplates
+  - workflowtemplates/finalizers
+  - cronworkflows
+  - cronworkflows/finalizers
+  - clusterworkflowtemplates
+  - clusterworkflowtemplates/finalizers
+  - workflowtasksets
+  - workflowtasksets/finalizers
+  - workflowtaskresults
+  - workflowtaskresults/finalizers
+  - workflowartifactgctasks
+  - workflowartifactgctasks/finalizers
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-controller-cluster-roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-workflows-workflow-controller
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods/exec
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  - persistentvolumeclaims/finalizers
+  verbs:
+  - create
+  - update
+  - delete
+  - get
+- apiGroups:
+  - argoproj.io
+  resources:
+  - workflows
+  - workflows/finalizers
+  - workflowtasksets
+  - workflowtasksets/finalizers
+  - workflowtasksets/status
+  - workflowartifactgctasks
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+  - delete
+  - create
+- apiGroups:
+  - argoproj.io
+  resources:
+  - workflowtemplates
+  - workflowtemplates/finalizers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - argoproj.io
+  resources:
+  - workflowtaskresults
+  - workflowtaskresults/finalizers
+  verbs:
+  - list
+  - watch
+  - deletecollection
+- apiGroups:
+  - argoproj.io
+  resources:
+  - cronworkflows
+  - cronworkflows/finalizers
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - "policy"
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - create
+  - get
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - argo-workflows-postgresql-17-cluster-app
+  - argo-workflows-postgresql-17-cluster-app
+  verbs:
+  - get
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - workflow-controller
+  - workflow-controller-lease
+  verbs:
+  - get
+  - watch
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  resourceNames:
+  - argo-workflows-agent-ca-certificates
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-controller-cluster-roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-workflows-workflow-controller-cluster-template
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+rules:
+- apiGroups:
+  - argoproj.io
+  resources:
+  - clusterworkflowtemplates
+  - clusterworkflowtemplates/finalizers
+  verbs:
+  - get
+  - list
+  - watch
+---
+# Source: argo-workflows/charts/argo-workflows/templates/server/server-cluster-roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-workflows-server
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-server
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: server
+    app: server
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - events
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - sso
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - watch
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - argo-workflows-postgresql-17-cluster-app
+  - argo-workflows-postgresql-17-cluster-app
+  verbs:
+  - get
+- apiGroups:
+    - argoproj.io
+  resources:
+    - eventsources
+    - sensors
+    - workflows
+    - workfloweventbindings
+    - workflowtemplates
+    - cronworkflows
+  verbs:
+    - create
+    - get
+    - list
+    - watch
+    - update
+    - patch
+    - delete
+---
+# Source: argo-workflows/charts/argo-workflows/templates/server/server-cluster-roles.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-workflows-server-cluster-template
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-server
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: server
+    app: server
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+rules:
+- apiGroups:
+  - argoproj.io
+  resources:
+  - clusterworkflowtemplates
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-controller/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-workflows-argo-events-controller-manager
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-controller-manager
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-workflows-argo-events-controller-manager
+subjects:
+- kind: ServiceAccount
+  name: argo-workflows-argo-events-controller-manager
+  namespace: "argo-workflows"
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-webhook/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-workflows-argo-events-events-webhook
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-events-webhook
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-events-webhook
+subjects:
+- kind: ServiceAccount
+  name: argo-workflows-argo-events-events-webhook
+  namespace: "argo-workflows"
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-controller-crb.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-workflows-workflow-controller
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-workflows-workflow-controller
+subjects:
+  - kind: ServiceAccount
+    name: argo-workflows-workflow-controller
+    namespace: "argo-workflows"
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-controller-crb.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-workflows-workflow-controller-cluster-template
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-workflows-workflow-controller-cluster-template
+subjects:
+  - kind: ServiceAccount
+    name: argo-workflows-workflow-controller
+    namespace: "argo-workflows"
+---
+# Source: argo-workflows/charts/argo-workflows/templates/server/server-crb.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-workflows-server
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-server
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: server
+    app: server
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-workflows-server
+subjects:
+- kind: ServiceAccount
+  name: argo-workflows-server
+  namespace: "argo-workflows"
+---
+# Source: argo-workflows/charts/argo-workflows/templates/server/server-crb.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-workflows-server-cluster-template
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-server
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: server
+    app: server
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-workflows-server-cluster-template
+subjects:
+- kind: ServiceAccount
+  name: argo-workflows-server
+  namespace: "argo-workflows"
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-workflows-workflow
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+  namespace: argocd
+rules:
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - workflowtaskresults
+    verbs:
+      - create
+      - patch
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-workflows-workflow
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+  namespace: argo-workflows
+rules:
+  - apiGroups:
+      - argoproj.io
+    resources:
+      - workflowtaskresults
+    verbs:
+      - create
+      - patch
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-rb.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-workflows-workflow
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-workflows-workflow
+subjects:
+  - kind: ServiceAccount
+    name: argo-workflow
+    namespace: argocd
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-rb.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-workflows-workflow
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+  namespace: argo-workflows
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-workflows-workflow
+subjects:
+  - kind: ServiceAccount
+    name: argo-workflow
+    namespace: argo-workflows
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-controller/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-workflows-argo-events-controller-manager-metrics
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-controller-manager-metrics
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+spec:
+  ports:
+  - name: metrics
+    protocol: TCP
+    port: 8082
+    targetPort: metrics
+  selector:
+    app.kubernetes.io/name: argo-events-controller-manager
+    app.kubernetes.io/instance: argo-workflows
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-webhook/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: events-webhook
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-events-webhook
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+spec:
+  ports:
+  - port: 443
+    targetPort: webhook
+  selector:
+    app.kubernetes.io/name: argo-events-events-webhook
+    app.kubernetes.io/instance: argo-workflows
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-workflows-workflow-controller
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "v3.7.4"
+spec:
+  ports:
+  - name: metrics
+    port: 8080
+    protocol: TCP
+    targetPort: 9090
+  selector:
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+  sessionAffinity: None
+  type: ClusterIP
+---
+# Source: argo-workflows/charts/argo-workflows/templates/server/server-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-workflows-server
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-server
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: server
+    app: server
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "v3.7.4"
+spec:
+  ports:
+  - port: 2746
+    targetPort: 2746
+  selector:
+    app.kubernetes.io/name: argo-workflows-server
+    app.kubernetes.io/instance: argo-workflows
+  sessionAffinity: None
+  type: ClusterIP
+---
+# Source: argo-workflows/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: garage-ps10rp
+  namespace: argo-workflows
+  labels:
+    app.kubernetes.io/name: garage-ps10rp
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+  annotations:
+    tailscale.com/tailnet-fqdn: garage-ps10rp.boreal-beaufort.ts.net
+spec:
+  externalName: placeholder
+  type: ExternalName
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-controller/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argo-workflows-argo-events-controller-manager
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-controller-manager
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+    app.kubernetes.io/version: "v1.9.8"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argo-events-controller-manager
+      app.kubernetes.io/instance: argo-workflows
+  revisionHistoryLimit: 5
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        checksum/config: f6a1927c244b342165a873cdc9d662816fc3abe8ddd10d2cb5f6f6aa3b5553f0
+      labels:
+        helm.sh/chart: argo-events-2.4.17
+        app.kubernetes.io/name: argo-events-controller-manager
+        app.kubernetes.io/instance: argo-workflows
+        app.kubernetes.io/component: controller-manager
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: argo-events
+        app.kubernetes.io/version: "v1.9.8"
+    spec:
+      containers:
+      - name: controller-manager
+        image: quay.io/argoproj/argo-events:v1.9.8
+        imagePullPolicy: IfNotPresent
+        args:
+        - controller
+        env:
+        - name: ARGO_EVENTS_IMAGE
+          value: quay.io/argoproj/argo-events:v1.9.8
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        volumeMounts:
+        - name: config
+          mountPath: /etc/argo-events
+        ports:
+        - name: metrics
+          containerPort: 7777
+          protocol: TCP
+        - name: probe
+          containerPort: 8081
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            port: probe
+            path: /healthz
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            port: probe
+            path: /readyz
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 10m
+            memory: 128Mi
+      serviceAccountName: argo-workflows-argo-events-controller-manager
+      volumes:
+      - name: config
+        configMap:
+          name: argo-workflows-argo-events-controller-manager
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-webhook/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: events-webhook
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-events-webhook
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: events-webhook
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+    app.kubernetes.io/version: "v1.9.8"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argo-events-events-webhook
+      app.kubernetes.io/instance: argo-workflows
+  revisionHistoryLimit: 5
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: argo-events-2.4.17
+        app.kubernetes.io/name: argo-events-events-webhook
+        app.kubernetes.io/instance: argo-workflows
+        app.kubernetes.io/component: events-webhook
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: argo-events
+        app.kubernetes.io/version: "v1.9.8"
+    spec:
+      containers:
+      - name: events-webhook
+        image: quay.io/argoproj/argo-events:v1.9.8
+        imagePullPolicy: IfNotPresent
+        args:
+        - webhook-service
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: PORT
+          value: "443"
+        ports:
+        - name: webhook
+          containerPort: 443
+          protocol: TCP
+        livenessProbe:
+          tcpSocket:
+            port: webhook
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: webhook
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 10m
+            memory: 128Mi
+      serviceAccountName: argo-workflows-argo-events-events-webhook
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argo-workflows-workflow-controller
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-workflow-controller
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "v3.7.4"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argo-workflows-workflow-controller
+      app.kubernetes.io/instance: argo-workflows
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: argo-workflows-0.45.28
+        app.kubernetes.io/name: argo-workflows-workflow-controller
+        app.kubernetes.io/instance: argo-workflows
+        app.kubernetes.io/component: workflow-controller
+        app: workflow-controller
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: argo-workflows
+        app.kubernetes.io/version: "v3.7.4"
+    spec:
+      serviceAccountName: argo-workflows-workflow-controller
+      containers:
+        - name: controller
+          image: "quay.io/argoproj/workflow-controller:v3.7.4"
+          imagePullPolicy: Always
+          command: [ "workflow-controller" ]
+          args:
+          - "--configmap"
+          - "argo-workflows-workflow-controller-configmap"
+          - "--executor-image"
+          - "quay.io/argoproj/argoexec:v3.7.4"
+          - "--loglevel"
+          - "info"
+          - "--gloglevel"
+          - "0"
+          - "--log-format"
+          - "text"
+          - "--workflow-workers"
+          - "2"
+          - "--workflow-ttl-workers"
+          - "1"
+          - "--pod-cleanup-workers"
+          - "1"
+          - "--cron-workflow-workers"
+          - "1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          env:
+            - name: ARGO_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: LEADER_ELECTION_IDENTITY
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: LEADER_ELECTION_DISABLE
+              value: "true"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          ports:
+            - name: metrics
+              containerPort: 9090
+            - containerPort: 6060
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 6060
+            initialDelaySeconds: 90
+            periodSeconds: 60
+            timeoutSeconds: 30
+      nodeSelector:
+        kubernetes.io/os: linux
+---
+# Source: argo-workflows/charts/argo-workflows/templates/server/server-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argo-workflows-server
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-workflows-0.45.28
+    app.kubernetes.io/name: argo-workflows-server
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: server
+    app: server
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "v3.7.4"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argo-workflows-server
+      app.kubernetes.io/instance: argo-workflows
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: argo-workflows-0.45.28
+        app.kubernetes.io/name: argo-workflows-server
+        app.kubernetes.io/instance: argo-workflows
+        app.kubernetes.io/component: server
+        app: server
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: argo-workflows
+        app.kubernetes.io/version: "v3.7.4"
+      annotations:
+        checksum/cm: e8ff26f31dc8c0bcbe056323d4a2f665788a48ff7a9c14c1ab61985933fa085e
+    spec:
+      serviceAccountName: argo-workflows-server
+      containers:
+        - name: argo-server
+          image: "quay.io/argoproj/argocli:v3.7.4"
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+          args:
+          - server
+          - --configmap=argo-workflows-workflow-controller-configmap
+          - "--auth-mode=sso"
+          - "--secure=false"
+          - "--loglevel"
+          - "info"
+          - "--gloglevel"
+          - "0"
+          - "--log-format"
+          - "text"
+          ports:
+          - name: web
+            containerPort: 2746
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 2746
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          env:
+            - name: IN_CLUSTER
+              value: "true"
+            - name: ARGO_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: ARGO_BASE_HREF
+              value: "/"
+          resources:
+            {}
+          volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      nodeSelector:
+        kubernetes.io/os: linux
+---
+# Source: argo-workflows/charts/postgres-17-cluster/templates/cluster.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: argo-workflows-postgresql-17-cluster
+  namespace: argo-workflows
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: argo-workflows-postgresql-17
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  instances: 3
+  imageName: "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie"
+  imagePullPolicy: IfNotPresent
+  postgresUID: 26
+  postgresGID: 26
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: false
+      parameters:
+        barmanObjectName: "argo-workflows-postgresql-17-external-backup"
+        serverName: "argo-workflows-postgresql-17-backup-1"
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: "argo-workflows-postgresql-17-garage-local-backup"
+        serverName: "argo-workflows-postgresql-17-backup-1"
+  
+  externalClusters:
+    - name: recovery
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: "argo-workflows-postgresql-17-recovery"
+          serverName: argo-workflows-postgresql-17-backup-1
+  
+  storage:
+    size: 10Gi
+    storageClass: local-path
+  walStorage:
+    size: 2Gi
+    storageClass: local-path
+  resources:
+    limits:
+      hugepages-2Mi: 256Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+
+  primaryUpdateMethod: switchover
+  primaryUpdateStrategy: unsupervised
+  logLevel: info
+  enableSuperuserAccess: false
+  enablePDB: true
+
+  postgresql:
+    parameters:
+      hot_standby_feedback: "on"
+      max_slot_wal_keep_size: 2000MB
+      shared_buffers: 128MB
+
+  monitoring:
+    enablePodMonitor: true
+    disableDefaultQueries: false
+
+  
+  bootstrap:
+    recovery:
+      
+      database: app
+      
+      source: argo-workflows-postgresql-17-backup-1
+  
+  externalClusters:
+    - name: argo-workflows-postgresql-17-backup-1
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        enabled: true
+        isWALArchiver: false
+        parameters:
+          barmanObjectName: "argo-workflows-postgresql-17-recovery"
+          serverName: argo-workflows-postgresql-17-backup-1
+---
+# Source: argo-workflows/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: argo-workflows-oidc-secret
+  namespace: argo-workflows
+  labels:
+    app.kubernetes.io/name: argo-workflows-oidc-secret
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: secret
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /authentik/oidc/argo-workflows
+        metadataPolicy: None
+        property: secret
+    - secretKey: client
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /authentik/oidc/argo-workflows
+        metadataPolicy: None
+        property: client
+---
+# Source: argo-workflows/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: argo-workflows-postgresql-17-cluster-backup-secret
+  namespace: argo-workflows
+  labels:
+    app.kubernetes.io/name: argo-workflows-postgresql-17-cluster-backup-secret
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: ACCESS_KEY_ID
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/postgres-backups
+        metadataPolicy: None
+        property: access
+    - secretKey: ACCESS_SECRET_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/postgres-backups
+        metadataPolicy: None
+        property: secret
+---
+# Source: argo-workflows/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: argo-workflows-postgresql-17-cluster-backup-secret-garage
+  namespace: argo-workflows
+  labels:
+    app.kubernetes.io/name: argo-workflows-postgresql-17-cluster-backup-secret-garage
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: ACCESS_KEY_ID
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /garage/home-infra/postgres-backups
+        metadataPolicy: None
+        property: ACCESS_KEY_ID
+    - secretKey: ACCESS_SECRET_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /garage/home-infra/postgres-backups
+        metadataPolicy: None
+        property: ACCESS_SECRET_KEY
+    - secretKey: ACCESS_REGION
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /garage/home-infra/postgres-backups
+        metadataPolicy: None
+        property: ACCESS_REGION
+---
+# Source: argo-workflows/templates/http-route.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-route-argo-workflows
+  namespace: argo-workflows
+  labels:
+    app.kubernetes.io/name: http-route-argo-workflows
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - argo-workflows.alexlebens.net
+  rules:
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: argo-workflows-server
+          port: 2746
+          weight: 100
+---
+# Source: argo-workflows/charts/postgres-17-cluster/templates/object-store.yaml
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: "argo-workflows-postgresql-17-external-backup"
+  namespace: argo-workflows
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: argo-workflows-postgresql-17
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  retentionPolicy: 30d
+  configuration:
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/argo-workflows/argo-workflows-postgresql-17-cluster
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    s3Credentials:
+      accessKeyId:
+        name: argo-workflows-postgresql-17-cluster-backup-secret
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: argo-workflows-postgresql-17-cluster-backup-secret
+        key: ACCESS_SECRET_KEY
+---
+# Source: argo-workflows/charts/postgres-17-cluster/templates/object-store.yaml
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: "argo-workflows-postgresql-17-garage-local-backup"
+  namespace: argo-workflows
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: argo-workflows-postgresql-17
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  retentionPolicy: 3d
+  configuration:
+    destinationPath: s3://postgres-backups/cl01tl/argo-workflows/argo-workflows-postgresql-17-cluster
+    endpointURL: http://garage-main.garage:3900
+    s3Credentials:
+      accessKeyId:
+        name: argo-workflows-postgresql-17-cluster-backup-secret-garage
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: argo-workflows-postgresql-17-cluster-backup-secret-garage
+        key: ACCESS_SECRET_KEY
+      region:
+        name: argo-workflows-postgresql-17-cluster-backup-secret-garage
+        key: ACCESS_REGION
+---
+# Source: argo-workflows/charts/postgres-17-cluster/templates/object-store.yaml
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: "argo-workflows-postgresql-17-recovery"
+  namespace: argo-workflows
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: argo-workflows-postgresql-17
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  configuration:
+    destinationPath: s3://postgres-backups/cl01tl/argo-workflows/argo-workflows-postgresql-17-cluster
+    endpointURL: http://garage-main.garage:3900
+    wal:
+      compression: snappy
+      maxParallel: 1
+    data:
+      compression: snappy
+      jobs: 1
+    s3Credentials:
+      accessKeyId:
+        name: argo-workflows-postgresql-17-cluster-backup-secret-garage
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: argo-workflows-postgresql-17-cluster-backup-secret-garage
+        key: ACCESS_SECRET_KEY
+---
+# Source: argo-workflows/charts/postgres-17-cluster/templates/prometheus-rule.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argo-workflows-postgresql-17-alert-rules
+  namespace: argo-workflows
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: argo-workflows-postgresql-17
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  groups:
+    - name: cloudnative-pg/argo-workflows-postgresql-17
+      rules:
+        - alert: CNPGClusterBackendsWaitingWarning
+          annotations:
+            summary: CNPG Cluster a backend is waiting for longer than 5 minutes.
+            description: |-
+              Pod {{ $labels.pod }}
+              has been waiting for longer than 5 minutes
+          expr: |
+            cnpg_backends_waiting_total > 300
+          for: 1m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterDatabaseDeadlockConflictsWarning
+          annotations:
+            summary: CNPG Cluster has over 10 deadlock conflicts.
+            description: |-
+              There are over 10 deadlock conflicts in
+              {{ $labels.pod }}
+          expr: |
+            cnpg_pg_stat_database_deadlocks > 10
+          for: 1m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterHACritical
+          annotations:
+            summary: CNPG Cluster has no standby replicas!
+            description: |-
+              CloudNativePG Cluster "{{`{{`}} $labels.job {{`}}`}}" has no ready standby replicas. Your cluster at a severe
+              risk of data loss and downtime if the primary instance fails.
+          
+              The primary instance is still online and able to serve queries, although connections to the `-ro` endpoint
+              will fail. The `-r` endpoint os operating at reduced capacity and all traffic is being served by the main.
+          
+              This can happen during a normal fail-over or automated minor version upgrades in a cluster with 2 or less
+              instances. The replaced instance may need some time to catch-up with the cluster primary instance.
+          
+              This alarm will be always trigger if your cluster is configured to run with only 1 instance. In this
+              case you may want to silence it.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterHACritical.md
+          expr: |
+            max by (job) (cnpg_pg_replication_streaming_replicas{namespace="argo-workflows"} - cnpg_pg_replication_is_wal_receiver_up{namespace="argo-workflows"}) < 1
+          for: 5m
+          labels:
+            severity: critical
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterHAWarning
+          annotations:
+            summary: CNPG Cluster less than 2 standby replicas.
+            description: |-
+              CloudNativePG Cluster "{{`{{`}} $labels.job {{`}}`}}" has only {{`{{`}} $value {{`}}`}} standby replicas, putting
+              your cluster at risk if another instance fails. The cluster is still able to operate normally, although
+              the `-ro` and `-r` endpoints operate at reduced capacity.
+          
+              This can happen during a normal fail-over or automated minor version upgrades. The replaced instance may
+              need some time to catch-up with the cluster primary instance.
+          
+              This alarm will be constantly triggered if your cluster is configured to run with less than 3 instances.
+              In this case you may want to silence it.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterHAWarning.md
+          expr: |
+            max by (job) (cnpg_pg_replication_streaming_replicas{namespace="argo-workflows"} - cnpg_pg_replication_is_wal_receiver_up{namespace="argo-workflows"}) < 2
+          for: 5m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterHighConnectionsCritical
+          annotations:
+            summary: CNPG Instance maximum number of connections critical!
+            description: |-
+              CloudNativePG Cluster "argo-workflows/argo-workflows-postgresql-17-cluster" instance {{`{{`}} $labels.pod {{`}}`}} is using {{`{{`}} $value {{`}}`}}% of
+              the maximum number of connections.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterHighConnectionsCritical.md
+          expr: |
+            sum by (pod) (cnpg_backends_total{namespace="argo-workflows", pod=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"}) / max by (pod) (cnpg_pg_settings_setting{name="max_connections", namespace="argo-workflows", pod=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"}) * 100 > 95
+          for: 5m
+          labels:
+            severity: critical
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterHighConnectionsWarning
+          annotations:
+            summary: CNPG Instance is approaching the maximum number of connections.
+            description: |-
+              CloudNativePG Cluster "argo-workflows/argo-workflows-postgresql-17-cluster" instance {{`{{`}} $labels.pod {{`}}`}} is using {{`{{`}} $value {{`}}`}}% of
+              the maximum number of connections.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterHighConnectionsWarning.md
+          expr: |
+            sum by (pod) (cnpg_backends_total{namespace="argo-workflows", pod=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"}) / max by (pod) (cnpg_pg_settings_setting{name="max_connections", namespace="argo-workflows", pod=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"}) * 100 > 80
+          for: 5m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterHighReplicationLag
+          annotations:
+            summary: CNPG Cluster high replication lag
+            description: |-
+              CloudNativePG Cluster "argo-workflows/argo-workflows-postgresql-17-cluster" is experiencing a high replication lag of
+              {{`{{`}} $value {{`}}`}}ms.
+          
+              High replication lag indicates network issues, busy instances, slow queries or suboptimal configuration.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterHighReplicationLag.md
+          expr: |
+            max(cnpg_pg_replication_lag{namespace="argo-workflows",pod=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"}) * 1000 > 1000
+          for: 5m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterInstancesOnSameNode
+          annotations:
+            summary: CNPG Cluster instances are located on the same node.
+            description: |-
+              CloudNativePG Cluster "argo-workflows/argo-workflows-postgresql-17-cluster" has {{`{{`}} $value {{`}}`}}
+              instances on the same node {{`{{`}} $labels.node {{`}}`}}.
+          
+              A failure or scheduled downtime of a single node will lead to a potential service disruption and/or data loss.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterInstancesOnSameNode.md
+          expr: |
+            count by (node) (kube_pod_info{namespace="argo-workflows", pod=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"}) > 1
+          for: 5m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterLongRunningTransactionWarning
+          annotations:
+            summary: CNPG Cluster query is taking longer than 5 minutes.
+            description: |-
+              CloudNativePG Cluster Pod {{ $labels.pod }}
+              is taking more than 5 minutes (300 seconds) for a query.
+          expr: |-
+            cnpg_backends_max_tx_duration_seconds > 300
+          for: 1m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterLowDiskSpaceCritical
+          annotations:
+            summary: CNPG Instance is running out of disk space!
+            description: |-
+              CloudNativePG Cluster "argo-workflows/argo-workflows-postgresql-17-cluster" is running extremely low on disk space. Check attached PVCs!
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterLowDiskSpaceCritical.md
+          expr: |
+            max(max by(persistentvolumeclaim) (1 - kubelet_volume_stats_available_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"} / kubelet_volume_stats_capacity_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"})) > 0.9 OR
+            max(max by(persistentvolumeclaim) (1 - kubelet_volume_stats_available_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$-wal"} / kubelet_volume_stats_capacity_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$-wal"})) > 0.9 OR
+            max(sum by (namespace,persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$-tbs.*"})
+                /
+                sum by (namespace,persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$-tbs.*"})
+                *
+                on(namespace, persistentvolumeclaim) group_left(volume)
+                kube_pod_spec_volumes_persistentvolumeclaims_info{pod=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"}
+            ) > 0.9
+          for: 5m
+          labels:
+            severity: critical
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterLowDiskSpaceWarning
+          annotations:
+            summary: CNPG Instance is running out of disk space.
+            description: |-
+              CloudNativePG Cluster "argo-workflows/argo-workflows-postgresql-17-cluster" is running low on disk space. Check attached PVCs.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterLowDiskSpaceWarning.md
+          expr: |
+            max(max by(persistentvolumeclaim) (1 - kubelet_volume_stats_available_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"} / kubelet_volume_stats_capacity_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"})) > 0.7 OR
+            max(max by(persistentvolumeclaim) (1 - kubelet_volume_stats_available_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$-wal"} / kubelet_volume_stats_capacity_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$-wal"})) > 0.7 OR
+            max(sum by (namespace,persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$-tbs.*"})
+                /
+                sum by (namespace,persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{namespace="argo-workflows", persistentvolumeclaim=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$-tbs.*"})
+                *
+                on(namespace, persistentvolumeclaim) group_left(volume)
+                kube_pod_spec_volumes_persistentvolumeclaims_info{pod=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"}
+            ) > 0.7
+          for: 5m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterOffline
+          annotations:
+            summary: CNPG Cluster has no running instances!
+            description: |-
+              CloudNativePG Cluster "argo-workflows/argo-workflows-postgresql-17-cluster" has no ready instances.
+          
+              Having an offline cluster means your applications will not be able to access the database, leading to
+              potential service disruption and/or data loss.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterOffline.md
+          expr: |
+            (count(cnpg_collector_up{namespace="argo-workflows",pod=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"}) OR on() vector(0)) == 0
+          for: 5m
+          labels:
+            severity: critical
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterPGDatabaseXidAgeWarning
+          annotations:
+            summary: CNPG Cluster has a number of transactions from the frozen XID to the current one.
+            description: |-
+              Over 300,000,000 transactions from frozen xid
+              on pod {{ $labels.pod }}
+          expr: |
+            cnpg_pg_database_xid_age > 300000000
+          for: 1m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterPGReplicationWarning
+          annotations:
+            summary: CNPG Cluster standby is lagging behind the primary.
+            description: |-
+              Standby is lagging behind by over 300 seconds (5 minutes)
+          expr: |
+            cnpg_pg_replication_lag > 300
+          for: 1m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterReplicaFailingReplicationWarning
+          annotations:
+            summary: CNPG Cluster has a replica is failing to replicate.
+            description: |-
+              Replica {{ $labels.pod }}
+              is failing to replicate
+          expr: |
+            cnpg_pg_replication_in_recovery > cnpg_pg_replication_is_wal_receiver_up
+          for: 1m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+        - alert: CNPGClusterZoneSpreadWarning
+          annotations:
+            summary: CNPG Cluster instances in the same zone.
+            description: |-
+              CloudNativePG Cluster "argo-workflows/argo-workflows-postgresql-17-cluster" has instances in the same availability zone.
+          
+              A disaster in one availability zone will lead to a potential service disruption and/or data loss.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterZoneSpreadWarning.md
+          expr: |
+            3 > count(count by (label_topology_kubernetes_io_zone) (kube_pod_info{namespace="argo-workflows", pod=~"argo-workflows-postgresql-17-cluster-([1-9][0-9]*)$"} * on(node,instance) group_left(label_topology_kubernetes_io_zone) kube_node_labels)) < 3
+          for: 5m
+          labels:
+            severity: warning
+            namespace: argo-workflows
+            cnpg_cluster: argo-workflows-postgresql-17-cluster
+---
+# Source: argo-workflows/charts/postgres-17-cluster/templates/scheduled-backup.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: "argo-workflows-postgresql-17-daily-backup-scheduled-backup"
+  namespace: argo-workflows
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: argo-workflows-postgresql-17
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  immediate: false
+  suspend: false
+  schedule: "0 0 0 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: argo-workflows-postgresql-17-cluster
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: "argo-workflows-postgresql-17-external-backup"
+---
+# Source: argo-workflows/charts/postgres-17-cluster/templates/scheduled-backup.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: "argo-workflows-postgresql-17-live-backup-scheduled-backup"
+  namespace: argo-workflows
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: argo-workflows-postgresql-17
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  immediate: true
+  suspend: false
+  schedule: "0 0 0 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: argo-workflows-postgresql-17-cluster
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: "argo-workflows-postgresql-17-garage-local-backup"
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-controller/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argo-workflows-argo-events-controller-manager
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-events-2.4.17
+    app.kubernetes.io/name: argo-events-controller-manager
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+spec:
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics
+  namespaceSelector:
+    matchNames:
+      - "argo-workflows"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argo-events-controller-manager-metrics
+      app.kubernetes.io/instance: argo-workflows
+      app.kubernetes.io/component: controller-manager

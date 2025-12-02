@@ -1,0 +1,228 @@
+---
+# Source: kronic/charts/kronic/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kronic
+  labels:
+    helm.sh/chart: kronic-0.1.7
+    app.kubernetes.io/name: kronic
+    app.kubernetes.io/instance: kronic
+    app.kubernetes.io/version: "v0.1.4"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: kronic/charts/kronic/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    helm.sh/chart: kronic-0.1.7
+    app.kubernetes.io/name: kronic
+    app.kubernetes.io/instance: kronic
+    app.kubernetes.io/version: "v0.1.4"
+    app.kubernetes.io/managed-by: Helm
+  name: kronic
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - events
+      - pods/log
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - batch
+    resources:
+      - jobs
+      - cronjobs
+      - cronjobs/status
+    verbs:
+      - "*"
+---
+# Source: kronic/charts/kronic/templates/rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    helm.sh/chart: kronic-0.1.7
+    app.kubernetes.io/name: kronic
+    app.kubernetes.io/instance: kronic
+    app.kubernetes.io/version: "v0.1.4"
+    app.kubernetes.io/managed-by: Helm
+  name: kronic
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kronic
+subjects:
+  - kind: ServiceAccount
+    name: kronic
+    namespace: "kronic"
+---
+# Source: kronic/charts/kronic/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kronic
+  labels:
+    helm.sh/chart: kronic-0.1.7
+    app.kubernetes.io/name: kronic
+    app.kubernetes.io/instance: kronic
+    app.kubernetes.io/version: "v0.1.4"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: kronic
+    app.kubernetes.io/instance: kronic
+---
+# Source: kronic/charts/kronic/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kronic
+  labels:
+    helm.sh/chart: kronic-0.1.7
+    app.kubernetes.io/name: kronic
+    app.kubernetes.io/instance: kronic
+    app.kubernetes.io/version: "v0.1.4"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kronic
+      app.kubernetes.io/instance: kronic
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kronic
+        app.kubernetes.io/instance: kronic
+    spec:
+      serviceAccountName: kronic
+      securityContext:
+        {}
+      containers:
+        - name: kronic
+          securityContext:
+            {}
+          image: "ghcr.io/mshade/kronic:v0.1.4"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: KRONIC_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: KRONIC_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kronic-config-secret
+                  key: password
+            - name: KRONIC_ADMIN_USERNAME
+              value: "kronic"
+            - name: KRONIC_ALLOW_NAMESPACES
+              value: "gitea,vault,talos,libation,kubernetes-cloudflare-ddns"
+            - name: KRONIC_NAMESPACE_ONLY
+              value: ""
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            limits:
+              cpu: 1
+              memory: 1024Mi
+            requests:
+              cpu: 10m
+              memory: 256Mi
+---
+# Source: kronic/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kronic-config-secret
+  namespace: kronic
+  labels:
+    app.kubernetes.io/name: kronic-config-secret
+    app.kubernetes.io/instance: kronic
+    app.kubernetes.io/part-of: kronic
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: password
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/kronic/auth
+        metadataPolicy: None
+        property: password
+---
+# Source: kronic/templates/http-route.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: https-route-kronic
+  namespace: kronic
+  labels:
+    app.kubernetes.io/name: https-route-kronic
+    app.kubernetes.io/instance: kronic
+    app.kubernetes.io/part-of: kronic
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - kronic.alexlebens.net
+  rules:
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: kronic
+          port: 80
+          weight: 100
+---
+# Source: kronic/charts/kronic/templates/tests/test-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "kronic-test-connection"
+  labels:
+    helm.sh/chart: kronic-0.1.7
+    app.kubernetes.io/name: kronic
+    app.kubernetes.io/instance: kronic
+    app.kubernetes.io/version: "v0.1.4"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['kronic:80/healthz']
+  restartPolicy: Never
