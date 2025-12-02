@@ -42,13 +42,12 @@ jobs:
         run: |
           cd ${MANIFEST_DIR}
 
-          # Configure Git
           echo ">> Configure git to use gitea-bot as user ..."
           git config user.name "gitea-bot"
           git config user.email "gitea-bot@alexlebens.net"
 
-          # Check if pr branch exists
-          git ls-remote --exit-code --heads origin "${BRANCH_NAME}" > /dev/null 2>&1
+          echo ">> Checking if PR branch exists ..."
+          git ls-remote --exit-code --heads origin "${BRANCH_NAME}" > /dev/null 2>&1 || true
 
           if [ $? -eq 0 ]; then
             echo ">> Branch '${BRANCH_NAME}' exists, pulling changes ..."
@@ -61,7 +60,7 @@ jobs:
             git checkout -b $BRANCH_NAME
           fi
 
-          # Removing manifest files to account for any deletions and rebuilt from source
+          echo ">> Remove manfiest files and rebuild from source ..."
           cd ${MANIFEST_DIR}/clusters
           rm -rf ./*
 
@@ -137,14 +136,12 @@ jobs:
         run: |
           cd ${MANIFEST_DIR}
 
-          # Add all changes
-          echo ">> Commiting to ${BRANCH_NAME} ..."
+          echo ">> Commiting changes to ${BRANCH_NAME} ..."
           git add .
           git commit -m "chore: Update manifests after change"
 
-          # Push the new branch to the remote repository
-          REPO_URL="${{ secrets.REPO_URL }}/${{ gitea.repository }}"
           echo ">> Pushing changes to $REPO_URL ..."
+          REPO_URL="${{ secrets.REPO_URL }}/${{ gitea.repository }}"
           git push -u "https://oauth2:${{ secrets.BOT_TOKEN }}@$(echo $REPO_URL | sed -e 's|https://||')" ${BRANCH_NAME}
 
           echo "HEAD_BRANCH=${BRANCH_NAME}" >> $GITEA_OUTPUT
