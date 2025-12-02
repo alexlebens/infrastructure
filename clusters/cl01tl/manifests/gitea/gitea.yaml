@@ -1,0 +1,2445 @@
+---
+# Source: gitea/templates/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitea
+  labels:
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged
+---
+# Source: gitea/charts/backup/templates/common.yaml
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitea-backup
+  labels:
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: gitea
+    helm.sh/chart: backup-4.4.0
+  namespace: gitea
+---
+# Source: gitea/charts/meilisearch/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitea-meilisearch
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: gitea/charts/gitea/templates/gitea/config.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitea-inline-config
+  namespace: gitea
+  labels:
+    helm.sh/chart: gitea-12.4.0
+    app: gitea
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "1.25.2"
+    version: "1.25.2"
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+stringData:
+  _generals_: APP_NAME=Gitea
+  actions: ENABLED=true
+  cache: |-
+    ADAPTER=redis
+    ENABLED=true
+    HOST=redis://redis-replication-gitea-master.gitea:6379
+  database: |-
+    DB_TYPE=postgres
+    SCHEMA=public
+  explore: REQUIRE_SIGNIN_VIEW=true
+  indexer: |-
+    ISSUE_INDEXER_ENABLED=true
+    ISSUE_INDEXER_TYPE=meilisearch
+    REPO_INDEXER_ENABLED=false
+  metrics: ENABLED=true
+  mirror: DEFAULT_INTERVAL=10m
+  oauth2_client: ENABLE_AUTO_REGISTRATION=true
+  queue: |-
+    CONN_STR=redis://redis-replication-gitea-master.gitea:6379
+    TYPE=redis
+  repo-archive: ENABLED=false
+  repository: ROOT=/data/git/gitea-repositories
+  security: INSTALL_LOCK=true
+  server: |-
+    APP_DATA_PATH=/data
+    DOMAIN=gitea.alexlebens.dev
+    ENABLE_PPROF=true
+    HTTP_PORT=3000
+    LANDING_PAGE=explore
+    LOCAL_ROOT_URL=http://gitea-http.gitea.svc.cluster.local:3000
+    PROTOCOL=http
+    ROOT_URL=https://gitea.alexlebens.dev
+    SSH_DOMAIN=gitea.alexlebens.net
+    SSH_LISTEN_PORT=22
+    SSH_PORT=22
+    START_SSH_SERVER=true
+  service: |-
+    ALLOW_ONLY_EXTERNAL_REGISTRATION=true
+    REGISTER_MANUAL_CONFIRM=true
+    SHOW_REGISTRATION_BUTTON=false
+  session: |-
+    PROVIDER=redis
+    PROVIDER_CONFIG=redis://redis-replication-gitea-master.gitea:6379
+  ui: |-
+    DEFAULT_THEME=gitea-auto
+    THEMES=gitea-light,gitea-dark,gitea-auto,catppuccin-rosewater-auto,catppuccin-flamingo-auto,catppuccin-pink-auto,catppuccin-mauve-auto,catppuccin-red-auto,catppuccin-maroon-auto,catppuccin-peach-auto,catppuccin-yellow-auto,catppuccin-green-auto,catppuccin-teal-auto,catppuccin-sky-auto,catppuccin-sapphire-auto,catppuccin-blue-auto,catppuccin-lavender-auto,catppuccin-latte-rosewater,catppuccin-latte-flamingo,catppuccin-latte-pink,catppuccin-latte-mauve,catppuccin-latte-red,catppuccin-latte-maroon,catppuccin-latte-peach,catppuccin-latte-yellow,catppuccin-latte-green,catppuccin-latte-teal,catppuccin-latte-sky,catppuccin-latte-sapphire,catppuccin-latte-blue,catppuccin-latte-lavender,catppuccin-frappe-rosewater,catppuccin-frappe-flamingo,catppuccin-frappe-pink,catppuccin-frappe-mauve,catppuccin-frappe-red,catppuccin-frappe-maroon,catppuccin-frappe-peach,catppuccin-frappe-yellow,catppuccin-frappe-green,catppuccin-frappe-teal,catppuccin-frappe-sky,catppuccin-frappe-sapphire,catppuccin-frappe-blue,catppuccin-frappe-lavender,catppuccin-macchiato-rosewater,catppuccin-macchiato-flamingo,catppuccin-macchiato-pink,catppuccin-macchiato-mauve,catppuccin-macchiato-red,catppuccin-macchiato-maroon,catppuccin-macchiato-peach,catppuccin-macchiato-yellow,catppuccin-macchiato-green,catppuccin-macchiato-teal,catppuccin-macchiato-sky,catppuccin-macchiato-sapphire,catppuccin-macchiato-blue,catppuccin-macchiato-lavender,catppuccin-mocha-rosewater,catppuccin-mocha-flamingo,catppuccin-mocha-pink,catppuccin-mocha-mauve,catppuccin-mocha-red,catppuccin-mocha-maroon,catppuccin-mocha-peach,catppuccin-mocha-yellow,catppuccin-mocha-green,catppuccin-mocha-teal,catppuccin-mocha-sky,catppuccin-mocha-sapphire,catppuccin-mocha-blue,catppuccin-mocha-lavender
+  webhook: ALLOWED_HOST_LIST=private
+---
+# Source: gitea/charts/gitea/templates/gitea/config.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitea
+  namespace: gitea
+  labels:
+    helm.sh/chart: gitea-12.4.0
+    app: gitea
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "1.25.2"
+    version: "1.25.2"
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+stringData:
+  config_environment.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+  
+    function env2ini::log() {
+      printf "${1}\n"
+    }
+  
+    function env2ini::read_config_to_env() {
+      local section="${1}"
+      local line="${2}"
+  
+      if [[ -z "${line}" ]]; then
+        # skip empty line
+        return
+      fi
+  
+      # 'xargs echo -n' trims all leading/trailing whitespaces and a trailing new line
+      local setting="$(awk -F '=' '{print $1}' <<< "${line}" | xargs echo -n)"
+  
+      if [[ -z "${setting}" ]]; then
+        env2ini::log '  ! invalid setting'
+        exit 1
+      fi
+  
+      local value=''
+      local regex="^${setting}(\s*)=(\s*)(.*)"
+      if [[ $line =~ $regex ]]; then
+        value="${BASH_REMATCH[3]}"
+      else
+        env2ini::log '  ! invalid setting'
+        exit 1
+      fi
+  
+      env2ini::log "    + '${setting}'"
+  
+      if [[ -z "${section}" ]]; then
+        export "GITEA____${setting^^}=${value}"                           # '^^' makes the variable content uppercase
+        return
+      fi
+  
+      local masked_section="${section//./_0X2E_}"                            # '//' instructs to replace all matches
+      masked_section="${masked_section//-/_0X2D_}"
+  
+      export "GITEA__${masked_section^^}__${setting^^}=${value}"        # '^^' makes the variable content uppercase
+    }
+  
+    function env2ini::reload_preset_envs() {
+      env2ini::log "Reloading preset envs..."
+  
+      while read -r line; do
+        if [[ -z "${line}" ]]; then
+          # skip empty line
+          return
+        fi
+  
+        # 'xargs echo -n' trims all leading/trailing whitespaces and a trailing new line
+        local setting="$(awk -F '=' '{print $1}' <<< "${line}" | xargs echo -n)"
+  
+        if [[ -z "${setting}" ]]; then
+          env2ini::log '  ! invalid setting'
+          exit 1
+        fi
+  
+        local value=''
+        local regex="^${setting}(\s*)=(\s*)(.*)"
+        if [[ $line =~ $regex ]]; then
+          value="${BASH_REMATCH[3]}"
+        else
+          env2ini::log '  ! invalid setting'
+          exit 1
+        fi
+  
+        env2ini::log "  + '${setting}'"
+  
+        export "${setting^^}=${value}"                           # '^^' makes the variable content uppercase
+      done < "$TMP_EXISTING_ENVS_FILE"
+  
+      rm $TMP_EXISTING_ENVS_FILE
+    }
+  
+  
+    function env2ini::process_config_file() {
+      local config_file="${1}"
+      local section="$(basename "${config_file}")"
+  
+      if [[ $section == '_generals_' ]]; then
+        env2ini::log "  [ini root]"
+        section=''
+      else
+        env2ini::log "  ${section}"
+      fi
+  
+      while read -r line; do
+        env2ini::read_config_to_env "${section}" "${line}"
+      done < <(awk 1 "${config_file}")                             # Helm .toYaml trims the trailing new line which breaks line processing; awk 1 ... adds it back while reading
+    }
+  
+    function env2ini::load_config_sources() {
+      local path="${1}"
+  
+      if [[ -d "${path}" ]]; then
+        env2ini::log "Processing $(basename "${path}")..."
+  
+        while read -d '' configFile; do
+          env2ini::process_config_file "${configFile}"
+        done < <(find "${path}" -type l -not -name '..data' -print0)
+  
+        env2ini::log "\n"
+      fi
+    }
+  
+    function env2ini::generate_initial_secrets() {
+      # These environment variables will either be
+      #   - overwritten with user defined values,
+      #   - initially used to set up Gitea
+      # Anyway, they won't harm existing app.ini files
+  
+      export GITEA__SECURITY__INTERNAL_TOKEN=$(gitea generate secret INTERNAL_TOKEN)
+      export GITEA__SECURITY__SECRET_KEY=$(gitea generate secret SECRET_KEY)
+      export GITEA__OAUTH2__JWT_SECRET=$(gitea generate secret JWT_SECRET)
+      export GITEA__SERVER__LFS_JWT_SECRET=$(gitea generate secret LFS_JWT_SECRET)
+  
+      env2ini::log "...Initial secrets generated\n"
+    }
+  
+    # save existing envs prior to script execution. Necessary to keep order of preexisting and custom envs
+    env | (grep -e '^GITEA__' || [[ $? == 1 ]]) > $TMP_EXISTING_ENVS_FILE
+  
+    # MUST BE CALLED BEFORE OTHER CONFIGURATION
+    env2ini::generate_initial_secrets
+  
+    env2ini::load_config_sources "$ENV_TO_INI_MOUNT_POINT/inlines/"
+    env2ini::load_config_sources "$ENV_TO_INI_MOUNT_POINT/additionals/"
+  
+    # load existing envs to override auto generated envs
+    env2ini::reload_preset_envs
+  
+    env2ini::log "=== All configuration sources loaded ===\n"
+  
+    # safety to prevent rewrite of secret keys if an app.ini already exists
+    if [ -f ${GITEA_APP_INI} ]; then
+      env2ini::log 'An app.ini file already exists. To prevent overwriting secret keys, these settings are dropped and remain unchanged:'
+      env2ini::log '  - security.INTERNAL_TOKEN'
+      env2ini::log '  - security.SECRET_KEY'
+      env2ini::log '  - oauth2.JWT_SECRET'
+      env2ini::log '  - server.LFS_JWT_SECRET'
+  
+      unset GITEA__SECURITY__INTERNAL_TOKEN
+      unset GITEA__SECURITY__SECRET_KEY
+      unset GITEA__OAUTH2__JWT_SECRET
+      unset GITEA__SERVER__LFS_JWT_SECRET
+    fi
+  
+    environment-to-ini -o $GITEA_APP_INI
+  assertions: |
+---
+# Source: gitea/charts/gitea/templates/gitea/init.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitea-init
+  namespace: gitea
+  labels:
+    helm.sh/chart: gitea-12.4.0
+    app: gitea
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "1.25.2"
+    version: "1.25.2"
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+stringData:
+  configure_gpg_environment.sh: |
+    #!/usr/bin/env bash
+    set -eu
+  
+    gpg --batch --import "$TMP_RAW_GPG_KEY"
+  init_directory_structure.sh: |-
+    #!/usr/bin/env bash
+
+    set -euo pipefail
+    # BEGIN: initPreScript
+    wget https://github.com/catppuccin/gitea/releases/latest/download/catppuccin-gitea.tar.gz;
+    tar -xvzf catppuccin-gitea.tar.gz -C /data/gitea/public/assets/css;
+    rm catppuccin-gitea.tar.gz;
+    # END: initPreScript
+    mkdir -pv /data/git/.ssh
+    chmod -Rv 700 /data/git/.ssh
+    [ ! -d /data/gitea/conf ] && mkdir -pv /data/gitea/conf
+
+    # prepare temp directory structure
+    mkdir -pv "${GITEA_TEMP}"
+    chmod -v ug+rwx "${GITEA_TEMP}"
+
+    
+
+  configure_gitea.sh: |-
+    #!/usr/bin/env bash
+
+    set -euo pipefail
+
+    echo '==== BEGIN GITEA CONFIGURATION ===='
+
+    { # try
+      gitea migrate
+    } || { # catch
+      echo "Gitea migrate might fail due to database connection...This init-container will try again in a few seconds"
+      exit 1
+    }
+    function configure_admin_user() {
+      local full_admin_list=$(gitea admin user list --admin)
+      local actual_user_table=''
+
+      # We might have distorted output due to warning logs, so we have to detect the actual user table by its headline and trim output above that line
+      local regex="(.*)(ID\s+Username\s+Email\s+IsActive.*)"
+      if [[ "${full_admin_list}" =~ $regex ]]; then
+        actual_user_table=$(echo "${BASH_REMATCH[2]}" | tail -n+2) # tail'ing to drop the table headline
+      else
+        # This code block should never be reached, as long as the output table header remains the same.
+        # If this code block is reached, the regex doesn't match anymore and we probably have to adjust this script.
+
+        echo "ERROR: 'configure_admin_user' was not able to determine the current list of admin users."
+        echo "       Please review the output of 'gitea admin user list --admin' shown below."
+        echo "       If you think it is an issue with the Helm Chart provisioning, file an issue at https://gitea.com/gitea/helm-gitea/issues."
+        echo "DEBUG: Output of 'gitea admin user list --admin'"
+        echo "--"
+        echo "${full_admin_list}"
+        echo "--"
+        exit 1
+      fi
+
+      local ACCOUNT_ID=$(echo "${actual_user_table}" | grep -E "\s+${GITEA_ADMIN_USERNAME}\s+" | awk -F " " "{printf \$1}")
+      if [[ -z "${ACCOUNT_ID}" ]]; then
+        local -a create_args
+        create_args=(--admin --username "${GITEA_ADMIN_USERNAME}" --password "${GITEA_ADMIN_PASSWORD}" --email "gitea@local.domain")
+        if [[ "${GITEA_ADMIN_PASSWORD_MODE}" = initialOnlyRequireReset ]]; then
+          create_args+=(--must-change-password=true)
+        else
+          create_args+=(--must-change-password=false)
+        fi
+        echo "No admin user '${GITEA_ADMIN_USERNAME}' found. Creating now..."
+        gitea admin user create "${create_args[@]}"
+        echo '...created.'
+      else
+        if [[ "${GITEA_ADMIN_PASSWORD_MODE}" = keepUpdated ]]; then
+          echo "Admin account '${GITEA_ADMIN_USERNAME}' already exist. Running update to sync password..."
+          # See https://gitea.com/gitea/helm-gitea/issues/673
+          # --must-change-password argument was added to change-password, defaulting to true, counter to the previous behavior
+          #   which acted as if it were provided with =false. If the argument is present in this version of gitea, then we
+          #   should add it to prevent requiring frequent admin password resets.
+          local -a change_args
+          change_args=(--username "${GITEA_ADMIN_USERNAME}" --password "${GITEA_ADMIN_PASSWORD}")
+          if gitea admin user change-password --help | grep -qF -- '--must-change-password'; then
+            change_args+=(--must-change-password=false)
+          fi
+          gitea admin user change-password "${change_args[@]}"
+          echo '...password sync done.'
+        else
+          echo "Admin account '${GITEA_ADMIN_USERNAME}' already exist, but update mode is set to '${GITEA_ADMIN_PASSWORD_MODE}'. Skipping."
+        fi
+      fi
+    }
+
+    configure_admin_user
+
+    function configure_ldap() {
+        echo 'no ldap configuration... skipping.'
+    }
+
+    configure_ldap
+
+    function configure_oauth() {
+      local OAUTH_NAME='Authentik'
+      local full_auth_list=$(gitea admin auth list --vertical-bars)
+      local actual_auth_table=''
+
+      # We might have distorted output due to warning logs, so we have to detect the actual user table by its headline and trim output above that line
+      local regex="(.*)(ID\s+\|Name\s+\|Type\s+\|Enabled.*)"
+      if [[ "${full_auth_list}" =~ $regex ]]; then
+        actual_auth_table=$(echo "${BASH_REMATCH[2]}" | tail -n+2) # tail'ing to drop the table headline
+      else
+        # This code block should never be reached, as long as the output table header remains the same.
+        # If this code block is reached, the regex doesn't match anymore and we probably have to adjust this script.
+
+        echo "ERROR: 'configure_oauth' was not able to determine the current list of authentication sources."
+        echo "       Please review the output of 'gitea admin auth list --vertical-bars' shown below."
+        echo "       If you think it is an issue with the Helm Chart provisioning, file an issue at https://gitea.com/gitea/helm-gitea/issues."
+        echo "DEBUG: Output of 'gitea admin auth list --vertical-bars'"
+        echo "--"
+        echo "${full_auth_list}"
+        echo "--"
+        exit 1
+      fi
+
+      local AUTH_ID=$(echo "${actual_auth_table}" | grep -E "\|${OAUTH_NAME}\s+\|" | grep -iE '\|OAuth2\s+\|' | awk -F " "  "{print \$1}")
+
+      if [[ -z "${AUTH_ID}" ]]; then
+        echo "No oauth configuration found with name '${OAUTH_NAME}'. Installing it now..."
+        gitea admin auth add-oauth --auto-discover-url "https://auth.alexlebens.dev/application/o/gitea/.well-known/openid-configuration" --icon-url "https://goauthentik.io/img/icon.png" --key "${GITEA_OAUTH_KEY_0}" --name "Authentik" --provider "openidConnect" --scopes "email profile" --secret "${GITEA_OAUTH_SECRET_0}" 
+        echo '...installed.'
+      else
+        echo "Existing oauth configuration with name '${OAUTH_NAME}': '${AUTH_ID}'. Running update to sync settings..."
+        gitea admin auth update-oauth --id "${AUTH_ID}" --auto-discover-url "https://auth.alexlebens.dev/application/o/gitea/.well-known/openid-configuration" --icon-url "https://goauthentik.io/img/icon.png" --key "${GITEA_OAUTH_KEY_0}" --name "Authentik" --provider "openidConnect" --scopes "email profile" --secret "${GITEA_OAUTH_SECRET_0}" 
+        echo '...sync settings done.'
+      fi
+    }
+
+    configure_oauth
+
+    echo '==== END GITEA CONFIGURATION ===='
+---
+# Source: gitea/charts/gitea-actions/templates/config-map.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitea-actions-act-runner-config
+  namespace: gitea
+  labels:
+    helm.sh/chart: gitea-actions-0.2.1
+    app: gitea-actions
+    app.kubernetes.io/name: gitea-actions
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "0.2.13"
+    version: "0.2.13"
+    app.kubernetes.io/managed-by: Helm
+data:
+  config.yaml: |
+    log:
+      level: debug
+    cache:
+      enabled: false
+    runner:
+      labels:
+        - "ubuntu-latest:docker://harbor.alexlebens.net/proxy-hub.docker/gitea/runner-images:ubuntu-24.04"
+        - "ubuntu-js:docker://harbor.alexlebens.net/proxy-ghcr.io/catthehacker/ubuntu:js-24.04"
+        - "ubuntu-24.04:docker://harbor.alexlebens.net/proxy-hub.docker/gitea/runner-images:ubuntu-24.04"
+        - "ubuntu-22.04:docker://harbor.alexlebens.net/proxy-hub.docker/gitea/runner-images:ubuntu-22.04"
+---
+# Source: gitea/charts/meilisearch/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitea-meilisearch-environment
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+data:
+  MEILI_ENV: "production"
+  MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE: "true"
+  MEILI_NO_ANALYTICS: "true"
+  MEILI_EXPERIMENTAL_ENABLE_METRICS: "true"
+---
+# Source: gitea/charts/gitea/templates/gitea/pvc.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: gitea-shared-storage
+  namespace: gitea
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {}
+spec:
+  accessModes:
+      - ReadWriteMany
+  volumeMode: Filesystem
+  
+  storageClassName: "ceph-filesystem"
+  resources:
+    requests:
+      storage: 40Gi
+---
+# Source: gitea/charts/meilisearch/templates/pvc.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: gitea-meilisearch
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "5Gi"
+  storageClassName: "ceph-block"
+---
+# Source: gitea/templates/persistent-volume-claim.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-nfs-storage-backup
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-nfs-storage-backup
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  volumeMode: Filesystem
+  storageClassName: nfs-client
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Source: gitea/templates/persistent-volume-claim.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-themes-storage
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-themes-storage
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  volumeMode: Filesystem
+  storageClassName: nfs-client
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Source: gitea/templates/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitea-backup
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-backup
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - pods/exec
+    verbs:
+      - create
+      - list
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+---
+# Source: gitea/templates/role-binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitea-backup
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-backup
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitea-backup
+subjects:
+  - kind: ServiceAccount
+    name: gitea-backup
+    namespace: gitea
+---
+# Source: gitea/charts/gitea/templates/gitea/http-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea-http
+  namespace: gitea
+  labels:
+    helm.sh/chart: gitea-12.4.0
+    app: gitea
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "1.25.2"
+    version: "1.25.2"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    {}
+spec:
+  type: ClusterIP
+  clusterIP: 10.103.160.139
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 
+  selector:
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+---
+# Source: gitea/charts/gitea/templates/gitea/ssh-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea-ssh
+  namespace: gitea
+  labels:
+    helm.sh/chart: gitea-12.4.0
+    app: gitea
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "1.25.2"
+    version: "1.25.2"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    {}
+spec:
+  type: ClusterIP
+  clusterIP: 10.103.160.140
+  ports:
+  - name: ssh
+    port: 22
+    targetPort: 22
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+---
+# Source: gitea/charts/meilisearch/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea-meilisearch
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 7700
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: gitea
+---
+# Source: gitea/charts/cloudflared/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea-cloudflared
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/version: 2025.10.0
+    helm.sh/chart: cloudflared-1.23.0
+  namespace: gitea
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: cloudflared
+      app.kubernetes.io/instance: gitea
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: gitea
+        app.kubernetes.io/name: cloudflared
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - args:
+          - tunnel
+          - --protocol
+          - http2
+          - --no-autoupdate
+          - run
+          - --token
+          - $(CF_MANAGED_TUNNEL_TOKEN)
+          env:
+          - name: CF_MANAGED_TUNNEL_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: cf-tunnel-token
+                name: gitea-cloudflared-secret
+          image: cloudflare/cloudflared:2025.11.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+---
+# Source: gitea/charts/gitea/templates/gitea/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea
+  namespace: gitea
+  annotations:
+  labels:
+    helm.sh/chart: gitea-12.4.0
+    app: gitea
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "1.25.2"
+    version: "1.25.2"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 100%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gitea
+      app.kubernetes.io/instance: gitea
+  template:
+    metadata:
+      annotations:
+        checksum/config: 15d118267cbb18a568310f6955563c2557bca8b8e66a48075e8ebda35d1682f8
+        checksum/oauth_0: 03073bf48e66f48f622bd02092a5f93bfd06dbcb5fd833aded3b0d40980be93d
+      labels:
+        helm.sh/chart: gitea-12.4.0
+        app: gitea
+        app.kubernetes.io/name: gitea
+        app.kubernetes.io/instance: gitea
+        app.kubernetes.io/version: "1.25.2"
+        version: "1.25.2"
+        app.kubernetes.io/managed-by: Helm
+    spec:
+      
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: init-directories
+          image: "registry.hub.docker.com/gitea/gitea:1.25.2-rootless"
+          imagePullPolicy: IfNotPresent
+          command:
+            - "/usr/sbinx/init_directory_structure.sh"
+          env:
+            - name: GITEA_APP_INI
+              value: /data/gitea/conf/app.ini
+            - name: GITEA_CUSTOM
+              value: /data/gitea
+            - name: GITEA_WORK_DIR
+              value: /data
+            - name: GITEA_TEMP
+              value: /tmp/gitea
+          volumeMounts:
+            - name: init
+              mountPath: /usr/sbinx
+            - name: temp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+            - mountPath: /data/gitea/public/assets/css
+              name: gitea-themes-storage
+              readOnly: false
+          securityContext:
+            {}
+          resources:
+            limits: {}
+            requests:
+              cpu: 100m
+              memory: 128Mi
+        - name: init-app-ini
+          image: "registry.hub.docker.com/gitea/gitea:1.25.2-rootless"
+          imagePullPolicy: IfNotPresent
+          command:
+          - "/usr/sbinx/config_environment.sh"
+          env:
+            - name: GITEA_APP_INI
+              value: /data/gitea/conf/app.ini
+            - name: GITEA_CUSTOM
+              value: /data/gitea
+            - name: GITEA_WORK_DIR
+              value: /data
+            - name: GITEA_TEMP
+              value: /tmp/gitea
+            - name: TMP_EXISTING_ENVS_FILE
+              value: /tmp/existing-envs
+            - name: ENV_TO_INI_MOUNT_POINT
+              value: /env-to-ini-mounts
+            - name: GITEA__DATABASE__HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: gitea-postgresql-17-cluster-app
+            - name: GITEA__DATABASE__NAME
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: gitea-postgresql-17-cluster-app
+            - name: GITEA__DATABASE__USER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: gitea-postgresql-17-cluster-app
+            - name: GITEA__DATABASE__PASSWD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: gitea-postgresql-17-cluster-app
+            - name: GITEA__INDEXER__ISSUE_INDEXER_CONN_STR
+              valueFrom:
+                secretKeyRef:
+                  key: ISSUE_INDEXER_CONN_STR
+                  name: gitea-meilisearch-master-key-secret
+          volumeMounts:
+            - name: config
+              mountPath: /usr/sbinx
+            - name: temp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+            - name: inline-config-sources
+              mountPath: /env-to-ini-mounts/inlines/
+            - mountPath: /data/gitea/public/assets/css
+              name: gitea-themes-storage
+              readOnly: false
+          securityContext:
+            {}
+          resources:
+            limits: {}
+            requests:
+              cpu: 100m
+              memory: 128Mi
+        - name: configure-gitea
+          image: "registry.hub.docker.com/gitea/gitea:1.25.2-rootless"
+          command:
+          - "/usr/sbinx/configure_gitea.sh"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 1000
+          env:
+            - name: GITEA_APP_INI
+              value: /data/gitea/conf/app.ini
+            - name: GITEA_CUSTOM
+              value: /data/gitea
+            - name: GITEA_WORK_DIR
+              value: /data
+            - name: GITEA_TEMP
+              value: /tmp/gitea
+            - name: HOME
+              value: /data/gitea/git
+            - name: GITEA_OAUTH_KEY_0
+              valueFrom:
+                secretKeyRef:
+                  key:  key
+                  name: gitea-oidc-secret
+            - name: GITEA_OAUTH_SECRET_0
+              valueFrom:
+                secretKeyRef:
+                  key:  secret
+                  name: gitea-oidc-secret
+            - name: GITEA_ADMIN_USERNAME
+              value: "gitea_admin"
+            - name: GITEA_ADMIN_PASSWORD
+              value: "r8sA8CPHD9!bt6d"
+            - name: GITEA_ADMIN_PASSWORD_MODE
+              value: keepUpdated
+          volumeMounts:
+            - name: init
+              mountPath: /usr/sbinx
+            - name: temp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+            - mountPath: /data/gitea/public/assets/css
+              name: gitea-themes-storage
+              readOnly: false
+          resources:
+            limits: {}
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: gitea
+          image: "registry.hub.docker.com/gitea/gitea:1.25.2-rootless"
+          imagePullPolicy: IfNotPresent
+          env:
+            # SSH Port values have to be set here as well for openssh configuration
+            - name: SSH_LISTEN_PORT
+              value: "22"
+            - name: SSH_PORT
+              value: "22"
+            - name: GITEA_APP_INI
+              value: /data/gitea/conf/app.ini
+            - name: GITEA_CUSTOM
+              value: /data/gitea
+            - name: GITEA_WORK_DIR
+              value: /data
+            - name: GITEA_TEMP
+              value: /tmp/gitea
+            - name: TMPDIR
+              value: /tmp/gitea
+            - name: HOME
+              value: /data/gitea/git
+          ports:
+            - name: ssh
+              containerPort: 22
+            - name: http
+              containerPort: 3000
+            - name: profiler
+              containerPort: 6060
+          livenessProbe:
+            failureThreshold: 10
+            initialDelaySeconds: 200
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: http
+            timeoutSeconds: 1
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: http
+            timeoutSeconds: 1
+          resources:
+            {}
+          securityContext:
+            {}
+          volumeMounts:
+            - name: temp
+              mountPath: /tmp
+            - name: data
+              mountPath: /data
+            - mountPath: /opt/backup
+              name: gitea-nfs-storage-backup
+              readOnly: false
+            - mountPath: /data/gitea/public/assets/css
+              name: gitea-themes-storage
+              readOnly: true
+      volumes:
+        - name: init
+          secret:
+            secretName: gitea-init
+            defaultMode: 110
+        - name: config
+          secret:
+            secretName: gitea
+            defaultMode: 110
+        - name: gitea-nfs-storage-backup
+          persistentVolumeClaim:
+            claimName: gitea-nfs-storage-backup
+        - name: gitea-themes-storage
+          persistentVolumeClaim:
+            claimName: gitea-themes-storage
+        - name: inline-config-sources
+          secret:
+            secretName: gitea-inline-config
+        - name: temp
+          emptyDir: {}
+        - name: data
+          persistentVolumeClaim:
+            claimName: gitea-shared-storage
+---
+# Source: gitea/charts/gitea-actions/templates/stateful-set.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    helm.sh/chart: gitea-actions-0.2.1
+    app: gitea-actions-act-runner
+    app.kubernetes.io/name: gitea-actions-act-runner
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "0.2.13"
+    version: "0.2.13"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+  name: gitea-actions-act-runner
+  namespace: gitea
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gitea-actions-act-runner
+      app.kubernetes.io/instance: gitea
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: gitea-actions-0.2.1
+        app: gitea-actions-act-runner
+        app.kubernetes.io/name: gitea-actions-act-runner
+        app.kubernetes.io/instance: gitea
+        app.kubernetes.io/version: "0.2.13"
+        version: "0.2.13"
+        app.kubernetes.io/managed-by: Helm
+    spec:
+      initContainers:
+        - name: init-gitea
+          image: "busybox:1.37.0"
+          command:
+            - sh
+            - -c
+            - |
+              while ! nc -z gitea-http.gitea 3000; do
+                sleep 5
+              done
+      containers:
+        - name: act-runner
+          image: "gitea/act_runner:0.2.13"
+          imagePullPolicy: IfNotPresent
+          workingDir: /data
+          env:
+            - name: DOCKER_HOST
+              value: tcp://127.0.0.1:2376
+            - name: DOCKER_TLS_VERIFY
+              value: "1"
+            - name: DOCKER_CERT_PATH
+              value: /certs/server
+            - name: GITEA_RUNNER_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: "gitea-runner-secret"
+                  key: "token"
+            - name: GITEA_INSTANCE_URL
+              value: http://gitea-http.gitea:3000
+            - name: CONFIG_FILE
+              value: /actrunner/config.yaml
+          resources:
+            {}
+          volumeMounts:
+            - mountPath: /actrunner/config.yaml
+              name: act-runner-config
+              subPath: config.yaml
+            - mountPath: /certs/server
+              name: docker-certs
+            - mountPath: /data
+              name: data-act-runner
+        - name: dind
+          image: "docker:25.0.2-dind"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DOCKER_HOST
+              value: tcp://127.0.0.1:2376
+            - name: DOCKER_TLS_VERIFY
+              value: "1"
+            - name: DOCKER_CERT_PATH
+              value: /certs/server
+          securityContext:
+            privileged: true
+          resources:
+            {}
+          volumeMounts:
+            - mountPath: /certs/server
+              name: docker-certs
+      volumes:
+        - name: act-runner-config
+          configMap:
+            name: gitea-actions-act-runner-config
+        - name: docker-certs
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data-act-runner
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        
+        storageClassName: "ceph-block"
+        resources:
+          requests:
+            storage: 5Gi
+---
+# Source: gitea/charts/meilisearch/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gitea-meilisearch
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  serviceName: gitea-meilisearch
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: meilisearch
+      app.kubernetes.io/instance: gitea
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: meilisearch-0.17.1
+        app.kubernetes.io/name: meilisearch
+        app.kubernetes.io/instance: gitea
+        app.kubernetes.io/version: "v1.18.0"
+        app.kubernetes.io/component: search-engine
+        app.kubernetes.io/part-of: meilisearch
+        app.kubernetes.io/managed-by: Helm
+      annotations:
+        checksum/config: 9deeaa29217bfb37c57ed6e7f257f3bbd75b1cdd441f71297ac38bc3e2c78a6e
+    spec:
+      serviceAccountName: gitea-meilisearch
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          persistentVolumeClaim:
+            claimName: gitea-meilisearch
+
+      
+            
+      containers:
+        - name: meilisearch
+          image: "getmeili/meilisearch:v1.18.0"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /meili_data
+          envFrom:
+          - configMapRef:
+              name: gitea-meilisearch-environment
+          - secretRef:
+              name: gitea-meilisearch-master-key-secret
+          ports:
+            - name: http
+              containerPort: 7700
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 1
+            initialDelaySeconds: 1
+            failureThreshold: 60
+            timeoutSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            initialDelaySeconds: 0
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            initialDelaySeconds: 0
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+---
+# Source: gitea/charts/backup/templates/common.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gitea-backup
+  labels:
+    app.kubernetes.io/controller: backup
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: gitea
+    helm.sh/chart: backup-4.4.0
+  namespace: gitea
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 90
+  timeZone: US/Central
+  schedule: "0 4 */2 * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels: 
+            app.kubernetes.io/controller: backup
+            app.kubernetes.io/instance: gitea
+            app.kubernetes.io/name: gitea
+        spec: 
+          enableServiceLinks: false
+          serviceAccountName: gitea-backup
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          initContainers: 
+            - args:
+              - -ec
+              - |
+                kubectl exec -it deploy/gitea -n gitea -- rm -f /opt/backup/gitea-backup.zip;
+                kubectl exec -it deploy/gitea -n gitea -- /app/gitea/gitea dump -c /data/gitea/conf/app.ini --file /opt/backup/gitea-backup.zip;
+              command:
+              - sh
+              image: bitnami/kubectl:latest
+              imagePullPolicy: IfNotPresent
+              name: backup
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+          containers: 
+            - args:
+              - -ec
+              - |
+                echo ">> Running S3 backup for Gitea"
+                s3cmd put --no-check-md5 --no-check-certificate -v /opt/backup/gitea-backup.zip ${BUCKET}/cl01tl/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
+                mv /opt/backup/gitea-backup.zip /opt/backup/gitea-backup-$(date +"%Y%m%d-%H-%M").zip;
+                echo ">> Completed S3 backup for Gitea"
+              command:
+              - /bin/sh
+              env:
+              - name: BUCKET
+                valueFrom:
+                  secretKeyRef:
+                    key: BUCKET
+                    name: gitea-s3cmd-config
+              image: d3fk/s3cmd:latest@sha256:7bdbd33bb3d044884598898b9e9b383385759fbd6ebf52888700bd9b0e0fab91
+              imagePullPolicy: IfNotPresent
+              name: s3-backup
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+              - mountPath: /opt/backup
+                name: config
+              - mountPath: /root/.s3cfg
+                mountPropagation: None
+                name: s3cmd-config
+                readOnly: true
+                subPath: .s3cfg
+            - args:
+              - -ec
+              - |
+                export DATE_RANGE=$(date -d @$(( $(date +%s) - 604800 )) +%Y%m%d);
+                export FILE_MATCH="$BUCKET/cl01tl/gitea-backup-$DATE_RANGE-09-00.zip"
+                echo ">> Running S3 prune for Gitea backup repository"
+                echo ">> Backups prior to '$DATE_RANGE' will be removed"
+                echo ">> Backups to be removed:"
+                s3cmd ls ${BUCKET}/cl01tl/ |
+                  awk -v file_match="$FILE_MATCH" '$4 < file_match {print $4}'
+                echo ">> Deleting ..."
+                s3cmd ls ${BUCKET}/cl01tl/ |
+                  awk -v file_match="$FILE_MATCH" '$4 < file_match {print $4}' |
+                  while read file; do
+                    s3cmd del "$file";
+                  done;
+                echo ">> Completed S3 prune for Gitea backup repository"
+              command:
+              - /bin/sh
+              env:
+              - name: BUCKET
+                valueFrom:
+                  secretKeyRef:
+                    key: BUCKET
+                    name: gitea-s3cmd-config
+              image: d3fk/s3cmd:latest@sha256:7bdbd33bb3d044884598898b9e9b383385759fbd6ebf52888700bd9b0e0fab91
+              imagePullPolicy: IfNotPresent
+              name: s3-prune
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+              - mountPath: /root/.s3cfg
+                mountPropagation: None
+                name: s3cmd-config
+                readOnly: true
+                subPath: .s3cfg
+          volumes: 
+            - name: config
+              persistentVolumeClaim:
+                claimName: gitea-nfs-storage-backup
+            - name: s3cmd-config
+              secret:
+                secretName: gitea-s3cmd-config
+---
+# Source: gitea/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitea-tailscale
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-tailscale
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    tailscale.com/proxy-class: no-metrics
+  annotations:
+    tailscale.com/experimental-forward-cluster-traffic-via-ingress: "true"
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - gitea-cl01tl
+      secretName: gitea-cl01tl
+  rules:
+    - host: gitea-cl01tl
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: gitea-http
+                port:
+                  name: http
+---
+# Source: gitea/charts/postgres-17-cluster/templates/cluster.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: gitea-postgresql-17-cluster
+  namespace: gitea
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: gitea-postgresql-17
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  instances: 3
+  imageName: "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie"
+  imagePullPolicy: IfNotPresent
+  postgresUID: 26
+  postgresGID: 26
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: false
+      parameters:
+        barmanObjectName: "gitea-postgresql-17-external-backup"
+        serverName: "gitea-postgresql-17-backup-1"
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: "gitea-postgresql-17-garage-local-backup"
+        serverName: "gitea-postgresql-17-backup-1"
+  
+  externalClusters:
+    - name: recovery
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: "gitea-postgresql-17-recovery"
+          serverName: gitea-postgresql-17-backup-1
+  
+  storage:
+    size: 10Gi
+    storageClass: local-path
+  walStorage:
+    size: 2Gi
+    storageClass: local-path
+  resources:
+    limits:
+      hugepages-2Mi: 256Mi
+    requests:
+      cpu: 200m
+      memory: 1Gi
+  
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+
+  primaryUpdateMethod: switchover
+  primaryUpdateStrategy: unsupervised
+  logLevel: info
+  enableSuperuserAccess: false
+  enablePDB: true
+
+  postgresql:
+    parameters:
+      hot_standby_feedback: "on"
+      max_slot_wal_keep_size: 2000MB
+      shared_buffers: 128MB
+
+  monitoring:
+    enablePodMonitor: true
+    disableDefaultQueries: false
+
+  
+  bootstrap:
+    recovery:
+      
+      database: app
+      
+      source: gitea-postgresql-17-backup-1
+  
+  externalClusters:
+    - name: gitea-postgresql-17-backup-1
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        enabled: true
+        isWALArchiver: false
+        parameters:
+          barmanObjectName: "gitea-postgresql-17-recovery"
+          serverName: gitea-postgresql-17-backup-1
+---
+# Source: gitea/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gitea-admin-secret
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-admin-secret
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: username
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/gitea/auth/admin
+        metadataPolicy: None
+        property: username
+    - secretKey: password
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/gitea/auth/admin
+        metadataPolicy: None
+        property: password
+---
+# Source: gitea/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gitea-oidc-secret
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-oidc-secret
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: secret
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /authentik/oidc/gitea
+        metadataPolicy: None
+        property: secret
+    - secretKey: key
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /authentik/oidc/gitea
+        metadataPolicy: None
+        property: client
+---
+# Source: gitea/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gitea-runner-secret
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-runner-secret
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: token
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/gitea/runner
+        metadataPolicy: None
+        property: token
+---
+# Source: gitea/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gitea-renovate-secret
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-renovate-secret
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: RENOVATE_ENDPOINT
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/gitea/renovate
+        metadataPolicy: None
+        property: RENOVATE_ENDPOINT
+    - secretKey: RENOVATE_GIT_AUTHOR
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/gitea/renovate
+        metadataPolicy: None
+        property: RENOVATE_GIT_AUTHOR
+    - secretKey: RENOVATE_TOKEN
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/gitea/renovate
+        metadataPolicy: None
+        property: RENOVATE_TOKEN
+    - secretKey: RENOVATE_GIT_PRIVATE_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/gitea/renovate
+        metadataPolicy: None
+        property: id_rsa
+    - secretKey: RENOVATE_GITHUB_COM_TOKEN
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /github/gitea-cl01tl
+        metadataPolicy: None
+        property: token
+---
+# Source: gitea/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gitea-renovate-ssh-secret
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-renovate-ssh-secret
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: config
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/gitea/renovate
+        metadataPolicy: None
+        property: ssh_config
+    - secretKey: id_rsa
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/gitea/renovate
+        metadataPolicy: None
+        property: id_rsa
+    - secretKey: id_rsa.pub
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/gitea/renovate
+        metadataPolicy: None
+        property: id_rsa.pub
+---
+# Source: gitea/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gitea-s3cmd-config
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-s3cmd-config
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: .s3cfg
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/gitea-backup
+        metadataPolicy: None
+        property: s3cfg
+    - secretKey: BUCKET
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/gitea-backup
+        metadataPolicy: None
+        property: BUCKET
+---
+# Source: gitea/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gitea-meilisearch-master-key-secret
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-meilisearch-master-key-secret
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  target:
+    template:
+      mergePolicy: Merge
+      engineVersion: v2
+      data:
+        ISSUE_INDEXER_CONN_STR: "http://:{{ .MEILI_MASTER_KEY }}@gitea-meilisearch.gitea:7700/"
+  data:
+    - secretKey: MEILI_MASTER_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/gitea/meilisearch
+        metadataPolicy: None
+        property: MEILI_MASTER_KEY
+---
+# Source: gitea/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gitea-cloudflared-secret
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-cloudflared-secret
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: cf-tunnel-token
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cloudflare/tunnels/gitea
+        metadataPolicy: None
+        property: token
+---
+# Source: gitea/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gitea-postgresql-17-cluster-backup-secret
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-postgresql-17-cluster-backup-secret
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: ACCESS_KEY_ID
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/postgres-backups
+        metadataPolicy: None
+        property: access
+    - secretKey: ACCESS_SECRET_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/postgres-backups
+        metadataPolicy: None
+        property: secret
+---
+# Source: gitea/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: gitea-postgresql-17-cluster-backup-secret-garage
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-postgresql-17-cluster-backup-secret-garage
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: ACCESS_KEY_ID
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /garage/home-infra/postgres-backups
+        metadataPolicy: None
+        property: ACCESS_KEY_ID
+    - secretKey: ACCESS_SECRET_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /garage/home-infra/postgres-backups
+        metadataPolicy: None
+        property: ACCESS_SECRET_KEY
+    - secretKey: ACCESS_REGION
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /garage/home-infra/postgres-backups
+        metadataPolicy: None
+        property: ACCESS_REGION
+---
+# Source: gitea/templates/http-route.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-route-gitea
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: http-route-gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - gitea.alexlebens.net
+  rules:
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: gitea-http
+          port: 3000
+          weight: 100
+---
+# Source: gitea/charts/postgres-17-cluster/templates/object-store.yaml
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: "gitea-postgresql-17-external-backup"
+  namespace: gitea
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: gitea-postgresql-17
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  retentionPolicy: 30d
+  configuration:
+    destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/gitea/gitea-postgresql-17-cluster
+    endpointURL: https://nyc3.digitaloceanspaces.com
+    s3Credentials:
+      accessKeyId:
+        name: gitea-postgresql-17-cluster-backup-secret
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: gitea-postgresql-17-cluster-backup-secret
+        key: ACCESS_SECRET_KEY
+---
+# Source: gitea/charts/postgres-17-cluster/templates/object-store.yaml
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: "gitea-postgresql-17-garage-local-backup"
+  namespace: gitea
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: gitea-postgresql-17
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  retentionPolicy: 3d
+  configuration:
+    destinationPath: s3://postgres-backups/cl01tl/gitea/gitea-postgresql-17-cluster
+    endpointURL: http://garage-main.garage:3900
+    s3Credentials:
+      accessKeyId:
+        name: gitea-postgresql-17-cluster-backup-secret-garage
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: gitea-postgresql-17-cluster-backup-secret-garage
+        key: ACCESS_SECRET_KEY
+      region:
+        name: gitea-postgresql-17-cluster-backup-secret-garage
+        key: ACCESS_REGION
+---
+# Source: gitea/charts/postgres-17-cluster/templates/object-store.yaml
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: "gitea-postgresql-17-recovery"
+  namespace: gitea
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: gitea-postgresql-17
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  configuration:
+    destinationPath: s3://postgres-backups/cl01tl/gitea/gitea-postgresql-17-cluster
+    endpointURL: http://garage-main.garage:3900
+    wal:
+      compression: snappy
+      maxParallel: 1
+    data:
+      compression: snappy
+      jobs: 1
+    s3Credentials:
+      accessKeyId:
+        name: gitea-postgresql-17-cluster-backup-secret-garage
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: gitea-postgresql-17-cluster-backup-secret-garage
+        key: ACCESS_SECRET_KEY
+---
+# Source: gitea/charts/postgres-17-cluster/templates/prometheus-rule.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gitea-postgresql-17-alert-rules
+  namespace: gitea
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: gitea-postgresql-17
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  groups:
+    - name: cloudnative-pg/gitea-postgresql-17
+      rules:
+        - alert: CNPGClusterBackendsWaitingWarning
+          annotations:
+            summary: CNPG Cluster a backend is waiting for longer than 5 minutes.
+            description: |-
+              Pod {{ $labels.pod }}
+              has been waiting for longer than 5 minutes
+          expr: |
+            cnpg_backends_waiting_total > 300
+          for: 1m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterDatabaseDeadlockConflictsWarning
+          annotations:
+            summary: CNPG Cluster has over 10 deadlock conflicts.
+            description: |-
+              There are over 10 deadlock conflicts in
+              {{ $labels.pod }}
+          expr: |
+            cnpg_pg_stat_database_deadlocks > 10
+          for: 1m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterHACritical
+          annotations:
+            summary: CNPG Cluster has no standby replicas!
+            description: |-
+              CloudNativePG Cluster "{{`{{`}} $labels.job {{`}}`}}" has no ready standby replicas. Your cluster at a severe
+              risk of data loss and downtime if the primary instance fails.
+          
+              The primary instance is still online and able to serve queries, although connections to the `-ro` endpoint
+              will fail. The `-r` endpoint os operating at reduced capacity and all traffic is being served by the main.
+          
+              This can happen during a normal fail-over or automated minor version upgrades in a cluster with 2 or less
+              instances. The replaced instance may need some time to catch-up with the cluster primary instance.
+          
+              This alarm will be always trigger if your cluster is configured to run with only 1 instance. In this
+              case you may want to silence it.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterHACritical.md
+          expr: |
+            max by (job) (cnpg_pg_replication_streaming_replicas{namespace="gitea"} - cnpg_pg_replication_is_wal_receiver_up{namespace="gitea"}) < 1
+          for: 5m
+          labels:
+            severity: critical
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterHAWarning
+          annotations:
+            summary: CNPG Cluster less than 2 standby replicas.
+            description: |-
+              CloudNativePG Cluster "{{`{{`}} $labels.job {{`}}`}}" has only {{`{{`}} $value {{`}}`}} standby replicas, putting
+              your cluster at risk if another instance fails. The cluster is still able to operate normally, although
+              the `-ro` and `-r` endpoints operate at reduced capacity.
+          
+              This can happen during a normal fail-over or automated minor version upgrades. The replaced instance may
+              need some time to catch-up with the cluster primary instance.
+          
+              This alarm will be constantly triggered if your cluster is configured to run with less than 3 instances.
+              In this case you may want to silence it.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterHAWarning.md
+          expr: |
+            max by (job) (cnpg_pg_replication_streaming_replicas{namespace="gitea"} - cnpg_pg_replication_is_wal_receiver_up{namespace="gitea"}) < 2
+          for: 5m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterHighConnectionsCritical
+          annotations:
+            summary: CNPG Instance maximum number of connections critical!
+            description: |-
+              CloudNativePG Cluster "gitea/gitea-postgresql-17-cluster" instance {{`{{`}} $labels.pod {{`}}`}} is using {{`{{`}} $value {{`}}`}}% of
+              the maximum number of connections.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterHighConnectionsCritical.md
+          expr: |
+            sum by (pod) (cnpg_backends_total{namespace="gitea", pod=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"}) / max by (pod) (cnpg_pg_settings_setting{name="max_connections", namespace="gitea", pod=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"}) * 100 > 95
+          for: 5m
+          labels:
+            severity: critical
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterHighConnectionsWarning
+          annotations:
+            summary: CNPG Instance is approaching the maximum number of connections.
+            description: |-
+              CloudNativePG Cluster "gitea/gitea-postgresql-17-cluster" instance {{`{{`}} $labels.pod {{`}}`}} is using {{`{{`}} $value {{`}}`}}% of
+              the maximum number of connections.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterHighConnectionsWarning.md
+          expr: |
+            sum by (pod) (cnpg_backends_total{namespace="gitea", pod=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"}) / max by (pod) (cnpg_pg_settings_setting{name="max_connections", namespace="gitea", pod=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"}) * 100 > 80
+          for: 5m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterHighReplicationLag
+          annotations:
+            summary: CNPG Cluster high replication lag
+            description: |-
+              CloudNativePG Cluster "gitea/gitea-postgresql-17-cluster" is experiencing a high replication lag of
+              {{`{{`}} $value {{`}}`}}ms.
+          
+              High replication lag indicates network issues, busy instances, slow queries or suboptimal configuration.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterHighReplicationLag.md
+          expr: |
+            max(cnpg_pg_replication_lag{namespace="gitea",pod=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"}) * 1000 > 1000
+          for: 5m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterInstancesOnSameNode
+          annotations:
+            summary: CNPG Cluster instances are located on the same node.
+            description: |-
+              CloudNativePG Cluster "gitea/gitea-postgresql-17-cluster" has {{`{{`}} $value {{`}}`}}
+              instances on the same node {{`{{`}} $labels.node {{`}}`}}.
+          
+              A failure or scheduled downtime of a single node will lead to a potential service disruption and/or data loss.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterInstancesOnSameNode.md
+          expr: |
+            count by (node) (kube_pod_info{namespace="gitea", pod=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"}) > 1
+          for: 5m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterLongRunningTransactionWarning
+          annotations:
+            summary: CNPG Cluster query is taking longer than 5 minutes.
+            description: |-
+              CloudNativePG Cluster Pod {{ $labels.pod }}
+              is taking more than 5 minutes (300 seconds) for a query.
+          expr: |-
+            cnpg_backends_max_tx_duration_seconds > 300
+          for: 1m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterLowDiskSpaceCritical
+          annotations:
+            summary: CNPG Instance is running out of disk space!
+            description: |-
+              CloudNativePG Cluster "gitea/gitea-postgresql-17-cluster" is running extremely low on disk space. Check attached PVCs!
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterLowDiskSpaceCritical.md
+          expr: |
+            max(max by(persistentvolumeclaim) (1 - kubelet_volume_stats_available_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"} / kubelet_volume_stats_capacity_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"})) > 0.9 OR
+            max(max by(persistentvolumeclaim) (1 - kubelet_volume_stats_available_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$-wal"} / kubelet_volume_stats_capacity_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$-wal"})) > 0.9 OR
+            max(sum by (namespace,persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$-tbs.*"})
+                /
+                sum by (namespace,persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$-tbs.*"})
+                *
+                on(namespace, persistentvolumeclaim) group_left(volume)
+                kube_pod_spec_volumes_persistentvolumeclaims_info{pod=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"}
+            ) > 0.9
+          for: 5m
+          labels:
+            severity: critical
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterLowDiskSpaceWarning
+          annotations:
+            summary: CNPG Instance is running out of disk space.
+            description: |-
+              CloudNativePG Cluster "gitea/gitea-postgresql-17-cluster" is running low on disk space. Check attached PVCs.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterLowDiskSpaceWarning.md
+          expr: |
+            max(max by(persistentvolumeclaim) (1 - kubelet_volume_stats_available_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"} / kubelet_volume_stats_capacity_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"})) > 0.7 OR
+            max(max by(persistentvolumeclaim) (1 - kubelet_volume_stats_available_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$-wal"} / kubelet_volume_stats_capacity_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$-wal"})) > 0.7 OR
+            max(sum by (namespace,persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$-tbs.*"})
+                /
+                sum by (namespace,persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{namespace="gitea", persistentvolumeclaim=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$-tbs.*"})
+                *
+                on(namespace, persistentvolumeclaim) group_left(volume)
+                kube_pod_spec_volumes_persistentvolumeclaims_info{pod=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"}
+            ) > 0.7
+          for: 5m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterOffline
+          annotations:
+            summary: CNPG Cluster has no running instances!
+            description: |-
+              CloudNativePG Cluster "gitea/gitea-postgresql-17-cluster" has no ready instances.
+          
+              Having an offline cluster means your applications will not be able to access the database, leading to
+              potential service disruption and/or data loss.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterOffline.md
+          expr: |
+            (count(cnpg_collector_up{namespace="gitea",pod=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"}) OR on() vector(0)) == 0
+          for: 5m
+          labels:
+            severity: critical
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterPGDatabaseXidAgeWarning
+          annotations:
+            summary: CNPG Cluster has a number of transactions from the frozen XID to the current one.
+            description: |-
+              Over 300,000,000 transactions from frozen xid
+              on pod {{ $labels.pod }}
+          expr: |
+            cnpg_pg_database_xid_age > 300000000
+          for: 1m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterPGReplicationWarning
+          annotations:
+            summary: CNPG Cluster standby is lagging behind the primary.
+            description: |-
+              Standby is lagging behind by over 300 seconds (5 minutes)
+          expr: |
+            cnpg_pg_replication_lag > 300
+          for: 1m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterReplicaFailingReplicationWarning
+          annotations:
+            summary: CNPG Cluster has a replica is failing to replicate.
+            description: |-
+              Replica {{ $labels.pod }}
+              is failing to replicate
+          expr: |
+            cnpg_pg_replication_in_recovery > cnpg_pg_replication_is_wal_receiver_up
+          for: 1m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+        - alert: CNPGClusterZoneSpreadWarning
+          annotations:
+            summary: CNPG Cluster instances in the same zone.
+            description: |-
+              CloudNativePG Cluster "gitea/gitea-postgresql-17-cluster" has instances in the same availability zone.
+          
+              A disaster in one availability zone will lead to a potential service disruption and/or data loss.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterZoneSpreadWarning.md
+          expr: |
+            3 > count(count by (label_topology_kubernetes_io_zone) (kube_pod_info{namespace="gitea", pod=~"gitea-postgresql-17-cluster-([1-9][0-9]*)$"} * on(node,instance) group_left(label_topology_kubernetes_io_zone) kube_node_labels)) < 3
+          for: 5m
+          labels:
+            severity: warning
+            namespace: gitea
+            cnpg_cluster: gitea-postgresql-17-cluster
+---
+# Source: gitea/templates/redis-replication.yaml
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis-replication-gitea
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: redis-replication-gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  clusterSize: 3
+  podSecurityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v8.0.3
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: ceph-block
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter:v1.48.0
+---
+# Source: gitea/templates/redis-replication.yaml
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis-replication-renovate
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: redis-replication-renovate
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  clusterSize: 3
+  podSecurityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v8.0.3
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: ceph-block
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter:v1.48.0
+---
+# Source: gitea/charts/postgres-17-cluster/templates/scheduled-backup.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: "gitea-postgresql-17-daily-backup-scheduled-backup"
+  namespace: gitea
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: gitea-postgresql-17
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  immediate: false
+  suspend: false
+  schedule: "0 0 0 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: gitea-postgresql-17-cluster
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: "gitea-postgresql-17-external-backup"
+---
+# Source: gitea/charts/postgres-17-cluster/templates/scheduled-backup.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: "gitea-postgresql-17-live-backup-scheduled-backup"
+  namespace: gitea
+  labels:
+    helm.sh/chart: postgres-17-cluster-6.16.0
+    app.kubernetes.io/name: gitea-postgresql-17
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  immediate: true
+  suspend: false
+  schedule: "0 0 0 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: gitea-postgresql-17-cluster
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: "gitea-postgresql-17-garage-local-backup"
+---
+# Source: gitea/charts/meilisearch/templates/serviceMonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gitea-meilisearch
+  namespace: gitea
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+spec:
+  jobLabel: gitea
+  namespaceSelector:
+    matchNames:
+      - gitea
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: meilisearch
+      app.kubernetes.io/instance: gitea
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 1m
+      scrapeTimeout: 10s
+      bearerTokenSecret:
+        name: gitea-meilisearch-master-key-secret
+        key: MEILI_MASTER_KEY
+---
+# Source: gitea/templates/service-monitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gitea
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gitea
+      app.kubernetes.io/instance: gitea
+    matchExpressions:
+      - { key: app.kubernetes.io/controller, operator: NotIn, values: [backup] }
+  endpoints:
+    - port: http
+---
+# Source: gitea/templates/service-monitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis-replication-gitea
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: redis-replication-gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    redis-operator: "true"
+    env: production
+spec:
+  selector:
+    matchLabels:
+      redis_setup_type: replication
+  endpoints:
+    - port: redis-exporter
+      interval: 30s
+      scrapeTimeout: 10s
+---
+# Source: gitea/templates/tcp-route.yaml
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: tcp-route-gitea-ssh
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: tcp-route-gitea-ssh
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+      sectionName: ssh
+  rules:
+    - backendRefs:
+        - group: ''
+          kind: Service
+          name: gitea-ssh
+          port: 22
+          weight: 100
+---
+# Source: gitea/charts/gitea/templates/tests/test-http-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "gitea-test-connection"
+  namespace: gitea
+  labels:
+
+    helm.sh/chart: gitea-12.4.0
+    app: gitea
+    app.kubernetes.io/name: gitea
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "1.25.2"
+    version: "1.25.2"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  containers:
+    - name: wget
+      image: "busybox:latest"
+      command: ['wget']
+      args:  ['gitea-http:3000']
+  restartPolicy: Never
+---
+# Source: gitea/charts/meilisearch/templates/tests/test-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gitea-meilisearch-test-connection
+  labels:
+    app.kubernetes.io/name: meilisearch
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args:  ['gitea-meilisearch:7700']
+  restartPolicy: Never

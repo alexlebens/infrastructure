@@ -1,0 +1,163 @@
+---
+# Source: generic-device-plugin/templates/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: generic-device-plugin
+  labels:
+    app.kubernetes.io/name: generic-device-plugin
+    app.kubernetes.io/instance: generic-device-plugin
+    app.kubernetes.io/part-of: generic-device-plugin
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged
+---
+# Source: generic-device-plugin/charts/generic-device-plugin/templates/common.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: generic-device-plugin
+  labels:
+    app.kubernetes.io/instance: generic-device-plugin
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: generic-device-plugin
+    app.kubernetes.io/version: 0.15.0
+    helm.sh/chart: generic-device-plugin-0.20.1
+  namespace: generic-device-plugin
+data:
+  config.yaml: |
+    devices:
+      - name: tun
+        groups:
+          - count: 1000
+            paths:
+              - path: /dev/net/tun
+---
+# Source: generic-device-plugin/charts/generic-device-plugin/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: generic-device-plugin
+  labels:
+    app.kubernetes.io/instance: generic-device-plugin
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: generic-device-plugin
+    app.kubernetes.io/service: generic-device-plugin
+    app.kubernetes.io/version: 0.15.0
+    helm.sh/chart: generic-device-plugin-0.20.1
+  namespace: generic-device-plugin
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: generic-device-plugin
+    app.kubernetes.io/name: generic-device-plugin
+---
+# Source: generic-device-plugin/charts/generic-device-plugin/templates/common.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: generic-device-plugin
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: generic-device-plugin
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: generic-device-plugin
+    app.kubernetes.io/version: 0.15.0
+    helm.sh/chart: generic-device-plugin-0.20.1
+  namespace: generic-device-plugin
+spec:
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: generic-device-plugin
+      app.kubernetes.io/instance: generic-device-plugin
+  template:
+    metadata:
+      annotations: 
+        checksum/configMaps: 473a15a17751b0c136528e129767f6ed0871ca7522e5a6ccd90d041808571e81
+      labels: 
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: generic-device-plugin
+        app.kubernetes.io/name: generic-device-plugin
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      priorityClassName: system-node-critical
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      tolerations: 
+        - effect: NoExecute
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+      containers: 
+        - args:
+          - --config=/config/config.yaml
+          env:
+          - name: LISTEN
+            value: :8080
+          - name: PLUGIN_DIRECTORY
+            value: /var/lib/kubelet/device-plugins
+          - name: DOMAIN
+            value: devic.es
+          image: ghcr.io/squat/generic-device-plugin:latest@sha256:ef5deb09dcf7e577c8603857ae56ef479d91be6ab6f40dd2427166d510b0745f
+          imagePullPolicy: Always
+          name: main
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - mountPath: /config
+            name: config
+          - mountPath: /dev
+            name: dev
+          - mountPath: /var/lib/kubelet/device-plugins
+            name: device-plugins
+      volumes: 
+        - configMap:
+            name: generic-device-plugin-config
+          name: config
+        - hostPath:
+            path: /dev
+          name: dev
+        - hostPath:
+            path: /var/lib/kubelet/device-plugins
+          name: device-plugins
+---
+# Source: generic-device-plugin/charts/generic-device-plugin/templates/common.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: generic-device-plugin
+  labels:
+    app.kubernetes.io/instance: generic-device-plugin
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: generic-device-plugin
+    app.kubernetes.io/version: 0.15.0
+    helm.sh/chart: generic-device-plugin-0.20.1
+  namespace: generic-device-plugin
+spec:
+  jobLabel: "generic-device-plugin"
+  namespaceSelector:
+    matchNames:
+      - generic-device-plugin
+  selector:
+    matchLabels:
+      app.kubernetes.io/service: generic-device-plugin
+      app.kubernetes.io/name: generic-device-plugin
+      app.kubernetes.io/instance: generic-device-plugin
+  endpoints:
+    - interval: 30s
+      path: /metrics
+      port: http
+      scheme: http
+      scrapeTimeout: 10s

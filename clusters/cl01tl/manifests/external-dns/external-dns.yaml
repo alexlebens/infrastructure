@@ -1,0 +1,518 @@
+---
+# Source: external-dns/charts/external-dns-unifi/crds/dnsendpoints.externaldns.k8s.io.yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    api-approved.kubernetes.io: https://github.com/kubernetes-sigs/external-dns/pull/2007
+  name: dnsendpoints.externaldns.k8s.io
+spec:
+  group: externaldns.k8s.io
+  names:
+    kind: DNSEndpoint
+    listKind: DNSEndpointList
+    plural: dnsendpoints
+    singular: dnsendpoint
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: |-
+            DNSEndpoint is a contract that a user-specified CRD must implement to be used as a source for external-dns.
+            The user-specified CRD should also have the status sub-resource.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: DNSEndpointSpec defines the desired state of DNSEndpoint
+              properties:
+                endpoints:
+                  items:
+                    description: Endpoint is a high-level way of a connection between a service and an IP
+                    properties:
+                      dnsName:
+                        description: The hostname of the DNS record
+                        type: string
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: Labels stores labels defined for the Endpoint
+                        type: object
+                      providerSpecific:
+                        description: ProviderSpecific stores provider specific config
+                        items:
+                          description: ProviderSpecificProperty holds the name and value of a configuration which is specific to individual DNS providers
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                          type: object
+                        type: array
+                      recordTTL:
+                        description: TTL for the record
+                        format: int64
+                        type: integer
+                      recordType:
+                        description: RecordType type of record, e.g. CNAME, A, AAAA, SRV, TXT etc
+                        type: string
+                      setIdentifier:
+                        description: Identifier to distinguish multiple records with the same name and type (e.g. Route53 records with routing policies other than 'simple')
+                        type: string
+                      targets:
+                        description: The targets the DNS record points to
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  type: array
+              type: object
+            status:
+              description: DNSEndpointStatus defines the observed state of DNSEndpoint
+              properties:
+                observedGeneration:
+                  description: The generation observed by the external-dns controller.
+                  format: int64
+                  type: integer
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
+
+---
+# Source: external-dns/charts/external-dns-unifi/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-dns-unifi
+  namespace: external-dns
+  labels:
+    helm.sh/chart: external-dns-unifi-1.19.0
+    app.kubernetes.io/name: external-dns-unifi
+    app.kubernetes.io/instance: external-dns
+    app.kubernetes.io/version: "0.19.0"
+    app.kubernetes.io/managed-by: Helm
+automountServiceAccountToken: true
+---
+# Source: external-dns/charts/external-dns-unifi/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: external-dns-unifi
+  labels:
+    helm.sh/chart: external-dns-unifi-1.19.0
+    app.kubernetes.io/name: external-dns-unifi
+    app.kubernetes.io/instance: external-dns
+    app.kubernetes.io/version: "0.19.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+  - apiGroups: ["extensions","networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get","watch","list"]
+  - apiGroups: ["externaldns.k8s.io"]
+    resources: ["dnsendpoints"]
+    verbs: ["get","watch","list"]
+  - apiGroups: ["externaldns.k8s.io"]
+    resources: ["dnsendpoints/status"]
+    verbs: ["*"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gateways"]
+    verbs: ["get","watch","list"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get","watch","list"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get","watch","list"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["tlsroutes"]
+    verbs: ["get","watch","list"]
+---
+# Source: external-dns/charts/external-dns-unifi/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: external-dns-unifi-viewer
+  labels:
+    helm.sh/chart: external-dns-unifi-1.19.0
+    app.kubernetes.io/name: external-dns-unifi
+    app.kubernetes.io/instance: external-dns
+    app.kubernetes.io/version: "0.19.0"
+    app.kubernetes.io/managed-by: Helm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: external-dns-unifi
+subjects:
+  - kind: ServiceAccount
+    name: external-dns-unifi
+    namespace: external-dns
+---
+# Source: external-dns/charts/external-dns-unifi/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-dns-unifi
+  namespace: external-dns
+  labels:
+    helm.sh/chart: external-dns-unifi-1.19.0
+    app.kubernetes.io/name: external-dns-unifi
+    app.kubernetes.io/instance: external-dns
+    app.kubernetes.io/version: "0.19.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: external-dns-unifi
+    app.kubernetes.io/instance: external-dns
+  ports:
+    - name: http
+      port: 7979
+      targetPort: http
+      protocol: TCP
+    - name: http-webhook
+      port: 8080
+      targetPort: http-webhook
+      protocol: TCP
+---
+# Source: external-dns/charts/external-dns-unifi/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns-unifi
+  namespace: external-dns
+  labels:
+    helm.sh/chart: external-dns-unifi-1.19.0
+    app.kubernetes.io/name: external-dns-unifi
+    app.kubernetes.io/instance: external-dns
+    app.kubernetes.io/version: "0.19.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: external-dns-unifi
+      app.kubernetes.io/instance: external-dns
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: external-dns-unifi
+        app.kubernetes.io/instance: external-dns
+    spec:
+      automountServiceAccountToken: true
+      serviceAccountName: external-dns-unifi
+      securityContext:
+        fsGroup: 65534
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: external-dns
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65532
+          image: registry.k8s.io/external-dns/external-dns:v0.19.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --log-level=info
+            - --log-format=text
+            - --interval=1m
+            - --source=ingress
+            - --source=crd
+            - --source=gateway-httproute
+            - --source=gateway-tlsroute
+            - --policy=sync
+            - --registry=txt
+            - --txt-owner-id=default
+            - --txt-prefix=k8s.
+            - --domain-filter=alexlebens.net
+            - --provider=webhook
+            - --ignore-ingress-tls-spec
+          ports:
+            - name: http
+              protocol: TCP
+              containerPort: 7979
+          livenessProbe:
+            failureThreshold: 2
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          readinessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+        - name: webhook
+          image: ghcr.io/kashalls/external-dns-unifi-webhook:v0.7.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: UNIFI_HOST
+              value: https://192.168.1.1
+            - name: UNIFI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: api-key
+                  name: external-dns-unifi-secret
+            - name: LOG_LEVEL
+              value: debug
+          ports:
+            - name: http-webhook
+              protocol: TCP
+              containerPort: 8080
+          livenessProbe:
+            failureThreshold: 2
+            httpGet:
+              path: /healthz
+              port: http-webhook
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          readinessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /readyz
+              port: http-webhook
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+---
+# Source: external-dns/templates/dns-endpoint.yaml
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: external-device-names
+  namespace: external-dns
+  labels:
+    app.kubernetes.io/name: external-device-names
+    app.kubernetes.io/instance: external-dns
+    app.kubernetes.io/part-of: external-dns
+spec:
+  endpoints:
+    # Unifi UDM
+    - dnsName: unifi.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 192.168.1.1
+    # Synology Web
+    - dnsName: synology.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.61
+    # Synology Storage
+    - dnsName: synologybond.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.64
+    # HD Homerun
+    - dnsName: hdhr.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.72
+    # Pi KVM
+    - dnsName: pikvm.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.71
+---
+# Source: external-dns/templates/dns-endpoint.yaml
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: iot-device-names
+  namespace: external-dns
+  labels:
+    app.kubernetes.io/name: iot-device-names
+    app.kubernetes.io/instance: external-dns
+    app.kubernetes.io/part-of: external-dns
+spec:
+  endpoints:
+    # Airgradient
+    - dnsName: it01ag.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.83
+    # Phillips Hue
+    - dnsName: it02ph.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.85
+    # TubesZB ZigBee
+    - dnsName: it03tb.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.81
+    # TubesZB Z-Wave
+    - dnsName: it04tb.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.82
+---
+# Source: external-dns/templates/dns-endpoint.yaml
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: server-host-names
+  namespace: external-dns
+  labels:
+    app.kubernetes.io/name: server-host-names
+    app.kubernetes.io/instance: external-dns
+    app.kubernetes.io/part-of: external-dns
+spec:
+  endpoints:
+    # Unifi Gateway
+    - dnsName: nw01un.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 192.168.1.1
+    # Synology
+    - dnsName: ps02sn.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.61
+    # Synology Storage
+    - dnsName: ps02sn-bond.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.64
+    # Raspberry Pi
+    - dnsName: ps08rp.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.51
+    # Raspberry Pi
+    - dnsName: ps09rp.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.52
+---
+# Source: external-dns/templates/dns-endpoint.yaml
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: cluster-service-names
+  namespace: external-dns
+  labels:
+    app.kubernetes.io/name: cluster-service-names
+    app.kubernetes.io/instance: external-dns
+    app.kubernetes.io/part-of: external-dns
+spec:
+  endpoints:
+    # Treafik Proxy
+    - dnsName: traefik-cl01tl.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.21
+    # Treafik Proxy
+    - dnsName: blocky.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.22
+    # Treafik Proxy
+    - dnsName: plex.alexlebens.net
+      recordTTL: 180
+      recordType: A
+      targets:
+        - 10.232.1.23
+---
+# Source: external-dns/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: external-dns-unifi-secret
+  namespace: external-dns
+  labels:
+    app.kubernetes.io/name: external-dns-unifi-secret
+    app.kubernetes.io/instance: external-dns
+    app.kubernetes.io/part-of: external-dns
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: api-key
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /unifi/auth/cl01tl
+        metadataPolicy: None
+        property: api-key
+---
+# Source: external-dns/charts/external-dns-unifi/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: external-dns-unifi
+  namespace: external-dns
+  labels:
+    helm.sh/chart: external-dns-unifi-1.19.0
+    app.kubernetes.io/name: external-dns-unifi
+    app.kubernetes.io/instance: external-dns
+    app.kubernetes.io/version: "0.19.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  jobLabel: app.kubernetes.io/instance
+  namespaceSelector:
+    matchNames:
+      - external-dns
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: external-dns-unifi
+      app.kubernetes.io/instance: external-dns
+  endpoints:
+    - port: http
+      path: /metrics
+    - port: http-webhook
+      path: /metrics

@@ -1,0 +1,476 @@
+---
+# Source: talos/templates/service-account.yaml
+apiVersion: talos.dev/v1alpha1
+kind: ServiceAccount
+metadata:
+  name: talos-backup-secrets
+  namespace: talos
+  labels:
+    app.kubernetes.io/name: talos-backup-secrets
+    app.kubernetes.io/instance: talos
+    app.kubernetes.io/part-of: talos
+spec:
+  roles:
+    - os:etcd:backup
+---
+# Source: talos/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: talos-backup-secrets
+  namespace: talos
+  labels:
+    app.kubernetes.io/name: talos-backup-secrets
+    app.kubernetes.io/instance: talos
+    app.kubernetes.io/part-of: talos
+  annotations:
+    kubernetes.io/service-account.name: talos-backup-secrets
+---
+# Source: talos/charts/etcd-backup/templates/common.yaml
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: talos
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: talos
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: talos
+    helm.sh/chart: etcd-backup-4.4.0
+  namespace: talos
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 90
+  timeZone: US/Central
+  schedule: "0 2 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels: 
+            app.kubernetes.io/controller: main
+            app.kubernetes.io/instance: talos
+            app.kubernetes.io/name: talos
+        spec: 
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          nodeSelector: 
+            node-role.kubernetes.io/control-plane: ""
+          tolerations: 
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
+              operator: Exists
+          containers: 
+            - command:
+              - /talos-backup
+              env:
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    key: AWS_ACCESS_KEY_ID
+                    name: talos-etcd-backup-secret
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    key: AWS_SECRET_ACCESS_KEY
+                    name: talos-etcd-backup-secret
+              - name: AWS_REGION
+                value: nyc3
+              - name: CUSTOM_S3_ENDPOINT
+                value: https://nyc3.digitaloceanspaces.com
+              - name: BUCKET
+                value: talos-backups-bee8585f7b8a4d0239c9b823
+              - name: S3_PREFIX
+                value: cl01tl/etcd
+              - name: CLUSTER_NAME
+                value: cl01tl
+              - name: AGE_X25519_PUBLIC_KEY
+                valueFrom:
+                  secretKeyRef:
+                    key: AGE_X25519_PUBLIC_KEY
+                    name: talos-etcd-backup-secret
+              - name: USE_PATH_STYLE
+                value: "false"
+              image: ghcr.io/siderolabs/talos-backup:v0.1.0-beta.3@sha256:05c86663b251a407551dc948097e32e163a345818117eb52c573b0447bd0c7a7
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                  - ALL
+                runAsGroup: 1000
+                runAsNonRoot: true
+                runAsUser: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              volumeMounts:
+              - mountPath: /var/run/secrets/talos.dev
+                mountPropagation: None
+                name: secret
+                readOnly: true
+              - mountPath: /.talos
+                name: talos
+              - mountPath: /tmp
+                name: tmp
+              workingDir: /tmp
+            - args:
+              - -ec
+              - |
+                export DATE_RANGE=$(date -d @$(( $(date +%s) - 1209600 )) +%Y-%m-%dT%H:%M:%SZ);
+                export FILE_MATCH="$BUCKET/cl01tl/etcd/cl01tl-$DATE_RANGE.snap.age"
+                echo ">> Running S3 prune for Talos backup repository"
+                echo ">> Backups prior to '$DATE_RANGE' will be removed"
+                echo ">> Backups to be removed:"
+                s3cmd ls ${BUCKET}/cl01tl/etcd/ |
+                  awk -v file_match="$FILE_MATCH" '$4 < file_match {print $4}'
+                echo ">> Deleting ..."
+                s3cmd ls ${BUCKET}/cl01tl/etcd/ |
+                  awk -v file_match="$FILE_MATCH" '$4 < file_match {print $4}' |
+                  while read file; do
+                    s3cmd del "$file";
+                  done;
+                echo ">> Completed S3 prune for Talos backup repository"
+              command:
+              - /bin/sh
+              env:
+              - name: BUCKET
+                valueFrom:
+                  secretKeyRef:
+                    key: BUCKET
+                    name: talos-etcd-backup-secret
+              image: d3fk/s3cmd:latest@sha256:7bdbd33bb3d044884598898b9e9b383385759fbd6ebf52888700bd9b0e0fab91
+              imagePullPolicy: IfNotPresent
+              name: s3-prune
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+              - mountPath: /root/.s3cfg
+                mountPropagation: None
+                name: s3cmd-config
+                readOnly: true
+                subPath: .s3cfg
+          volumes: 
+            - name: s3cmd-config
+              secret:
+                secretName: talos-etcd-backup-secret
+            - name: secret
+              secret:
+                secretName: talos-backup-secrets
+            - emptyDir:
+                medium: Memory
+              name: talos
+            - emptyDir:
+                medium: Memory
+              name: tmp
+---
+# Source: talos/charts/etcd-defrag/templates/common.yaml
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-defrag-defrag-1
+  labels:
+    app.kubernetes.io/controller: defrag-1
+    app.kubernetes.io/instance: talos
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: talos
+    helm.sh/chart: etcd-defrag-4.4.0
+  namespace: talos
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 90
+  timeZone: US/Central
+  schedule: "0 0 * * 0"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels: 
+            app.kubernetes.io/controller: defrag-1
+            app.kubernetes.io/instance: talos
+            app.kubernetes.io/name: talos
+        spec: 
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          nodeSelector: 
+            node-role.kubernetes.io/control-plane: ""
+          tolerations: 
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
+              operator: Exists
+          containers: 
+            - args:
+              - etcd
+              - defrag
+              - -n
+              - 10.232.1.11
+              env:
+              - name: TALOSCONFIG
+                value: /tmp/.talos/config
+              image: ghcr.io/siderolabs/talosctl:v1.11.5
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+              - mountPath: /tmp/.talos/config
+                mountPropagation: None
+                name: talos-config-1
+                readOnly: true
+                subPath: config
+          volumes: 
+            - name: talos-config-1
+              secret:
+                secretName: talos-etcd-defrag-secret
+---
+# Source: talos/charts/etcd-defrag/templates/common.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-defrag-defrag-2
+  labels:
+    app.kubernetes.io/controller: defrag-2
+    app.kubernetes.io/instance: talos
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: talos
+    helm.sh/chart: etcd-defrag-4.4.0
+  namespace: talos
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 90
+  timeZone: US/Central
+  schedule: "10 0 * * 0"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels: 
+            app.kubernetes.io/controller: defrag-2
+            app.kubernetes.io/instance: talos
+            app.kubernetes.io/name: talos
+        spec: 
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          nodeSelector: 
+            node-role.kubernetes.io/control-plane: ""
+          tolerations: 
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
+              operator: Exists
+          containers: 
+            - args:
+              - etcd
+              - defrag
+              - -n
+              - 10.232.1.12
+              env:
+              - name: TALOSCONFIG
+                value: /tmp/.talos/config
+              image: ghcr.io/siderolabs/talosctl:v1.11.5
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+              - mountPath: /tmp/.talos/config
+                mountPropagation: None
+                name: talos-config-2
+                readOnly: true
+                subPath: config
+          volumes: 
+            - name: talos-config-2
+              secret:
+                secretName: talos-etcd-defrag-secret
+---
+# Source: talos/charts/etcd-defrag/templates/common.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-defrag-defrag-3
+  labels:
+    app.kubernetes.io/controller: defrag-3
+    app.kubernetes.io/instance: talos
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: talos
+    helm.sh/chart: etcd-defrag-4.4.0
+  namespace: talos
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 90
+  timeZone: US/Central
+  schedule: "20 0 * * 0"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels: 
+            app.kubernetes.io/controller: defrag-3
+            app.kubernetes.io/instance: talos
+            app.kubernetes.io/name: talos
+        spec: 
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          nodeSelector: 
+            node-role.kubernetes.io/control-plane: ""
+          tolerations: 
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
+              operator: Exists
+          containers: 
+            - args:
+              - etcd
+              - defrag
+              - -n
+              - 10.232.1.13
+              env:
+              - name: TALOSCONFIG
+                value: /tmp/.talos/config
+              image: ghcr.io/siderolabs/talosctl:v1.11.5
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+              - mountPath: /tmp/.talos/config
+                mountPropagation: None
+                name: talos-config-3
+                readOnly: true
+                subPath: config
+          volumes: 
+            - name: talos-config-3
+              secret:
+                secretName: talos-etcd-defrag-secret
+---
+# Source: talos/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: talos-etcd-backup-secret
+  namespace: talos
+  labels:
+    app.kubernetes.io/name: talos-etcd-backup-secret
+    app.kubernetes.io/instance: talos
+    app.kubernetes.io/part-of: talos
+  annotations:
+    kubernetes.io/service-account.name: talos-backup-secrets
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/etcd-backup
+        metadataPolicy: None
+        property: AWS_ACCESS_KEY_ID
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/etcd-backup
+        metadataPolicy: None
+        property: AWS_SECRET_ACCESS_KEY
+    - secretKey: .s3cfg
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/etcd-backup
+        metadataPolicy: None
+        property: s3cfg
+    - secretKey: BUCKET
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/etcd-backup
+        metadataPolicy: None
+        property: BUCKET
+    - secretKey: AGE_X25519_PUBLIC_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/talos/etcd-backup
+        metadataPolicy: None
+        property: AGE_X25519_PUBLIC_KEY
+---
+# Source: talos/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: talos-etcd-defrag-secret
+  namespace: talos
+  labels:
+    app.kubernetes.io/name: talos-etcd-defrag-secret
+    app.kubernetes.io/instance: talos
+    app.kubernetes.io/part-of: talos
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: config
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/talos/etcd-defrag
+        metadataPolicy: None
+        property: config

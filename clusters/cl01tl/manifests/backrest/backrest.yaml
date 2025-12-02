@@ -1,0 +1,289 @@
+---
+# Source: backrest/templates/persistent-volume.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: backrest-nfs-storage
+  namespace: backrest
+  labels:
+    app.kubernetes.io/name: backrest-nfs-storage
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/part-of: backrest
+spec:
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-client
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    path: /volume2/Storage
+    server: synologybond.alexlebens.net
+  mountOptions:
+    - vers=4
+    - minorversion=1
+    - noac
+---
+# Source: backrest/templates/persistent-volume.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: backrest-nfs-share
+  namespace: backrest
+  labels:
+    app.kubernetes.io/name: backrest-nfs-share
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/part-of: backrest
+spec:
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-client
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    path: /volume2/Share
+    server: synologybond.alexlebens.net
+  mountOptions:
+    - vers=4
+    - minorversion=1
+    - noac
+---
+# Source: backrest/charts/backrest/templates/common.yaml
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: backrest-config
+  labels:
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: backrest
+    helm.sh/chart: backrest-4.4.0
+  annotations:
+    helm.sh/resource-policy: keep
+  namespace: backrest
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "1Gi"
+  storageClassName: "ceph-block"
+---
+# Source: backrest/charts/backrest/templates/common.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: backrest-data
+  labels:
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: backrest
+    helm.sh/chart: backrest-4.4.0
+  annotations:
+    helm.sh/resource-policy: keep
+  namespace: backrest
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "10Gi"
+  storageClassName: "ceph-block"
+---
+# Source: backrest/templates/persistent-volume-claim.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backrest-nfs-storage
+  namespace: backrest
+  labels:
+    app.kubernetes.io/name: backrest-nfs-storage
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/part-of: backrest
+spec:
+  volumeName: backrest-nfs-storage
+  storageClassName: nfs-client
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Source: backrest/templates/persistent-volume-claim.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backrest-nfs-share
+  namespace: backrest
+  labels:
+    app.kubernetes.io/name: backrest-nfs-share
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/part-of: backrest
+spec:
+  volumeName: backrest-nfs-share
+  storageClassName: nfs-client
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Source: backrest/charts/backrest/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: backrest
+  labels:
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: backrest
+    app.kubernetes.io/service: backrest
+    helm.sh/chart: backrest-4.4.0
+  namespace: backrest
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 9898
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/name: backrest
+---
+# Source: backrest/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: garage-ps10rp
+  namespace: backrest
+  labels:
+    app.kubernetes.io/name: garage-ps10rp
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/part-of: backrest
+  annotations:
+    tailscale.com/tailnet-fqdn: garage-ps10rp.boreal-beaufort.ts.net
+spec:
+  externalName: placeholder
+  type: ExternalName
+---
+# Source: backrest/charts/backrest/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backrest
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: backrest
+    helm.sh/chart: backrest-4.4.0
+  namespace: backrest
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: backrest
+      app.kubernetes.io/instance: backrest
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: backrest
+        app.kubernetes.io/name: backrest
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - env:
+          - name: TZ
+            value: America/Chicago
+          - name: BACKREST_DATA
+            value: /data
+          - name: BACKREST_CONFIG
+            value: /config/config.json
+          - name: XDG_CACHE_HOME
+            value: /cache
+          - name: TMPDIR
+            value: /tmp
+          image: garethgeorge/backrest:v1.10.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+          volumeMounts:
+          - mountPath: /cache
+            name: cache
+          - mountPath: /config
+            name: config
+          - mountPath: /data
+            name: data
+          - mountPath: /mnt/share
+            name: share
+            readOnly: true
+          - mountPath: /mnt/storage
+            name: storage
+            readOnly: true
+          - mountPath: /tmp
+            name: tmp
+      volumes: 
+        - emptyDir: {}
+          name: cache
+        - name: config
+          persistentVolumeClaim:
+            claimName: backrest-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: backrest-data
+        - name: share
+          persistentVolumeClaim:
+            claimName: backrest-nfs-share
+        - name: storage
+          persistentVolumeClaim:
+            claimName: backrest-nfs-storage
+        - emptyDir: {}
+          name: tmp
+---
+# Source: backrest/templates/http-route.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-route-backrest
+  namespace: backrest
+  labels:
+    app.kubernetes.io/name: http-route-backrest
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/part-of: backrest
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - backrest.alexlebens.net
+  rules:
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: backrest
+          port: 80
+          weight: 100

@@ -1,0 +1,247 @@
+---
+# Source: descheduler/charts/descheduler/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: descheduler
+  namespace: descheduler
+  labels:
+    app.kubernetes.io/name: descheduler
+    helm.sh/chart: descheduler-0.34.0
+    app.kubernetes.io/instance: descheduler
+    app.kubernetes.io/version: "0.34.0"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: descheduler/charts/descheduler/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: descheduler
+  namespace: descheduler
+  labels:
+    app.kubernetes.io/name: descheduler
+    helm.sh/chart: descheduler-0.34.0
+    app.kubernetes.io/instance: descheduler
+    app.kubernetes.io/version: "0.34.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  policy.yaml: |
+    apiVersion: "descheduler/v1alpha2"
+    kind: "DeschedulerPolicy"
+    profiles:
+    - name: default
+      pluginConfig:
+      - args:
+          evictDaemonSetPods: false
+          evictLocalStoragePods: false
+          ignorePvcPods: true
+        name: DefaultEvictor
+      - name: RemoveDuplicates
+      - args:
+          nodeAffinityType:
+          - requiredDuringSchedulingIgnoredDuringExecution
+        name: RemovePodsViolatingNodeAffinity
+      - name: RemovePodsViolatingNodeTaints
+      - name: RemovePodsViolatingInterPodAntiAffinity
+      - name: RemovePodsViolatingTopologySpreadConstraint
+      - args:
+          targetThresholds:
+            cpu: 60
+            memory: 60
+            pods: 60
+          thresholds:
+            cpu: 20
+            memory: 20
+            pods: 20
+        name: LowNodeUtilization
+      plugins:
+        balance:
+          enabled:
+          - RemoveDuplicates
+          - RemovePodsViolatingTopologySpreadConstraint
+          - LowNodeUtilization
+        deschedule:
+          enabled:
+          - RemovePodsViolatingNodeTaints
+          - RemovePodsViolatingNodeAffinity
+          - RemovePodsViolatingInterPodAntiAffinity
+---
+# Source: descheduler/charts/descheduler/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: descheduler
+  labels:
+    app.kubernetes.io/name: descheduler
+    helm.sh/chart: descheduler-0.34.0
+    app.kubernetes.io/instance: descheduler
+    app.kubernetes.io/version: "0.34.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups: ["events.k8s.io"]
+  resources: ["events"]
+  verbs: ["create", "update"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list", "delete"]
+- apiGroups: [""]
+  resources: ["pods/eviction"]
+  verbs: ["create"]
+- apiGroups: ["scheduling.k8s.io"]
+  resources: ["priorityclasses"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets"]
+  verbs: ["get", "watch", "list"]
+---
+# Source: descheduler/charts/descheduler/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: descheduler
+  labels:
+    app.kubernetes.io/name: descheduler
+    helm.sh/chart: descheduler-0.34.0
+    app.kubernetes.io/instance: descheduler
+    app.kubernetes.io/version: "0.34.0"
+    app.kubernetes.io/managed-by: Helm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: descheduler
+subjects:
+  - kind: ServiceAccount
+    name: descheduler
+    namespace: descheduler
+---
+# Source: descheduler/charts/descheduler/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: descheduler
+    helm.sh/chart: descheduler-0.34.0
+    app.kubernetes.io/instance: descheduler
+    app.kubernetes.io/version: "0.34.0"
+    app.kubernetes.io/managed-by: Helm
+  name: descheduler
+  namespace: descheduler
+spec:
+  clusterIP: None
+  ports:
+  - name: http-metrics
+    port: 10258
+    protocol: TCP
+    targetPort: 10258
+  selector:
+    app.kubernetes.io/name: descheduler
+    app.kubernetes.io/instance: descheduler
+  type: ClusterIP
+---
+# Source: descheduler/charts/descheduler/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: descheduler
+  namespace: descheduler
+  labels:
+    app.kubernetes.io/name: descheduler
+    helm.sh/chart: descheduler-0.34.0
+    app.kubernetes.io/instance: descheduler
+    app.kubernetes.io/version: "0.34.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: descheduler
+      app.kubernetes.io/instance: descheduler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: descheduler
+        app.kubernetes.io/instance: descheduler
+      annotations:
+        checksum/config: 827e11ad319ee1e4c515e25bf575e74c44a0a9fdac5317e6caf8798b1d282036
+    spec:
+      priorityClassName: system-cluster-critical
+      serviceAccountName: descheduler
+      containers:
+        - name: descheduler
+          image: "registry.k8s.io/descheduler/descheduler:v0.34.0"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/descheduler
+          args:
+            - --policy-config-file=/policy-dir/policy.yaml
+            - --descheduling-interval=5m
+            - --v=3
+          ports:
+            - containerPort: 10258
+              protocol: TCP
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 10258
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumeMounts:
+            - mountPath: /policy-dir
+              name: policy-volume
+      volumes:
+        - name: policy-volume
+          configMap:
+            name: descheduler
+---
+# Source: descheduler/charts/descheduler/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: descheduler-servicemonitor
+  namespace: descheduler
+  labels:
+    app.kubernetes.io/name: descheduler
+    helm.sh/chart: descheduler-0.34.0
+    app.kubernetes.io/instance: descheduler
+    app.kubernetes.io/version: "0.34.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  jobLabel: jobLabel
+  namespaceSelector:
+    matchNames:
+    - descheduler
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: descheduler
+      app.kubernetes.io/instance: descheduler
+  endpoints:
+  - honorLabels: true
+    port: http-metrics
+    scheme: https
+    tlsConfig:
+      insecureSkipVerify: true

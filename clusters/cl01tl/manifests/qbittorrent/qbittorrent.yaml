@@ -1,0 +1,1009 @@
+---
+# Source: qbittorrent/templates/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbittorrent
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged
+---
+# Source: qbittorrent/templates/config-map.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: glutun-update-script
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: glutun-update-script
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+data:
+  update.sh: |
+    if ! command -v curl 2>&1 >/dev/null
+    then
+        echo "curl could not be found, installing";
+        apk add curl;
+    fi;
+    echo "updating port with $1";
+    curl -i -X POST -d "json={\"listen_port\": \"${1}\"}" "http://localhost:8080/api/v2/app/setPreferences";
+---
+# Source: qbittorrent/templates/config-map.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qbit-manage-config
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbit-manage-config
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+data:
+  config.yml: |
+    # Please refer to the link below for more details on how to set up the configuration file
+    # https://github.com/StuffAnThings/qbit_manage/wiki/Config-Setup
+
+    commands:
+      dry_run: false
+      recheck: true
+      cat_update: true
+      tag_update: true
+      rem_unregistered: true
+      tag_tracker_error: true
+      rem_orphaned: true
+      tag_nohardlinks: false
+      share_limits: true
+      skip_qb_version_check: true
+      skip_cleanup: false
+
+    qbt:
+      host: qbittorrent.qbittorrent:8080
+      user:
+      pass:
+
+    settings:
+      force_auto_tmm: true
+      tracker_error_tag: tracker-error
+      share_limits_tag: share-limit
+      share_limits_min_seeding_time_tag: seed-time-not-reached
+      cat_filter_completed: false
+      share_limits_filter_completed: false
+      rem_unregistered_filter_completed: false
+      cat_update_all: true
+      disable_qbt_default_share_limits: true
+      tag_stalled_torrents: true
+      nohardlinks_tag: no-hardlinks
+      stalled_tag: stalled
+      share_limits_min_num_seeds_tag: min-seeds-not-reached
+      share_limits_last_active_tag: last-active-not-reached
+      tag_nohardlinks_filter_completed: true
+      force_auto_tmm_ignore_tags: []
+      rem_unregistered_ignore_list: []
+
+    directory:
+      root_dir: /mnt/store/Torrent/
+      recycle_bin: /qbittorrent/Trash
+      torrents_dir: /qbittorrent/qBittorrent/BT_backup
+      orphaned_dir: /qbittorrent/Orphaned
+
+    cat:
+      lidarr: /mnt/store/Torrent/FINISHED/LIDARR
+      prowlarr: /mnt/store/Torrent/FINISHED/SAVE
+      radarr: /mnt/store/Torrent/FINISHED/RADARR
+      radarr-4k: /mnt/store/Torrent/FINISHED/RADARR4K
+      radarr-anime: /mnt/store/Torrent/FINISHED/RADARRANIME
+      radarr-standup: /mnt/store/Torrent/FINISHED/RADARRSTANDUP
+      sonarr: /mnt/store/Torrent/FINISHED/SONARR
+      sonarr-4k: /mnt/store/Torrent/FINISHED/SONARR4K
+      sonarr-anime: /mnt/store/Torrent/FINISHED/SONARRANIME
+      -< ZIM: /mnt/store/Kiwix
+      -< SAVE: /mnt/store/Torrent/FINISHED/SAVE
+      -< IMPORT: /mnt/store/Torrent/FINISHED/IMPORT
+      -< COMPLETED: /mnt/store/Torrent/FINISHED/COMPLETED
+
+    tracker:
+      alpharatio.cc:
+        tag: AlphaRatio
+      avistaz:
+        tag: Avistaz
+      cathode-ray.tube:
+        tag: CathodeRayTube
+      mvgroup.org:
+        tag: MVGroup
+      torrentleech|tleechreload:
+        tag: TorrentLeech
+      archive.org:
+        tag: InternetArchive
+      openzim.org:
+        tag: Zim
+      coppersurfer.tk|arenabg.com|explodie.org|tfile.co|1337x.org|zer0day.to|i2p.rocks|ccc.de|nwps.ws|opentrackr.org:
+        tag: Other
+
+    share_limits:
+      private:
+        priority: 1
+        include_any_tags:
+        - AlphaRatio
+        - TorrentLeech
+        categories:
+        - -< COMPLETED
+        max_ratio: 2.0
+        min_seeding_time: 14d
+        max_seeding_time: 30d
+        min_num_seeds: 2
+        last_active: 3d
+        cleanup: true
+      # save:
+      #   priority: 2
+      #   categories:
+      #   - -< SAVE
+      #   max_ratio: 2.0
+      #   min_seeding_time: 14d
+      #   max_seeding_time: 30d
+      #   min_num_seeds: 2
+      #   last_active: 30d
+      #   cleanup: false
+      # zim:
+      #   priority: 3
+      #   categories:
+      #   - -< ZIM
+      #   max_ratio: 2.0
+      #   min_seeding_time: 14d
+      #   max_seeding_time: 30d
+      #   min_num_seeds: 2
+      #   last_active: 30d
+      #   cleanup: false
+      default:
+        priority: 999
+        include_any_tags:
+        - Other
+        categories:
+        - -< COMPLETED
+        max_seeding_time: 3d
+        limit_upload_speed: 100
+        cleanup: true
+
+    recyclebin:
+      enabled: true
+      empty_after_x_days: 7
+      save_torrents: true
+      split_by_category: true
+
+    orphaned:
+      empty_after_x_days: 30
+      exclude_patterns:
+      - /mnt/store/Torrent/QBITTORRENT/*
+      - /mnt/store/Torrent/TORRENT/*
+      - /mnt/store/Torrent/DOWNLOADING/*
+      - '**/.DS_Store'
+      - '**/Thumbs.db'
+      - '**/@eaDir'
+      - '**/*.!qB'
+      - '**/*_unpackerred'
+      max_orphaned_files_to_delete: 50
+
+    # apprise:
+    #   api_url: http://localhost:8000/notify
+    #   notify_url: ""
+    #
+    # webhooks:
+    #   error: apprise
+    #   run_start: apprise
+    #   run_end: apprise
+    #   function:
+    #     rem_orphaned: apprise
+    #     cleanup_dirs: apprise
+    #     tag_tracker_error:
+    #     share_limits:
+---
+# Source: qbittorrent/templates/persistent-volume.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qbittorrent-config
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbittorrent-config
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-client
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    path: /volume2/Storage/Torrent/QBITTORRENT
+    server: synologybond.alexlebens.net
+  mountOptions:
+    - vers=4
+    - minorversion=1
+    - noac
+---
+# Source: qbittorrent/templates/persistent-volume.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: qbittorrent-nfs-storage
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbittorrent-nfs-storage
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-client
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    path: /volume2/Storage
+    server: synologybond.alexlebens.net
+  mountOptions:
+    - vers=4
+    - minorversion=1
+    - noac
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: qbittorrent-theme-data
+  labels:
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    helm.sh/chart: qbittorrent-4.4.0
+  annotations:
+    helm.sh/resource-policy: keep
+  namespace: qbittorrent
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "1Gi"
+  storageClassName: "ceph-block"
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: qbittorrent-qbit-manage-config-data
+  labels:
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    helm.sh/chart: qbittorrent-4.4.0
+  annotations:
+    helm.sh/resource-policy: keep
+  namespace: qbittorrent
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "1Gi"
+  storageClassName: "ceph-block"
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: qbittorrent-qui-config-data
+  labels:
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    helm.sh/chart: qbittorrent-4.4.0
+  annotations:
+    helm.sh/resource-policy: keep
+  namespace: qbittorrent
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "1Gi"
+  storageClassName: "ceph-block"
+---
+# Source: qbittorrent/templates/persistent-volume-claim.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbittorrent-config
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbittorrent-config
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  volumeName: qbittorrent-config
+  storageClassName: nfs-client
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Source: qbittorrent/templates/persistent-volume-claim.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbittorrent-nfs-storage
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbittorrent-nfs-storage
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  volumeName: qbittorrent-nfs-storage
+  storageClassName: nfs-client
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbittorrent
+  labels:
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    app.kubernetes.io/service: qbittorrent
+    helm.sh/chart: qbittorrent-4.4.0
+  namespace: qbittorrent
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9999
+      targetPort: 9999
+      protocol: TCP
+      name: health
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+    - port: 9022
+      targetPort: 9022
+      protocol: TCP
+      name: metrics
+  selector:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/name: qbittorrent
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbittorrent-qbit-manage
+  labels:
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    app.kubernetes.io/service: qbittorrent-qbit-manage
+    helm.sh/chart: qbittorrent-4.4.0
+  namespace: qbittorrent
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: apprise
+  selector:
+    app.kubernetes.io/controller: qbit-manage
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/name: qbittorrent
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbittorrent-qui
+  labels:
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    app.kubernetes.io/service: qbittorrent-qui
+    helm.sh/chart: qbittorrent-4.4.0
+  namespace: qbittorrent
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 7476
+      protocol: TCP
+      name: http
+    - port: 9074
+      targetPort: 9074
+      protocol: TCP
+      name: metrics
+  selector:
+    app.kubernetes.io/controller: qui
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/name: qbittorrent
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent-qbit-manage
+  labels:
+    app.kubernetes.io/controller: qbit-manage
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    helm.sh/chart: qbittorrent-4.4.0
+  annotations:
+    reloader.stakater.com/auto: "true"
+  namespace: qbittorrent
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: qbit-manage
+      app.kubernetes.io/name: qbittorrent
+      app.kubernetes.io/instance: qbittorrent
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: qbit-manage
+        app.kubernetes.io/instance: qbittorrent
+        app.kubernetes.io/name: qbittorrent
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      initContainers: 
+        - command:
+          - /bin/sh
+          - -ec
+          - |
+            cp /config/config.yml /app/config/config.yml
+          image: busybox:1.37.0
+          imagePullPolicy: IfNotPresent
+          name: init-copy-config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+          - mountPath: /config/config.yml
+            mountPropagation: None
+            name: qbit-manage-config
+            readOnly: true
+            subPath: config.yml
+          - mountPath: /app/config
+            name: qbit-manage-config-data
+      containers: 
+        - env:
+          - name: TZ
+            value: US/Central
+          - name: PGID
+            value: "1000"
+          - name: PUID
+            value: "1000"
+          - name: APPRISE_STORAGE_MODE
+            value: memory
+          - name: APPRISE_STATEFUL_MODE
+            value: disabled
+          - name: APPRISE_WORKER_COUNT
+            value: "1"
+          - name: APPRISE_STATELESS_URLS
+            valueFrom:
+              secretKeyRef:
+                key: ntfy-url
+                name: qbittorrent-qbit-manage-config
+          image: caronc/apprise:1.2.6
+          imagePullPolicy: IfNotPresent
+          name: apprise-api
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+        - env:
+          - name: TZ
+            value: US/Central
+          - name: QBT_SCHEDULE
+            value: 0 * * * *
+          - name: QBT_STARTUP_DELAY
+            value: "360"
+          - name: QBT_CONFIG_DIR
+            value: /app/config/
+          - name: QBT_LOGFILE
+            value: /app/var/activity.log
+          - name: QBT_LOG_LEVEL
+            value: INFO
+          image: ghcr.io/stuffanthings/qbit_manage:v4.6.4
+          imagePullPolicy: IfNotPresent
+          name: qbit-manage
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          volumeMounts:
+          - mountPath: /qbittorrent
+            name: config
+          - mountPath: /config/config.yml
+            mountPropagation: None
+            name: qbit-manage-config
+            readOnly: true
+            subPath: config.yml
+          - mountPath: /app/config
+            name: qbit-manage-config-data
+          - mountPath: /app/var
+            name: qbit-manage-config-var
+          - mountPath: /mnt/store
+            name: storage
+      volumes: 
+        - name: config
+          persistentVolumeClaim:
+            claimName: qbittorrent-config
+        - configMap:
+            name: qbit-manage-config
+          name: qbit-manage-config
+        - name: qbit-manage-config-data
+          persistentVolumeClaim:
+            claimName: qbittorrent-qbit-manage-config-data
+        - emptyDir: {}
+          name: qbit-manage-config-var
+        - name: storage
+          persistentVolumeClaim:
+            claimName: qbittorrent-nfs-storage
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent-qui
+  labels:
+    app.kubernetes.io/controller: qui
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    helm.sh/chart: qbittorrent-4.4.0
+  namespace: qbittorrent
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: qui
+      app.kubernetes.io/name: qbittorrent
+      app.kubernetes.io/instance: qbittorrent
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: qui
+        app.kubernetes.io/instance: qbittorrent
+        app.kubernetes.io/name: qbittorrent
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - env:
+          - name: QUI__METRICS_ENABLED
+            value: "true"
+          - name: QUI__METRICS_HOST
+            value: 0.0.0.0
+          - name: QUI__METRICS_PORT
+            value: "9074"
+          - name: QUI__OIDC_ENABLED
+            value: "true"
+          - name: QUI__OIDC_ISSUER
+            value: https://auth.alexlebens.dev/application/o/qui/
+          - name: QUI__OIDC_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                key: client
+                name: qui-oidc-secret
+          - name: QUI__OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                key: secret
+                name: qui-oidc-secret
+          - name: QUI__OIDC_REDIRECT_URL
+            value: https://qui.alexlebens.net/api/auth/oidc/callback
+          - name: QUI__OIDC_DISABLE_BUILT_IN_LOGIN
+            value: "false"
+          image: ghcr.io/autobrr/qui:v1.7.0
+          imagePullPolicy: IfNotPresent
+          name: qui
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+          - mountPath: /config
+            name: qui-config-data
+      volumes: 
+        - name: qui-config-data
+          persistentVolumeClaim:
+            claimName: qbittorrent-qui-config-data
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent-main
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    helm.sh/chart: qbittorrent-4.4.0
+  namespace: qbittorrent
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: qbittorrent
+      app.kubernetes.io/instance: qbittorrent
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: qbittorrent
+        app.kubernetes.io/name: qbittorrent
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      initContainers: 
+        - args:
+          - -ec
+          - |
+            sysctl -w net.ipv4.ip_forward=1;
+            sysctl -w net.ipv6.conf.all.disable_ipv6=1
+          command:
+          - /bin/sh
+          image: busybox:1.37.0
+          imagePullPolicy: IfNotPresent
+          name: init-sysctl
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          securityContext:
+            privileged: true
+      containers: 
+        - env:
+          - name: QBITTORRENT_HOST
+            value: localhost
+          - name: QBITTORRENT_PORT
+            value: "8080"
+          - name: EXPORTER_PORT
+            value: "9022"
+          - name: EXPORTER_LOG_LEVEL
+            value: INFO
+          image: esanchezm/prometheus-qbittorrent-exporter:v1.6.0
+          imagePullPolicy: IfNotPresent
+          name: exporter
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+        - env:
+          - name: VPN_SERVICE_PROVIDER
+            value: protonvpn
+          - name: VPN_TYPE
+            value: wireguard
+          - name: WIREGUARD_PRIVATE_KEY
+            valueFrom:
+              secretKeyRef:
+                key: private-key
+                name: qbittorrent-wireguard-conf
+          - name: VPN_PORT_FORWARDING
+            value: "on"
+          - name: VPN_PORT_FORWARDING_UP_COMMAND
+            value: /bin/sh -c "/gluetun/update.sh {{PORTS}}"
+          - name: PORT_FORWARD_ONLY
+            value: "on"
+          - name: FIREWALL_OUTBOUND_SUBNETS
+            value: 192.168.1.0/24,10.244.0.0/16
+          - name: FIREWALL_INPUT_PORTS
+            value: 8080,9022
+          - name: DOT
+            value: "off"
+          image: ghcr.io/qdm12/gluetun:v3.40.3@sha256:ef4a44819a60469682c7b5e69183e6401171891feaa60186652d292c59e41b30
+          imagePullPolicy: IfNotPresent
+          name: gluetun
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              cpu: 10m
+              devic.es/tun: "1"
+              memory: 64Mi
+          securityContext:
+            capabilities:
+              add:
+              - NET_ADMIN
+              - SYS_MODULE
+            privileged: true
+          volumeMounts:
+          - mountPath: /gluetun/update.sh
+            name: update-script
+            subPath: update.sh
+        - env:
+          - name: TZ
+            value: US/Central
+          - name: PUID
+            value: "1000"
+          - name: PGID
+            value: "1000"
+          - name: UMASK_SET
+            value: "002"
+          - name: WEBUI_PORT
+            value: "8080"
+          - name: DOCKER_MODS
+            value: ghcr.io/themepark-dev/theme.park:qbittorrent
+          - name: TP_COMMUNITY_THEME
+            value: "true"
+          - name: TP_THEME
+            value: catppuccin-mocha
+          image: ghcr.io/linuxserver/qbittorrent:5.1.4@sha256:a2eedc99b4876916943bd33e7c415efc448f6b514aa39b4f98c1e6472a717301
+          imagePullPolicy: IfNotPresent
+          name: qbittorrent
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+          - mountPath: /config
+            name: config
+          - mountPath: /mnt/store
+            name: storage
+          - mountPath: /themepark
+            name: theme-data
+      volumes: 
+        - name: config
+          persistentVolumeClaim:
+            claimName: qbittorrent-config
+        - name: storage
+          persistentVolumeClaim:
+            claimName: qbittorrent-nfs-storage
+        - name: theme-data
+          persistentVolumeClaim:
+            claimName: qbittorrent-theme-data
+        - configMap:
+            defaultMode: 493
+            name: glutun-update-script
+          name: update-script
+---
+# Source: qbittorrent/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: qbittorrent-wireguard-conf
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbittorrent-wireguard-conf
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: private-key
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /protonvpn/conf/cl01tl
+        metadataPolicy: None
+        property: private-key
+---
+# Source: qbittorrent/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: qbittorrent-qbit-manage-config
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbittorrent-qbit-manage-config
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: ntfy-url
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/qbittorrent/qbit-manage
+        metadataPolicy: None
+        property: ntfy-url
+---
+# Source: qbittorrent/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: qui-oidc-secret
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qui-oidc-secret
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: secret
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /authentik/oidc/qui
+        metadataPolicy: None
+        property: secret
+    - secretKey: client
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /authentik/oidc/qui
+        metadataPolicy: None
+        property: client
+---
+# Source: qbittorrent/templates/http-route.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-route-qbittorrent
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: http-route-qbittorrent
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - qbittorrent.alexlebens.net
+  rules:
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: qbittorrent
+          port: 8080
+          weight: 100
+---
+# Source: qbittorrent/templates/http-route.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-route-qui
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: http-route-qui
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - qui.alexlebens.net
+  rules:
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: qbittorrent-qui
+          port: 80
+          weight: 100
+---
+# Source: qbittorrent/templates/service-monitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: qbittorrent
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbittorrent
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 15s
+      path: /metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/service: qbittorrent
+      app.kubernetes.io/name: qbittorrent
+      app.kubernetes.io/instance: qbittorrent
+---
+# Source: qbittorrent/templates/service-monitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: qbittorrent-apprise
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbittorrent-apprise
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  endpoints:
+    - port: apprise
+      interval: 30s
+      scrapeTimeout: 15s
+      path: /metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/service: qbittorrent-qbit-manage
+      app.kubernetes.io/name: qbittorrent
+      app.kubernetes.io/instance: qbittorrent
+---
+# Source: qbittorrent/templates/service-monitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: qbittorrent-qui
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbittorrent-qui
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+spec:
+  endpoints:
+    - port: metrics
+      interval: 30s
+      scrapeTimeout: 15s
+      path: /metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/service: qbittorrent-qui
+      app.kubernetes.io/name: qbittorrent
+      app.kubernetes.io/instance: qbittorrent

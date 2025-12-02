@@ -1,0 +1,96 @@
+---
+# Source: kubernetes-cloudflare-ddns/charts/kubernetes-cloudflare-ddns/templates/common.yaml
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kubernetes-cloudflare-ddns
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: kubernetes-cloudflare-ddns
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: kubernetes-cloudflare-ddns
+    helm.sh/chart: kubernetes-cloudflare-ddns-4.4.0
+  namespace: kubernetes-cloudflare-ddns
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 90
+  timeZone: US/Central
+  schedule: "30 4 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels: 
+            app.kubernetes.io/controller: main
+            app.kubernetes.io/instance: kubernetes-cloudflare-ddns
+            app.kubernetes.io/name: kubernetes-cloudflare-ddns
+        spec: 
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          containers: 
+            - envFrom:
+              - secretRef:
+                  name: kubernetes-cloudflare-ddns-secret
+              image: kubitodev/kubernetes-cloudflare-ddns:2.0.0
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 128Mi
+---
+# Source: kubernetes-cloudflare-ddns/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kubernetes-cloudflare-ddns-secret
+  namespace: kubernetes-cloudflare-ddns
+  labels:
+    app.kubernetes.io/name: kubernetes-cloudflare-ddns-secret
+    app.kubernetes.io/instance: kubernetes-cloudflare-ddns
+    app.kubernetes.io/part-of: kubernetes-cloudflare-ddns
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: AUTH_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cloudflare/alexlebens.net/ddns
+        metadataPolicy: None
+        property: token
+    - secretKey: NAME
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cloudflare/alexlebens.net/ddns
+        metadataPolicy: None
+        property: name
+    - secretKey: RECORD_ID
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cloudflare/alexlebens.net/ddns
+        metadataPolicy: None
+        property: record-id
+    - secretKey: ZONE_ID
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cloudflare/alexlebens.net/ddns
+        metadataPolicy: None
+        property: zone-id
