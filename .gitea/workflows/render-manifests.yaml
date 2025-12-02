@@ -58,10 +58,6 @@ jobs:
             git checkout -b $BRANCH_NAME
           fi
 
-          echo ">> Remove manfiest files and rebuild from source ..."
-          cd ${MANIFEST_DIR}/clusters/${CLUSTER}
-          rm -rf ./*
-
       - name: Check Which Directories Have Changes
         id: check-dir-changes
         run: |
@@ -98,6 +94,22 @@ jobs:
               | tail +2 | head -n -1 \
               | awk '{ print "helm repo add " $1 " " $3 }' \
               | while read cmd; do echo "$cmd" | sh; done || true
+          done
+
+      - name: Remove Changed Manifest Files
+        if: steps.check-dir-changes.outputs.changes-detected == 'true'
+        env:
+          CHANGED_DIR: ${{ steps.check-dir-changes.outputs.changed-dir }}
+        run: |
+          cd ${MANIFEST_DIR}
+
+          echo ">> Remove manfiest files and rebuild from source ..."
+
+          for dir in ${CHANGED_DIR}; do
+            chart_path=${MANIFEST_DIR}/clusters/${CLUSTER}/helm/$dir
+
+            echo ">> Removing from $chart_path ..."
+            rm -rf $chart_path/*
           done
 
       - name: Render Helm Manifests
