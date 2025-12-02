@@ -64,28 +64,32 @@ jobs:
         run: |
           cd ${MAIN_DIR}
 
+          echo ">> Check for changes ..."
+
           GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep "clusters/cl01tl/helm/")
           CHANGED_DIR=()
 
-          echo ">> Checking for changes .."
-          echo "$GIT_DIFF"
+          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
+            echo ">> Triggered on dispatch, will check all paths .."
+            CHANGED_DIR=$(ls clusters/cl01tl/helm/)
 
-          if [ -n $GIT_DIFF ]; then
-            echo ">> Changes detected"
-
+          elif [ -n $GIT_DIFF ]; then
+            echo ">> Changes detected:"
+            echo "$GIT_DIFF"
             for path in $GIT_DIFF; do
               CHANGED_DIR+=$(echo "$path" | awk -F '/' '{print $4}')
             done
 
-            echo ">> Changes Directories:"
-            echo "$(printf "%s\n" "$CHANGED_DIR" | sort -u)"
-
-            echo "changes-detected=true" >> $GITEA_OUTPUT
-            echo "changed-dir=$(printf "%s\n" "$CHANGED_DIR" | sort -u)" >> $GITEA_OUTPUT
           else
             echo ">> No changes detected, skipping rendering"
-            exit 0
+
           fi
+
+          echo ">> Changed Directories:"
+          echo "$(printf "%s\n" "$CHANGED_DIR" | sort -u)"
+
+          echo "changes-detected=true" >> $GITEA_OUTPUT
+          echo "changed-dir=$(printf "%s\n" "$CHANGED_DIR" | sort -u)" >> $GITEA_OUTPUT
 
       - name: Add Repositories
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
