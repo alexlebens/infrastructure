@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  CLUSTERS: cl01tl
+  CLUSTER: cl01tl
   BASE_BRANCH: manifests
   BRANCH_NAME: auto/update-manifests
   ASSIGNEE: alexlebens
@@ -18,7 +18,7 @@ env:
   MANIFEST_DIR: /workspace/alexlebens/infrastructure/infrastructure-manifests
 
 jobs:
-  render-manifests-helm:
+  render-manifests:
     runs-on: ubuntu-js
     steps:
       - name: Checkout
@@ -59,63 +59,93 @@ jobs:
           fi
 
           echo ">> Remove manfiest files and rebuild from source ..."
-          cd ${MANIFEST_DIR}/clusters
+          cd ${MANIFEST_DIR}/clusters/${CLUSTER}
           rm -rf ./*
 
-      - name: Add Repositories
+      - name: Check Which Directories Have Changes
+        id: check-dir-changes
         run: |
           cd ${MAIN_DIR}
 
-          for cluster in ${CLUSTERS}; do
-            echo ">> Adding repositories for chart dependencies of cluster $cluster ..."
-            for chart_path in ${MAIN_DIR}/clusters/$cluster/helm/*; do
-              helm dependency list --max-col-width 120 $chart_path 2> /dev/null \
-                | tail +2 | head -n -1 \
-                | awk '{ print "helm repo add " $1 " " $3 }' \
-                | while read cmd; do echo "$cmd" | sh; done || true
+          GIT_STATUS=$(git status --porcelain)
+          CHANGED_DIR=()
+
+          if [ $GIT_STATUS | grep -q . ]; then
+            echo ">> Changes detected"
+            echo "$GIT_STATUS"
+
+            for path in $GIT_STATUS; do
+              CHANGED_DIR+=("echo "$path" | awk -F '/' '{print $4}' ")
             done
+
+            echo "changes-detected=true" >> $GITEA_OUTPUT
+            echo "changed-dir=$(printf "%s\n" "$CHANGED_DIR" | sort -u)" >> $GITEA_OUTPUT
+          else
+            echo ">> No changes detected, skipping rendering"
+            exit 0
+          fi
+
+      - name: Add Repositories
+        if: steps.check-dir-changes.outputs.changes-detected == 'true'
+        env:
+          CHANGED_DIR: ${{ steps.check-dir-changes.outputs.changed-dir }}
+        run: |
+          cd ${MAIN_DIR}
+
+          echo ">> Adding repositories for chart dependencies ..."
+          for dir in ${CHANGED_DIR}; do
+            helm dependency list --max-col-width 120 ${MAIN_DIR}/clusters/${CLUSTER}/helm/$dir 2> /dev/null \
+              | tail +2 | head -n -1 \
+              | awk '{ print "helm repo add " $1 " " $3 }' \
+              | while read cmd; do echo "$cmd" | sh; done || true
           done
 
       - name: Render Helm Manifests
+        id: render-manifests
+        if: steps.check-dir-changes.outputs.changes-detected == 'true'
+        env:
+          CHANGED_DIR: ${{ steps.check-dir-changes.outputs.changed-dir }}
         run: |
           cd ${MAIN_DIR}
 
-          for cluster in ${CLUSTERS}; do
-            for chart_path in ${MAIN_DIR}/clusters/$cluster/helm/*; do
-              chart_name=$(basename "$chart_path")
-              echo ">> Rendering chart: $chart_name"
+          for dir in ${CHANGED_DIR}; do
+            chart_path=${MAIN_DIR}/clusters/${CLUSTER}/helm/$dir
+            chart_name=$(basename "$chart_path")
 
-              if [ -f "$chart_path/Chart.yaml" ]; then
-                mkdir -p ${MANIFEST_DIR}/clusters/$cluster/manifests/$chart_name
-                OUTPUT_FILE="${MANIFEST_DIR}/clusters/$cluster/manifests/$chart_name/$chart_name.yaml"
+            echo ">> Rendering chart: $chart_name"
+            echo ">> Chart path" $chart_path"
 
-                cd $chart_path
+            if [ -f "$chart_path/Chart.yaml" ]; then
+              mkdir -p ${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$chart_name
+              OUTPUT_FILE="${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$chart_name/$chart_name.yaml"
 
-                echo ""
-                echo ">> Building helm dependency ..."
-                helm dependency build
+              cd $chart_path
 
-                echo ""
-                echo ">> Linting helm ..."
-                helm lint --namespace "$chart_name" --with-subcharts
+              echo ""
+              echo ">> Building helm dependency ..."
+              helm dependency build
 
-                echo ""
-                echo ">> Rendering templates ..."
-                helm template "$chart_name" ./ --namespace "$chart_name" --include-crds > "$OUTPUT_FILE"
+              echo ""
+              echo ">> Linting helm ..."
+              helm lint --namespace "$chart_name" --with-subcharts
 
-                echo ""
-                echo ">> Manifests for $chart_name rendered to $OUTPUT_FILE"
-                echo ""
-              else
-                echo ""
-                echo ">> Directory $chart_path does not contain a Chart.yaml. Skipping ..."
-                echo ""
-              fi
-            done
+              echo ""
+              echo ">> Rendering templates ..."
+              helm template "$chart_name" ./ --namespace "$chart_name" --include-crds > "$OUTPUT_FILE"
+
+              echo ""
+              echo ">> Manifests for $chart_name rendered to $OUTPUT_FILE"
+              echo ""
+            else
+              echo ""
+              echo ">> Directory $chart_path does not contain a Chart.yaml. Skipping ..."
+              echo ""
+            fi
           done
 
       - name: Check for Changes
         id: check-changes
+        if: steps.check-dir-changes.outputs.changes-detected == 'true'
         run: |
           cd ${MANIFEST_DIR}
 
