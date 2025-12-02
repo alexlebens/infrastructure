@@ -1,0 +1,711 @@
+---
+# Source: karakeep/charts/meilisearch/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: karakeep-meilisearch
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: karakeep/charts/meilisearch/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: karakeep-meilisearch-environment
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+data:
+  MEILI_ENV: "production"
+  MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE: "true"
+  MEILI_NO_ANALYTICS: "true"
+  MEILI_EXPERIMENTAL_ENABLE_METRICS: "true"
+---
+# Source: karakeep/charts/karakeep/templates/common.yaml
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: karakeep
+  labels:
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: karakeep
+    helm.sh/chart: karakeep-4.4.0
+  annotations:
+    helm.sh/resource-policy: keep
+  namespace: karakeep
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "10Gi"
+  storageClassName: "ceph-block"
+---
+# Source: karakeep/charts/meilisearch/templates/pvc.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: karakeep-meilisearch
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "10Gi"
+  storageClassName: "ceph-block"
+---
+# Source: karakeep/charts/karakeep/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: karakeep
+  labels:
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: karakeep
+    app.kubernetes.io/service: karakeep
+    helm.sh/chart: karakeep-4.4.0
+  namespace: karakeep
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9222
+      targetPort: 9222
+      protocol: TCP
+      name: chrome
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/name: karakeep
+---
+# Source: karakeep/charts/meilisearch/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: karakeep-meilisearch
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 7700
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: karakeep
+---
+# Source: karakeep/charts/cloudflared/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karakeep-cloudflared
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/version: 2025.10.0
+    helm.sh/chart: cloudflared-1.23.0
+  namespace: karakeep
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: cloudflared
+      app.kubernetes.io/instance: karakeep
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: karakeep
+        app.kubernetes.io/name: cloudflared
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - args:
+          - tunnel
+          - --protocol
+          - http2
+          - --no-autoupdate
+          - run
+          - --token
+          - $(CF_MANAGED_TUNNEL_TOKEN)
+          env:
+          - name: CF_MANAGED_TUNNEL_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: cf-tunnel-token
+                name: karakeep-cloudflared-secret
+          image: cloudflare/cloudflared:2025.11.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+---
+# Source: karakeep/charts/karakeep/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karakeep
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: karakeep
+    helm.sh/chart: karakeep-4.4.0
+  namespace: karakeep
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: karakeep
+      app.kubernetes.io/instance: karakeep
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: karakeep
+        app.kubernetes.io/name: karakeep
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - args:
+          - --no-sandbox
+          - --disable-gpu
+          - --disable-dev-shm-usage
+          - --remote-debugging-address=0.0.0.0
+          - --remote-debugging-port=9222
+          - --hide-scrollbars
+          image: gcr.io/zenika-hub/alpine-chrome:124
+          imagePullPolicy: IfNotPresent
+          name: chrome
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+        - env:
+          - name: DATA_DIR
+            value: /data
+          - name: DB_WAL_MODE
+            value: "true"
+          - name: NEXTAUTH_URL
+            value: https://karakeep.alexlebens.dev/
+          - name: NEXTAUTH_SECRET
+            valueFrom:
+              secretKeyRef:
+                key: key
+                name: karakeep-key-secret
+          - name: PROMETHEUS_AUTH_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: prometheus-token
+                name: karakeep-key-secret
+          - name: ASSET_STORE_S3_ENDPOINT
+            value: http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80
+          - name: ASSET_STORE_S3_REGION
+            value: us-east-1
+          - name: ASSET_STORE_S3_BUCKET
+            valueFrom:
+              configMapKeyRef:
+                key: BUCKET_NAME
+                name: ceph-bucket-karakeep
+          - name: ASSET_STORE_S3_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                key: AWS_ACCESS_KEY_ID
+                name: ceph-bucket-karakeep
+          - name: ASSET_STORE_S3_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                key: AWS_SECRET_ACCESS_KEY
+                name: ceph-bucket-karakeep
+          - name: ASSET_STORE_S3_FORCE_PATH_STYLE
+            value: "true"
+          - name: MEILI_ADDR
+            value: http://karakeep-meilisearch.karakeep:7700
+          - name: MEILI_MASTER_KEY
+            valueFrom:
+              secretKeyRef:
+                key: MEILI_MASTER_KEY
+                name: karakeep-meilisearch-master-key-secret
+          - name: BROWSER_WEB_URL
+            value: http://karakeep.karakeep:9222
+          - name: DISABLE_SIGNUPS
+            value: "false"
+          - name: OAUTH_PROVIDER_NAME
+            value: Authentik
+          - name: OAUTH_WELLKNOWN_URL
+            value: https://auth.alexlebens.dev/application/o/karakeep/.well-known/openid-configuration
+          - name: OAUTH_SCOPE
+            value: openid email profile
+          - name: OAUTH_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                key: AUTHENTIK_CLIENT_ID
+                name: karakeep-oidc-secret
+          - name: OAUTH_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                key: AUTHENTIK_CLIENT_SECRET
+                name: karakeep-oidc-secret
+          - name: OLLAMA_BASE_URL
+            value: http://ollama-server-3.ollama:11434
+          - name: OLLAMA_KEEP_ALIVE
+            value: 5m
+          - name: INFERENCE_TEXT_MODEL
+            value: gemma3:4b
+          - name: INFERENCE_IMAGE_MODEL
+            value: granite3.2-vision:2b
+          - name: EMBEDDING_TEXT_MODEL
+            value: mxbai-embed-large
+          - name: INFERENCE_JOB_TIMEOUT_SEC
+            value: "720"
+          image: ghcr.io/karakeep-app/karakeep:0.28.0
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+          volumeMounts:
+          - mountPath: /data
+            name: data
+      volumes: 
+        - name: data
+          persistentVolumeClaim:
+            claimName: karakeep
+---
+# Source: karakeep/charts/meilisearch/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: karakeep-meilisearch
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  serviceName: karakeep-meilisearch
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: meilisearch
+      app.kubernetes.io/instance: karakeep
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: meilisearch-0.17.1
+        app.kubernetes.io/name: meilisearch
+        app.kubernetes.io/instance: karakeep
+        app.kubernetes.io/version: "v1.18.0"
+        app.kubernetes.io/component: search-engine
+        app.kubernetes.io/part-of: meilisearch
+        app.kubernetes.io/managed-by: Helm
+      annotations:
+        checksum/config: e3114e6f2910e1678611b9df77ee9eb63744c6e143f716dd8aa5f015391a2ef3
+    spec:
+      serviceAccountName: karakeep-meilisearch
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          persistentVolumeClaim:
+            claimName: karakeep-meilisearch
+
+      
+            
+      containers:
+        - name: meilisearch
+          image: "getmeili/meilisearch:v1.18.0"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /meili_data
+          envFrom:
+          - configMapRef:
+              name: karakeep-meilisearch-environment
+          - secretRef:
+              name: karakeep-meilisearch-master-key-secret
+          ports:
+            - name: http
+              containerPort: 7700
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 1
+            initialDelaySeconds: 1
+            failureThreshold: 60
+            timeoutSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            initialDelaySeconds: 0
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            initialDelaySeconds: 0
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+---
+# Source: karakeep/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: karakeep-key-secret
+  namespace: karakeep
+  labels:
+    app.kubernetes.io/name: karakeep-key-secret
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: key
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/karakeep/key
+        metadataPolicy: None
+        property: key
+    - secretKey: prometheus-token
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/karakeep/key
+        metadataPolicy: None
+        property: prometheus-token
+---
+# Source: karakeep/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: karakeep-oidc-secret
+  namespace: karakeep
+  labels:
+    app.kubernetes.io/name: karakeep-oidc-secret
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: AUTHENTIK_CLIENT_ID
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /authentik/oidc/karakeep
+        metadataPolicy: None
+        property: client
+    - secretKey: AUTHENTIK_CLIENT_SECRET
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /authentik/oidc/karakeep
+        metadataPolicy: None
+        property: secret
+---
+# Source: karakeep/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: karakeep-meilisearch-master-key-secret
+  namespace: karakeep
+  labels:
+    app.kubernetes.io/name: karakeep-meilisearch-master-key-secret
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: MEILI_MASTER_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/karakeep/meilisearch
+        metadataPolicy: None
+        property: MEILI_MASTER_KEY
+---
+# Source: karakeep/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: karakeep-cloudflared-secret
+  namespace: karakeep
+  labels:
+    app.kubernetes.io/name: karakeep-cloudflared-secret
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  data:
+    - secretKey: cf-tunnel-token
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cloudflare/tunnels/karakeep
+        metadataPolicy: None
+        property: token
+---
+# Source: karakeep/templates/external-secret.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: karakeep-data-backup-secret
+  namespace: karakeep
+  labels:
+    app.kubernetes.io/name: karakeep-data-backup-secret
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: vault
+  target:
+    template:
+      mergePolicy: Merge
+      engineVersion: v2
+      data:
+        RESTIC_REPOSITORY: "{{ .BUCKET_ENDPOINT }}/karakeep/karakeep-data"
+  data:
+    - secretKey: BUCKET_ENDPOINT
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/volsync/restic/config
+        metadataPolicy: None
+        property: S3_BUCKET_ENDPOINT
+    - secretKey: RESTIC_PASSWORD
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/volsync/restic/config
+        metadataPolicy: None
+        property: RESTIC_PASSWORD
+    - secretKey: AWS_DEFAULT_REGION
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /cl01tl/volsync/restic/config
+        metadataPolicy: None
+        property: AWS_DEFAULT_REGION
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/volsync-backups
+        metadataPolicy: None
+        property: access_key
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: /digital-ocean/home-infra/volsync-backups
+        metadataPolicy: None
+        property: secret_key
+---
+# Source: karakeep/templates/object-bucket-claim.yaml
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: ceph-bucket-karakeep
+  labels:
+    app.kubernetes.io/name: ceph-bucket-karakeep
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  generateBucketName: bucket-karakeep
+  storageClassName: ceph-bucket
+---
+# Source: karakeep/templates/replication-source.yaml
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: karakeep-data-backup-source
+  namespace: karakeep
+  labels:
+    app.kubernetes.io/name: karakeep-data-backup-source
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  sourcePVC: karakeep-data
+  trigger:
+    schedule: 0 4 * * *
+  restic:
+    pruneIntervalDays: 7
+    repository: karakeep-data-backup-secret
+    retain:
+      hourly: 1
+      daily: 3
+      weekly: 2
+      monthly: 2
+      yearly: 4
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
+---
+# Source: karakeep/charts/meilisearch/templates/serviceMonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: karakeep-meilisearch
+  namespace: karakeep
+  labels:
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/version: "v1.18.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+spec:
+  jobLabel: karakeep
+  namespaceSelector:
+    matchNames:
+      - karakeep
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: meilisearch
+      app.kubernetes.io/instance: karakeep
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 1m
+      scrapeTimeout: 10s
+      bearerTokenSecret:
+        name: karakeep-meilisearch-master-key-secret
+        key: MEILI_MASTER_KEY
+---
+# Source: karakeep/templates/service-monitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: karakeep
+  namespace: karakeep
+  labels:
+    app.kubernetes.io/name: karakeep
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/part-of: karakeep
+spec:
+  endpoints:
+    - port: http
+      interval: 30s
+      scrapeTimeout: 15s
+      path: /api/metrics
+      authorization:
+        credentials:
+          key: prometheus-token
+          name: karakeep-key-secret
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: karakeep
+      app.kubernetes.io/instance: karakeep
+---
+# Source: karakeep/charts/meilisearch/templates/tests/test-connection.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: karakeep-meilisearch-test-connection
+  labels:
+    app.kubernetes.io/name: meilisearch
+    helm.sh/chart: meilisearch-0.17.1
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args:  ['karakeep-meilisearch:7700']
+  restartPolicy: Never
