@@ -42,6 +42,30 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: searxng-api
+  labels:
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: searxng
+    app.kubernetes.io/service: searxng-api
+    helm.sh/chart: searxng-4.4.0
+  namespace: searxng
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: mail
+  selector:
+    app.kubernetes.io/controller: api
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/name: searxng
+---
+# Source: searxng/charts/searxng/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
   name: searxng-browser
   labels:
     app.kubernetes.io/instance: searxng
@@ -63,28 +87,69 @@ spec:
     app.kubernetes.io/name: searxng
 ---
 # Source: searxng/charts/searxng/templates/common.yaml
-apiVersion: v1
-kind: Service
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: searxng-api
+  name: searxng-browser
   labels:
+    app.kubernetes.io/controller: browser
     app.kubernetes.io/instance: searxng
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: searxng
-    app.kubernetes.io/service: searxng-api
     helm.sh/chart: searxng-4.4.0
   namespace: searxng
 spec:
-  type: ClusterIP
-  ports:
-    - port: 8080
-      targetPort: 8080
-      protocol: TCP
-      name: mail
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
   selector:
-    app.kubernetes.io/controller: api
-    app.kubernetes.io/instance: searxng
-    app.kubernetes.io/name: searxng
+    matchLabels:
+      app.kubernetes.io/controller: browser
+      app.kubernetes.io/name: searxng
+      app.kubernetes.io/instance: searxng
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: browser
+        app.kubernetes.io/instance: searxng
+        app.kubernetes.io/name: searxng
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - env:
+          - name: SEARXNG_BASE_URL
+            value: https://searxng.alexlebens.net/
+          - name: SEARXNG_QUERY_URL
+            value: https://searxng.alexlebens.net/search?q=<query>
+          - name: SEARXNG_HOSTNAME
+            value: searxng.alexlebens.net
+          - name: SEARXNG_REDIS_URL
+            value: redis://redis-replication-searxng-master.searxng:6379/0
+          - name: UWSGI_WORKERS
+            value: "4"
+          - name: UWSGI_THREADS
+            value: "4"
+          image: searxng/searxng:latest@sha256:277cb4b82fbdd69d88812089a5755860d379de907f09fb511443ff03d35191af
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+          volumeMounts:
+          - mountPath: /etc/searxng
+            name: browser-data
+      volumes: 
+        - name: browser-data
+          persistentVolumeClaim:
+            claimName: searxng-browser-data
 ---
 # Source: searxng/charts/searxng/templates/common.yaml
 apiVersion: apps/v1
@@ -142,7 +207,7 @@ spec:
             value: "3"
           - name: RAG_WEB_SEARCH_CONCURRENT_REQUESTS
             value: "10"
-          image: searxng/searxng:latest@sha256:faa7118f9167c2c1e09a3fbb9bd87eee0905d76456d297e62e815646afc97037
+          image: searxng/searxng:latest@sha256:277cb4b82fbdd69d88812089a5755860d379de907f09fb511443ff03d35191af
           imagePullPolicy: IfNotPresent
           name: main
           resources:
@@ -169,71 +234,6 @@ spec:
         - name: config
           secret:
             secretName: searxng-api-config-secret
----
-# Source: searxng/charts/searxng/templates/common.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: searxng-browser
-  labels:
-    app.kubernetes.io/controller: browser
-    app.kubernetes.io/instance: searxng
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: searxng
-    helm.sh/chart: searxng-4.4.0
-  namespace: searxng
-spec:
-  revisionHistoryLimit: 3
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/controller: browser
-      app.kubernetes.io/name: searxng
-      app.kubernetes.io/instance: searxng
-  template:
-    metadata:
-      labels: 
-        app.kubernetes.io/controller: browser
-        app.kubernetes.io/instance: searxng
-        app.kubernetes.io/name: searxng
-    spec: 
-      enableServiceLinks: false
-      serviceAccountName: default
-      automountServiceAccountToken: true
-      hostIPC: false
-      hostNetwork: false
-      hostPID: false
-      dnsPolicy: ClusterFirst
-      containers: 
-        - env:
-          - name: SEARXNG_BASE_URL
-            value: https://searxng.alexlebens.net/
-          - name: SEARXNG_QUERY_URL
-            value: https://searxng.alexlebens.net/search?q=<query>
-          - name: SEARXNG_HOSTNAME
-            value: searxng.alexlebens.net
-          - name: SEARXNG_REDIS_URL
-            value: redis://redis-replication-searxng-master.searxng:6379/0
-          - name: UWSGI_WORKERS
-            value: "4"
-          - name: UWSGI_THREADS
-            value: "4"
-          image: searxng/searxng:latest@sha256:faa7118f9167c2c1e09a3fbb9bd87eee0905d76456d297e62e815646afc97037
-          imagePullPolicy: IfNotPresent
-          name: main
-          resources:
-            requests:
-              cpu: 10m
-              memory: 256Mi
-          volumeMounts:
-          - mountPath: /etc/searxng
-            name: browser-data
-      volumes: 
-        - name: browser-data
-          persistentVolumeClaim:
-            claimName: searxng-browser-data
 ---
 # Source: searxng/templates/external-secret.yaml
 apiVersion: external-secrets.io/v1
