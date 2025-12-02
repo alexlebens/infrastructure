@@ -58,21 +58,21 @@ jobs:
             git checkout -b $BRANCH_NAME
           fi
 
-      - name: Check Which Directories Have Changes
+      - name: Check which Directories have Changes
         id: check-dir-changes
         run: |
           cd ${MAIN_DIR}
 
-          GIT_STATUS=$(git status --porcelain)
+          GIT_DIFF=$(git diff --name-only HEAD^ HEAD | xargs -I {} dirname {} | sort -u)
           CHANGED_DIR=()
 
           echo ">> Checking for changes .."
-          echo "$GIT_STATUS"
+          echo "$GIT_DIFF"
 
-          if $GIT_STATUS | grep -q .; then
+          if $GIT_DIFF | grep -q .; then
             echo ">> Changes detected"
 
-            for path in $GIT_STATUS; do
+            for path in $GIT_DIFF; do
               CHANGED_DIR+=("echo "$path" | awk -F '/' '{print $4}' ")
             done
 
