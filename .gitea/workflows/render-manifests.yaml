@@ -59,6 +59,8 @@ jobs:
             git checkout -b $BRANCH_NAME
           fi
 
+          echo "-----"
+
       - name: Check which Directories have Changes
         id: check-dir-changes
         run: |
@@ -90,6 +92,8 @@ jobs:
           echo ">> Directories to Render:"
           echo "$(printf "%s\n" "$RENDER_DIR" | sort -u)"
 
+          echo "-----"
+
           echo "changes-detected=true" >> $GITEA_OUTPUT
           echo "render-dir=$(printf "%s\n" "$RENDER_DIR" | sort -u)" >> $GITEA_OUTPUT
 
@@ -108,6 +112,8 @@ jobs:
               | while read cmd; do echo "$cmd" | sh; done || true
           done
 
+          echo "-----"
+
       - name: Remove Changed Manifest Files
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
         env:
@@ -123,6 +129,8 @@ jobs:
             echo ">> Removing from $chart_path ..."
             rm -rf $chart_path/*
           done
+
+          echo "-----"
 
       - name: Render Helm Manifests
         id: render-manifests
@@ -169,6 +177,8 @@ jobs:
             fi
           done
 
+          echo "-----"
+
       - name: Check for Changes
         id: check-changes
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
@@ -184,6 +194,8 @@ jobs:
             exit 0
           fi
 
+          echo "-----"
+
       - name: Commit and Push Changes
         id: commit-push
         if: steps.check-changes.outputs.changes-detected == 'true'
@@ -197,6 +209,8 @@ jobs:
           echo ">> Pushing changes to $REPO_URL ..."
           REPO_URL="${{ secrets.REPO_URL }}/${{ gitea.repository }}"
           git push -u "https://oauth2:${{ secrets.BOT_TOKEN }}@$(echo $REPO_URL | sed -e 's|https://||')" ${BRANCH_NAME}
+
+          echo "-----"
 
           echo "HEAD_BRANCH=${BRANCH_NAME}" >> $GITEA_OUTPUT
           echo "push=true" >> $GITEA_OUTPUT
@@ -252,6 +266,8 @@ jobs:
             echo ">> Pull Request not found"
             echo "pull-request-exists=false" >> $GITEA_OUTPUT
           fi
+
+          echo "-----"
 
       - name: Create Pull Request
         id: create-pull-request
@@ -318,6 +334,8 @@ jobs:
             exit 1
           fi
 
+          echo "-----"
+
       - name: Cleanup Branch
         if: failure() && steps.create-pull-request.outcome == 'failure'
         env:
@@ -325,6 +343,8 @@ jobs:
         run: |
           echo ">> Removing branch: ${HEAD_BRANCH}"
           git push origin --delete ${HEAD_BRANCH}
+
+          echo "-----"
 
       - name: ntfy Created
         uses: niniyas/ntfy-action@master
