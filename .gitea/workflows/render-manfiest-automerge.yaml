@@ -67,7 +67,7 @@ jobs:
           echo ">> Checking for changes ..."
           GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep "clusters/cl01tl/helm/")
 
-          if [ -n $GIT_DIFF ]; then
+          if [ -n "${GIT_DIFF}" ]; then
             echo ">> Changes detected:"
             echo "$GIT_DIFF"
             for path in $GIT_DIFF; do
@@ -79,7 +79,7 @@ jobs:
 
           fi
 
-          if [ -n $RENDER_DIR ]; then
+          if [ -n "${RENDER_DIR}" ]; then
             echo ">> Directories to Render:"
             echo "$(printf "%s\n" "${RENDER_DIR[@]}" | sort -u)"
 
@@ -107,6 +107,11 @@ jobs:
               | awk '{ print "helm repo add " $1 " " $3 }' \
               | while read cmd; do echo "$cmd" | sh; done || true
           done
+
+          if helm repo list | tail +2 | read -r; then
+            echo ">> Update repository cache ..."
+            helm repo update
+          fi
 
           echo "----"
 
@@ -153,7 +158,7 @@ jobs:
 
               echo ""
               echo ">> Building helm dependency ..."
-              helm dependency build
+              helm dependency build --skip-refresh
 
               echo ""
               echo ">> Linting helm ..."
@@ -161,7 +166,33 @@ jobs:
 
               echo ""
               echo ">> Rendering templates ..."
-              helm template "$chart_name" ./ --namespace "$chart_name" --include-crds > "$OUTPUT_FILE"
+
+              case "$chart_name" in
+                "stack")
+                  echo ">> Special Rendering for stack ..."
+                  helm template stack ./ --namespace argocd --include-crds > "$OUTPUT_FILE"
+                  ;;
+                "cilium")
+                  echo ">> Special Rendering for cilium ..."
+                  helm template cilium ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  ;;
+                "coredns")
+                  echo ">> Special Rendering for coredns ..."
+                  helm template coredns ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  ;;
+                "metrics-server")
+                  echo ">> Special Rendering for metrics-server ..."
+                  helm template metrics-server ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  ;;
+                "prometheus-operator-crds")
+                  echo ">> Special Rendering for prometheus-operator-crds ..."
+                  helm template prometheus-operator-crds ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  ;;
+                *)
+                  echo ">> Standard Rendering for $chart_name ..."
+                  helm template "$chart_name" ./ --namespace "$chart_name" --include-crds > "$OUTPUT_FILE"
+                  ;;
+              esac
 
               echo ""
               echo ">> Manifests for $chart_name rendered to $OUTPUT_FILE"
