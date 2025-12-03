@@ -110,6 +110,57 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: komodo-ferretdb-2
+  labels:
+    app.kubernetes.io/controller: ferretdb-2
+    app.kubernetes.io/instance: komodo
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: komodo
+    helm.sh/chart: komodo-4.4.0
+  namespace: komodo
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: ferretdb-2
+      app.kubernetes.io/name: komodo
+      app.kubernetes.io/instance: komodo
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: ferretdb-2
+        app.kubernetes.io/instance: komodo
+        app.kubernetes.io/name: komodo
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - env:
+          - name: FERRETDB_POSTGRESQL_URL
+            valueFrom:
+              secretKeyRef:
+                key: uri
+                name: komodo-postgresql-17-fdb-cluster-app
+          image: ghcr.io/ferretdb/ferretdb:2.7.0
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+---
+# Source: komodo/charts/komodo/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: komodo-main
   labels:
     app.kubernetes.io/controller: main
@@ -233,57 +284,6 @@ spec:
         - name: syncs
           persistentVolumeClaim:
             claimName: komodo-syncs
----
-# Source: komodo/charts/komodo/templates/common.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: komodo-ferretdb-2
-  labels:
-    app.kubernetes.io/controller: ferretdb-2
-    app.kubernetes.io/instance: komodo
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: komodo
-    helm.sh/chart: komodo-4.4.0
-  namespace: komodo
-spec:
-  revisionHistoryLimit: 3
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/controller: ferretdb-2
-      app.kubernetes.io/name: komodo
-      app.kubernetes.io/instance: komodo
-  template:
-    metadata:
-      labels: 
-        app.kubernetes.io/controller: ferretdb-2
-        app.kubernetes.io/instance: komodo
-        app.kubernetes.io/name: komodo
-    spec: 
-      enableServiceLinks: false
-      serviceAccountName: default
-      automountServiceAccountToken: true
-      hostIPC: false
-      hostNetwork: false
-      hostPID: false
-      dnsPolicy: ClusterFirst
-      containers: 
-        - env:
-          - name: FERRETDB_POSTGRESQL_URL
-            valueFrom:
-              secretKeyRef:
-                key: uri
-                name: komodo-postgresql-17-fdb-cluster-app
-          image: ghcr.io/ferretdb/ferretdb:2.7.0
-          imagePullPolicy: IfNotPresent
-          name: main
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
 ---
 # Source: komodo/charts/postgresql-17-fdb-cluster/templates/cluster.yaml
 apiVersion: postgresql.cnpg.io/v1
