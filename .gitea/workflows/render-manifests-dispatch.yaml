@@ -1,0 +1,381 @@
+name: render-manifests-dispatch
+
+on:
+  workflow_dispatch:
+
+env:
+  CLUSTER: cl01tl
+  BASE_BRANCH: manifests
+  BRANCH_NAME: auto/update-manifests
+  ASSIGNEE: alexlebens
+  MAIN_DIR: /workspace/alexlebens/infrastructure/infrastructure
+  MANIFEST_DIR: /workspace/alexlebens/infrastructure/infrastructure-manifests
+
+jobs:
+  render-manifests-dispatch:
+    runs-on: ubuntu-js
+    steps:
+      - name: Checkout Main
+        uses: actions/checkout@v6
+        with:
+          path: infrastructure
+          fetch-depth: 0
+
+      - name: Checkout Manifests
+        uses: actions/checkout@v6
+        with:
+          ref: manifests
+          path: infrastructure-manifests
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          token: ${{ secrets.GITEA_TOKEN }}
+          version: v3.17.2 # Pending https://github.com/helm/helm/pull/30743
+
+      - name: Prepare Manifest Branch
+        run: |
+          cd ${MANIFEST_DIR}
+
+          echo ">> Configure git to use gitea-bot as user ..."
+          git config user.name "gitea-bot"
+          git config user.email "gitea-bot@alexlebens.net"
+
+          echo ">> Checking if PR branch exists ..."
+          if [[ $(git ls-remote --heads origin "${BRANCH_NAME}" | wc -l) -gt 0 ]]; then
+            echo ">> Branch '${BRANCH_NAME}' exists, pulling changes ..."
+            git fetch origin "${BRANCH_NAME}"
+            git checkout "${BRANCH_NAME}"
+            git pull --rebase
+
+          else
+            echo ">> Branch '${BRANCH_NAME}' does not exist, creating ..."
+            git checkout -b $BRANCH_NAME
+          fi
+
+          echo "----"
+
+      - name: Check which Directories have Changes
+        id: check-dir-changes
+        run: |
+          cd ${MAIN_DIR}
+
+          RENDER_DIR=()
+
+          echo ">> Triggered on dispatch, will check all paths ..."
+          RENDER_DIR+=$(ls clusters/cl01tl/helm/)
+
+          if [ -n "${RENDER_DIR}" ]; then
+            echo ">> Directories to Render:"
+            echo "$(printf "%s\n" "${RENDER_DIR[@]}" | sort -u)"
+
+            echo "----"
+
+            echo "changes-detected=true" >> $GITEA_OUTPUT
+            echo "render-dir<<EOF" >> $GITEA_OUTPUT
+            echo "$(printf "%s\n" "${RENDER_DIR[@]}" | sort -u)" >> $GITEA_OUTPUT
+            echo "EOF" >> $GITEA_OUTPUT
+          else
+            echo "changes-detected=false" >> $GITEA_OUTPUT
+          fi
+
+      - name: Add Repositories
+        if: steps.check-dir-changes.outputs.changes-detected == 'true'
+        env:
+          RENDER_DIR: ${{ steps.check-dir-changes.outputs.render-dir }}
+        run: |
+          cd ${MAIN_DIR}
+
+          echo ">> Adding repositories for chart dependencies ..."
+          for dir in ${RENDER_DIR}; do
+            helm dependency list --max-col-width 120 ${MAIN_DIR}/clusters/${CLUSTER}/helm/$dir 2> /dev/null \
+              | tail +2 | head -n -1 \
+              | awk '{ print "helm repo add " $1 " " $3 }' \
+              | while read cmd; do echo "$cmd" | sh; done || true
+          done
+
+          if helm repo list | tail +2 | read -r; then
+            echo ">> Update repository cache ..."
+            helm repo update
+          fi
+
+          echo "----"
+
+      - name: Remove Changed Manifest Files
+        if: steps.check-dir-changes.outputs.changes-detected == 'true'
+        env:
+          RENDER_DIR: ${{ steps.check-dir-changes.outputs.render-dir }}
+        run: |
+          cd ${MANIFEST_DIR}
+
+          echo ">> Remove manfiest files and rebuild from source ..."
+
+          for dir in ${RENDER_DIR}; do
+            chart_path=${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$dir
+
+            echo "$chart_path"
+            rm -rf $chart_path/*
+          done
+
+          echo "----"
+
+      - name: Render Helm Manifests
+        id: render-manifests
+        if: steps.check-dir-changes.outputs.changes-detected == 'true'
+        env:
+          RENDER_DIR: ${{ steps.check-dir-changes.outputs.render-dir }}
+        run: |
+          cd ${MAIN_DIR}
+
+          echo ">> Rendering Manifests ..."
+
+          for dir in ${RENDER_DIR}; do
+            chart_path=${MAIN_DIR}/clusters/${CLUSTER}/helm/$dir
+            chart_name=$(basename "$chart_path")
+
+            echo ">> Rendering chart: $chart_name"
+            echo ">> Chart path $chart_path"
+
+            if [ -f "$chart_path/Chart.yaml" ]; then
+              mkdir -p ${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$chart_name
+              OUTPUT_FILE="${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$chart_name/$chart_name.yaml"
+
+              cd $chart_path
+
+              echo ""
+              echo ">> Building helm dependency ..."
+              helm dependency build --skip-refresh
+
+              echo ""
+              echo ">> Linting helm ..."
+              helm lint --namespace "$chart_name"
+
+              echo ""
+              echo ">> Rendering templates ..."
+
+              case "$chart_name" in
+                "stack")
+                  echo ">> Special Rendering for stack ..."
+                  helm template stack ./ --namespace argocd --include-crds > "$OUTPUT_FILE"
+                  ;;
+                "cilium")
+                  echo ">> Special Rendering for cilium ..."
+                  helm template cilium ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  ;;
+                "coredns")
+                  echo ">> Special Rendering for coredns ..."
+                  helm template coredns ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  ;;
+                "metrics-server")
+                  echo ">> Special Rendering for metrics-server ..."
+                  helm template metrics-server ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  ;;
+                "prometheus-operator-crds")
+                  echo ">> Special Rendering for prometheus-operator-crds ..."
+                  helm template prometheus-operator-crds ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  ;;
+                *)
+                  echo ">> Standard Rendering for $chart_name ..."
+                  helm template "$chart_name" ./ --namespace "$chart_name" --include-crds > "$OUTPUT_FILE"
+                  ;;
+              esac
+
+              echo ""
+              echo ">> Manifests for $chart_name rendered to $OUTPUT_FILE"
+              echo ""
+            else
+              echo ""
+              echo ">> Directory $chart_path does not contain a Chart.yaml. Skipping ..."
+              echo ""
+            fi
+          done
+
+          echo "----"
+
+      - name: Check for Changes
+        id: check-changes
+        if: steps.check-dir-changes.outputs.changes-detected == 'true'
+        run: |
+          cd ${MANIFEST_DIR}
+
+          if git status --porcelain | grep -q .; then
+            echo ">> Changes detected"
+            git status --porcelain
+            echo "changes-detected=true" >> $GITEA_OUTPUT
+          else
+            echo ">> No changes detected, skipping PR creation"
+            exit 0
+          fi
+
+          echo "----"
+
+      - name: Commit and Push Changes
+        id: commit-push
+        if: steps.check-changes.outputs.changes-detected == 'true'
+        run: |
+          cd ${MANIFEST_DIR}
+
+          echo ">> Commiting changes to ${BRANCH_NAME} ..."
+          git add .
+          git commit -m "chore: Update manifests after change"
+
+          REPO_URL="${{ secrets.REPO_URL }}/${{ gitea.repository }}"
+          echo ">> Pushing changes to $REPO_URL ..."
+          git push -u "https://oauth2:${{ secrets.BOT_TOKEN }}@$(echo $REPO_URL | sed -e 's|https://||')" ${BRANCH_NAME}
+
+          echo "----"
+
+          echo "HEAD_BRANCH=${BRANCH_NAME}" >> $GITEA_OUTPUT
+          echo "push=true" >> $GITEA_OUTPUT
+
+      - name: Check for Pull Request
+        id: check-for-pull-requst
+        if: steps.commit-push.outputs.push == 'true'
+        env:
+          GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GITEA_URL: ${{ secrets.REPO_URL }}
+          HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
+        run: |
+          cd ${MANIFEST_DIR}
+
+          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls?base_branch=${BASE_BRANCH}&state=open&page=1"
+
+          echo ">> Checking if PR from branch ${HEAD_BRANCH} into ${BASE_BRANCH}"
+          echo ">> With Endpoint of:"
+          echo "$API_ENDPOINT"
+
+          HTTP_STATUS=$(
+            curl -X GET \
+              --silent \
+              --write-out '%{http_code}' \
+              --output response_body.json \
+              --dump-header response_headers.txt \
+              -H "Authorization: token ${GITEA_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "$API_ENDPOINT" 2> response_errors.txt
+          )
+
+          echo ">> HTTP Status Code: $HTTP_STATUS"
+          echo ">> Response Output ..."
+          echo "----"
+          cat response_body.json
+          echo "----"
+          cat response_headers.txt
+          echo "----"
+          cat response_errors.txt
+          echo "----"
+
+          if [ "$HTTP_STATUS" == "200" ] && [ "$(cat response_body.json | jq -r .[0].state)" == "open" ]; then
+            echo ">> Pull Request has been found open, will update"
+            PR_INDEX=$(cat response_body.json | jq -r .[0].number)
+            echo "pull-request-exists=${PR_INDEX}" >> $GITEA_OUTPUT
+            echo "pull-request-index=true" >> $GITEA_OUTPUT
+
+          elif [ "$HTTP_STATUS" == "200" ] && [ "$(cat response_body.json | jq -r .[0].state)" == "closed" ]; then
+            echo ">> Pull Request found, but was closed"
+            echo "pull-request-exists=false" >> $GITEA_OUTPUT
+
+          else
+            echo ">> Pull Request not found"
+            echo "pull-request-exists=false" >> $GITEA_OUTPUT
+          fi
+
+          echo "----"
+
+      - name: Create Pull Request
+        id: create-pull-request
+        if: steps.commit-push.outputs.push == 'true' && steps.check-for-pull-requst.outputs.pull-request-exists == 'false'
+        env:
+          GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GITEA_URL: ${{ secrets.REPO_URL }}
+          HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
+        run: |
+          cd ${MANIFEST_DIR}
+
+          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls"
+
+          PAYLOAD=$( jq -n \
+            --arg head "${HEAD_BRANCH}" \
+            --arg base "${BASE_BRANCH}" \
+            --arg assignee "${ASSIGNEE}" \
+            --arg title "Automated Manifest Update" \
+            --arg body "This PR contains newly rendered Kubernetes manifests automatically generated by the CI workflow." \
+            '{head: $head, base: $base, assignee: $assignee, title: $title, body: $body'} )
+
+          echo ">> Creating PR from branch ${HEAD_BRANCH} into ${BASE_BRANCH}"
+          echo ">> With Endpoint of:"
+          echo "$API_ENDPOINT"
+          echo ">> With Payload of:"
+          echo "$PAYLOAD"
+
+          HTTP_STATUS=$(
+            curl -X POST \
+              --silent \
+              --write-out '%{http_code}' \
+              --output response_body.json \
+              --dump-header response_headers.txt \
+              --data "$PAYLOAD" \
+              -H "Authorization: token ${GITEA_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "$API_ENDPOINT" 2> response_errors.txt
+          )
+
+          echo ">> HTTP Status Code: $HTTP_STATUS"
+          echo ">> Response Output ..."
+          echo "----"
+          cat response_body.json
+          echo "----"
+          cat response_headers.txt
+          echo "----"
+          cat response_errors.txt
+          echo "----"
+
+          if [ "$HTTP_STATUS" == "201" ]; then
+            echo ">> Pull Request created successfully!"
+            PR_URL=$(cat response_body.json | jq -r .html_url)
+            echo "pull-request-url=${PR_URL}" >> $GITEA_OUTPUT
+            PR_ID=$(cat response_body.json | jq -r .id)
+            echo "pull-request-id=${PR_ID}" >> $GITEA_OUTPUT
+            echo "pull-request-operation=created" >> $GITEA_OUTPUT
+
+          elif [ "$HTTP_STATUS" == "422" ]; then
+            echo ">> Failed to create PR (HTTP 422: Unprocessable Entity), PR may already exist"
+
+          elif [ "$HTTP_STATUS" == "409" ]; then
+            echo ">> Failed to create PR (HTTP 409: Conflict), PR already exists"
+
+          else
+            echo ">> Failed to create PR, HTTP status code: $HTTP_STATUS"
+            exit 1
+          fi
+
+          echo "----"
+
+      - name: ntfy Created
+        uses: niniyas/ntfy-action@master
+        if: steps.create-pull-request.outputs.pull-request-operation == 'created'
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ secrets.NTFY_TOPIC }}"
+          title: "Manifest Render PR Created - Infrastructure"
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,successfully,completed
+          details: "Manifest rendering for Infrastructure has created a new Pull Request with ID: ${{ steps.create-pull-request.outputs.pull-request-id }}!"
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions: '[{"action": "view", "label": "Open Gitea", "url": "${{ steps.create-pull-request.outputs.pull-request-url }}", "clear": true}]'
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ secrets.NTFY_TOPIC }}"
+          title: "Manifest Render Failure - Infrastructure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "Manifest rendering for Infrastructure has failed!"
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/infrastructure/actions?workflow=render-manifests.yaml", "clear": true}]'
+          image: true

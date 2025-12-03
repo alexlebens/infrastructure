@@ -1,13 +1,13 @@
-name: render-manifests
+name: render-manifests-merge
 
 on:
-  push:
+  pull_request:
     branches:
       - main
     paths:
       - 'clusters/cl01tl/helm/**'
-
-  workflow_dispatch:
+    types:
+      - closed
 
 env:
   CLUSTER: cl01tl
@@ -18,8 +18,9 @@ env:
   MANIFEST_DIR: /workspace/alexlebens/infrastructure/infrastructure-manifests
 
 jobs:
-  render-manifests:
+  render-manifests-merge:
     runs-on: ubuntu-js
+    if: ${{ (github.event.pull_request.merged == true) && !(contains(github.event.pull_request.labels.*.name, 'automerge')) }}
     steps:
       - name: Checkout Main
         uses: actions/checkout@v6
@@ -68,25 +69,19 @@ jobs:
 
           RENDER_DIR=()
 
-          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
-            echo ">> Triggered on dispatch, will check all paths ..."
-            RENDER_DIR+=$(ls clusters/cl01tl/helm/)
+          echo ">> Checking for changes ..."
+          GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep "clusters/cl01tl/helm/")
+
+          if [ -n "${GIT_DIFF}" ]; then
+            echo ">> Changes detected:"
+            echo "$GIT_DIFF"
+            for path in $GIT_DIFF; do
+              RENDER_DIR+=$(echo "$path" | awk -F '/' '{print $4}')
+            done
 
           else
-            echo ">> Checking for changes ..."
-            GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep "clusters/cl01tl/helm/")
+            echo ">> No changes detected"
 
-            if [ -n "${GIT_DIFF}" ]; then
-              echo ">> Changes detected:"
-              echo "$GIT_DIFF"
-              for path in $GIT_DIFF; do
-                RENDER_DIR+=$(echo "$path" | awk -F '/' '{print $4}')
-              done
-
-            else
-              echo ">> No changes detected"
-
-            fi
           fi
 
           if [ -n "${RENDER_DIR}" ]; then
