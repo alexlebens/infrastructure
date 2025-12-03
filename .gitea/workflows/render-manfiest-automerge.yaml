@@ -1,25 +1,26 @@
-name: render-manifests
+name: render-manfiest-automerge
 
 on:
-  push:
+  pull_request:
     branches:
       - main
     paths:
       - 'clusters/cl01tl/helm/**'
-
-  workflow_dispatch:
+    types:
+      - labeled
 
 env:
   CLUSTER: cl01tl
   BASE_BRANCH: manifests
-  BRANCH_NAME: auto/update-manifests
-  ASSIGNEE: alexlebens
+  BRANCH_NAME_BASE: auto/update-manifests-automerge
   MAIN_DIR: /workspace/alexlebens/infrastructure/infrastructure
   MANIFEST_DIR: /workspace/alexlebens/infrastructure/infrastructure-manifests
 
 jobs:
-  render-manifests:
+  render-manfiest-automerge:
     runs-on: ubuntu-js
+    if: |
+      (github.event_name == 'pull_request' && github.event.action == 'labeled' && contains(github.event.pull_request.labels.*.name, 'automerge'))
     steps:
       - name: Checkout Main
         uses: actions/checkout@v6
@@ -40,26 +41,22 @@ jobs:
           version: v3.17.2 # Pending https://github.com/helm/helm/pull/30743
 
       - name: Prepare Manifest Branch
+        id: prepare-manifest-branch
         run: |
           cd ${MANIFEST_DIR}
+
+          BRANCH_NAME="${BRANCH_NAME_BASE}-$(date +%Y%m%d%H%M%S)"
 
           echo ">> Configure git to use gitea-bot as user ..."
           git config user.name "gitea-bot"
           git config user.email "gitea-bot@alexlebens.net"
 
-          echo ">> Checking if PR branch exists ..."
-          if [[ $(git ls-remote --heads origin "${BRANCH_NAME}" | wc -l) -gt 0 ]]; then
-            echo ">> Branch '${BRANCH_NAME}' exists, pulling changes ..."
-            git fetch origin "${BRANCH_NAME}"
-            git checkout "${BRANCH_NAME}"
-            git pull --rebase
-
-          else
-            echo ">> Branch '${BRANCH_NAME}' does not exist, creating ..."
-            git checkout -b $BRANCH_NAME
-          fi
+          echo ">> Creating branch ..."
+          git checkout -b $BRANCH_NAME
 
           echo "----"
+
+          echo "BRANCH_NAME=${BRANCH_NAME}" >> $GITEA_OUTPUT
 
       - name: Check which Directories have Changes
         id: check-dir-changes
@@ -68,25 +65,19 @@ jobs:
 
           RENDER_DIR=()
 
-          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
-            echo ">> Triggered on dispatch, will check all paths .."
-            RENDER_DIR+=$(ls clusters/cl01tl/helm/)
+          echo ">> Checking for changes ..."
+          GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep "clusters/cl01tl/helm/")
+
+          if [ -n $GIT_DIFF ]; then
+            echo ">> Changes detected:"
+            echo "$GIT_DIFF"
+            for path in $GIT_DIFF; do
+              RENDER_DIR+=$(echo "$path" | awk -F '/' '{print $4}')
+            done
 
           else
-            echo ">> Checking for changes ..."
-            GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep "clusters/cl01tl/helm/")
+            echo ">> No changes detected"
 
-            if [ -n $GIT_DIFF ]; then
-              echo ">> Changes detected:"
-              echo "$GIT_DIFF"
-              for path in $GIT_DIFF; do
-                RENDER_DIR+=$(echo "$path" | awk -F '/' '{print $4}')
-              done
-
-            else
-              echo ">> No changes detected"
-
-            fi
           fi
 
           echo ">> Directories to Render:"
@@ -201,12 +192,14 @@ jobs:
       - name: Commit and Push Changes
         id: commit-push
         if: steps.check-changes.outputs.changes-detected == 'true'
+        env:
+          BRANCH_NAME: ${{ steps.prepare-manifest-branch.outputs.BRANCH_NAME }}
         run: |
           cd ${MANIFEST_DIR}
 
           echo ">> Commiting changes to ${BRANCH_NAME} ..."
           git add .
-          git commit -m "chore: Update manifests after change"
+          git commit -m "chore: Update manifests after automerge"
 
           REPO_URL="${{ secrets.REPO_URL }}/${{ gitea.repository }}"
           echo ">> Pushing changes to $REPO_URL ..."
@@ -214,84 +207,28 @@ jobs:
 
           echo "----"
 
-          echo "HEAD_BRANCH=${BRANCH_NAME}" >> $GITEA_OUTPUT
           echo "push=true" >> $GITEA_OUTPUT
 
-      - name: Check for Pull Request
-        id: check-for-pull-requst
+      - name: Create Pull Request
+        id: create-pull-request
         if: steps.commit-push.outputs.push == 'true'
         env:
           GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
           GITEA_URL: ${{ secrets.REPO_URL }}
-          HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
-        run: |
-          cd ${MANIFEST_DIR}
-
-          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls?base_branch=${BASE_BRANCH}&state=open&page=1"
-
-          echo ">> Checking if PR from branch ${HEAD_BRANCH} into ${BASE_BRANCH}"
-          echo ">> With Endpoint of:"
-          echo "$API_ENDPOINT"
-
-          HTTP_STATUS=$(
-            curl -X GET \
-              --silent \
-              --write-out '%{http_code}' \
-              --output response_body.json \
-              --dump-header response_headers.txt \
-              -H "Authorization: token ${GITEA_TOKEN}" \
-              -H "Content-Type: application/json" \
-              "$API_ENDPOINT" 2> response_errors.txt
-          )
-
-          echo ">> HTTP Status Code: $HTTP_STATUS"
-          echo ">> Response Output ..."
-          echo "----"
-          cat response_body.json
-          echo "----"
-          cat response_headers.txt
-          echo "----"
-          cat response_errors.txt
-          echo "----"
-
-          if [ "$HTTP_STATUS" == "200" ] && [ "$(cat response_body.json | jq -r .[0].state)" == "open" ]; then
-            echo ">> Pull Request has been found open, will update"
-            PR_INDEX=$(cat response_body.json | jq -r .[0].number)
-            echo "pull-request-exists=${PR_INDEX}" >> $GITEA_OUTPUT
-            echo "pull-request-index=true" >> $GITEA_OUTPUT
-
-          elif [ "$HTTP_STATUS" == "200" ] && [ "$(cat response_body.json | jq -r .[0].state)" == "closed" ]; then
-            echo ">> Pull Request found, but was closed"
-            echo "pull-request-exists=false" >> $GITEA_OUTPUT
-
-          else
-            echo ">> Pull Request not found"
-            echo "pull-request-exists=false" >> $GITEA_OUTPUT
-          fi
-
-          echo "----"
-
-      - name: Create Pull Request
-        id: create-pull-request
-        if: steps.commit-push.outputs.push == 'true' && steps.check-for-pull-requst.outputs.pull-request-exists == 'false'
-        env:
-          GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
-          GITEA_URL: ${{ secrets.REPO_URL }}
-          HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
+          BRANCH_NAME: ${{ steps.prepare-manifest-branch.outputs.BRANCH_NAME }}
         run: |
           cd ${MANIFEST_DIR}
 
           API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls"
 
           PAYLOAD=$( jq -n \
-            --arg head "${HEAD_BRANCH}" \
+            --arg head "${BRANCH_NAME}" \
             --arg base "${BASE_BRANCH}" \
-            --arg assignee "${ASSIGNEE}" \
             --arg title "Automated Manifest Update" \
-            --arg body "This PR contains newly rendered Kubernetes manifests automatically generated by the CI workflow." \
-            '{head: $head, base: $base, assignee: $assignee, title: $title, body: $body'} )
+            --arg body "This PR contains newly rendered Kubernetes manifests automatically generated by the CI workflow. This is expected to be automerged." \
+            '{head: $head, base: $base, title: $title, body: $body'} )
 
-          echo ">> Creating PR from branch ${HEAD_BRANCH} into ${BASE_BRANCH}"
+          echo ">> Creating PR from branch ${BRANCH_NAME} into ${BASE_BRANCH}"
           echo ">> With Endpoint of:"
           echo "$API_ENDPOINT"
           echo ">> With Payload of:"
@@ -340,17 +277,87 @@ jobs:
 
           echo "----"
 
-      - name: ntfy Created
+      - name: Merge Changes
+        id: merge-changes
+        if: steps.commit-push.outputs.push == 'true'
+        env:
+          GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GITEA_URL: ${{ secrets.REPO_URL }}
+          BRANCH_NAME: ${{ steps.prepare-manifest-branch.outputs.BRANCH_NAME }}
+          PR_ID: ${{ steps.prepare-manifest-branch.outputs.pull-request-id }}
+        run: |
+          cd ${MANIFEST_DIR}
+
+          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls/${PR_ID}/merge"
+
+          PAYLOAD=$( jq -n \
+            --arg Do "merge" \
+            --arg delete_branch_after_merge "true" \
+            '{Do: $Do, delete_branch_after_merge: $delete_branch_after_merge'} )
+
+          echo ">> Merging PR with ID: ${PR_ID}"
+          echo ">> With Endpoint of:"
+          echo "$API_ENDPOINT"
+          echo ">> With Payload of:"
+          echo "$PAYLOAD"
+
+          HTTP_STATUS=$(
+            curl -X POST \
+              --silent \
+              --write-out '%{http_code}' \
+              --output response_body.json \
+              --dump-header response_headers.txt \
+              --data "$PAYLOAD" \
+              -H "Authorization: token ${GITEA_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "$API_ENDPOINT" 2> response_errors.txt
+          )
+
+          echo ">> HTTP Status Code: $HTTP_STATUS"
+          echo ">> Response Output ..."
+          echo "----"
+          cat response_body.json
+          echo "----"
+          cat response_headers.txt
+          echo "----"
+          cat response_errors.txt
+          echo "----"
+
+          if [ "$HTTP_STATUS" == "200" ]; then
+            echo ">> Pull Request merged successfully!"
+            echo "pull-request-operation=merged" >> $GITEA_OUTPUT
+
+          else
+            echo ">> Failed to create PR, HTTP status code: $HTTP_STATUS"
+            echo "pull-request-operation=failed" >> $GITEA_OUTPUT
+            exit 1
+          fi
+
+          echo "----"
+
+      - name: Cleanup Branch
+        if: failure()
+        env:
+          BRANCH_NAME: ${{ steps.prepare-manifest-branch.outputs.BRANCH_NAME }}
+        run: |
+          cd ${MANIFEST_DIR}
+
+          echo ">> Removing branch: ${BRANCH_NAME}"
+          git push origin --delete ${BRANCH_NAME}
+
+          echo "----"
+
+      - name: ntfy Merged
         uses: niniyas/ntfy-action@master
-        if: steps.create-pull-request.outputs.pull-request-operation == 'created'
+        if: steps.merge-changes.outputs.pull-request-operation == 'merged'
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
-          title: "Manifest Render PR Created - Infrastructure"
+          title: "Manifest Render PR Merged - Infrastructure"
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Manifest rendering for Infrastructure has created a new Pull Request!"
+          details: "Automerge Manifest rendering for Infrastructure!"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions: '[{"action": "view", "label": "Open Gitea", "url": "${{ steps.create-pull-request.outputs.pull-request-url }}", "clear": true}]'
           image: true
@@ -365,7 +372,7 @@ jobs:
           priority: 4
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
-          details: "Manifest rendering for Infrastructure has failed!"
+          details: "Automerge Manifest rendering for Infrastructure has failed!"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
-          actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/infrastructure/actions?workflow=render-manifests.yaml", "clear": true}]'
+          actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/infrastructure/actions?workflow=render-manifests-automerge.yaml", "clear": true}]'
           image: true
