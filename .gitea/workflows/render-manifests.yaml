@@ -66,11 +66,11 @@ jobs:
         run: |
           cd ${MAIN_DIR}
 
-          RENDER_DIR_LIST=()
+          RENDER_DIR=()
 
           if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
             echo ">> Triggered on dispatch, will check all paths .."
-            RENDER_DIR_LIST+=$(ls clusters/cl01tl/helm/)
+            RENDER_DIR+=$(ls clusters/cl01tl/helm/)
 
           else
             echo ">> Checking for changes ..."
@@ -80,7 +80,7 @@ jobs:
               echo ">> Changes detected:"
               echo "$GIT_DIFF"
               for path in $GIT_DIFF; do
-                RENDER_DIR_LIST+=$(echo "$path" | awk -F '/' '{print $4}')
+                RENDER_DIR+=$(echo "$path" | awk -F '/' '{print $4}')
               done
 
             else
@@ -90,12 +90,11 @@ jobs:
           fi
 
           echo ">> Directories to Render:"
-          RENDER_DIR=($(printf "%s\n" "${RENDER_DIR_LIST[@]}" | sort -u))
-          echo "$RENDER_DIR"
+          printf "%s\n" "${RENDER_DIR[@]}" | sort -u
           echo "-----"
 
           echo "changes-detected=true" >> $GITEA_OUTPUT
-          echo "render-dir=$RENDER_DIR" >> $GITEA_OUTPUT
+          echo "render-dir=$(printf "%s\n" "${RENDER_DIR[@]}" | sort -u)" >> $GITEA_OUTPUT
 
       - name: Add Repositories
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
