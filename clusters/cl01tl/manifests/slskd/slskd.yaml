@@ -85,78 +85,6 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: slskd-soularr
-  labels:
-    app.kubernetes.io/controller: soularr
-    app.kubernetes.io/instance: slskd
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: slskd
-    helm.sh/chart: slskd-4.4.0
-  namespace: slskd
-spec:
-  revisionHistoryLimit: 3
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/controller: soularr
-      app.kubernetes.io/name: slskd
-      app.kubernetes.io/instance: slskd
-  template:
-    metadata:
-      labels: 
-        app.kubernetes.io/controller: soularr
-        app.kubernetes.io/instance: slskd
-        app.kubernetes.io/name: slskd
-    spec: 
-      enableServiceLinks: false
-      serviceAccountName: default
-      automountServiceAccountToken: true
-      securityContext: 
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
-      hostIPC: false
-      hostNetwork: false
-      hostPID: false
-      dnsPolicy: ClusterFirst
-      containers: 
-        - env:
-          - name: TZ
-            value: US/Central
-          - name: PUID
-            value: "1000"
-          - name: PGID
-            value: "1000"
-          - name: SCRIPT_INTERVAL
-            value: "300"
-          image: mrusse08/soularr:latest@sha256:71a0b9e5a522d76bb0ffdb6d720d681fde22417b3a5acc9ecae61c89d05d8afc
-          imagePullPolicy: IfNotPresent
-          name: main
-          resources:
-            requests:
-              cpu: 10m
-              memory: 256Mi
-          volumeMounts:
-          - mountPath: /mnt/store
-            name: data
-          - mountPath: /data/config.ini
-            mountPropagation: None
-            name: soularr-config
-            readOnly: true
-            subPath: config.ini
-      volumes: 
-        - name: data
-          persistentVolumeClaim:
-            claimName: slskd-nfs-storage
-        - name: soularr-config
-          secret:
-            secretName: soularr-config-secret
----
-# Source: slskd/charts/slskd/templates/common.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
   name: slskd-main
   labels:
     app.kubernetes.io/controller: main
@@ -274,6 +202,78 @@ spec:
         - name: slskd-config
           secret:
             secretName: slskd-config-secret
+---
+# Source: slskd/charts/slskd/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slskd-soularr
+  labels:
+    app.kubernetes.io/controller: soularr
+    app.kubernetes.io/instance: slskd
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: slskd
+    helm.sh/chart: slskd-4.4.0
+  namespace: slskd
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: soularr
+      app.kubernetes.io/name: slskd
+      app.kubernetes.io/instance: slskd
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: soularr
+        app.kubernetes.io/instance: slskd
+        app.kubernetes.io/name: slskd
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      securityContext: 
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - env:
+          - name: TZ
+            value: US/Central
+          - name: PUID
+            value: "1000"
+          - name: PGID
+            value: "1000"
+          - name: SCRIPT_INTERVAL
+            value: "300"
+          image: mrusse08/soularr:latest@sha256:71a0b9e5a522d76bb0ffdb6d720d681fde22417b3a5acc9ecae61c89d05d8afc
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+          volumeMounts:
+          - mountPath: /mnt/store
+            name: data
+          - mountPath: /data/config.ini
+            mountPropagation: None
+            name: soularr-config
+            readOnly: true
+            subPath: config.ini
+      volumes: 
+        - name: data
+          persistentVolumeClaim:
+            claimName: slskd-nfs-storage
+        - name: soularr-config
+          secret:
+            secretName: soularr-config-secret
 ---
 # Source: slskd/templates/external-secret.yaml
 apiVersion: external-secrets.io/v1

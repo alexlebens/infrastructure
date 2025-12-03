@@ -255,27 +255,6 @@ spec:
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: qbittorrent-theme-data
-  labels:
-    app.kubernetes.io/instance: qbittorrent
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: qbittorrent
-    helm.sh/chart: qbittorrent-4.4.0
-  annotations:
-    helm.sh/resource-policy: keep
-  namespace: qbittorrent
-spec:
-  accessModes:
-    - "ReadWriteOnce"
-  resources:
-    requests:
-      storage: "1Gi"
-  storageClassName: "ceph-block"
----
-# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
   name: qbittorrent-qbit-manage-config-data
   labels:
     app.kubernetes.io/instance: qbittorrent
@@ -298,6 +277,27 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: qbittorrent-qui-config-data
+  labels:
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    helm.sh/chart: qbittorrent-4.4.0
+  annotations:
+    helm.sh/resource-policy: keep
+  namespace: qbittorrent
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "1Gi"
+  storageClassName: "ceph-block"
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: qbittorrent-theme-data
   labels:
     app.kubernetes.io/instance: qbittorrent
     app.kubernetes.io/managed-by: Helm
@@ -356,6 +356,38 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: qbittorrent
+  labels:
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    app.kubernetes.io/service: qbittorrent
+    helm.sh/chart: qbittorrent-4.4.0
+  namespace: qbittorrent
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9999
+      targetPort: 9999
+      protocol: TCP
+      name: health
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+    - port: 9022
+      targetPort: 9022
+      protocol: TCP
+      name: metrics
+  selector:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/name: qbittorrent
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
   name: qbittorrent-qbit-manage
   labels:
     app.kubernetes.io/instance: qbittorrent
@@ -403,115 +435,6 @@ spec:
     app.kubernetes.io/controller: qui
     app.kubernetes.io/instance: qbittorrent
     app.kubernetes.io/name: qbittorrent
----
-# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: qbittorrent
-  labels:
-    app.kubernetes.io/instance: qbittorrent
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: qbittorrent
-    app.kubernetes.io/service: qbittorrent
-    helm.sh/chart: qbittorrent-4.4.0
-  namespace: qbittorrent
-spec:
-  type: ClusterIP
-  ports:
-    - port: 9999
-      targetPort: 9999
-      protocol: TCP
-      name: health
-    - port: 8080
-      targetPort: 8080
-      protocol: TCP
-      name: http
-    - port: 9022
-      targetPort: 9022
-      protocol: TCP
-      name: metrics
-  selector:
-    app.kubernetes.io/controller: main
-    app.kubernetes.io/instance: qbittorrent
-    app.kubernetes.io/name: qbittorrent
----
-# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: qbittorrent-qui
-  labels:
-    app.kubernetes.io/controller: qui
-    app.kubernetes.io/instance: qbittorrent
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: qbittorrent
-    helm.sh/chart: qbittorrent-4.4.0
-  namespace: qbittorrent
-spec:
-  revisionHistoryLimit: 3
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/controller: qui
-      app.kubernetes.io/name: qbittorrent
-      app.kubernetes.io/instance: qbittorrent
-  template:
-    metadata:
-      labels: 
-        app.kubernetes.io/controller: qui
-        app.kubernetes.io/instance: qbittorrent
-        app.kubernetes.io/name: qbittorrent
-    spec: 
-      enableServiceLinks: false
-      serviceAccountName: default
-      automountServiceAccountToken: true
-      hostIPC: false
-      hostNetwork: false
-      hostPID: false
-      dnsPolicy: ClusterFirst
-      containers: 
-        - env:
-          - name: QUI__METRICS_ENABLED
-            value: "true"
-          - name: QUI__METRICS_HOST
-            value: 0.0.0.0
-          - name: QUI__METRICS_PORT
-            value: "9074"
-          - name: QUI__OIDC_ENABLED
-            value: "true"
-          - name: QUI__OIDC_ISSUER
-            value: https://auth.alexlebens.dev/application/o/qui/
-          - name: QUI__OIDC_CLIENT_ID
-            valueFrom:
-              secretKeyRef:
-                key: client
-                name: qui-oidc-secret
-          - name: QUI__OIDC_CLIENT_SECRET
-            valueFrom:
-              secretKeyRef:
-                key: secret
-                name: qui-oidc-secret
-          - name: QUI__OIDC_REDIRECT_URL
-            value: https://qui.alexlebens.net/api/auth/oidc/callback
-          - name: QUI__OIDC_DISABLE_BUILT_IN_LOGIN
-            value: "false"
-          image: ghcr.io/autobrr/qui:v1.7.0
-          imagePullPolicy: IfNotPresent
-          name: qui
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
-          volumeMounts:
-          - mountPath: /config
-            name: qui-config-data
-      volumes: 
-        - name: qui-config-data
-          persistentVolumeClaim:
-            claimName: qbittorrent-qui-config-data
 ---
 # Source: qbittorrent/charts/qbittorrent/templates/common.yaml
 apiVersion: apps/v1
@@ -805,6 +728,83 @@ spec:
         - name: storage
           persistentVolumeClaim:
             claimName: qbittorrent-nfs-storage
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent-qui
+  labels:
+    app.kubernetes.io/controller: qui
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    helm.sh/chart: qbittorrent-4.4.0
+  namespace: qbittorrent
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: qui
+      app.kubernetes.io/name: qbittorrent
+      app.kubernetes.io/instance: qbittorrent
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: qui
+        app.kubernetes.io/instance: qbittorrent
+        app.kubernetes.io/name: qbittorrent
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - env:
+          - name: QUI__METRICS_ENABLED
+            value: "true"
+          - name: QUI__METRICS_HOST
+            value: 0.0.0.0
+          - name: QUI__METRICS_PORT
+            value: "9074"
+          - name: QUI__OIDC_ENABLED
+            value: "true"
+          - name: QUI__OIDC_ISSUER
+            value: https://auth.alexlebens.dev/application/o/qui/
+          - name: QUI__OIDC_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                key: client
+                name: qui-oidc-secret
+          - name: QUI__OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                key: secret
+                name: qui-oidc-secret
+          - name: QUI__OIDC_REDIRECT_URL
+            value: https://qui.alexlebens.net/api/auth/oidc/callback
+          - name: QUI__OIDC_DISABLE_BUILT_IN_LOGIN
+            value: "false"
+          image: ghcr.io/autobrr/qui:v1.7.0
+          imagePullPolicy: IfNotPresent
+          name: qui
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+          - mountPath: /config
+            name: qui-config-data
+      volumes: 
+        - name: qui-config-data
+          persistentVolumeClaim:
+            claimName: qbittorrent-qui-config-data
 ---
 # Source: qbittorrent/templates/external-secret.yaml
 apiVersion: external-secrets.io/v1
