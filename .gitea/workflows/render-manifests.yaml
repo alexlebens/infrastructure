@@ -64,42 +64,44 @@ jobs:
         run: |
           cd ${MAIN_DIR}
 
-          echo ">> Check for changes ..."
-
-          GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep "clusters/cl01tl/helm/")
-          CHANGED_DIR=()
+          RENDER_DIR=()
 
           if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
             echo ">> Triggered on dispatch, will check all paths .."
-            CHANGED_DIR=$(ls clusters/cl01tl/helm/)
-
-          elif [ -n $GIT_DIFF ]; then
-            echo ">> Changes detected:"
-            echo "$GIT_DIFF"
-            for path in $GIT_DIFF; do
-              CHANGED_DIR+=$(echo "$path" | awk -F '/' '{print $4}')
-            done
+            RENDER_DIR+=$(ls clusters/cl01tl/helm/)
 
           else
-            echo ">> No changes detected, skipping rendering"
+            echo ">> Checking for changes ..."
+            GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep "clusters/cl01tl/helm/")
 
+            if [ -n $GIT_DIFF ]; then
+              echo ">> Changes detected:"
+              echo "$GIT_DIFF"
+              for path in $GIT_DIFF; do
+                RENDER_DIR+=$(echo "$path" | awk -F '/' '{print $4}')
+              done
+
+            else
+              echo ">> No changes detected"
+
+            fi
           fi
 
-          echo ">> Changed Directories:"
-          echo "$(printf "%s\n" "$CHANGED_DIR" | sort -u)"
+          echo ">> Directories to Render:"
+          echo "$(printf "%s\n" "$RENDER_DIR" | sort -u)"
 
           echo "changes-detected=true" >> $GITEA_OUTPUT
-          echo "changed-dir=$(printf "%s\n" "$CHANGED_DIR" | sort -u)" >> $GITEA_OUTPUT
+          echo "render-dir=$(printf "%s\n" "$RENDER_DIR" | sort -u)" >> $GITEA_OUTPUT
 
       - name: Add Repositories
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
         env:
-          CHANGED_DIR: ${{ steps.check-dir-changes.outputs.changed-dir }}
+          RENDER_DIR: ${{ steps.check-dir-changes.outputs.render-dir }}
         run: |
           cd ${MAIN_DIR}
 
           echo ">> Adding repositories for chart dependencies ..."
-          for dir in ${CHANGED_DIR}; do
+          for dir in ${RENDER_DIR}; do
             helm dependency list --max-col-width 120 ${MAIN_DIR}/clusters/${CLUSTER}/helm/$dir 2> /dev/null \
               | tail +2 | head -n -1 \
               | awk '{ print "helm repo add " $1 " " $3 }' \
@@ -109,13 +111,13 @@ jobs:
       - name: Remove Changed Manifest Files
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
         env:
-          CHANGED_DIR: ${{ steps.check-dir-changes.outputs.changed-dir }}
+          RENDER_DIR: ${{ steps.check-dir-changes.outputs.render-dir }}
         run: |
           cd ${MANIFEST_DIR}
 
           echo ">> Remove manfiest files and rebuild from source ..."
 
-          for dir in ${CHANGED_DIR}; do
+          for dir in ${RENDER_DIR}; do
             chart_path=${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$dir
 
             echo ">> Removing from $chart_path ..."
@@ -126,13 +128,13 @@ jobs:
         id: render-manifests
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
         env:
-          CHANGED_DIR: ${{ steps.check-dir-changes.outputs.changed-dir }}
+          RENDER_DIR: ${{ steps.check-dir-changes.outputs.render-dir }}
         run: |
           cd ${MAIN_DIR}
 
           echo ">> Rendering Manifests ..."
 
-          for dir in ${CHANGED_DIR}; do
+          for dir in ${RENDER_DIR}; do
             chart_path=${MAIN_DIR}/clusters/${CLUSTER}/helm/$dir
             chart_name=$(basename "$chart_path")
 
