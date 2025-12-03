@@ -209,7 +209,7 @@ jobs:
         run: |
           cd ${MANIFEST_DIR}
 
-          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls/${BASE_BRANCH}/${HEAD_BRANCH}"
+          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls?base_branch=${BASE_BRANCH}&state=open&page=1"
 
           echo ">> Checking if PR from branch ${HEAD_BRANCH} into ${BASE_BRANCH}"
           echo ">> With Endpoint of:"
@@ -241,6 +241,10 @@ jobs:
             PR_INDEX=$(cat response_body.json | jq -r .number)
             echo "pull-request-exists=${PR_INDEX}" >> $GITEA_OUTPUT
             echo "pull-request-index=true" >> $GITEA_OUTPUT
+
+          if [ "$HTTP_STATUS" == "200" ] && [ "$(cat response_body.json | jq -r .state)" == "closed" ]; then
+            echo ">> Pull Request found, but was closed"
+            echo "pull-request-exists=false" >> $GITEA_OUTPUT
 
           else
             echo ">> Pull Request not found"
@@ -303,6 +307,9 @@ jobs:
 
           elif [ "$HTTP_STATUS" == "422" ]; then
             echo ">> Failed to create PR (HTTP 422: Unprocessable Entity), PR may already exist"
+
+          elif [ "$HTTP_STATUS" == "409" ]; then
+            echo ">> Failed to create PR (HTTP 409: Conflict), PR already exists"
 
           else
             echo ">> Failed to create PR, HTTP status code: $HTTP_STATUS"
