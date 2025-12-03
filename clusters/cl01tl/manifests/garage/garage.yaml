@@ -47,6 +47,27 @@ data:
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
+  name: garage-data
+  labels:
+    app.kubernetes.io/instance: garage
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: garage
+    helm.sh/chart: garage-4.4.0
+  annotations:
+    helm.sh/resource-policy: keep
+  namespace: garage
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "800Gi"
+  storageClassName: "synology-iscsi-delete"
+---
+# Source: garage/charts/garage/templates/common.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
   name: garage-db
   labels:
     app.kubernetes.io/instance: garage
@@ -86,51 +107,6 @@ spec:
   storageClassName: "synology-iscsi-delete"
 ---
 # Source: garage/charts/garage/templates/common.yaml
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
-  name: garage-data
-  labels:
-    app.kubernetes.io/instance: garage
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: garage
-    helm.sh/chart: garage-4.4.0
-  annotations:
-    helm.sh/resource-policy: keep
-  namespace: garage
-spec:
-  accessModes:
-    - "ReadWriteOnce"
-  resources:
-    requests:
-      storage: "800Gi"
-  storageClassName: "synology-iscsi-delete"
----
-# Source: garage/charts/garage/templates/common.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: garage-webui
-  labels:
-    app.kubernetes.io/instance: garage
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: garage
-    app.kubernetes.io/service: garage-webui
-    helm.sh/chart: garage-4.4.0
-  namespace: garage
-spec:
-  type: ClusterIP
-  ports:
-    - port: 3909
-      targetPort: 3909
-      protocol: TCP
-      name: webui
-  selector:
-    app.kubernetes.io/controller: webui
-    app.kubernetes.io/instance: garage
-    app.kubernetes.io/name: garage
----
-# Source: garage/charts/garage/templates/common.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -163,6 +139,30 @@ spec:
       name: web
   selector:
     app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: garage
+    app.kubernetes.io/name: garage
+---
+# Source: garage/charts/garage/templates/common.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: garage-webui
+  labels:
+    app.kubernetes.io/instance: garage
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: garage
+    app.kubernetes.io/service: garage-webui
+    helm.sh/chart: garage-4.4.0
+  namespace: garage
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3909
+      targetPort: 3909
+      protocol: TCP
+      name: webui
+  selector:
+    app.kubernetes.io/controller: webui
     app.kubernetes.io/instance: garage
     app.kubernetes.io/name: garage
 ---
