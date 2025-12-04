@@ -157,7 +157,7 @@ jobs:
 
             if [ -f "$chart_path/Chart.yaml" ]; then
               mkdir -p ${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$chart_name
-              OUTPUT_FILE="${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$chart_name/$chart_name.yaml"
+              OUTPUT_FOLDER="${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$chart_name/"
 
               cd $chart_path
 
@@ -174,33 +174,39 @@ jobs:
 
               case "$chart_name" in
                 "stack")
+                  echo ""
                   echo ">> Special Rendering for stack ..."
-                  helm template stack ./ --namespace argocd --include-crds > "$OUTPUT_FILE"
+                  helm template stack ./ --namespace argocd --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
                   ;;
                 "cilium")
+                  echo ""
                   echo ">> Special Rendering for cilium ..."
-                  helm template cilium ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  helm template cilium ./ --namespace kube-system --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
                   ;;
                 "coredns")
+                  echo ""
                   echo ">> Special Rendering for coredns ..."
-                  helm template coredns ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  helm template coredns ./ --namespace kube-system --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
                   ;;
                 "metrics-server")
+                  echo ""
                   echo ">> Special Rendering for metrics-server ..."
-                  helm template metrics-server ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  helm template metrics-server ./ --namespace kube-system --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
                   ;;
                 "prometheus-operator-crds")
+                  echo ""
                   echo ">> Special Rendering for prometheus-operator-crds ..."
-                  helm template prometheus-operator-crds ./ --namespace kube-system --include-crds > "$OUTPUT_FILE"
+                  helm template prometheus-operator-crds ./ --namespace kube-system --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
                   ;;
                 *)
+                  echo ""
                   echo ">> Standard Rendering for $chart_name ..."
-                  helm template "$chart_name" ./ --namespace "$chart_name" --include-crds > "$OUTPUT_FILE"
+                  helm template "$chart_name" ./ --namespace "$chart_name" --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
                   ;;
               esac
 
               echo ""
-              echo ">> Manifests for $chart_name rendered to $OUTPUT_FILE"
+              echo ">> Manifests for $chart_name rendered to $OUTPUT_FOLDER"
               echo ""
             else
               echo ""
