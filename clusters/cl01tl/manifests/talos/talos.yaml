@@ -187,6 +187,78 @@ spec:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
+  name: etcd-defrag-defrag-3
+  labels:
+    app.kubernetes.io/controller: defrag-3
+    app.kubernetes.io/instance: talos
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: talos
+    helm.sh/chart: etcd-defrag-4.4.0
+  namespace: talos
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 90
+  timeZone: US/Central
+  schedule: "20 0 * * 0"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels: 
+            app.kubernetes.io/controller: defrag-3
+            app.kubernetes.io/instance: talos
+            app.kubernetes.io/name: talos
+        spec: 
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          nodeSelector: 
+            node-role.kubernetes.io/control-plane: ""
+          tolerations: 
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
+              operator: Exists
+          containers: 
+            - args:
+              - etcd
+              - defrag
+              - -n
+              - 10.232.1.13
+              env:
+              - name: TALOSCONFIG
+                value: /tmp/.talos/config
+              image: ghcr.io/siderolabs/talosctl:v1.11.5
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+              - mountPath: /tmp/.talos/config
+                mountPropagation: None
+                name: talos-config-3
+                readOnly: true
+                subPath: config
+          volumes: 
+            - name: talos-config-3
+              secret:
+                secretName: talos-etcd-defrag-secret
+---
+# Source: talos/charts/etcd-defrag/templates/common.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
   name: etcd-defrag-defrag-1
   labels:
     app.kubernetes.io/controller: defrag-1
@@ -324,78 +396,6 @@ spec:
                 subPath: config
           volumes: 
             - name: talos-config-2
-              secret:
-                secretName: talos-etcd-defrag-secret
----
-# Source: talos/charts/etcd-defrag/templates/common.yaml
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: etcd-defrag-defrag-3
-  labels:
-    app.kubernetes.io/controller: defrag-3
-    app.kubernetes.io/instance: talos
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: talos
-    helm.sh/chart: etcd-defrag-4.4.0
-  namespace: talos
-spec:
-  suspend: false
-  concurrencyPolicy: Forbid
-  startingDeadlineSeconds: 90
-  timeZone: US/Central
-  schedule: "20 0 * * 0"
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 3
-  jobTemplate:
-    spec:
-      parallelism: 1
-      backoffLimit: 3
-      template:
-        metadata:
-          labels: 
-            app.kubernetes.io/controller: defrag-3
-            app.kubernetes.io/instance: talos
-            app.kubernetes.io/name: talos
-        spec: 
-          enableServiceLinks: false
-          serviceAccountName: default
-          automountServiceAccountToken: true
-          hostIPC: false
-          hostNetwork: false
-          hostPID: false
-          dnsPolicy: ClusterFirst
-          restartPolicy: Never
-          nodeSelector: 
-            node-role.kubernetes.io/control-plane: ""
-          tolerations: 
-            - effect: NoSchedule
-              key: node-role.kubernetes.io/control-plane
-              operator: Exists
-          containers: 
-            - args:
-              - etcd
-              - defrag
-              - -n
-              - 10.232.1.13
-              env:
-              - name: TALOSCONFIG
-                value: /tmp/.talos/config
-              image: ghcr.io/siderolabs/talosctl:v1.11.5
-              imagePullPolicy: IfNotPresent
-              name: main
-              resources:
-                requests:
-                  cpu: 100m
-                  memory: 128Mi
-              volumeMounts:
-              - mountPath: /tmp/.talos/config
-                mountPropagation: None
-                name: talos-config-3
-                readOnly: true
-                subPath: config
-          volumes: 
-            - name: talos-config-3
               secret:
                 secretName: talos-etcd-defrag-secret
 ---

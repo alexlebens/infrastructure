@@ -4,6 +4,27 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
+  name: ollama-server-2
+  labels:
+    app.kubernetes.io/instance: ollama
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ollama
+    helm.sh/chart: ollama-4.4.0
+  annotations:
+    helm.sh/resource-policy: keep
+  namespace: ollama
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "40Gi"
+  storageClassName: "ceph-block"
+---
+# Source: ollama/charts/ollama/templates/common.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
   name: ollama-server-3
   labels:
     app.kubernetes.io/instance: ollama
@@ -47,27 +68,6 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: ollama-server-1
-  labels:
-    app.kubernetes.io/instance: ollama
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: ollama
-    helm.sh/chart: ollama-4.4.0
-  annotations:
-    helm.sh/resource-policy: keep
-  namespace: ollama
-spec:
-  accessModes:
-    - "ReadWriteOnce"
-  resources:
-    requests:
-      storage: "40Gi"
-  storageClassName: "ceph-block"
----
-# Source: ollama/charts/ollama/templates/common.yaml
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
-  name: ollama-server-2
   labels:
     app.kubernetes.io/instance: ollama
     app.kubernetes.io/managed-by: Helm
@@ -211,148 +211,6 @@ metadata:
 spec:
   externalName: placeholder
   type: ExternalName
----
-# Source: ollama/charts/ollama/templates/common.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ollama-server-1
-  labels:
-    app.kubernetes.io/controller: server-1
-    app.kubernetes.io/instance: ollama
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: ollama
-    helm.sh/chart: ollama-4.4.0
-  namespace: ollama
-spec:
-  revisionHistoryLimit: 3
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/controller: server-1
-      app.kubernetes.io/name: ollama
-      app.kubernetes.io/instance: ollama
-  template:
-    metadata:
-      labels: 
-        app.kubernetes.io/controller: server-1
-        app.kubernetes.io/instance: ollama
-        app.kubernetes.io/name: ollama
-        ollama-type: server
-    spec: 
-      enableServiceLinks: false
-      serviceAccountName: default
-      automountServiceAccountToken: true
-      hostIPC: false
-      hostNetwork: false
-      hostPID: false
-      dnsPolicy: ClusterFirst
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-              - key: ollama-type
-                operator: In
-                values:
-                - server
-            topologyKey: kubernetes.io/hostname
-      containers: 
-        - env:
-          - name: OLLAMA_KEEP_ALIVE
-            value: 24h
-          - name: OLLAMA_HOST
-            value: 0.0.0.0
-          image: ollama/ollama:0.13.1
-          imagePullPolicy: IfNotPresent
-          name: main
-          resources:
-            limits:
-              gpu.intel.com/i915: 1
-            requests:
-              cpu: 100m
-              gpu.intel.com/i915: 1
-              memory: 1Gi
-          volumeMounts:
-          - mountPath: /root/.ollama
-            name: server-1
-      volumes: 
-        - name: server-1
-          persistentVolumeClaim:
-            claimName: ollama-server-1
----
-# Source: ollama/charts/ollama/templates/common.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ollama-server-2
-  labels:
-    app.kubernetes.io/controller: server-2
-    app.kubernetes.io/instance: ollama
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: ollama
-    helm.sh/chart: ollama-4.4.0
-  namespace: ollama
-spec:
-  revisionHistoryLimit: 3
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/controller: server-2
-      app.kubernetes.io/name: ollama
-      app.kubernetes.io/instance: ollama
-  template:
-    metadata:
-      labels: 
-        app.kubernetes.io/controller: server-2
-        app.kubernetes.io/instance: ollama
-        app.kubernetes.io/name: ollama
-        ollama-type: server
-    spec: 
-      enableServiceLinks: false
-      serviceAccountName: default
-      automountServiceAccountToken: true
-      hostIPC: false
-      hostNetwork: false
-      hostPID: false
-      dnsPolicy: ClusterFirst
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-              - key: ollama-type
-                operator: In
-                values:
-                - server
-            topologyKey: kubernetes.io/hostname
-      containers: 
-        - env:
-          - name: OLLAMA_KEEP_ALIVE
-            value: 24h
-          - name: OLLAMA_HOST
-            value: 0.0.0.0
-          image: ollama/ollama:0.13.1
-          imagePullPolicy: IfNotPresent
-          name: main
-          resources:
-            limits:
-              gpu.intel.com/i915: 1
-            requests:
-              cpu: 100m
-              gpu.intel.com/i915: 1
-              memory: 1Gi
-          volumeMounts:
-          - mountPath: /root/.ollama
-            name: server-2
-      volumes: 
-        - name: server-2
-          persistentVolumeClaim:
-            claimName: ollama-server-2
 ---
 # Source: ollama/charts/ollama/templates/common.yaml
 apiVersion: apps/v1
@@ -520,6 +378,148 @@ spec:
           persistentVolumeClaim:
             claimName: ollama-web-data
 ---
+# Source: ollama/charts/ollama/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-server-1
+  labels:
+    app.kubernetes.io/controller: server-1
+    app.kubernetes.io/instance: ollama
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ollama
+    helm.sh/chart: ollama-4.4.0
+  namespace: ollama
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: server-1
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/instance: ollama
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: server-1
+        app.kubernetes.io/instance: ollama
+        app.kubernetes.io/name: ollama
+        ollama-type: server
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: ollama-type
+                operator: In
+                values:
+                - server
+            topologyKey: kubernetes.io/hostname
+      containers: 
+        - env:
+          - name: OLLAMA_KEEP_ALIVE
+            value: 24h
+          - name: OLLAMA_HOST
+            value: 0.0.0.0
+          image: ollama/ollama:0.13.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 100m
+              gpu.intel.com/i915: 1
+              memory: 1Gi
+          volumeMounts:
+          - mountPath: /root/.ollama
+            name: server-1
+      volumes: 
+        - name: server-1
+          persistentVolumeClaim:
+            claimName: ollama-server-1
+---
+# Source: ollama/charts/ollama/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-server-2
+  labels:
+    app.kubernetes.io/controller: server-2
+    app.kubernetes.io/instance: ollama
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ollama
+    helm.sh/chart: ollama-4.4.0
+  namespace: ollama
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: server-2
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/instance: ollama
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: server-2
+        app.kubernetes.io/instance: ollama
+        app.kubernetes.io/name: ollama
+        ollama-type: server
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: ollama-type
+                operator: In
+                values:
+                - server
+            topologyKey: kubernetes.io/hostname
+      containers: 
+        - env:
+          - name: OLLAMA_KEEP_ALIVE
+            value: 24h
+          - name: OLLAMA_HOST
+            value: 0.0.0.0
+          image: ollama/ollama:0.13.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 100m
+              gpu.intel.com/i915: 1
+              memory: 1Gi
+          volumeMounts:
+          - mountPath: /root/.ollama
+            name: server-2
+      volumes: 
+        - name: server-2
+          persistentVolumeClaim:
+            claimName: ollama-server-2
+---
 # Source: ollama/charts/postgres-17-cluster/templates/cluster.yaml
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
@@ -527,11 +527,11 @@ metadata:
   name: ollama-web-postgresql-17-cluster
   namespace: ollama
   labels:
-    helm.sh/chart: postgres-17-cluster-6.16.0
+    helm.sh/chart: postgres-17-cluster-6.16.1
     app.kubernetes.io/name: ollama-web-postgresql-17
     app.kubernetes.io/instance: ollama
     app.kubernetes.io/part-of: ollama
-    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/version: "6.16.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   instances: 3
@@ -826,11 +826,11 @@ metadata:
   name: "ollama-web-postgresql-17-external-backup"
   namespace: ollama
   labels:
-    helm.sh/chart: postgres-17-cluster-6.16.0
+    helm.sh/chart: postgres-17-cluster-6.16.1
     app.kubernetes.io/name: ollama-web-postgresql-17
     app.kubernetes.io/instance: ollama
     app.kubernetes.io/part-of: ollama
-    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/version: "6.16.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   retentionPolicy: 30d
@@ -852,11 +852,11 @@ metadata:
   name: "ollama-web-postgresql-17-garage-local-backup"
   namespace: ollama
   labels:
-    helm.sh/chart: postgres-17-cluster-6.16.0
+    helm.sh/chart: postgres-17-cluster-6.16.1
     app.kubernetes.io/name: ollama-web-postgresql-17
     app.kubernetes.io/instance: ollama
     app.kubernetes.io/part-of: ollama
-    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/version: "6.16.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   retentionPolicy: 3d
@@ -881,11 +881,11 @@ metadata:
   name: "ollama-web-postgresql-17-recovery"
   namespace: ollama
   labels:
-    helm.sh/chart: postgres-17-cluster-6.16.0
+    helm.sh/chart: postgres-17-cluster-6.16.1
     app.kubernetes.io/name: ollama-web-postgresql-17
     app.kubernetes.io/instance: ollama
     app.kubernetes.io/part-of: ollama
-    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/version: "6.16.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   configuration:
@@ -912,11 +912,11 @@ metadata:
   name: ollama-web-postgresql-17-alert-rules
   namespace: ollama
   labels:
-    helm.sh/chart: postgres-17-cluster-6.16.0
+    helm.sh/chart: postgres-17-cluster-6.16.1
     app.kubernetes.io/name: ollama-web-postgresql-17
     app.kubernetes.io/instance: ollama
     app.kubernetes.io/part-of: ollama
-    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/version: "6.16.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -1214,11 +1214,11 @@ metadata:
   name: "ollama-web-postgresql-17-daily-backup-scheduled-backup"
   namespace: ollama
   labels:
-    helm.sh/chart: postgres-17-cluster-6.16.0
+    helm.sh/chart: postgres-17-cluster-6.16.1
     app.kubernetes.io/name: ollama-web-postgresql-17
     app.kubernetes.io/instance: ollama
     app.kubernetes.io/part-of: ollama
-    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/version: "6.16.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   immediate: false
@@ -1240,11 +1240,11 @@ metadata:
   name: "ollama-web-postgresql-17-live-backup-scheduled-backup"
   namespace: ollama
   labels:
-    helm.sh/chart: postgres-17-cluster-6.16.0
+    helm.sh/chart: postgres-17-cluster-6.16.1
     app.kubernetes.io/name: ollama-web-postgresql-17
     app.kubernetes.io/instance: ollama
     app.kubernetes.io/part-of: ollama
-    app.kubernetes.io/version: "6.16.0"
+    app.kubernetes.io/version: "6.16.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   immediate: true
