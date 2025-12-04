@@ -147,6 +147,8 @@ jobs:
             chart_path=${MAIN_DIR}/clusters/${CLUSTER}/helm/$dir
             chart_name=$(basename "$chart_path")
 
+            echo ""
+            echo ""
             echo ">> Rendering chart: $chart_name"
             echo ">> Chart path $chart_path"
 
@@ -171,37 +173,38 @@ jobs:
                 "stack")
                   echo ""
                   echo ">> Special Rendering for stack ..."
-                  helm template stack ./ --namespace argocd --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
+                  helm template stack ./ --namespace argocd --include-crds --dry-run | yq -s '"'"$OUTPUT_FOLDER"'" + .kind + "-" + .metadata.name'
                   ;;
                 "cilium")
                   echo ""
                   echo ">> Special Rendering for cilium ..."
-                  helm template cilium ./ --namespace kube-system --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
+                  helm template cilium ./ --namespace kube-system --include-crds --dry-run | yq -s '"'"$OUTPUT_FOLDER"'" + .kind + "-" + .metadata.name'
                   ;;
                 "coredns")
                   echo ""
                   echo ">> Special Rendering for coredns ..."
-                  helm template coredns ./ --namespace kube-system --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
+                  helm template coredns ./ --namespace kube-system --include-crds --dry-run | yq -s '"'"$OUTPUT_FOLDER"'" + .kind + "-" + .metadata.name'
                   ;;
                 "metrics-server")
                   echo ""
                   echo ">> Special Rendering for metrics-server ..."
-                  helm template metrics-server ./ --namespace kube-system --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
+                  helm template metrics-server ./ --namespace kube-system --include-crds --dry-run | yq -s '"'"$OUTPUT_FOLDER"'" + .kind + "-" + .metadata.name'
                   ;;
                 "prometheus-operator-crds")
                   echo ""
                   echo ">> Special Rendering for prometheus-operator-crds ..."
-                  helm template prometheus-operator-crds ./ --namespace kube-system --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
+                  helm template prometheus-operator-crds ./ --namespace kube-system --include-crds --dry-run | yq -s '"'"$OUTPUT_FOLDER"'" + .kind + "-" + .metadata.name'
                   ;;
                 *)
                   echo ""
                   echo ">> Standard Rendering for $chart_name ..."
-                  helm template "$chart_name" ./ --namespace "$chart_name" --include-crds | yq -s '$OUTPUT_FOLDER + .kind + "-" + .metadata.name'
+                  helm template "$chart_name" ./ --namespace "$chart_name" --include-crds --dry-run | yq -s '"'"$OUTPUT_FOLDER"'" + .kind + "-" + .metadata.name'
                   ;;
               esac
 
               echo ""
               echo ">> Manifests for $chart_name rendered to $OUTPUT_FOLDER"
+              ls $OUTPUT_FOLDER
               echo ""
             else
               echo ""
@@ -211,7 +214,6 @@ jobs:
           done
 
           echo "----"
-
       - name: Check for Changes
         id: check-changes
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
