@@ -5,11 +5,16 @@ on:
     branches:
       - main
     paths:
-      - 'clusters/**'
+      - 'clusters/*/helm/**'
+
+env:
+  CLUSTER: cl01tl
+  BASE_BRANCH: "origin/${{ gitea.base_ref }}"
 
 jobs:
-  helm-lint:
+  lint-pull-request:
     runs-on: ubuntu-js
+    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -18,64 +23,116 @@ jobs:
 
       - name: Check Branch Exists
         id: check-branch-exists
+        if: github.event_name == 'pull_request'
         uses: GuillaumeFalourd/branch-exists@v1.1
         with:
-          branch: ${{ github.base_ref }}
+          branch: ${{ gitea.base_ref }}
 
-      - name: Branch Does Not Exist
-        if: steps.check-branch-exists.outputs.exists == 'false'
-        run: echo "Branch ${{ github.base_ref }} was not found, likely already merged"
+      - name: Branch Exists
+        id: branch-exists
+        if: github.event_name == 'push' || steps.check-branch-exists.outputs.exists == 'true' && github.event_name == 'pull_request'
+        run: |
+          echo ">> Branch ${{ gitea.base_ref }} is exists, will continue with linting"
+
+          echo "----"
+
+          echo "exists=true" >> $GITEA_OUTPUT
 
       - name: Set up Helm
-        if: steps.check-branch-exists.outputs.exists == 'true'
+        if: steps.branch-exists.outputs.exists == 'true'
         uses: azure/setup-helm@v4
         with:
           token: ${{ secrets.GITEA_TOKEN }}
           version: v3.19.2
 
       - name: Lint Helm Chart
-        if: steps.check-branch-exists.outputs.exists == 'true'
+        if: steps.branch-exists.outputs.exists == 'true'
         run: |
-          set -e  # Exit immediately if a command exits with a non-zero status.
+          CHANGED_CHARTS=()
 
-          TARGET_BRANCH="origin/${{ github.base_ref }}"
-          echo ">> Target branch for diff is: $TARGET_BRANCH"
+          echo ">> Target branch for diff is: ${BASE_BRANCH}"
+          echo ""
+          echo ">> Checking for changes ..."
+          GIT_DIFF=$(git diff --name-only "${BASE_BRANCH}" -- | xargs -I {} dirname {} | sort -u | grep 'clusters/*/helm/')
 
-          CHANGED_FILES=$(git diff --name-only "$TARGET_BRANCH" -- 'clusters/**')
+          if [ -n "${GIT_DIFF}" ]; then
+            echo ""
+            echo ">> Changes detected:"
+            echo "$GIT_DIFF"
 
-          echo ">> Found changed files:"
-          echo "$CHANGED_FILES"
-
-          # For each changed file, find its parent chart directory (the one with Chart.yaml).
-          # Then, create a unique list of those directories.
-          CHANGED_CHARTS=$(echo "$CHANGED_FILES" | while read -r file; do
-            dir=$(dirname "$file")
-            while [[ "$dir" != "." && ! -f "$dir/Chart.yaml" ]]; do
-              dir=$(dirname "$dir")
+            for path in $GIT_DIFF; do
+              CHANGED_CHARTS+=$(echo "$path" | awk -F '/' '{print $4}')
             done
-            if [[ "$dir" != "." ]]; then
-              echo "$dir"
-            fi
-          done | sort -u)
 
-          if [[ -z "$CHANGED_CHARTS" ]]; then
-            echo ">> Could not determine changed charts. This could happen if only files outside a chart were changed."
-            exit 0
+          else
+            echo ""
+            echo ">> No changes detected"
+
           fi
 
-          echo ">> Running helm lint on changed charts:"
-          echo "$CHANGED_CHARTS"
+          if [ -n "${CHANGED_CHARTS}" ]; then
+            echo ""
+            echo ">> Chart to Lint:"
+            echo "$(echo "${CHANGED_CHARTS[@]}" | sort -u)"
 
-          echo "$CHANGED_CHARTS" | while read -r chart; do
-            helm dependency list --max-col-width 120 $chart 2> /dev/null \
+            echo "----"
+
+            echo "changes-detected=true" >> $GITEA_OUTPUT
+            echo "chart-dir<<EOF" >> $GITEA_OUTPUT
+            echo "$(echo "${CHANGED_CHARTS[@]}" | sort -u)" >> $GITEA_OUTPUT
+            echo "EOF" >> $GITEA_OUTPUT
+          else
+            echo "changes-detected=false" >> $GITEA_OUTPUT
+          fi
+
+      - name: Add Repositories
+        if: steps.branch-exists.outputs.exists == 'true'
+        env:
+          CHANGED_CHARTS: ${{ steps.check-dir-changes.outputs.chart-dir }}
+        run: |
+          echo ">> Adding repositories for chart dependencies ..."
+          for dir in ${CHANGED_CHARTS}; do
+            helm dependency list --max-col-width 120 clusters/${CLUSTER}/helm/$dir 2> /dev/null \
               | tail +2 | head -n -1 \
               | awk '{ print "helm repo add " $1 " " $3 }' \
               | while read cmd; do echo "$cmd" | sh; done || true
+          done
 
-            echo ">> Building dependency for "$chart" ..."
-            helm dependency build "$chart"
-            echo ">> Linting $chart..."
-            helm lint "$chart"
+          if helm repo list | tail +2 | read -r; then
+            echo ""
+            echo ">> Update repository cache ..."
+            helm repo update
+          fi
+
+          echo "----"
+
+      - name: Lint Helm Chart
+        if: steps.branch-exists.outputs.exists == 'true'
+        env:
+          CHANGED_CHARTS: ${{ steps.check-dir-changes.outputs.chart-dir }}
+        run: |
+          echo ">> Running linting on changed charts ..."
+
+          for dir in ${CHANGED_CHARTS}; do
+            chart_path=clusters/${CLUSTER}/helm/$dir
+            chart_name=$(basename "$chart_path")
+
+            if [ -f "$chart_path/Chart.yaml" ]; then
+              cd $chart_path
+
+              echo ""
+              echo ">> Building helm dependency ..."
+              helm dependency build --skip-refresh
+
+              echo ""
+              echo ">> Linting helm ..."
+              helm lint --namespace "$chart_name"
+
+            else
+              echo ""
+              echo ">> Directory $chart_path does not contain a Chart.yaml. Skipping ..."
+              echo ""
+            fi
           done
 
       - name: ntfy Failed
