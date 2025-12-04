@@ -7,14 +7,19 @@ on:
     paths:
       - 'clusters/*/helm/**'
 
+  push:
+    branches:
+      - main
+    paths:
+      - 'clusters/*/helm/**'
+
 env:
   CLUSTER: cl01tl
   BASE_BRANCH: "origin/${{ gitea.base_ref }}"
 
 jobs:
-  lint-pull-request:
+  lint-helm:
     runs-on: ubuntu-js
-    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -28,11 +33,11 @@ jobs:
         with:
           branch: ${{ gitea.base_ref }}
 
-      - name: Branch Exists
+      - name: Report Branch Exists
         id: branch-exists
         if: github.event_name == 'push' || steps.check-branch-exists.outputs.exists == 'true' && github.event_name == 'pull_request'
         run: |
-          echo ">> Branch ${{ gitea.base_ref }} is exists, will continue with linting"
+          echo ">> Branch ${{ gitea.base_ref }} exists, will continue with linting"
 
           echo "----"
 
@@ -53,6 +58,7 @@ jobs:
           echo ">> Target branch for diff is: ${BASE_BRANCH}"
           echo ""
           echo ">> Checking for changes ..."
+          git diff --name-only "${BASE_BRANCH}" -- | xargs -I {} dirname {} | sort -u | grep 'clusters/*/helm/'
           GIT_DIFF=$(git diff --name-only "${BASE_BRANCH}" -- | xargs -I {} dirname {} | sort -u | grep 'clusters/*/helm/')
 
           if [ -n "${GIT_DIFF}" ]; then
