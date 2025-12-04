@@ -50,16 +50,25 @@ jobs:
           token: ${{ secrets.GITEA_TOKEN }}
           version: v3.19.2
 
-      - name: Lint Helm Chart
+      - name: Check Directories for Changes
+        id: check-dir-changes
         if: steps.branch-exists.outputs.exists == 'true'
         run: |
           CHANGED_CHARTS=()
+          GIT_DIFF=()
 
           echo ">> Target branch for diff is: ${BASE_BRANCH}"
           echo ""
-          echo ">> Checking for changes ..."
-          git diff --name-only "${BASE_BRANCH}" -- | xargs -I {} dirname {} | sort -u | grep 'clusters/*/helm/'
-          GIT_DIFF=$(git diff --name-only "${BASE_BRANCH}" -- | xargs -I {} dirname {} | sort -u | grep 'clusters/*/helm/')
+
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo ""
+            echo ">> Checking for changes in a pull request ..."
+            GIT_DIFF=$(git diff --name-only HEAD^..HEAD | xargs -I {} dirname {} | sort -u | grep "clusters/*/helm/**")
+          else
+            echo ""
+            echo ">> Checking for changes from a push ..."
+            GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep "clusters/*/helm/**")
+          fi
 
           if [ -n "${GIT_DIFF}" ]; then
             echo ""
@@ -92,7 +101,7 @@ jobs:
           fi
 
       - name: Add Repositories
-        if: steps.branch-exists.outputs.exists == 'true'
+        if: steps.check-dir-changes.outputs.changes-detected == 'true'
         env:
           CHANGED_CHARTS: ${{ steps.check-dir-changes.outputs.chart-dir }}
         run: |
@@ -113,7 +122,7 @@ jobs:
           echo "----"
 
       - name: Lint Helm Chart
-        if: steps.branch-exists.outputs.exists == 'true'
+        if: steps.check-dir-changes.outputs.changes-detected == 'true'
         env:
           CHANGED_CHARTS: ${{ steps.check-dir-changes.outputs.chart-dir }}
         run: |
