@@ -1,0 +1,88 @@
+---
+# Source: backrest/charts/backrest/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backrest
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: backrest
+    helm.sh/chart: backrest-4.4.0
+  namespace: backrest
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: backrest
+      app.kubernetes.io/instance: backrest
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: backrest
+        app.kubernetes.io/name: backrest
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: BACKREST_DATA
+              value: /data
+            - name: BACKREST_CONFIG
+              value: /config/config.json
+            - name: XDG_CACHE_HOME
+              value: /cache
+            - name: TMPDIR
+              value: /tmp
+          image: garethgeorge/backrest:v1.10.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /cache
+              name: cache
+            - mountPath: /config
+              name: config
+            - mountPath: /data
+              name: data
+            - mountPath: /mnt/share
+              name: share
+              readOnly: true
+            - mountPath: /mnt/storage
+              name: storage
+              readOnly: true
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - emptyDir: {}
+          name: cache
+        - name: config
+          persistentVolumeClaim:
+            claimName: backrest-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: backrest-data
+        - name: share
+          persistentVolumeClaim:
+            claimName: backrest-nfs-share
+        - name: storage
+          persistentVolumeClaim:
+            claimName: backrest-nfs-storage
+        - emptyDir: {}
+          name: tmp

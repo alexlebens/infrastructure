@@ -1,0 +1,31 @@
+---
+# Source: stalwart/templates/elasticsearch.yaml
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: elasticsearch-stalwart
+  namespace: stalwart
+  labels:
+    app.kubernetes.io/name: elasticsearch-stalwart
+    app.kubernetes.io/instance: stalwart
+    app.kubernetes.io/part-of: stalwart
+spec:
+  version: 8.18.0
+  auth:
+    fileRealm:
+      - secretName: stalwart-elasticsearch-secret
+  nodeSets:
+    - name: default
+      count: 1
+      config:
+        node.store.allow_mmap: false
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 5Gi
+            storageClassName: ceph-block

@@ -1,0 +1,90 @@
+---
+# Source: eraser/charts/eraser/templates/eraser-controller-manager-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: 'eraser'
+    app.kubernetes.io/managed-by: 'Helm'
+    app.kubernetes.io/name: 'eraser'
+    control-plane: controller-manager
+    helm.sh/chart: 'eraser'
+  name: eraser-controller-manager
+  namespace: 'eraser'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: 'eraser'
+      app.kubernetes.io/managed-by: 'Helm'
+      app.kubernetes.io/name: 'eraser'
+      control-plane: controller-manager
+      helm.sh/chart: 'eraser'
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: 'eraser'
+        app.kubernetes.io/managed-by: 'Helm'
+        app.kubernetes.io/name: 'eraser'
+        control-plane: controller-manager
+        helm.sh/chart: 'eraser'
+    spec:
+      affinity: {}
+      containers:
+        - args:
+            - --config=/config/controller_manager_config.yaml
+          command:
+            - /manager
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: OTEL_SERVICE_NAME
+              value: eraser-manager
+          image: 'ghcr.io/eraser-dev/eraser-manager:v1.4.1'
+          imagePullPolicy: 'IfNotPresent'
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          name: manager
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              memory: 30Mi
+            requests:
+              cpu: 10m
+              memory: 30Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - mountPath: /config
+              name: eraser-manager-config
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: ''
+      serviceAccountName: eraser-controller-manager
+      terminationGracePeriodSeconds: 10
+      tolerations: []
+      volumes:
+        - configMap:
+            name: eraser-manager-config
+          name: eraser-manager-config

@@ -1,0 +1,77 @@
+---
+# Source: jellyfin/charts/jellyfin/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellyfin
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: jellyfin
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: jellyfin
+    helm.sh/chart: jellyfin-4.4.0
+  namespace: jellyfin
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: jellyfin
+      app.kubernetes.io/instance: jellyfin
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: jellyfin
+        app.kubernetes.io/name: jellyfin
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: JELLYFIN_hostwebclient
+              value: "true"
+            - name: JELLYFIN_PublishedServerUrl
+              value: https://jellyfin.alexlebens.net/
+          image: ghcr.io/jellyfin/jellyfin:10.11.4
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 1
+              gpu.intel.com/i915: 1
+              memory: 2Gi
+          volumeMounts:
+            - mountPath: /cache
+              name: cache
+            - mountPath: /config
+              name: config
+            - mountPath: /mnt/store
+              name: media
+            - mountPath: /mnt/youtube
+              name: youtube
+              readOnly: true
+      volumes:
+        - emptyDir: {}
+          name: cache
+        - name: config
+          persistentVolumeClaim:
+            claimName: jellyfin-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: jellyfin-nfs-storage
+        - name: youtube
+          persistentVolumeClaim:
+            claimName: jellyfin-youtube-nfs-storage

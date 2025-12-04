@@ -1,0 +1,72 @@
+---
+# Source: plex/charts/plex/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plex
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: plex
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: plex
+    helm.sh/chart: plex-4.4.0
+  namespace: plex
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: plex
+      app.kubernetes.io/instance: plex
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: plex
+        app.kubernetes.io/name: plex
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: VERSION
+              value: docker
+            - name: PLEX_CLAIM
+              value: claim-XmGK2o9x54PbCzQaqj-J
+          image: ghcr.io/linuxserver/plex:1.42.2@sha256:ab81c7313fb5dc4d1f9562e5bbd5e5877a8a3c5ca6b9f9fff3437b5096a2b123
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 10m
+              gpu.intel.com/i915: 1
+              memory: 512Mi
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /mnt/store
+              name: media
+              readOnly: true
+            - mountPath: /transcode
+              name: transcode
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: plex-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: plex-nfs-storage
+        - emptyDir: {}
+          name: transcode

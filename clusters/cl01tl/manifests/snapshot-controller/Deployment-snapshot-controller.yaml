@@ -1,0 +1,68 @@
+---
+# Source: snapshot-controller/charts/snapshot-controller/templates/deployment_controller.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snapshot-controller
+  namespace: snapshot-controller
+  labels:
+    helm.sh/chart: snapshot-controller-4.2.0
+    app.kubernetes.io/name: snapshot-controller
+    app.kubernetes.io/instance: snapshot-controller
+    app.kubernetes.io/version: "v8.4.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: snapshot-controller
+      app.kubernetes.io/instance: snapshot-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: snapshot-controller
+        app.kubernetes.io/instance: snapshot-controller
+    spec:
+      serviceAccountName: snapshot-controller
+      securityContext: {}
+      containers:
+        - name: snapshot-controller
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          image: "registry.k8s.io/sig-storage/snapshot-controller:v8.4.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - --http-endpoint=:8080
+            - --leader-election=true
+            - --leader-election-namespace=snapshot-controller
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              port: http
+              path: /healthz/leader-election
+              scheme: HTTP
+          livenessProbe:
+            httpGet:
+              port: http
+              path: /healthz/leader-election
+              scheme: HTTP
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+      hostNetwork: false
+      dnsPolicy: ClusterFirst

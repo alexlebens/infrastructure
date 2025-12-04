@@ -1,0 +1,30 @@
+---
+# Source: lidarr/templates/replication-source.yaml
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: lidarr-config-backup-source
+  namespace: lidarr
+  labels:
+    app.kubernetes.io/name: lidarr-config-backup-source
+    app.kubernetes.io/instance: lidarr
+    app.kubernetes.io/part-of: lidarr
+spec:
+  sourcePVC: lidarr-config
+  trigger:
+    schedule: 0 4 * * *
+  restic:
+    pruneIntervalDays: 7
+    repository: lidarr-config-backup-secret
+    retain:
+      hourly: 1
+      daily: 3
+      weekly: 2
+      monthly: 2
+      yearly: 4
+    moverSecurityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot

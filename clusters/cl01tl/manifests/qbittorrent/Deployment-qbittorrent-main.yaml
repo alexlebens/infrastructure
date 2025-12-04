@@ -1,0 +1,158 @@
+---
+# Source: qbittorrent/charts/qbittorrent/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent-main
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    helm.sh/chart: qbittorrent-4.4.0
+  namespace: qbittorrent
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: qbittorrent
+      app.kubernetes.io/instance: qbittorrent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: qbittorrent
+        app.kubernetes.io/name: qbittorrent
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      initContainers:
+        - args:
+            - -ec
+            - |
+              sysctl -w net.ipv4.ip_forward=1;
+              sysctl -w net.ipv6.conf.all.disable_ipv6=1
+          command:
+            - /bin/sh
+          image: busybox:1.37.0
+          imagePullPolicy: IfNotPresent
+          name: init-sysctl
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          securityContext:
+            privileged: true
+      containers:
+        - env:
+            - name: QBITTORRENT_HOST
+              value: localhost
+            - name: QBITTORRENT_PORT
+              value: "8080"
+            - name: EXPORTER_PORT
+              value: "9022"
+            - name: EXPORTER_LOG_LEVEL
+              value: INFO
+          image: esanchezm/prometheus-qbittorrent-exporter:v1.6.0
+          imagePullPolicy: IfNotPresent
+          name: exporter
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+        - env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private-key
+                  name: qbittorrent-wireguard-conf
+            - name: VPN_PORT_FORWARDING
+              value: "on"
+            - name: VPN_PORT_FORWARDING_UP_COMMAND
+              value: /bin/sh -c "/gluetun/update.sh {{PORTS}}"
+            - name: PORT_FORWARD_ONLY
+              value: "on"
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 192.168.1.0/24,10.244.0.0/16
+            - name: FIREWALL_INPUT_PORTS
+              value: 8080,9022
+            - name: DOT
+              value: "off"
+          image: ghcr.io/qdm12/gluetun:v3.40.3@sha256:ef4a44819a60469682c7b5e69183e6401171891feaa60186652d292c59e41b30
+          imagePullPolicy: IfNotPresent
+          name: gluetun
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              cpu: 10m
+              devic.es/tun: "1"
+              memory: 64Mi
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+            privileged: true
+          volumeMounts:
+            - mountPath: /gluetun/update.sh
+              name: update-script
+              subPath: update.sh
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: UMASK_SET
+              value: "002"
+            - name: WEBUI_PORT
+              value: "8080"
+            - name: DOCKER_MODS
+              value: ghcr.io/themepark-dev/theme.park:qbittorrent
+            - name: TP_COMMUNITY_THEME
+              value: "true"
+            - name: TP_THEME
+              value: catppuccin-mocha
+          image: ghcr.io/linuxserver/qbittorrent:5.1.4@sha256:f0465dbb2aa14397fd205a0240ee562eb062354c036ccc444084fe46c6c75091
+          imagePullPolicy: IfNotPresent
+          name: qbittorrent
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /mnt/store
+              name: storage
+            - mountPath: /themepark
+              name: theme-data
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: qbittorrent-config
+        - name: storage
+          persistentVolumeClaim:
+            claimName: qbittorrent-nfs-storage
+        - name: theme-data
+          persistentVolumeClaim:
+            claimName: qbittorrent-theme-data
+        - configMap:
+            defaultMode: 493
+            name: glutun-update-script
+          name: update-script

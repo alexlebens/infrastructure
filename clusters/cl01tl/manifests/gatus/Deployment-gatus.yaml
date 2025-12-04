@@ -1,0 +1,118 @@
+---
+# Source: gatus/charts/gatus/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gatus
+  namespace: gatus
+  labels:
+    helm.sh/chart: gatus-1.4.4
+    app.kubernetes.io/name: gatus
+    app.kubernetes.io/instance: gatus
+    app.kubernetes.io/version: "v5.33.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gatus
+      app.kubernetes.io/instance: gatus
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gatus
+        app.kubernetes.io/instance: gatus
+      annotations:
+        checksum/config: 31c72cc890f0e181e18d8c8f38bec005f1ea27d18aeaebc241351d1e3d5dd21d
+    spec:
+      serviceAccountName: default
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 65534
+      containers:
+        - name: gatus
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsGroup: 65534
+            runAsNonRoot: true
+            runAsUser: 65534
+          image: "ghcr.io/twin/gatus:v5.33.0"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: "NTFY_TOKEN"
+              valueFrom:
+                secretKeyRef:
+                  key: NTFY_TOKEN
+                  name: gatus-config-secret
+            - name: "OIDC_CLIENT_ID"
+              valueFrom:
+                secretKeyRef:
+                  key: OIDC_CLIENT_ID
+                  name: gatus-oidc-secret
+            - name: "OIDC_CLIENT_SECRET"
+              valueFrom:
+                secretKeyRef:
+                  key: OIDC_CLIENT_SECRET
+                  name: gatus-oidc-secret
+            - name: "POSTGRES_DB"
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: gatus-postgresql-17-cluster-app
+            - name: "POSTGRES_HOST"
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: gatus-postgresql-17-cluster-app
+            - name: "POSTGRES_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: gatus-postgresql-17-cluster-app
+            - name: "POSTGRES_PORT"
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: gatus-postgresql-17-cluster-app
+            - name: "POSTGRES_USER"
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: gatus-postgresql-17-cluster-app
+          envFrom:
+            - configMapRef:
+                name: gatus
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - name: gatus-config
+              mountPath: /config
+              readOnly: true
+            - name: gatus-data
+              mountPath: /data
+      volumes:
+        - name: gatus-config
+          configMap:
+            name: gatus
+        - name: gatus-data
+          persistentVolumeClaim:
+            claimName: gatus

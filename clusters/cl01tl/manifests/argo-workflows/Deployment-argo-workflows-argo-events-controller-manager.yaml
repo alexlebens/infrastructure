@@ -1,0 +1,85 @@
+---
+# Source: argo-workflows/charts/argo-events/templates/argo-events-controller/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argo-workflows-argo-events-controller-manager
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-events-2.4.18
+    app.kubernetes.io/name: argo-events-controller-manager
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+    app.kubernetes.io/version: "v1.9.9"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argo-events-controller-manager
+      app.kubernetes.io/instance: argo-workflows
+  revisionHistoryLimit: 5
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        checksum/config: a98b80a2ffaf4c020ec162c5614927614c17e0ea3fea1999358dd37203b01d58
+      labels:
+        helm.sh/chart: argo-events-2.4.18
+        app.kubernetes.io/name: argo-events-controller-manager
+        app.kubernetes.io/instance: argo-workflows
+        app.kubernetes.io/component: controller-manager
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: argo-events
+        app.kubernetes.io/version: "v1.9.9"
+    spec:
+      containers:
+        - name: controller-manager
+          image: quay.io/argoproj/argo-events:v1.9.9
+          imagePullPolicy: IfNotPresent
+          args:
+            - controller
+          env:
+            - name: ARGO_EVENTS_IMAGE
+              value: quay.io/argoproj/argo-events:v1.9.9
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: config
+              mountPath: /etc/argo-events
+          ports:
+            - name: metrics
+              containerPort: 7777
+              protocol: TCP
+            - name: probe
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              port: probe
+              path: /healthz
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              port: probe
+              path: /readyz
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+      serviceAccountName: argo-workflows-argo-events-controller-manager
+      volumes:
+        - name: config
+          configMap:
+            name: argo-workflows-argo-events-controller-manager

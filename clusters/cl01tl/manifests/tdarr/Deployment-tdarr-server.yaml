@@ -1,0 +1,90 @@
+---
+# Source: tdarr/charts/tdarr/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tdarr-server
+  labels:
+    app.kubernetes.io/controller: server
+    app.kubernetes.io/instance: tdarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: tdarr
+    helm.sh/chart: tdarr-4.4.0
+  namespace: tdarr
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: server
+      app.kubernetes.io/name: tdarr
+      app.kubernetes.io/instance: tdarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: server
+        app.kubernetes.io/instance: tdarr
+        app.kubernetes.io/name: tdarr
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: "1001"
+            - name: PGID
+              value: "1001"
+            - name: UMASK_SET
+              value: "002"
+            - name: ffmpegVersion
+              value: "6"
+            - name: internalNode
+              value: "false"
+            - name: inContainer
+              value: "true"
+            - name: nodeName
+              value: tdarr-server
+            - name: serverIP
+              value: 0.0.0.0
+            - name: serverPort
+              value: "8266"
+            - name: webUIPort
+              value: "8265"
+          image: ghcr.io/haveagitgat/tdarr:2.58.02
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 200m
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /app/configs
+              name: config
+            - mountPath: /mnt/store
+              name: media
+              readOnly: true
+            - mountPath: /app/server
+              name: server
+            - mountPath: /tcache
+              name: server-cache
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: tdarr-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: tdarr-nfs-storage
+        - name: server
+          persistentVolumeClaim:
+            claimName: tdarr-server
+        - emptyDir: {}
+          name: server-cache

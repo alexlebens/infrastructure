@@ -1,0 +1,71 @@
+---
+# Source: ollama/charts/ollama/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-server-2
+  labels:
+    app.kubernetes.io/controller: server-2
+    app.kubernetes.io/instance: ollama
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ollama
+    helm.sh/chart: ollama-4.4.0
+  namespace: ollama
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: server-2
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/instance: ollama
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: server-2
+        app.kubernetes.io/instance: ollama
+        app.kubernetes.io/name: ollama
+        ollama-type: server
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: ollama-type
+                    operator: In
+                    values:
+                      - server
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - env:
+            - name: OLLAMA_KEEP_ALIVE
+              value: 24h
+            - name: OLLAMA_HOST
+              value: 0.0.0.0
+          image: ollama/ollama:0.13.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 100m
+              gpu.intel.com/i915: 1
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /root/.ollama
+              name: server-2
+      volumes:
+        - name: server-2
+          persistentVolumeClaim:
+            claimName: ollama-server-2

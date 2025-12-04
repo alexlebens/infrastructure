@@ -1,0 +1,33 @@
+---
+# Source: sonarr-4k/templates/prometheus-rule.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sonarr-4k
+  namespace: sonarr-4k
+  labels:
+    app.kubernetes.io/name: sonarr-4k
+    app.kubernetes.io/instance: sonarr-4k
+    app.kubernetes.io/part-of: sonarr-4k
+spec:
+  groups:
+    - name: sonarr-4k
+      rules:
+        - alert: ExportarrAbsent
+          annotations:
+            description: Sonarr 4K Exportarr has disappeared from Prometheus service discovery.
+            summary: Exportarr is down.
+          expr: |
+            absent(up{job=~".*sonarr-4k.*"} == 1)
+          for: 5m
+          labels:
+            severity: critical
+        - alert: Sonarr4KDown
+          annotations:
+            description: Sonarr 4K service is down.
+            summary: Sonarr 4K is down.
+          expr: |
+            sonarr_4k_system_status{job=~".*sonarr-4k.*"} == 0
+          for: 5m
+          labels:
+            severity: critical

@@ -1,0 +1,84 @@
+---
+# Source: kube-prometheus-stack/charts/kube-prometheus-stack/templates/prometheus/prometheus.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: kube-prometheus-stack-prometheus
+  namespace: kube-prometheus-stack
+  labels:
+    app: kube-prometheus-stack-prometheus
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/version: "79.11.0"
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    chart: kube-prometheus-stack-79.11.0
+    release: "kube-prometheus-stack"
+    heritage: "Helm"
+spec:
+  automountServiceAccountToken: true
+  alerting:
+    alertmanagers:
+      - namespace: kube-prometheus-stack
+        name: kube-prometheus-stack-alertmanager
+        port: http-web
+        pathPrefix: "/"
+        apiVersion: v2
+  image: "quay.io/prometheus/prometheus:v3.8.0"
+  imagePullPolicy: "IfNotPresent"
+  version: v3.8.0
+  externalUrl: "https://prometheus.alexlebens.net"
+  paused: false
+  replicas: 1
+  shards: 1
+  logLevel: "info"
+  logFormat: logfmt
+  listenLocal: false
+  enableOTLPReceiver: false
+  enableAdminAPI: false
+  scrapeInterval: 30s
+  retention: "30d"
+  tsdb:
+    outOfOrderTimeWindow: 0s
+  walCompression: true
+  routePrefix: "/"
+  serviceAccountName: kube-prometheus-stack-prometheus
+  serviceMonitorSelector: {}
+  serviceMonitorNamespaceSelector: {}
+  podMonitorSelector: {}
+  podMonitorNamespaceSelector: {}
+  probeSelector:
+    matchLabels:
+      release: "kube-prometheus-stack"
+  probeNamespaceSelector: {}
+  securityContext:
+    fsGroup: 2000
+    runAsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  ruleNamespaceSelector: {}
+  ruleSelector: {}
+  scrapeConfigSelector: {}
+  scrapeConfigNamespaceSelector: {}
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 250Gi
+        storageClassName: synology-iscsi-delete
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchExpressions:
+                - {key: app.kubernetes.io/name, operator: In, values: [prometheus]}
+                - {key: app.kubernetes.io/instance, operator: In, values: [kube-prometheus-stack-prometheus]}
+  portName: http-web
+  hostNetwork: false

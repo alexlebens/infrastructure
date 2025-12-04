@@ -1,0 +1,36 @@
+---
+# Source: element-web/charts/element-web/templates/configuration-nginx.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: element-web-nginx
+  labels:
+    helm.sh/chart: element-web-1.4.26
+    app.kubernetes.io/name: element-web
+    app.kubernetes.io/instance: element-web
+    app.kubernetes.io/version: "1.12.6"
+    app.kubernetes.io/managed-by: Helm
+data:
+  default.conf: |
+    server {
+        listen       8080;
+        listen  [::]:8080;
+        server_name  localhost;
+
+        root   /usr/share/nginx/html;
+        index  index.html;
+
+        add_header X-Frame-Options SAMEORIGIN;
+        add_header X-Content-Type-Options nosniff;
+        add_header X-XSS-Protection "1; mode=block";
+        add_header Content-Security-Policy "frame-ancestors 'self'";
+
+        # Set no-cache for the index.html only so that browsers always check for a new copy of Element Web.
+        location = /index.html {
+            add_header Cache-Control "no-cache";
+        }
+
+        # redirect server error pages to the static page /50x.html
+        #
+        error_page   500 502 503 504  /50x.html;
+    }

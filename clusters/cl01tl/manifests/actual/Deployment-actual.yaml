@@ -1,0 +1,67 @@
+---
+# Source: actual/charts/actual/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: actual
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: actual
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: actual
+    helm.sh/chart: actual-4.4.0
+  namespace: actual
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: actual
+      app.kubernetes.io/instance: actual
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: actual
+        app.kubernetes.io/name: actual
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+          image: ghcr.io/actualbudget/actual:25.12.0
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+                - /usr/bin/env
+                - bash
+                - -c
+                - node src/scripts/health-check.js
+            failureThreshold: 5
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 10
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /data
+              name: data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: actual-data

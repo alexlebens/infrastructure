@@ -1,0 +1,90 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yamtrack
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: yamtrack
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: yamtrack
+    helm.sh/chart: yamtrack-4.4.0
+  namespace: yamtrack
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: yamtrack
+      app.kubernetes.io/instance: yamtrack
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: yamtrack
+        app.kubernetes.io/name: yamtrack
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: URLS
+              value: https://yamtrack.alexlebens.net
+            - name: REGISTRATION
+              value: "false"
+            - name: SOCIAL_PROVIDERS
+              value: allauth.socialaccount.providers.openid_connect
+            - name: SOCIALACCOUNT_PROVIDERS
+              valueFrom:
+                secretKeyRef:
+                  key: SOCIALACCOUNT_PROVIDERS
+                  name: yamtrack-oidc-secret
+            - name: SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: SECRET
+                  name: yamtrack-config-secret
+            - name: REDIS_URL
+              value: redis://redis-replication-yamtrack-master.yamtrack:6379
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: yamtrack-postgresql-17-cluster-app
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: yamtrack-postgresql-17-cluster-app
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: yamtrack-postgresql-17-cluster-app
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: yamtrack-postgresql-17-cluster-app
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: yamtrack-postgresql-17-cluster-app
+          image: ghcr.io/fuzzygrim/yamtrack:0.24.8
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi

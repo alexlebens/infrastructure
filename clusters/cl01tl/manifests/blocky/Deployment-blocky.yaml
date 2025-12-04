@@ -1,0 +1,60 @@
+---
+# Source: blocky/charts/blocky/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blocky
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: blocky
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: blocky
+    helm.sh/chart: blocky-4.4.0
+  namespace: blocky
+spec:
+  revisionHistoryLimit: 3
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: blocky
+      app.kubernetes.io/instance: blocky
+  template:
+    metadata:
+      annotations:
+        checksum/configMaps: 8a197f81daed9048c4565ecafc0c7ca534383a898e709a13c3441bc00bd12652
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: blocky
+        app.kubernetes.io/name: blocky
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+          image: ghcr.io/0xerr0r/blocky:v0.28.2@sha256:5f84a54e4ee950c4ab21db905b7497476ece2f4e1a376d23ab8c4855cabddcba
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /app/config.yml
+              mountPropagation: None
+              name: config
+              readOnly: true
+              subPath: config.yml
+      volumes:
+        - configMap:
+            name: blocky
+          name: config

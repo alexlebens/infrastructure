@@ -1,0 +1,67 @@
+---
+# Source: element-web/charts/element-web/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: element-web
+  labels:
+    helm.sh/chart: element-web-1.4.26
+    app.kubernetes.io/name: element-web
+    app.kubernetes.io/instance: element-web
+    app.kubernetes.io/version: "1.12.6"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: element-web
+      app.kubernetes.io/instance: element-web
+  template:
+    metadata:
+      annotations:
+        checksum/config: 07dfcbf8ec12efac4a1e2bcc3779031a8c985138f9a5da5b419223c06b1b4675
+        checksum/config-nginx: 75e21c87909fe90a77679c788366b70868068fde41c3d7a263955b35829d424b
+      labels:
+        app.kubernetes.io/name: element-web
+        app.kubernetes.io/instance: element-web
+    spec:
+      serviceAccountName: element-web
+      securityContext: {}
+      containers:
+        - name: element-web
+          securityContext: {}
+          image: "vectorim/element-web:v1.12.6"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ELEMENT_WEB_PORT
+              value: '8080'
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /app/config.json
+              name: config
+              subPath: config.json
+            - mountPath: /etc/nginx/conf.d/config.json
+              name: config-nginx
+              subPath: config.json
+      volumes:
+        - name: config
+          configMap:
+            name: element-web
+        - name: config-nginx
+          configMap:
+            name: element-web-nginx

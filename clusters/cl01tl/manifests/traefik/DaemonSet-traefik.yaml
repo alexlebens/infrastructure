@@ -1,0 +1,140 @@
+---
+# Source: traefik/charts/traefik/templates/daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: traefik
+  namespace: traefik
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/instance: traefik-traefik
+    helm.sh/chart: traefik-37.4.0
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+      app.kubernetes.io/instance: traefik-traefik
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  minReadySeconds: 0
+  template:
+    metadata:
+      annotations:
+      labels:
+        app.kubernetes.io/name: traefik
+        app.kubernetes.io/instance: traefik-traefik
+        helm.sh/chart: traefik-37.4.0
+        app.kubernetes.io/managed-by: Helm
+    spec:
+      serviceAccountName: traefik
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: 60
+      hostNetwork: false
+      containers:
+        - image: docker.io/traefik:v3.6.2
+          imagePullPolicy: IfNotPresent
+          name: traefik
+          resources:
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 8080
+              scheme: HTTP
+            failureThreshold: 1
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 8080
+              scheme: HTTP
+            failureThreshold: 3
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+          lifecycle:
+          ports:
+            - name: metrics
+              containerPort: 9100
+              protocol: TCP
+            - name: ssh
+              containerPort: 22
+              protocol: TCP
+            - name: traefik
+              containerPort: 8080
+              protocol: TCP
+            - name: web
+              containerPort: 8000
+              protocol: TCP
+            - name: websecure
+              containerPort: 8443
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+          args:
+            - "--entryPoints.metrics.address=:9100/tcp"
+            - "--entryPoints.ssh.address=:22/tcp"
+            - "--entryPoints.traefik.address=:8080/tcp"
+            - "--entryPoints.web.address=:8000/tcp"
+            - "--entryPoints.websecure.address=:8443/tcp"
+            - "--api.dashboard=true"
+            - "--ping=true"
+            - "--metrics.prometheus=true"
+            - "--metrics.prometheus.entrypoint=metrics"
+            - "--providers.kubernetescrd"
+            - "--providers.kubernetescrd.allowCrossNamespace=true"
+            - "--providers.kubernetescrd.allowEmptyServices=true"
+            - "--providers.kubernetesgateway"
+            - "--providers.kubernetesgateway.statusaddress.ip=10.232.1.21"
+            - "--providers.kubernetesgateway.statusaddress.service.name=traefik"
+            - "--providers.kubernetesgateway.statusaddress.service.namespace=traefik"
+            - "--providers.kubernetesgateway.experimentalchannel=true"
+            - "--entryPoints.ssh.http.tls=true"
+            - "--entryPoints.ssh.forwardedHeaders.trustedIPs=10.0.0.0/8,172.16.0.0/16,192.168.0.0/16,fc00::/7"
+            - "--entryPoints.ssh.proxyProtocol.trustedIPs=10.0.0.0/8,172.16.0.0/16,192.168.0.0/16,fc00::/7"
+            - "--entryPoints.web.http.redirections.entryPoint.to=:443"
+            - "--entryPoints.web.http.redirections.entryPoint.scheme=https"
+            - "--entryPoints.web.http.redirections.entryPoint.permanent=true"
+            - "--entryPoints.web.forwardedHeaders.trustedIPs=10.0.0.0/8,172.16.0.0/16,192.168.0.0/16,fc00::/7"
+            - "--entryPoints.web.proxyProtocol.trustedIPs=10.0.0.0/8,172.16.0.0/16,192.168.0.0/16,fc00::/7"
+            - "--entryPoints.websecure.http.tls=true"
+            - "--entryPoints.websecure.forwardedHeaders.trustedIPs=10.0.0.0/8,172.16.0.0/16,192.168.0.0/16,fc00::/7"
+            - "--entryPoints.websecure.proxyProtocol.trustedIPs=10.0.0.0/8,172.16.0.0/16,192.168.0.0/16,fc00::/7"
+            - "--log.level=INFO"
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: USER
+              value: traefik
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      securityContext:
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532

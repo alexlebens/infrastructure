@@ -1,0 +1,174 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: directus
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: directus
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: directus
+    helm.sh/chart: directus-4.4.0
+  namespace: directus
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: directus
+      app.kubernetes.io/instance: directus
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: directus
+        app.kubernetes.io/name: directus
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: PUBLIC_URL
+              value: https://directus.alexlebens.dev
+            - name: WEBSOCKETS_ENABLED
+              value: "true"
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  key: admin-email
+                  name: directus-config
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: admin-password
+                  name: directus-config
+            - name: SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: secret
+                  name: directus-config
+            - name: KEY
+              valueFrom:
+                secretKeyRef:
+                  key: key
+                  name: directus-config
+            - name: DB_CLIENT
+              value: postgres
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: directus-postgresql-17-cluster-app
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: directus-postgresql-17-cluster-app
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: directus-postgresql-17-cluster-app
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: directus-postgresql-17-cluster-app
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: directus-postgresql-17-cluster-app
+            - name: SYNCHRONIZATION_STORE
+              value: redis
+            - name: CACHE_ENABLED
+              value: "true"
+            - name: CACHE_STORE
+              value: redis
+            - name: REDIS_ENABLED
+              value: "true"
+            - name: REDIS_HOST
+              value: redis-replication-directus-master
+            - name: REDIS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: directus-redis-config
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: directus-redis-config
+            - name: STORAGE_LOCATIONS
+              value: s3
+            - name: STORAGE_S3_DRIVER
+              value: s3
+            - name: STORAGE_S3_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_ACCESS_KEY_ID
+                  name: ceph-bucket-directus
+            - name: STORAGE_S3_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_SECRET_ACCESS_KEY
+                  name: ceph-bucket-directus
+            - name: STORAGE_S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  key: BUCKET_NAME
+                  name: ceph-bucket-directus
+            - name: STORAGE_S3_REGION
+              value: us-east-1
+            - name: STORAGE_S3_ENDPOINT
+              value: http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc:80
+            - name: STORAGE_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: AUTH_PROVIDERS
+              value: AUTHENTIK
+            - name: AUTH_AUTHENTIK_DRIVER
+              value: openid
+            - name: AUTH_AUTHENTIK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: OIDC_CLIENT_ID
+                  name: directus-oidc-secret
+            - name: AUTH_AUTHENTIK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: OIDC_CLIENT_SECRET
+                  name: directus-oidc-secret
+            - name: AUTH_AUTHENTIK_SCOPE
+              value: openid profile email
+            - name: AUTH_AUTHENTIK_ISSUER_URL
+              value: https://auth.alexlebens.dev/application/o/directus/.well-known/openid-configuration
+            - name: AUTH_AUTHENTIK_IDENTIFIER_KEY
+              value: email
+            - name: AUTH_AUTHENTIK_ALLOW_PUBLIC_REGISTRATION
+              value: "true"
+            - name: AUTH_AUTHENTIK_LABEL
+              value: Authentik
+            - name: TELEMETRY
+              value: "false"
+            - name: METRICS_ENABLED
+              value: "true"
+            - name: METRICS_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  key: metric-token
+                  name: directus-metric-token
+          image: directus/directus:11.13.4
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi

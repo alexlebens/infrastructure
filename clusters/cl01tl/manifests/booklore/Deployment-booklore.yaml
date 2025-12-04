@@ -1,0 +1,82 @@
+---
+# Source: booklore/charts/booklore/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: booklore
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: booklore
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: booklore
+    helm.sh/chart: booklore-4.4.0
+  namespace: booklore
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: booklore
+      app.kubernetes.io/instance: booklore
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: booklore
+        app.kubernetes.io/name: booklore
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: DATABASE_URL
+              value: jdbc:mariadb://booklore-mariadb-cluster-primary.booklore:3306/booklore
+            - name: DATABASE_USERNAME
+              value: booklore
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: booklore-database-secret
+            - name: BOOKLORE_PORT
+              value: "6060"
+            - name: SWAGGER_ENABLED
+              value: "false"
+          image: ghcr.io/booklore-app/booklore:v1.13.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /bookdrop
+              name: books-import
+            - mountPath: /app/data
+              name: config
+            - mountPath: /data
+              name: data
+            - mountPath: /bookdrop/ingest
+              name: ingest
+      volumes:
+        - emptyDir: {}
+          name: books-import
+        - name: config
+          persistentVolumeClaim:
+            claimName: booklore-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: booklore-data
+        - name: ingest
+          persistentVolumeClaim:
+            claimName: booklore-books-import-nfs-storage

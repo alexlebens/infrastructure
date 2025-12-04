@@ -1,0 +1,60 @@
+---
+# Source: freshrss/charts/cloudflared/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: freshrss-cloudflared
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: freshrss
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/version: 2025.10.0
+    helm.sh/chart: cloudflared-1.23.1
+  namespace: freshrss
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: cloudflared
+      app.kubernetes.io/instance: freshrss
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: freshrss
+        app.kubernetes.io/name: cloudflared
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - args:
+            - tunnel
+            - --protocol
+            - http2
+            - --no-autoupdate
+            - run
+            - --token
+            - $(CF_MANAGED_TUNNEL_TOKEN)
+          env:
+            - name: CF_MANAGED_TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: cf-tunnel-token
+                  name: freshrss-cloudflared-secret
+          image: cloudflare/cloudflared:2025.11.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi

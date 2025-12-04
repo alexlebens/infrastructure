@@ -1,0 +1,163 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: outline
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: outline
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: outline
+    helm.sh/chart: outline-4.4.0
+  namespace: outline
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: outline
+      app.kubernetes.io/instance: outline
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: outline
+        app.kubernetes.io/name: outline
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: NODE_ENV
+              value: production
+            - name: URL
+              value: https://wiki.alexlebens.dev
+            - name: PORT
+              value: "3000"
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-key
+                  name: outline-key-secret
+            - name: UTILS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: utils-key
+                  name: outline-key-secret
+            - name: POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: outline-postgresql-17-cluster-app
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: outline-postgresql-17-cluster-app
+            - name: POSTGRES_DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: outline-postgresql-17-cluster-app
+            - name: POSTGRES_DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: outline-postgresql-17-cluster-app
+            - name: POSTGRES_DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: outline-postgresql-17-cluster-app
+            - name: DATABASE_URL
+              value: postgres://$(POSTGRES_USERNAME):$(POSTGRES_PASSWORD)@$(POSTGRES_DATABASE_HOST):$(POSTGRES_DATABASE_PORT)/$(POSTGRES_DATABASE_NAME)
+            - name: DATABASE_URL_TEST
+              value: postgres://$(POSTGRES_USERNAME):$(POSTGRES_PASSWORD)@$(POSTGRES_DATABASE_HOST):$(POSTGRES_DATABASE_PORT)/$(POSTGRES_DATABASE_NAME)-test
+            - name: DATABASE_CONNECTION_POOL_MIN
+              value: "2"
+            - name: DATABASE_CONNECTION_POOL_MAX
+              value: "20"
+            - name: PGSSLMODE
+              value: disable
+            - name: REDIS_URL
+              value: redis://redis-replication-outline-master.outline:6379
+            - name: FILE_STORAGE
+              value: s3
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_ACCESS_KEY_ID
+                  name: ceph-bucket-outline
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_SECRET_ACCESS_KEY
+                  name: ceph-bucket-outline
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_S3_UPLOAD_BUCKET_NAME
+              valueFrom:
+                configMapKeyRef:
+                  key: BUCKET_NAME
+                  name: ceph-bucket-outline
+            - name: AWS_S3_UPLOAD_BUCKET_URL
+              value: https://objects.alexlebens.dev
+            - name: AWS_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: AWS_S3_ACL
+              value: private
+            - name: FILE_STORAGE_UPLOAD_MAX_SIZE
+              value: "26214400"
+            - name: FORCE_HTTPS
+              value: "false"
+            - name: ENABLE_UPDATES
+              value: "false"
+            - name: WEB_CONCURRENCY
+              value: "1"
+            - name: FILE_STORAGE_IMPORT_MAX_SIZE
+              value: "5.12e+06"
+            - name: LOG_LEVEL
+              value: info
+            - name: DEFAULT_LANGUAGE
+              value: en_US
+            - name: RATE_LIMITER_ENABLED
+              value: "false"
+            - name: DEVELOPMENT_UNSAFE_INLINE_CSP
+              value: "false"
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: client
+                  name: outline-oidc-secret
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: secret
+                  name: outline-oidc-secret
+            - name: OIDC_AUTH_URI
+              value: https://auth.alexlebens.dev/application/o/authorize/
+            - name: OIDC_TOKEN_URI
+              value: https://auth.alexlebens.dev/application/o/token/
+            - name: OIDC_USERINFO_URI
+              value: https://auth.alexlebens.dev/application/o/userinfo/
+            - name: OIDC_USERNAME_CLAIM
+              value: email
+            - name: OIDC_DISPLAY_NAME
+              value: Authentik
+            - name: OIDC_SCOPES
+              value: openid profile email
+          image: outlinewiki/outline:1.1.0
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 512Mi

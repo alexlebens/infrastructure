@@ -1,0 +1,61 @@
+---
+# Source: argo-workflows/charts/argo-workflows/templates/controller/workflow-controller-config-map.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argo-workflows-workflow-controller-configmap
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-workflows-0.46.1
+    app.kubernetes.io/name: argo-workflows-cm
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: workflow-controller
+    app: workflow-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+data:
+  config: |
+    metricsConfig:
+      enabled: true
+      path: /metrics
+      port: 9090
+      ignoreErrors: false
+      secure: false
+    persistence:
+      archive: true
+      connectionPool:
+        maxIdleConns: 100
+        maxOpenConns: 0
+      nodeStatusOffLoad: true
+      postgresql:
+        database: app
+        host: argo-workflows-postgresql-17-cluster-rw
+        passwordSecret:
+          key: password
+          name: argo-workflows-postgresql-17-cluster-app
+        port: 5432
+        ssl: false
+        sslMode: disable
+        tableName: app
+        userNameSecret:
+          key: username
+          name: argo-workflows-postgresql-17-cluster-app
+    sso:
+      issuer: https://authentik.alexlebens.net/application/o/argo-workflows/
+      clientId:
+        name: argo-workflows-oidc-secret
+        key: client
+      clientSecret:
+        name: argo-workflows-oidc-secret
+        key: secret
+      redirectUrl: "https://argo-workflows.alexlebens.net/oauth2/callback"
+      rbac:
+        enabled: false
+      scopes:
+        - openid
+        - email
+        - profile
+    nodeEvents:
+      enabled: true
+    workflowEvents:
+      enabled: true

@@ -1,0 +1,31 @@
+---
+# Source: vault/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vault-tailscale
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: vault-tailscale
+    app.kubernetes.io/instance: vault
+    app.kubernetes.io/part-of: vault
+    tailscale.com/proxy-class: no-metrics
+  annotations:
+    tailscale.com/experimental-forward-cluster-traffic-via-ingress: "true"
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - vault-cl01tl
+      secretName: vault-cl01tl
+  rules:
+    - host: vault-cl01tl
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vault-active
+                port:
+                  number: 8200

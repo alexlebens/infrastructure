@@ -1,0 +1,33 @@
+---
+# Source: radarr-4k/templates/prometheus-rule.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: radarr-4k
+  namespace: radarr-4k
+  labels:
+    app.kubernetes.io/name: radarr-4k
+    app.kubernetes.io/instance: radarr-4k
+    app.kubernetes.io/part-of: radarr-4k
+spec:
+  groups:
+    - name: radarr-4k
+      rules:
+        - alert: ExportarrAbsent
+          annotations:
+            description: Radarr 4K Exportarr has disappeared from Prometheus service discovery.
+            summary: Exportarr is down.
+          expr: |
+            absent(up{job=~".*radarr-4k.*"} == 1)
+          for: 5m
+          labels:
+            severity: critical
+        - alert: Radarr4kDown
+          annotations:
+            description: Radarr 4K service is down.
+            summary: Radarr 4K is down.
+          expr: |
+            radarr_4k_system_status{job=~".*radarr-4k.*"} == 0
+          for: 5m
+          labels:
+            severity: critical

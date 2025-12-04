@@ -1,0 +1,166 @@
+---
+# Source: matrix-synapse/charts/matrix-synapse/templates/deployment.yaml
+# Server: alexlebens.dev
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matrix-synapse
+  labels:
+    helm.sh/chart: matrix-synapse-3.12.16
+    app.kubernetes.io/name: matrix-synapse
+    app.kubernetes.io/instance: matrix-synapse
+    app.kubernetes.io/version: "1.143.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: synapse
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: matrix-synapse
+      app.kubernetes.io/instance: matrix-synapse
+      app.kubernetes.io/component: synapse
+  template:
+    metadata:
+      annotations:
+        checksum/config: e77b3b25301ed2f4b5eac2f16ed5d058374ed1ffcd7e9ca4d8eef44867647feb
+        checksum/secrets: 3f5e7529ea83f7bc20e99543e2689f661ebbdd791a62f81c697934ea1b9603db
+      labels:
+        app.kubernetes.io/name: matrix-synapse
+        app.kubernetes.io/instance: matrix-synapse
+        app.kubernetes.io/component: synapse
+    spec:
+      serviceAccountName: default
+      securityContext: {}
+      initContainers:
+        - name: volume-permissions
+          command:
+            - sh
+            - -c
+            - |
+              chown 666:666 -R /synapse/data
+          image: "alpine:latest"
+          imagePullPolicy: Always
+          resources: {}
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+          volumeMounts:
+            - name: media
+              mountPath: /synapse/data
+      containers:
+        - name: synapse
+          command:
+            - sh
+            - -c
+            - |
+              export POSTGRES_PASSWORD=$(echo "${POSTGRES_PASSWORD:-}" | sed 's/\//\\\//g' | sed 's/\&/\\\&/g') && \
+              export REDIS_PASSWORD=$(echo "${REDIS_PASSWORD:-}" | sed 's/\//\\\//g' | sed 's/\&/\\\&/g') && \
+              cat /synapse/secrets/*.yaml | \
+                sed -e "s/@@POSTGRES_PASSWORD@@/${POSTGRES_PASSWORD:-}/" \
+                    -e "s/@@REDIS_PASSWORD@@/${REDIS_PASSWORD:-}/" \
+                       > /synapse/config/conf.d/secrets.yaml
+
+              exec python -B -m synapse.app.homeserver \
+                          -c /synapse/config/homeserver.yaml \
+                          -c /synapse/config/conf.d/
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-synapse-postgresql-17-cluster-app
+                  key: password
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-synapse-redis-secret
+                  key: password
+          image: "ghcr.io/element-hq/synapse:v1.143.0"
+          imagePullPolicy: IfNotPresent
+          securityContext: {}
+          ports:
+            - name: http
+              containerPort: 8008
+              protocol: TCP
+            - name: replication
+              containerPort: 9093
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          startupProbe:
+            failureThreshold: 12
+            httpGet:
+              path: /health
+              port: http
+          volumeMounts:
+            - name: config
+              mountPath: /synapse/config
+            - name: tmpconf
+              mountPath: /synapse/config/conf.d
+            - name: secrets
+              mountPath: /synapse/secrets
+            - name: signingkey
+              mountPath: /synapse/keys
+            - name: media
+              mountPath: /synapse/data
+            - name: tmpdir
+              mountPath: /tmp
+            - mountPath: /synapse/config/conf.d/oidc.yaml
+              name: matrix-synapse-config-secret
+              readOnly: true
+              subPath: oidc.yaml
+            - mountPath: /synapse/config/conf.d/config.yaml
+              name: matrix-synapse-config-secret
+              readOnly: true
+              subPath: config.yaml
+            - mountPath: /synapse/config/conf.d/hookshot-registration.yaml
+              name: matrix-hookshot-config-secret
+              readOnly: true
+              subPath: hookshot-registration.yaml
+            - mountPath: /synapse/config/conf.d/double-puppet-registration.yaml
+              name: double-puppet-registration-secret
+              readOnly: true
+              subPath: double-puppet-registration.yaml
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: matrix-synapse
+        - name: secrets
+          secret:
+            secretName: matrix-synapse
+        - name: signingkey
+          secret:
+            secretName: "matrix-synapse-signingkey"
+            items:
+              - key: "signing.key"
+                path: signing.key
+        - name: tmpconf
+          emptyDir: {}
+        - name: tmpdir
+          emptyDir: {}
+        - name: media
+          persistentVolumeClaim:
+            claimName: matrix-synapse
+        - name: matrix-synapse-config-secret
+          secret:
+            secretName: matrix-synapse-config-secret
+        - name: matrix-hookshot-config-secret
+          secret:
+            secretName: matrix-hookshot-config-secret
+        - name: double-puppet-registration-secret
+          secret:
+            secretName: double-puppet-registration-secret

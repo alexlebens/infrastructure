@@ -1,0 +1,72 @@
+---
+# Source: harbor/charts/harbor/templates/core/core-pre-upgrade-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migration-job
+  namespace: "harbor"
+  labels:
+    heritage: Helm
+    release: harbor
+    chart: harbor
+    app: "harbor"
+    app.kubernetes.io/instance: harbor
+    app.kubernetes.io/name: harbor
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: harbor
+    app.kubernetes.io/version: "2.14.0"
+    component: migrator
+  annotations:
+    # This is what defines this resource as a hook. Without this line, the
+    # job is considered part of the release.
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-5"
+spec:
+  template:
+    metadata:
+      labels:
+        release: harbor
+        app: "harbor"
+        component: migrator
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsUser: 10000
+        fsGroup: 10000
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: core-job
+          image: goharbor/harbor-core:v2.14.1
+          imagePullPolicy: IfNotPresent
+          command: ["/harbor/harbor_core", "-mode=migrate"]
+          envFrom:
+            - configMapRef:
+                name: "harbor-core"
+            - secretRef:
+                name: "harbor-core"
+          env:
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: harbor-postgresql-17-cluster-app
+                  key: password
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: config
+              mountPath: /etc/core/app.conf
+              subPath: app.conf
+      volumes:
+        - name: config
+          configMap:
+            name: harbor-core
+            items:
+              - key: app.conf
+                path: app.conf

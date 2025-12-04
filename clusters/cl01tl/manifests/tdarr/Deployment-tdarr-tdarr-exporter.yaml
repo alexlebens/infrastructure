@@ -1,0 +1,83 @@
+---
+# Source: tdarr/charts/tdarr-exporter/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tdarr-tdarr-exporter
+  labels:
+    helm.sh/chart: tdarr-exporter-1.1.7
+    app.kubernetes.io/name: tdarr-exporter
+    app.kubernetes.io/instance: tdarr
+    app.kubernetes.io/version: "1.4.3"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tdarr-exporter
+      app.kubernetes.io/instance: tdarr
+  template:
+    metadata:
+      annotations:
+      labels:
+        helm.sh/chart: tdarr-exporter-1.1.7
+        app.kubernetes.io/name: tdarr-exporter
+        app.kubernetes.io/instance: tdarr
+        app.kubernetes.io/version: "1.4.3"
+        app.kubernetes.io/managed-by: Helm
+    spec:
+      serviceAccountName: default
+      securityContext: {}
+      containers:
+        - name: tdarr-exporter
+          securityContext: {}
+          image: "docker.io/homeylab/tdarr-exporter:1.4.2"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: TDARR_URL
+              value: "http://tdarr-web.tdarr:8265"
+            - name: VERIFY_SSL
+              value: "false"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: PROMETHEUS_PORT
+              value: "9090"
+            - name: PROMETHEUS_PATH
+              value: "/metrics"
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 3
+          readinessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+          startupProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi

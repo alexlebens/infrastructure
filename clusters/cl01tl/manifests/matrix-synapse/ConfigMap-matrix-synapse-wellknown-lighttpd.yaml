@@ -1,0 +1,49 @@
+---
+# Source: matrix-synapse/charts/matrix-synapse/templates/well-known-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matrix-synapse-wellknown-lighttpd
+  labels:
+    helm.sh/chart: matrix-synapse-3.12.16
+    app.kubernetes.io/name: matrix-synapse
+    app.kubernetes.io/instance: matrix-synapse
+    app.kubernetes.io/version: "1.143.0"
+    app.kubernetes.io/managed-by: Helm
+    component: well-known
+data:
+  lighttpd.conf: |
+    server.port = 8080
+
+    server.modules = (
+      "mod_rewrite",
+      "mod_status",
+      "mod_accesslog",
+      "mod_extforward",
+      "mod_setenv"
+    )
+    include "conf.d/00-mime-types.conf"
+    server.username      = "lighttpd"
+    server.groupname     = "lighttpd"
+    server.document-root = "/var/www/localhost/htdocs"
+    server.pid-file      = "/run/lighttpd.pid"
+    url.rewrite-once     = (
+      "^/\.well-known/matrix/client" => "/client.json",
+      "^/\.well-known/matrix/server" => "/server.json"
+    )
+    status.status-url    = "/server-status"
+    extforward.forwarder = ( "all" => "trust")
+    setenv.add-response-header = (
+      "access-control-allow-headers" => "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+      "access-control-allow-methods" => "GET, POST, PUT, DELETE, OPTIONS",
+      "access-control-allow-origin" => "*"
+    )
+    setenv.set-response-header = (
+      "content-type" => "application/json"
+    )
+  server.json: |2-
+
+    {"m.server":"matrix.alexlebens.dev:443"}
+  client.json: |2-
+
+    {"m.homeserver":{"base_url":"https://matrix.alexlebens.dev"}}

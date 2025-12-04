@@ -1,0 +1,95 @@
+---
+# Source: ollama/charts/ollama/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-web
+  labels:
+    app.kubernetes.io/controller: web
+    app.kubernetes.io/instance: ollama
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ollama
+    helm.sh/chart: ollama-4.4.0
+  namespace: ollama
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: web
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/instance: ollama
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: web
+        app.kubernetes.io/instance: ollama
+        app.kubernetes.io/name: ollama
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: ENV
+              value: prod
+            - name: WEBUI_AUTH
+              value: "true"
+            - name: WEBUI_NAME
+              value: Ollama
+            - name: WEBUI_URL
+              value: http://ollama.alexlebens.net
+            - name: ENABLE_LOGIN_FORM
+              value: "false"
+            - name: DEFAULT_USER_ROLE
+              value: admin
+            - name: WEBUI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: key
+                  name: ollama-key-secret
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: ollama-web-postgresql-17-cluster-app
+            - name: OLLAMA_BASE_URL
+              value: http://ollama-server-1.ollama:11434
+            - name: ENABLE_OAUTH_SIGNUP
+              value: "true"
+            - name: OAUTH_USERNAME_CLAIM
+              value: preferred_username
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: secret
+                  name: ollama-oidc-secret
+            - name: OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: client
+                  name: ollama-oidc-secret
+            - name: OAUTH_PROVIDER_NAME
+              value: Authentik
+            - name: OPENID_PROVIDER_URL
+              value: https://authentik.alexlebens.net/application/o/ollama/.well-known/openid-configuration
+          image: ghcr.io/open-webui/open-webui:0.6.41
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /app/backend/data
+              name: web-data
+      volumes:
+        - name: web-data
+          persistentVolumeClaim:
+            claimName: ollama-web-data

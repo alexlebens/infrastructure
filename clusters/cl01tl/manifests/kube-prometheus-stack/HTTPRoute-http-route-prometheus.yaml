@@ -1,0 +1,30 @@
+---
+# Source: kube-prometheus-stack/templates/http-route.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-route-prometheus
+  namespace: kube-prometheus-stack
+  labels:
+    app.kubernetes.io/name: http-route-prometheus
+    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/part-of: kube-prometheus-stack
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - prometheus.alexlebens.net
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: prometheus-operated
+          port: 9090
+          weight: 100
