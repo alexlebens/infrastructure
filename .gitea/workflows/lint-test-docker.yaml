@@ -1,0 +1,127 @@
+name: lint-test-docker
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'hosts/**'
+
+  push:
+    branches:
+      - main
+    paths:
+      - 'hosts/**'
+
+env:
+  BASE_BRANCH: "origin/${{ gitea.base_ref }}"
+
+jobs:
+  lint-docker-compose:
+    runs-on: ubuntu-js
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check Branch Exists
+        id: check-branch-exists
+        if: github.event_name == 'pull_request'
+        uses: GuillaumeFalourd/branch-exists@v1.1
+        with:
+          branch: "${{ github.base_ref }}"
+
+      - name: Report Branch Exists
+        id: branch-exists
+        if: github.event_name == 'push' || steps.check-branch-exists.outputs.exists == 'true' && github.event_name == 'pull_request'
+        run: |
+          echo ">> Branch ${{ gitea.base_ref }} exists, will continue with linting"
+
+          echo "----"
+
+          echo "exists=true" >> $GITEA_OUTPUT
+
+      - name: Set up Node.js
+        if: steps.check-branch-exists.outputs.exists == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Check Directories for Changes
+        id: check-dir-changes
+        if: steps.branch-exists.outputs.exists == 'true'
+        run: |
+          CHANGED_COMPOSE=()
+          GIT_DIFF=()
+
+          echo ">> Target branch for diff is: ${BASE_BRANCH}"
+          echo ""
+
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo ""
+            echo ">> Checking for changes in a pull request ..."
+            GIT_DIFF=$(git diff --name-only "${BASE_BRANCH}" | xargs -I {} dirname {} | sort -u | grep "hosts/*/**")
+          else
+            echo ""
+            echo ">> Checking for changes from a push ..."
+            GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep "hosts/*/**")
+          fi
+
+          if [ -n "${GIT_DIFF}" ]; then
+            echo ""
+            echo ">> Changes detected:"
+            echo "$GIT_DIFF"
+
+            for path in $GIT_DIFF; do
+              CHANGED_COMPOSE+=$(echo "$path")
+            done
+
+          else
+            echo ""
+            echo ">> No changes detected"
+
+          fi
+
+          if [ -n "${CHANGED_COMPOSE}" ]; then
+            echo ""
+            echo ">> Compose to Lint:"
+            echo "$(echo "${CHANGED_COMPOSE[@]}" | sort -u)"
+
+            echo "----"
+
+            echo "changes-detected=true" >> $GITEA_OUTPUT
+            echo "compose-dir<<EOF" >> $GITEA_OUTPUT
+            echo "$(echo "${CHANGED_COMPOSE[@]}" | sort -u)" >> $GITEA_OUTPUT
+            echo "EOF" >> $GITEA_OUTPUT
+          else
+            echo "changes-detected=false" >> $GITEA_OUTPUT
+          fi
+
+      - name: Lint Docker Compose
+        if: steps.check-branch-exists.outputs.exists == 'true'
+        env:
+          CHANGED_COMPOSE: ${{ steps.check-dir-changes.outputs.compose-dir }}
+        run: |
+          echo ">> Running dclint on changed compose files:"
+          echo "$CHANGED_COMPOSE"
+
+          echo "$CHANGED_COMPOSE" | while read -r compose; do
+            echo ">> Linting $compose ..."
+            npx dclint $compose
+          done
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@master
+        if: failure()
+        with:
+          url: '${{ secrets.NTFY_URL }}'
+          topic: '${{ secrets.NTFY_TOPIC }}'
+          title: 'Test Failure - Infrastructure'
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: 'Docker linting on Pull Request for Infrastructure has failed!'
+          icon: 'https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png'
+          actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/infrastructure/actions?workflow=lint-test-docker-pull.yaml", "clear": true}]'
+          image: true
