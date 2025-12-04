@@ -1,0 +1,39 @@
+---
+# Source: stack/templates/application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: coredns
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: coredns
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/part-of: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: http://gitea-http.gitea:3000/alexlebens/infrastructure
+    targetRevision: manifests
+    path: clusters/cl01tl/manifests/coredns
+  destination:
+    name: in-cluster
+    namespace: kube-system
+  revisionHistoryLimit: 3
+  syncPolicy:
+    automated:
+      enabled: false
+      prune: false
+      selfHeal: false
+    retry:
+      limit: 3
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 15m
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PruneLast=true
