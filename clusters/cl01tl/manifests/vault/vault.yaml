@@ -252,6 +252,54 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: vault-unseal-unseal-3
+  labels:
+    app.kubernetes.io/controller: unseal-3
+    app.kubernetes.io/instance: vault
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: vault
+    helm.sh/chart: unseal-4.4.0
+  namespace: vault
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: unseal-3
+      app.kubernetes.io/name: vault
+      app.kubernetes.io/instance: vault
+  template:
+    metadata:
+      labels: 
+        app.kubernetes.io/controller: unseal-3
+        app.kubernetes.io/instance: vault
+        app.kubernetes.io/name: vault
+    spec: 
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers: 
+        - envFrom:
+          - secretRef:
+              name: vault-unseal-config-3
+          image: ghcr.io/lrstanley/vault-unseal:0.7.2
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 24Mi
+---
+# Source: vault/charts/unseal/templates/common.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: vault-unseal-unseal-1
   labels:
     app.kubernetes.io/controller: unseal-1
@@ -336,54 +384,6 @@ spec:
         - envFrom:
           - secretRef:
               name: vault-unseal-config-2
-          image: ghcr.io/lrstanley/vault-unseal:0.7.2
-          imagePullPolicy: IfNotPresent
-          name: main
-          resources:
-            requests:
-              cpu: 10m
-              memory: 24Mi
----
-# Source: vault/charts/unseal/templates/common.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: vault-unseal-unseal-3
-  labels:
-    app.kubernetes.io/controller: unseal-3
-    app.kubernetes.io/instance: vault
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: vault
-    helm.sh/chart: unseal-4.4.0
-  namespace: vault
-spec:
-  revisionHistoryLimit: 3
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/controller: unseal-3
-      app.kubernetes.io/name: vault
-      app.kubernetes.io/instance: vault
-  template:
-    metadata:
-      labels: 
-        app.kubernetes.io/controller: unseal-3
-        app.kubernetes.io/instance: vault
-        app.kubernetes.io/name: vault
-    spec: 
-      enableServiceLinks: false
-      serviceAccountName: default
-      automountServiceAccountToken: true
-      hostIPC: false
-      hostNetwork: false
-      hostPID: false
-      dnsPolicy: ClusterFirst
-      containers: 
-        - envFrom:
-          - secretRef:
-              name: vault-unseal-config-3
           image: ghcr.io/lrstanley/vault-unseal:0.7.2
           imagePullPolicy: IfNotPresent
           name: main
