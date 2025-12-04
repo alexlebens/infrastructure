@@ -53,18 +53,17 @@ jobs:
         if: steps.branch-exists.outputs.exists == 'true'
         run: |
           CHANGED_COMPOSE=()
-          GIT_DIFF=()
 
           echo ">> Target branch for diff is: ${BASE_BRANCH}"
 
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             echo ""
             echo ">> Checking for changes in a pull request ..."
-            GIT_DIFF=$(git diff --name-only "${BASE_BRANCH}" | xargs -I {} dirname {} | sort -u | grep "hosts/*/**")
+            GIT_DIFF=$(git diff --name-only "${BASE_BRANCH}" | xargs -I {} dirname {} | sort -u | grep -E "hosts/[^/]+/[^/]+")
           else
             echo ""
             echo ">> Checking for changes from a push ..."
-            GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep "hosts/*/**")
+            GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep -E "hosts/[^/]+/[^/]+")
           fi
 
           if [ -n "${GIT_DIFF}" ]; then
