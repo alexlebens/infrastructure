@@ -294,10 +294,15 @@ jobs:
 
           if [ "$HTTP_STATUS" == "201" ]; then
             echo ">> Pull Request created successfully!"
+
             PR_URL=$(cat response_body.json | jq -r .html_url)
+            echo ">> Pull Request URL: $PR_URL"
             echo "pull-request-url=${PR_URL}" >> $GITEA_OUTPUT
-            PR_ID=$(cat response_body.json | jq -r .id)
-            echo "pull-request-id=${PR_ID}" >> $GITEA_OUTPUT
+
+            PR_NUMBER=$(cat response_body.json | jq -r .number)
+            echo ">> Pull Request Number: $PR_NUMBER"
+            echo "pull-request-number=${PR_NUMBER}" >> $GITEA_OUTPUT
+
             echo "pull-request-operation=created" >> $GITEA_OUTPUT
 
           elif [ "$HTTP_STATUS" == "422" ]; then
@@ -320,17 +325,17 @@ jobs:
           GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
           GITEA_URL: ${{ secrets.REPO_URL }}
           BRANCH_NAME: ${{ steps.prepare-manifest-branch.outputs.BRANCH_NAME }}
-          PR_ID: ${{ steps.create-pull-request.outputs.pull-request-id }}
+          PR_NUMBER: ${{ steps.create-pull-request.outputs.pull-request-number }}
         run: |
           cd ${MANIFEST_DIR}
 
-          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls/${PR_ID}/merge"
+          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls/${PR_NUMBER}/merge"
 
           PAYLOAD=$( jq -n \
             --arg Do "merge" \
             '{Do: $Do}' )
 
-          echo ">> Merging PR with ID: ${PR_ID}"
+          echo ">> Merging PR with ID: ${PR_NUMBER}"
           echo ">> With Endpoint of:"
           echo "$API_ENDPOINT"
           echo ">> With Payload of:"
