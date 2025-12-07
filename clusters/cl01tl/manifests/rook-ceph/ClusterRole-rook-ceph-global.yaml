@@ -1,8 +1,4 @@
 ---
-# Source: rook-ceph/charts/rook-ceph/templates/clusterrole.yaml
-# The cluster role for managing the Rook CRDs
-# Rook watches for its CRDs in all namespaces, so this should be a cluster-scoped role unless the
-# operator config `ROOK_CURRENT_NAMESPACE_ONLY=true`.
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -21,15 +17,10 @@ rules:
   - apiGroups:
       - ""
     resources:
-      # Pod access is needed for fencing
       - pods
-      # Node access is needed for determining nodes where mons should run
       - nodes
       - nodes/proxy
-      # Rook watches secrets which it uses to configure access to external resources.
-      # e.g., external Ceph cluster or object store
       - secrets
-      # Rook watches for changes to the rook-operator-config configmap
       - configmaps
     verbs:
       - get
@@ -39,12 +30,9 @@ rules:
       - ""
       - "discovery.k8s.io"
     resources:
-      # Rook creates events for its custom resources
       - events
-      # Rook creates PVs and PVCs for OSDs managed by the Rook provisioner
       - persistentvolumes
       - persistentvolumeclaims
-      # Rook creates endpoints for mgr and object store access
       - endpoints
       - services
       - endpointslices
@@ -78,7 +66,6 @@ rules:
       - update
       - delete
       - deletecollection
-  # The Rook operator must be able to watch all ceph.rook.io resources to reconcile them.
   - apiGroups: ["ceph.rook.io"]
     resources:
       - cephclients
@@ -102,9 +89,7 @@ rules:
       - get
       - list
       - watch
-      # Ideally the update permission is not required, but Rook needs it to add finalizers to resources.
       - update
-  # Rook must have update access to status subresources for its custom resources.
   - apiGroups: ["ceph.rook.io"]
     resources:
       - cephclients/status
@@ -124,10 +109,6 @@ rules:
       - cephfilesystemsubvolumegroups/status
       - cephblockpoolradosnamespaces/status
     verbs: ["update"]
-  # The "*/finalizers" permission may need to be strictly given for K8s clusters where
-  # OwnerReferencesPermissionEnforcement is enabled so that Rook can set blockOwnerDeletion on
-  # resources owned by Rook CRs (e.g., a Secret owned by an OSD Deployment). See more:
-  # https://kubernetes.io/docs/reference/access-authn-authz/_print/#ownerreferencespermissionenforcement
   - apiGroups: ["ceph.rook.io"]
     resources:
       - cephclients/finalizers
@@ -152,9 +133,7 @@ rules:
       - apps
       - extensions
     resources:
-      # This is for the clusterdisruption controller
       - poddisruptionbudgets
-      # This is for both clusterdisruption and nodedrain controllers
       - deployments
       - replicasets
     verbs:
@@ -168,8 +147,6 @@ rules:
   - apiGroups:
       - apps
     resources:
-      # This is to add osd deployment owner ref on key rotation
-      # cron jobs.
       - deployments/finalizers
     verbs:
       - update
