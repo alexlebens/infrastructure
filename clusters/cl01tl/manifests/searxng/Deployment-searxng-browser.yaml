@@ -1,5 +1,4 @@
 ---
-# Source: searxng/charts/searxng/templates/common.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,6 +35,44 @@ spec:
       hostPID: false
       dnsPolicy: ClusterFirst
       containers:
+        - env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private-key
+                  name: searxng-wireguard-conf
+            - name: VPN_PORT_FORWARDING
+              value: "on"
+            - name: VPN_PORT_FORWARDING_UP_COMMAND
+              value: /bin/sh -c "/gluetun/update.sh {{PORTS}}"
+            - name: PORT_FORWARD_ONLY
+              value: "on"
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 192.168.1.0/24,10.244.0.0/16
+            - name: FIREWALL_INPUT_PORTS
+              value: "8080"
+            - name: DOT
+              value: "off"
+          image: ghcr.io/qdm12/gluetun:v3.40.3@sha256:ef4a44819a60469682c7b5e69183e6401171891feaa60186652d292c59e41b30
+          imagePullPolicy: IfNotPresent
+          name: gluetun
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              cpu: 10m
+              devic.es/tun: "1"
+              memory: 64Mi
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+            privileged: true
         - env:
             - name: SEARXNG_BASE_URL
               value: https://searxng.alexlebens.net/
