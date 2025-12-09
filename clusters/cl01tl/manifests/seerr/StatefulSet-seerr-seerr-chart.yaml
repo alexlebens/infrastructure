@@ -1,0 +1,68 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: seerr-seerr-chart
+  labels:
+    helm.sh/chart: seerr-chart-3.0.0
+    app.kubernetes.io/name: seerr-chart
+    app.kubernetes.io/instance: seerr
+    app.kubernetes.io/version: "3.0.0"
+    app.kubernetes.io/part-of: seerr-chart
+    app.kubernetes.io/managed-by: Helm
+spec:
+  serviceName: seerr-seerr-chart
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seerr-chart
+      app.kubernetes.io/instance: seerr
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: seerr-chart-3.0.0
+        app.kubernetes.io/name: seerr-chart
+        app.kubernetes.io/instance: seerr
+        app.kubernetes.io/version: "3.0.0"
+        app.kubernetes.io/part-of: seerr-chart
+        app.kubernetes.io/managed-by: Helm
+    spec:
+      serviceAccountName: seerr-seerr-chart
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: seerr-chart
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          image: "ghcr.io/seerr-team/seerr:3.0.0"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5055
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources: {}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: seerr-seerr-chart-config
