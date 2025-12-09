@@ -72,8 +72,8 @@ spec:
               value: https://searxng.alexlebens.net/search?q=<query>
             - name: SEARXNG_HOSTNAME
               value: searxng.alexlebens.net
-            - name: SEARXNG_REDIS_URL
-              value: redis://redis-replication-searxng-master:6379/0
+            - name: SEARXNG_VALKEY_URL
+              value: valkey://127.0.0.1:6379/0
             - name: GRANIAN_HOST
               value: 0.0.0.0
             - name: GRANIAN_PORT
@@ -88,7 +88,20 @@ spec:
           volumeMounts:
             - mountPath: /etc/searxng
               name: browser-data
+        - image: valkey/valkey:9.0.0-alpine3.22
+          imagePullPolicy: IfNotPresent
+          name: valkey
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /data
+              name: valkey-data
       volumes:
         - name: browser-data
           persistentVolumeClaim:
             claimName: searxng-browser-data
+        - name: valkey-data
+          persistentVolumeClaim:
+            claimName: searxng-valkey-data
