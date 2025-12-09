@@ -48,8 +48,8 @@ searxng:
               value: https://searxng.alexlebens.net/search?q=<query>
             - name: SEARXNG_HOSTNAME
               value: searxng.alexlebens.net
-            - name: SEARXNG_REDIS_URL
-              value: redis://redis-replication-searxng-master:6379/0
+            - name: SEARXNG_VALKEY_URL
+              value: valkey://127.0.0.1:6379/0
             - name: GRANIAN_HOST
               value: 0.0.0.0
             - name: GRANIAN_PORT
@@ -58,6 +58,15 @@ searxng:
             requests:
               cpu: 10m
               memory: 256Mi
+        valkey:
+          image:
+            repository: valkey/valkey
+            tag: 9.0.0-alpine3.22
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
         gluetun:
           image:
             repository: ghcr.io/qdm12/gluetun
@@ -138,4 +147,13 @@ searxng:
         browser:
           main:
             - path: /etc/searxng
+              readOnly: false
+    valkey-data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        browser:
+          valkey:
+            - path: /data
               readOnly: false
