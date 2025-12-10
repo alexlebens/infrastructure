@@ -1,6 +1,4 @@
 ---
-# Source: vault/charts/vault/templates/server-statefulset.yaml
-# StatefulSet to run the actual vault server cluster.
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -126,11 +124,6 @@ spec:
             - containerPort: 8202
               name: http-rep
           readinessProbe:
-            # Check status; unsealed vault servers return 0
-            # The exit code reflects the seal status:
-            #   0 - unsealed
-            #   1 - error
-            #   2 - sealed
             exec:
               command: ["/bin/sh", "-ec", "vault status -tls-skip-verify"]
             failureThreshold: 2
@@ -139,18 +132,11 @@ spec:
             successThreshold: 1
             timeoutSeconds: 3
           lifecycle:
-            # Vault container doesn't receive SIGTERM from Kubernetes
-            # and after the grace period ends, Kube sends SIGKILL.  This
-            # causes issues with graceful shutdowns such as deregistering itself
-            # from Consul (zombie services).
             preStop:
               exec:
                 command:
                   - "/bin/sh"
                   - "-c"
-                  # Adding a sleep here to give the pod eviction a
-                  # chance to propagate, so requests will not be made
-                  # to this pod while it's terminating
                   - "sleep 5 && kill -SIGTERM $(pidof vault)"
   volumeClaimTemplates:
     - metadata:

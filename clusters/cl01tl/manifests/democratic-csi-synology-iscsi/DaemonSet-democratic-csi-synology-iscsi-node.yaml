@@ -1,5 +1,4 @@
 ---
-# Source: democratic-csi-synology-iscsi/charts/democratic-csi/templates/node.yaml
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
@@ -33,11 +32,9 @@ spec:
     spec:
       serviceAccount: democratic-csi-synology-iscsi-node-sa
       priorityClassName: "system-node-critical"
-      # Required by iSCSI
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       hostAliases: []
-      # Required by multipath detach
       hostIPC: true
       hostPID: true
       containers:
@@ -68,7 +65,6 @@ spec:
               value: nsenter
             - name: ISCSIADM_HOST_PATH
               value: /usr/local/sbin/iscsiadm
-          # prevent crazy error messages due to the /dev host mount
           terminationMessagePath: /tmp/termination-log
           terminationMessagePolicy: File
           livenessProbe:
@@ -155,7 +151,6 @@ spec:
             - "--"
           args: ["while true; do sleep 2; done;"]
           lifecycle:
-            # note this runs *before* other containers are terminated
             preStop:
               exec:
                 command: ["/bin/sh", "-c", "rm -rf /plugins/org.democratic-csi.iscsi-synology /registration/org.democratic-csi.iscsi-synology-reg.sock"]

@@ -1,5 +1,4 @@
 ---
-# Source: cilium/charts/cilium/templates/cilium-agent/daemonset.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -20,7 +19,6 @@ spec:
   template:
     metadata:
       annotations:
-        # ensure pods roll when configmap updates
         cilium.io/cilium-configmap-checksum: "31ad7748e0aefe75b6436d96c8c85754e0b44e68e6012fa188bc5bcd66085828"
         kubectl.kubernetes.io/default-container: cilium-agent
       labels:
@@ -173,22 +171,13 @@ spec:
             - name: envoy-sockets
               mountPath: /var/run/cilium/envoy/sockets
               readOnly: false
-            # Unprivileged containers need to mount /proc/sys/net from the host
-            # to have write access
             - mountPath: /host/proc/sys/net
               name: host-proc-sys-net
-            # Unprivileged containers need to mount /proc/sys/kernel from the host
-            # to have write access
             - mountPath: /host/proc/sys/kernel
               name: host-proc-sys-kernel
             - name: bpf-maps
               mountPath: /sys/fs/bpf
-              # Unprivileged containers can't set mount propagation to bidirectional
-              # in this case we will mount the bpf fs from an init container that
-              # is privileged and set the mount propagation from host to container
-              # in Cilium.
               mountPropagation: HostToContainer
-            # Check for duplicate mounts before mounting
             - name: cilium-cgroup
               mountPath: /sys/fs/cgroup
             - name: cilium-run
@@ -201,7 +190,6 @@ spec:
             - name: clustermesh-secrets
               mountPath: /var/lib/cilium/clustermesh
               readOnly: true
-              # Needed to be able to load kernel modules
             - name: lib-modules
               mountPath: /lib/modules
               readOnly: true
@@ -247,11 +235,6 @@ spec:
           command:
             - sh
             - -ec
-            # The statically linked Go program binary is invoked to avoid any
-            # dependency on utilities like sh that can be missing on certain
-            # distros installed on the underlying host. Copy the binary to the
-            # same directory where we install cilium cni plugin so that exec permissions
-            # are available.
             - |
               cp /usr/bin/cilium-sysctlfix /hostbin/cilium-sysctlfix;
               nsenter --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-sysctlfix";
@@ -273,9 +256,6 @@ spec:
                 - SYS_PTRACE
               drop:
                 - ALL
-        # Mount the bpf fs if it is not mounted. We will perform this task
-        # from a privileged container because the mount propagation bidirectional
-        # only works from privileged containers.
         - name: mount-bpf-fs
           image: "quay.io/cilium/cilium:v1.18.4@sha256:49d87af187eeeb9e9e3ec2bc6bd372261a0b5cb2d845659463ba7cc10fe9e45f"
           imagePullPolicy: IfNotPresent
@@ -335,13 +315,11 @@ spec:
           volumeMounts:
             - name: bpf-maps
               mountPath: /sys/fs/bpf
-              # Required to mount cgroup filesystem from the host to cilium agent pod
             - name: cilium-cgroup
               mountPath: /sys/fs/cgroup
               mountPropagation: HostToContainer
             - name: cilium-run
-              mountPath: /var/run/cilium # wait-for-kube-proxy
-        # Install the CNI binaries in an InitContainer so we don't have a writable host mount in the agent
+              mountPath: /var/run/cilium
         - name: install-cni-binaries
           image: "quay.io/cilium/cilium:v1.18.4@sha256:49d87af187eeeb9e9e3ec2bc6bd372261a0b5cb2d845659463ba7cc10fe9e45f"
           imagePullPolicy: IfNotPresent
@@ -361,7 +339,7 @@ spec:
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - name: cni-path
-              mountPath: /host/opt/cni/bin # .Values.cni.install
+              mountPath: /host/opt/cni/bin
       restartPolicy: Always
       priorityClassName: system-node-critical
       serviceAccountName: "cilium"
@@ -380,71 +358,54 @@ spec:
       tolerations:
         - operator: Exists
       volumes:
-        # For sharing configuration between the "config" initContainer and the agent
         - name: tmp
           emptyDir: {}
-          # To keep state between restarts / upgrades
         - name: cilium-run
           hostPath:
             path: /var/run/cilium
             type: DirectoryOrCreate
-            # To exec into pod network namespaces
         - name: cilium-netns
           hostPath:
             path: /var/run/netns
             type: DirectoryOrCreate
-            # To keep state between restarts / upgrades for bpf maps
         - name: bpf-maps
           hostPath:
             path: /sys/fs/bpf
             type: DirectoryOrCreate
-        # To mount cgroup2 filesystem on the host or apply sysctlfix
         - name: hostproc
           hostPath:
             path: /proc
             type: Directory
-        # To keep state between restarts / upgrades for cgroup2 filesystem
         - name: cilium-cgroup
           hostPath:
             path: /sys/fs/cgroup
             type: DirectoryOrCreate
-        # To install cilium cni plugin in the host
         - name: cni-path
           hostPath:
             path: /opt/cni/bin
             type: DirectoryOrCreate
-            # To install cilium cni configuration in the host
         - name: etc-cni-netd
           hostPath:
             path: /etc/cni/net.d
             type: DirectoryOrCreate
-            # To be able to load kernel modules
         - name: lib-modules
           hostPath:
             path: /lib/modules
-            # To access iptables concurrently with other processes (e.g. kube-proxy)
         - name: xtables-lock
           hostPath:
             path: /run/xtables.lock
             type: FileOrCreate
-        # Sharing socket with Cilium Envoy on the same node by using a host path
         - name: envoy-sockets
           hostPath:
             path: "/var/run/cilium/envoy/sockets"
             type: DirectoryOrCreate
-            # To read the clustermesh configuration
         - name: clustermesh-secrets
           projected:
-            # note: the leading zero means this number is in octal representation: do not remove it
             defaultMode: 0400
             sources:
               - secret:
                   name: cilium-clustermesh
                   optional: true
-                  # note: items are not explicitly listed here, since the entries of this secret
-                  # depend on the peers configured, and that would cause a restart of all agents
-                  # at every addition/removal. Leaving the field empty makes each secret entry
-                  # to be automatically projected into the volume as a file whose name is the key.
               - secret:
                   name: clustermesh-apiserver-remote-cert
                   optional: true
@@ -455,10 +416,6 @@ spec:
                       path: common-etcd-client.crt
                     - key: ca.crt
                       path: common-etcd-client-ca.crt
-              # note: we configure the volume for the kvstoremesh-specific certificate
-              # regardless of whether KVStoreMesh is enabled or not, so that it can be
-              # automatically mounted in case KVStoreMesh gets subsequently enabled,
-              # without requiring an agent restart.
               - secret:
                   name: clustermesh-apiserver-local-cert
                   optional: true
@@ -479,7 +436,6 @@ spec:
             type: Directory
         - name: hubble-tls
           projected:
-            # note: the leading zero means this number is in octal representation: do not remove it
             defaultMode: 0400
             sources:
               - secret:

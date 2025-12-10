@@ -1,5 +1,4 @@
 ---
-# Source: cilium/charts/cilium/templates/cilium-operator/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -11,17 +10,11 @@ metadata:
     app.kubernetes.io/part-of: cilium
     app.kubernetes.io/name: cilium-operator
 spec:
-  # See docs on ServerCapabilities.LeasesResourceLock in file pkg/k8s/version/version.go
-  # for more details.
   replicas: 2
   selector:
     matchLabels:
       io.cilium/app: operator
       name: cilium-operator
-  # ensure operator update on single node k8s clusters, by using rolling update with maxUnavailable=100% in case
-  # of one replica and no user configured Recreate strategy.
-  # otherwise an update might get stuck due to the default maxUnavailable=50% in combination with the
-  # podAntiAffinity which prevents deployments of multiple operator replicas on the same node.
   strategy:
     rollingUpdate:
       maxSurge: 25%
@@ -30,7 +23,6 @@ spec:
   template:
     metadata:
       annotations:
-        # ensure pods roll when configmap updates
         cilium.io/cilium-configmap-checksum: "31ad7748e0aefe75b6436d96c8c85754e0b44e68e6012fa188bc5bcd66085828"
       labels:
         io.cilium/app: operator
@@ -110,8 +102,6 @@ spec:
       priorityClassName: system-cluster-critical
       serviceAccountName: "cilium-operator"
       automountServiceAccountToken: true
-      # In HA mode, cilium-operator pods must not be scheduled on the same
-      # node as they will clash with each other.
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -133,7 +123,6 @@ spec:
         - key: node.cilium.io/agent-not-ready
           operator: Exists
       volumes:
-        # To read the configuration from the config map
         - name: cilium-config-path
           configMap:
             name: cilium-config

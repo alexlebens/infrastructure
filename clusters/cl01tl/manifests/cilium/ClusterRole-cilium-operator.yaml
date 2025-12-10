@@ -1,5 +1,4 @@
 ---
-# Source: cilium/charts/cilium/templates/cilium-operator/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -15,8 +14,6 @@ rules:
       - get
       - list
       - watch
-      # to automatically delete [core|kube]dns pods so that are starting to being
-      # managed by Cilium
       - delete
   - apiGroups:
       - ""
@@ -25,7 +22,6 @@ rules:
     resourceNames:
       - cilium-config
     verbs:
-      # allow patching of the configmap to set annotations
       - patch
   - apiGroups:
       - ""
@@ -37,9 +33,7 @@ rules:
   - apiGroups:
       - ""
     resources:
-      # To remove node taints
       - nodes
-      # To set NetworkUnavailable false on startup
       - nodes/status
     verbs:
       - patch
@@ -54,7 +48,6 @@ rules:
   - apiGroups:
       - ""
     resources:
-      # to perform LB IP allocation for BGP
       - services/status
     verbs:
       - update
@@ -62,7 +55,6 @@ rules:
   - apiGroups:
       - ""
     resources:
-      # to check apiserver connectivity
       - namespaces
       - secrets
     verbs:
@@ -72,7 +64,6 @@ rules:
   - apiGroups:
       - ""
     resources:
-      # to perform the translation of a CNP that contains `ToGroup` to its endpoints
       - services
       - endpoints
     verbs:
@@ -89,11 +80,9 @@ rules:
       - ciliumnetworkpolicies
       - ciliumclusterwidenetworkpolicies
     verbs:
-      # Create auto-generated CNPs and CCNPs from Policies that have 'toGroups'
       - create
       - update
       - deletecollection
-      # To update the status of the CNPs and CCNPs
       - patch
       - get
       - list
@@ -104,7 +93,6 @@ rules:
       - ciliumnetworkpolicies/status
       - ciliumclusterwidenetworkpolicies/status
     verbs:
-      # Update the auto-generated CNPs and CCNPs status.
       - patch
       - update
   - apiGroups:
@@ -113,7 +101,6 @@ rules:
       - ciliumendpoints
       - ciliumidentities
     verbs:
-      # To perform garbage collection of such resources
       - delete
       - list
       - watch
@@ -122,7 +109,6 @@ rules:
     resources:
       - ciliumidentities
     verbs:
-      # To synchronize garbage collection of such resources
       - update
   - apiGroups:
       - cilium.io
@@ -134,7 +120,6 @@ rules:
       - get
       - list
       - watch
-      # To perform CiliumNode garbage collector
       - delete
   - apiGroups:
       - cilium.io
@@ -228,12 +213,6 @@ rules:
       - ciliumloadbalancerippools/status
     verbs:
       - patch
-  # For cilium-operator running in HA mode.
-  #
-  # Cilium operator running in HA mode requires the use of ResourceLock for Leader Election
-  # between multiple running instances.
-  # The preferred way of doing this is to use LeasesResourceLock as edits to Leases are less
-  # common and fewer objects in the cluster watch "all Leases".
   - apiGroups:
       - coordination.k8s.io
     resources:
