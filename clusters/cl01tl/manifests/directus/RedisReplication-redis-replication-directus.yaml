@@ -1,0 +1,35 @@
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis-replication-directus
+  namespace: directus
+  labels:
+    app.kubernetes.io/name: redis-replication-directus
+    app.kubernetes.io/instance: directus
+    app.kubernetes.io/part-of: directus
+spec:
+  clusterSize: 3
+  podSecurityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v8.2.1
+    imagePullPolicy: IfNotPresent
+    redisSecret:
+      name: directus-redis-config
+      key: password
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: ceph-block
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter:v1.76.0

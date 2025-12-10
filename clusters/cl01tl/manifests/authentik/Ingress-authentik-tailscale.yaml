@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: authentik-tailscale
+  namespace: authentik
+  labels:
+    app.kubernetes.io/name: authentik-tailscale
+    app.kubernetes.io/instance: authentik
+    app.kubernetes.io/part-of: authentik
+    tailscale.com/proxy-class: no-metrics
+  annotations:
+    tailscale.com/experimental-forward-cluster-traffic-via-ingress: "true"
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - auth-cl01tl
+      secretName: auth-cl01tl
+  rules:
+    - host: auth-cl01tl
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik-server
+                port:
+                  number: 80

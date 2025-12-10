@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubelet-serving-cert-approver
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: kubelet-serving-cert-approver
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: kubelet-serving-cert-approver
+    helm.sh/chart: kubelet-serving-cert-approver-4.5.0
+  namespace: kubelet-serving-cert-approver
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: kubelet-serving-cert-approver
+      app.kubernetes.io/instance: kubelet-serving-cert-approver
+  template:
+    metadata:
+      annotations:
+        checksum/secrets: 591a33eca0bc5c4a8475d0538f3f4840841582c86a3ac2c97147b2b00e5774c5
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: kubelet-serving-cert-approver
+        app.kubernetes.io/name: kubelet-serving-cert-approver
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: kubelet-serving-cert-approver
+      automountServiceAccountToken: true
+      priorityClassName: system-cluster-critical
+      securityContext:
+        fsGroup: 65534
+        runAsGroup: 65534
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/master
+                    operator: DoesNotExist
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+              weight: 100
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+      containers:
+        - args:
+            - serve
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          image: ghcr.io/alex1989hu/kubelet-serving-cert-approver:0.10.1
+          imagePullPolicy: Always
+          name: main
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true

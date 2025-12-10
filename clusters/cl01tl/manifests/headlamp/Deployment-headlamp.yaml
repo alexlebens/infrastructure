@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headlamp
+  namespace: headlamp
+  labels:
+    helm.sh/chart: headlamp-0.38.0
+    app.kubernetes.io/name: headlamp
+    app.kubernetes.io/instance: headlamp
+    app.kubernetes.io/version: "0.38.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: headlamp
+      app.kubernetes.io/instance: headlamp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: headlamp
+        app.kubernetes.io/instance: headlamp
+    spec:
+      serviceAccountName: headlamp
+      automountServiceAccountToken: true
+      securityContext: {}
+      containers:
+        - name: headlamp
+          securityContext:
+            privileged: false
+            runAsGroup: 101
+            runAsNonRoot: true
+            runAsUser: 100
+          image: "ghcr.io/headlamp-k8s/headlamp:v0.38.0"
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: headlamp-oidc-secret
+          args:
+            - "-in-cluster"
+            - "-watch-plugins-changes"
+            - "-plugins-dir=/headlamp/plugins"
+            - "-oidc-client-id=$(OIDC_CLIENT_ID)"
+            - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
+            - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
+            - "-oidc-scopes=$(OIDC_SCOPES)"
+          ports:
+            - name: http
+              containerPort: 4466
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: "/"
+              port: http
+          readinessProbe:
+            httpGet:
+              path: "/"
+              port: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - name: plugins-dir
+              mountPath: /headlamp/plugins
+        - name: headlamp-plugin
+          image: node:lts-alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              if [ -f "/config/plugin.yml" ]; then
+                echo "Installing plugins from config..."
+                cat /config/plugin.yml
+                # Use a writable cache directory
+                export NPM_CONFIG_CACHE=/tmp/npm-cache
+                # Use a writable config directory
+                export NPM_CONFIG_USERCONFIG=/tmp/npm-userconfig
+                mkdir -p /tmp/npm-cache /tmp/npm-userconfig
+                npx --yes @headlamp-k8s/pluginctl@latest install --config /config/plugin.yml --folderName /headlamp/plugins --watch
+              fi
+          volumeMounts:
+            - name: plugins-dir
+              mountPath: /headlamp/plugins
+            - name: plugin-config
+              mountPath: /config
+          resources: null
+          securityContext:
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false
+            runAsUser: 0
+      volumes:
+        - name: plugins-dir
+          emptyDir: {}
+        - name: plugin-config
+          configMap:
+            name: headlamp-plugin-config

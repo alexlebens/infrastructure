@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: tdarr-node
+  labels:
+    app.kubernetes.io/controller: node
+    app.kubernetes.io/instance: tdarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: tdarr
+    helm.sh/chart: tdarr-4.5.0
+  namespace: tdarr
+spec:
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: node
+      app.kubernetes.io/name: tdarr
+      app.kubernetes.io/instance: tdarr
+  template:
+    metadata:
+      annotations:
+      labels:
+        app.kubernetes.io/controller: node
+        app.kubernetes.io/instance: tdarr
+        app.kubernetes.io/name: tdarr
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        intel.feature.node.kubernetes.io/gpu: "true"
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: "1001"
+            - name: PGID
+              value: "1001"
+            - name: UMASK_SET
+              value: "002"
+            - name: ffmpegVersion
+              value: "6"
+            - name: inContainer
+              value: "true"
+            - name: nodeName
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: serverIP
+              value: tdarr-api
+            - name: serverPort
+              value: "8266"
+          image: ghcr.io/haveagitgat/tdarr_node:2.58.02
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 10m
+              gpu.intel.com/i915: 1
+              memory: 512Mi
+          volumeMounts:
+            - mountPath: /mnt/store
+              name: media
+              readOnly: true
+            - mountPath: /tcache
+              name: node-cache
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: tdarr-nfs-storage
+        - emptyDir: {}
+          name: node-cache

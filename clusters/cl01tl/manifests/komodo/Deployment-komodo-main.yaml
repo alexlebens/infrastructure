@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: komodo-main
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: komodo
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: komodo
+    helm.sh/chart: komodo-4.5.0
+  namespace: komodo
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: komodo
+      app.kubernetes.io/instance: komodo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: komodo
+        app.kubernetes.io/name: komodo
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: COMPOSE_LOGGING_DRIVER
+              value: local
+            - name: KOMODO_HOST
+              value: https://komodo.alexlebens.net
+            - name: KOMODO_TITLE
+              value: Komodo
+            - name: PASSKEY
+              valueFrom:
+                secretKeyRef:
+                  key: passkey
+                  name: komodo-secret
+            - name: KOMODO_MONITORING_INTERVAL
+              value: 15-sec
+            - name: KOMODO_RESOURCE_POLL_INTERVAL
+              value: 5-min
+            - name: KOMODO_PASSKEY
+              valueFrom:
+                secretKeyRef:
+                  key: passkey
+                  name: komodo-secret
+            - name: KOMODO_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: webhook
+                  name: komodo-secret
+            - name: KOMODO_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: jwt
+                  name: komodo-secret
+            - name: KOMODO_LOCAL_AUTH
+              value: "true"
+            - name: KOMODO_ENABLE_NEW_USERS
+              value: "true"
+            - name: KOMODO_DISABLE_NON_ADMIN_CREATE
+              value: "true"
+            - name: KOMODO_TRANSPARENT_MODE
+              value: "false"
+            - name: PERIPHERY_SSL_ENABLED
+              value: "false"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: komodo-postgresql-17-fdb-cluster-app
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: komodo-postgresql-17-fdb-cluster-app
+            - name: KOMODO_DATABASE_URI
+              value: mongodb://$(DB_USERNAME):$(DB_PASSWORD)@komodo-ferretdb-2.komodo:27017/komodo
+            - name: KOMODO_OIDC_ENABLED
+              value: "true"
+            - name: KOMODO_OIDC_PROVIDER
+              value: http://authentik-server.authentik/application/o/komodo/
+            - name: KOMODO_OIDC_REDIRECT_HOST
+              value: https://authentik.alexlebens.net
+            - name: KOMODO_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: oidc-client-id
+                  name: komodo-secret
+            - name: KOMODO_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: oidc-client-secret
+                  name: komodo-secret
+            - name: KOMODO_OIDC_USE_FULL_EMAIL
+              value: "true"
+          image: ghcr.io/moghtech/komodo-core:1.19.5
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /repo-cache
+              name: cache
+            - mountPath: /syncs
+              name: syncs
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: komodo-cache
+        - name: syncs
+          persistentVolumeClaim:
+            claimName: komodo-syncs

@@ -1,0 +1,90 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: komodo-postgresql-17-fdb-cluster
+  namespace: komodo
+  labels:
+    helm.sh/chart: postgresql-17-fdb-cluster-6.16.1
+    app.kubernetes.io/name: komodo-postgresql-17-fdb
+    app.kubernetes.io/instance: komodo
+    app.kubernetes.io/part-of: komodo
+    app.kubernetes.io/version: "6.16.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  instances: 3
+  imageName: "ghcr.io/ferretdb/postgres-documentdb:17-0.106.0-ferretdb-2.5.0"
+  imagePullPolicy: IfNotPresent
+  postgresUID: 999
+  postgresGID: 999
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: false
+      parameters:
+        barmanObjectName: "komodo-postgresql-17-fdb-external-backup"
+        serverName: "komodo-postgresql-17-fdb-backup-2"
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: "komodo-postgresql-17-fdb-garage-local-backup"
+        serverName: "komodo-postgresql-17-fdb-backup-1"
+  externalClusters:
+    - name: recovery
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: "komodo-postgresql-17-fdb-recovery"
+          serverName: komodo-postgresql-17-fdb-backup-1
+  storage:
+    size: 10Gi
+    storageClass: local-path
+  walStorage:
+    size: 2Gi
+    storageClass: local-path
+  resources:
+    limits:
+      hugepages-2Mi: 256Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+  primaryUpdateMethod: switchover
+  primaryUpdateStrategy: unsupervised
+  logLevel: info
+  enableSuperuserAccess: true
+  enablePDB: true
+  postgresql:
+    shared_preload_libraries:
+      - pg_cron
+      - pg_documentdb_core
+      - pg_documentdb
+    pg_hba:
+      - host ferretDB postgres localhost trust
+      - host ferretDB ferret localhost trust
+    parameters:
+      cron.database_name: ferretDB
+      documentdb.enableBypassDocumentValidation: "true"
+      documentdb.enableCompact: "true"
+      documentdb.enableLetAndCollationForQueryMatch: "true"
+      documentdb.enableNowSystemVariable: "true"
+      documentdb.enableSchemaValidation: "true"
+      documentdb.enableSortbyIdPushDownToPrimaryKey: "true"
+      documentdb.enableUserCrud: "true"
+      documentdb.maxUserLimit: "100"
+      hot_standby_feedback: "on"
+      max_slot_wal_keep_size: 2000MB
+      shared_buffers: 128MB
+  monitoring:
+    enablePodMonitor: true
+    disableDefaultQueries: false
+  bootstrap:
+    initdb:
+      database: ferretDB
+      owner: ferret
+      postInitApplicationSQL:
+        - create extension if not exists pg_cron;
+        - create extension if not exists documentdb cascade;
+        - grant documentdb_admin_role to ferret;

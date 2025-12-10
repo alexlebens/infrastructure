@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: events-webhook
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-events-2.4.19
+    app.kubernetes.io/name: argo-events-events-webhook
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: events-webhook
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-events
+    app.kubernetes.io/version: "v1.9.9"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argo-events-events-webhook
+      app.kubernetes.io/instance: argo-workflows
+  revisionHistoryLimit: 5
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: argo-events-2.4.19
+        app.kubernetes.io/name: argo-events-events-webhook
+        app.kubernetes.io/instance: argo-workflows
+        app.kubernetes.io/component: events-webhook
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: argo-events
+        app.kubernetes.io/version: "v1.9.9"
+    spec:
+      containers:
+        - name: events-webhook
+          image: quay.io/argoproj/argo-events:v1.9.9
+          imagePullPolicy: IfNotPresent
+          args:
+            - webhook-service
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: PORT
+              value: "443"
+          ports:
+            - name: webhook
+              containerPort: 443
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: webhook
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: webhook
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+      serviceAccountName: argo-workflows-argo-events-events-webhook

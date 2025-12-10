@@ -1,0 +1,105 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vault-snapshot
+  labels:
+    app.kubernetes.io/controller: snapshot
+    app.kubernetes.io/instance: vault
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: vault
+    helm.sh/chart: snapshot-4.5.0
+  namespace: vault
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 90
+  timeZone: US/Central
+  schedule: "0 4 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/controller: snapshot
+            app.kubernetes.io/instance: vault
+            app.kubernetes.io/name: vault
+        spec:
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          initContainers:
+            - args:
+                - -ec
+                - |
+                  apk add --no-cache jq;
+                  echo ">> Running Vault snapshot"
+                  export VAULT_TOKEN=$(vault write auth/approle/login role_id=$VAULT_APPROLE_ROLE_ID secret_id=$VAULT_APPROLE_SECRET_ID -format=json | jq -r .auth.client_token);
+                  vault operator raft snapshot save /opt/backup/vault-snapshot-latest.snap;
+                  cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
+                  cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-s3.snap;
+                  echo ">> Completed Vault snapshot"
+              command:
+                - /bin/ash
+              env:
+                - name: VAULT_ADDR
+                  value: http://vault-active.vault.svc.cluster.local:8200
+              envFrom:
+                - secretRef:
+                    name: vault-snapshot-agent-token
+              image: hashicorp/vault:1.21.1
+              imagePullPolicy: IfNotPresent
+              name: snapshot
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+              volumeMounts:
+                - mountPath: /opt/backup
+                  name: config
+          containers:
+            - args:
+                - -ec
+                - |
+                  echo ">> Running S3 backup for Vault snapshot"
+                  s3cmd put --no-check-md5 --no-check-certificate -v /opt/backup/vault-snapshot-s3.snap ${BUCKET}/cl01tl/cl01tl-vault-snapshots/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
+                  rm -f /opt/backup/vault-snapshot-s3.snap;
+                  echo ">> Completed S3 backup for Vault snapshot"
+              command:
+                - /bin/sh
+              env:
+                - name: BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      key: BUCKET
+                      name: vault-s3cmd-config
+              image: d3fk/s3cmd:latest@sha256:a4ef406e37628ee56e608b1567aeb0345e51142f56741b715322111be3b6ebcc
+              imagePullPolicy: IfNotPresent
+              name: s3-backup
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+                - mountPath: /opt/backup
+                  name: config
+                - mountPath: /root/.s3cfg
+                  mountPropagation: None
+                  name: s3cmd-config
+                  readOnly: true
+                  subPath: .s3cfg
+          volumes:
+            - name: config
+              persistentVolumeClaim:
+                claimName: vault-nfs-storage-backup
+            - name: s3cmd-config
+              secret:
+                secretName: vault-s3cmd-config

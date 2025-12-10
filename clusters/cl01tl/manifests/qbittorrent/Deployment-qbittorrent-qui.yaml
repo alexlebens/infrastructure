@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent-qui
+  labels:
+    app.kubernetes.io/controller: qui
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    helm.sh/chart: qbittorrent-4.5.0
+  namespace: qbittorrent
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: qui
+      app.kubernetes.io/name: qbittorrent
+      app.kubernetes.io/instance: qbittorrent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: qui
+        app.kubernetes.io/instance: qbittorrent
+        app.kubernetes.io/name: qbittorrent
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: QUI__METRICS_ENABLED
+              value: "true"
+            - name: QUI__METRICS_HOST
+              value: 0.0.0.0
+            - name: QUI__METRICS_PORT
+              value: "9074"
+            - name: QUI__OIDC_ENABLED
+              value: "true"
+            - name: QUI__OIDC_ISSUER
+              value: https://auth.alexlebens.dev/application/o/qui/
+            - name: QUI__OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: client
+                  name: qui-oidc-secret
+            - name: QUI__OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: secret
+                  name: qui-oidc-secret
+            - name: QUI__OIDC_REDIRECT_URL
+              value: https://qui.alexlebens.net/api/auth/oidc/callback
+            - name: QUI__OIDC_DISABLE_BUILT_IN_LOGIN
+              value: "false"
+          image: ghcr.io/autobrr/qui:v1.8.1
+          imagePullPolicy: IfNotPresent
+          name: qui
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /config
+              name: qui-config-data
+      volumes:
+        - name: qui-config-data
+          persistentVolumeClaim:
+            claimName: qbittorrent-qui-config-data

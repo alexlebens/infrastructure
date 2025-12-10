@@ -1,0 +1,166 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qbit-manage-config
+  namespace: qbittorrent
+  labels:
+    app.kubernetes.io/name: qbit-manage-config
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/part-of: qbittorrent
+data:
+  config.yml: |
+    # Please refer to the link below for more details on how to set up the configuration file
+    # https://github.com/StuffAnThings/qbit_manage/wiki/Config-Setup
+
+    commands:
+      dry_run: false
+      recheck: true
+      cat_update: true
+      tag_update: true
+      rem_unregistered: true
+      tag_tracker_error: true
+      rem_orphaned: true
+      tag_nohardlinks: false
+      share_limits: true
+      skip_qb_version_check: true
+      skip_cleanup: false
+
+    qbt:
+      host: qbittorrent.qbittorrent:8080
+      user:
+      pass:
+
+    settings:
+      force_auto_tmm: true
+      tracker_error_tag: tracker-error
+      share_limits_tag: share-limit
+      share_limits_min_seeding_time_tag: seed-time-not-reached
+      cat_filter_completed: false
+      share_limits_filter_completed: false
+      rem_unregistered_filter_completed: false
+      cat_update_all: true
+      disable_qbt_default_share_limits: true
+      tag_stalled_torrents: true
+      nohardlinks_tag: no-hardlinks
+      stalled_tag: stalled
+      share_limits_min_num_seeds_tag: min-seeds-not-reached
+      share_limits_last_active_tag: last-active-not-reached
+      tag_nohardlinks_filter_completed: true
+      force_auto_tmm_ignore_tags: []
+      rem_unregistered_ignore_list: []
+
+    directory:
+      root_dir: /mnt/store/Torrent/
+      recycle_bin: /qbittorrent/Trash
+      torrents_dir: /qbittorrent/qBittorrent/BT_backup
+      orphaned_dir: /qbittorrent/Orphaned
+
+    cat:
+      lidarr: /mnt/store/Torrent/FINISHED/LIDARR
+      prowlarr: /mnt/store/Torrent/FINISHED/SAVE
+      radarr: /mnt/store/Torrent/FINISHED/RADARR
+      radarr-4k: /mnt/store/Torrent/FINISHED/RADARR4K
+      radarr-anime: /mnt/store/Torrent/FINISHED/RADARRANIME
+      radarr-standup: /mnt/store/Torrent/FINISHED/RADARRSTANDUP
+      sonarr: /mnt/store/Torrent/FINISHED/SONARR
+      sonarr-4k: /mnt/store/Torrent/FINISHED/SONARR4K
+      sonarr-anime: /mnt/store/Torrent/FINISHED/SONARRANIME
+      -< ZIM: /mnt/store/Kiwix
+      -< SAVE: /mnt/store/Torrent/FINISHED/SAVE
+      -< IMPORT: /mnt/store/Torrent/FINISHED/IMPORT
+      -< COMPLETED: /mnt/store/Torrent/FINISHED/COMPLETED
+
+    tracker:
+      alpharatio.cc:
+        tag: AlphaRatio
+      avistaz:
+        tag: Avistaz
+      cathode-ray.tube:
+        tag: CathodeRayTube
+      mvgroup.org:
+        tag: MVGroup
+      torrentleech|tleechreload:
+        tag: TorrentLeech
+      archive.org:
+        tag: InternetArchive
+      openzim.org:
+        tag: Zim
+      coppersurfer.tk|arenabg.com|explodie.org|tfile.co|1337x.org|zer0day.to|i2p.rocks|ccc.de|nwps.ws|opentrackr.org:
+        tag: Other
+
+    share_limits:
+      private:
+        priority: 1
+        include_any_tags:
+        - AlphaRatio
+        - TorrentLeech
+        categories:
+        - -< COMPLETED
+        max_ratio: 2.0
+        min_seeding_time: 14d
+        max_seeding_time: 30d
+        min_num_seeds: 2
+        last_active: 3d
+        cleanup: true
+      # save:
+      #   priority: 2
+      #   categories:
+      #   - -< SAVE
+      #   max_ratio: 2.0
+      #   min_seeding_time: 14d
+      #   max_seeding_time: 30d
+      #   min_num_seeds: 2
+      #   last_active: 30d
+      #   cleanup: false
+      # zim:
+      #   priority: 3
+      #   categories:
+      #   - -< ZIM
+      #   max_ratio: 2.0
+      #   min_seeding_time: 14d
+      #   max_seeding_time: 30d
+      #   min_num_seeds: 2
+      #   last_active: 30d
+      #   cleanup: false
+      default:
+        priority: 999
+        include_any_tags:
+        - Other
+        categories:
+        - -< COMPLETED
+        max_seeding_time: 3d
+        limit_upload_speed: 100
+        cleanup: true
+
+    recyclebin:
+      enabled: true
+      empty_after_x_days: 7
+      save_torrents: true
+      split_by_category: true
+
+    orphaned:
+      empty_after_x_days: 30
+      exclude_patterns:
+      - /mnt/store/Torrent/QBITTORRENT/*
+      - /mnt/store/Torrent/TORRENT/*
+      - /mnt/store/Torrent/DOWNLOADING/*
+      - '**/.DS_Store'
+      - '**/Thumbs.db'
+      - '**/@eaDir'
+      - '**/*.!qB'
+      - '**/*_unpackerred'
+      max_orphaned_files_to_delete: 50
+
+    # apprise:
+    #   api_url: http://localhost:8000/notify
+    #   notify_url: ""
+    #
+    # webhooks:
+    #   error: apprise
+    #   run_start: apprise
+    #   run_end: apprise
+    #   function:
+    #     rem_orphaned: apprise
+    #     cleanup_dirs: apprise
+    #     tag_tracker_error:
+    #     share_limits:

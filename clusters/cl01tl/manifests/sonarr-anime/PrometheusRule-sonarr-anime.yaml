@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sonarr-anime
+  namespace: sonarr-anime
+  labels:
+    app.kubernetes.io/name: sonarr-anime
+    app.kubernetes.io/instance: sonarr-anime
+    app.kubernetes.io/part-of: sonarr-anime
+spec:
+  groups:
+    - name: sonarr-anime
+      rules:
+        - alert: ExportarrAbsent
+          annotations:
+            description: Sonarr Anime Exportarr has disappeared from Prometheus service discovery.
+            summary: Exportarr is down.
+          expr: |
+            absent(up{job=~".*sonarr-anime.*"} == 1)
+          for: 5m
+          labels:
+            severity: critical
+        - alert: SonarrAnimeDown
+          annotations:
+            description: Sonarr Anime service is down.
+            summary: Sonarr Anime is down.
+          expr: |
+            sonarr_anime_system_status{job=~".*sonarr-anime.*"} == 0
+          for: 5m
+          labels:
+            severity: critical

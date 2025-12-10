@@ -1,0 +1,35 @@
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis-replication-matrix-synapse
+  namespace: matrix-synapse
+  labels:
+    app.kubernetes.io/name: redis-replication-matrix-synapse
+    app.kubernetes.io/instance: matrix-synapse
+    app.kubernetes.io/part-of: matrix-synapse
+spec:
+  clusterSize: 3
+  podSecurityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v8.0.3
+    imagePullPolicy: IfNotPresent
+    redisSecret:
+      name: matrix-synapse-redis-secret
+      key: password
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: ceph-block
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter:v1.48.0

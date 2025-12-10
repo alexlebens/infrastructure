@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kube-prometheus-stack-admission-create
+  namespace: kube-prometheus-stack
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+  labels:
+    app: kube-prometheus-stack-admission-create
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/version: "79.12.0"
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    chart: kube-prometheus-stack-79.12.0
+    release: "kube-prometheus-stack"
+    heritage: "Helm"
+    app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
+    app.kubernetes.io/component: prometheus-operator-webhook
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    metadata:
+      name: kube-prometheus-stack-admission-create
+      labels:
+        app: kube-prometheus-stack-admission-create
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/instance: kube-prometheus-stack
+        app.kubernetes.io/version: "79.12.0"
+        app.kubernetes.io/part-of: kube-prometheus-stack
+        chart: kube-prometheus-stack-79.12.0
+        release: "kube-prometheus-stack"
+        heritage: "Helm"
+        app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
+        app.kubernetes.io/component: prometheus-operator-webhook
+    spec:
+      containers:
+        - name: create
+          image: registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.6.5
+          imagePullPolicy: IfNotPresent
+          args:
+            - create
+            - --host=kube-prometheus-stack-operator,kube-prometheus-stack-operator.kube-prometheus-stack.svc
+            - --namespace=kube-prometheus-stack
+            - --secret-name=kube-prometheus-stack-admission
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          resources: {}
+      restartPolicy: OnFailure
+      serviceAccountName: kube-prometheus-stack-admission
+      securityContext:
+        runAsGroup: 2000
+        runAsNonRoot: true
+        runAsUser: 2000
+        seccompProfile:
+          type: RuntimeDefault

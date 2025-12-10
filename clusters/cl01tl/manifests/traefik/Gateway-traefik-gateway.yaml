@@ -1,0 +1,42 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: traefik-gateway
+  namespace: traefik
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/instance: traefik-traefik
+    helm.sh/chart: traefik-37.4.0
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-issuer
+spec:
+  gatewayClassName: traefik
+  listeners:
+    - name: ssh
+      port: 22
+      protocol: TCP
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: web
+      port: 8000
+      protocol: HTTP
+      hostname: '*.alexlebens.net'
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: websecure
+      port: 8443
+      protocol: HTTPS
+      hostname: '*.alexlebens.net'
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: websecure-gateway-cert
+            namespace: traefik

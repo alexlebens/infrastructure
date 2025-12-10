@@ -1,0 +1,30 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: sonarr-4k-config-backup-source
+  namespace: sonarr-4k
+  labels:
+    app.kubernetes.io/name: sonarr-4k-config-backup-source
+    app.kubernetes.io/instance: sonarr-4k
+    app.kubernetes.io/part-of: sonarr-4k
+spec:
+  sourcePVC: sonarr-4k-config
+  trigger:
+    schedule: 0 4 * * *
+  restic:
+    pruneIntervalDays: 7
+    repository: sonarr-4k-config-backup-secret
+    retain:
+      hourly: 1
+      daily: 3
+      weekly: 2
+      monthly: 2
+      yearly: 4
+    moverSecurityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot

@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elastic-operator
+  namespace: elastic-operator
+  labels:
+    app.kubernetes.io/name: elastic-operator
+    app.kubernetes.io/instance: elastic-operator
+    app.kubernetes.io/version: "3.2.0"
+    helm.sh/chart: eck-operator-3.2.0
+    app.kubernetes.io/managed-by: Helm
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: elastic-operator
+      app.kubernetes.io/instance: elastic-operator
+  serviceName: elastic-operator
+  replicas: 2
+  template:
+    metadata:
+      annotations:
+        "co.elastic.logs/raw": "[{\"type\":\"filestream\",\"enabled\":true,\"id\":\"eck-container-logs-${data.kubernetes.container.id}\",\"paths\":[\"/var/log/containers/*${data.kubernetes.container.id}.log\"],\"parsers\":[{\"container\":{}},{\"ndjson\":{\"keys_under_root\":true}}],\"prospector.scanner.symlinks\":true,\"processors\":[{\"convert\":{\"mode\":\"rename\",\"ignore_missing\":true,\"fields\":[{\"from\":\"error\",\"to\":\"_error\"}]}},{\"convert\":{\"mode\":\"rename\",\"ignore_missing\":true,\"fields\":[{\"from\":\"_error\",\"to\":\"error.message\"}]}},{\"convert\":{\"mode\":\"rename\",\"ignore_missing\":true,\"fields\":[{\"from\":\"source\",\"to\":\"_source\"}]}},{\"convert\":{\"mode\":\"rename\",\"ignore_missing\":true,\"fields\":[{\"from\":\"_source\",\"to\":\"event.source\"}]}}]}]"
+        "checksum/config": b73feaddf363fb2b6fe00148962a59c33dac58db78014f4b50b9c3de06865131
+      labels:
+        app.kubernetes.io/name: elastic-operator
+        app.kubernetes.io/instance: elastic-operator
+    spec:
+      terminationGracePeriodSeconds: 10
+      serviceAccountName: elastic-operator
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - image: "docker.elastic.co/eck/eck-operator:3.2.0"
+          imagePullPolicy: IfNotPresent
+          name: manager
+          args:
+            - "manager"
+            - "--config=/conf/eck.yaml"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          env:
+            - name: OPERATOR_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: WEBHOOK_SECRET
+              value: elastic-operator-webhook-cert
+          resources:
+            limits:
+              cpu: 1
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 150Mi
+          ports:
+            - containerPort: 9000
+              name: metrics
+              protocol: TCP
+            - containerPort: 9443
+              name: https-webhook
+              protocol: TCP
+          volumeMounts:
+            - mountPath: "/conf"
+              name: conf
+              readOnly: true
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: cert
+              readOnly: true
+      volumes:
+        - name: conf
+          configMap:
+            name: elastic-operator
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: elastic-operator-webhook-cert

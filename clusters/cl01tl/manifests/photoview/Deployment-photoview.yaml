@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: photoview
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: photoview
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: photoview
+    helm.sh/chart: photoview-4.5.0
+  namespace: photoview
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: photoview
+      app.kubernetes.io/instance: photoview
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: photoview
+        app.kubernetes.io/name: photoview
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      initContainers:
+        - command:
+            - /bin/sh
+            - -ec
+            - |
+              /bin/chown -R 999:999 /app/cache
+          image: busybox:1.37.0
+          imagePullPolicy: IfNotPresent
+          name: init-chmod-data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - mountPath: /app/cache
+              name: cache
+      containers:
+        - env:
+            - name: PHOTOVIEW_DATABASE_DRIVER
+              value: postgres
+            - name: PHOTOVIEW_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: photoview-postgresql-17-cluster-app
+            - name: PHOTOVIEW_MEDIA_CACHE
+              value: /app/cache
+          image: photoview/photoview:2.4.0
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 512Mi
+          volumeMounts:
+            - mountPath: /app/cache
+              name: cache
+            - mountPath: /photos
+              name: media
+              readOnly: true
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: photoview-cache
+        - name: media
+          persistentVolumeClaim:
+            claimName: photoview-nfs-storage

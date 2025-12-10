@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: node-feature-discovery-prune
+  namespace: node-feature-discovery
+  labels:
+    helm.sh/chart: node-feature-discovery-0.18.3
+    app.kubernetes.io/name: node-feature-discovery
+    app.kubernetes.io/instance: node-feature-discovery
+    app.kubernetes.io/version: "v0.18.3"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": post-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: node-feature-discovery-0.18.3
+        app.kubernetes.io/name: node-feature-discovery
+        app.kubernetes.io/instance: node-feature-discovery
+        app.kubernetes.io/version: "v0.18.3"
+        app.kubernetes.io/managed-by: Helm
+        role: prune
+    spec:
+      serviceAccountName: node-feature-discovery-prune
+      imagePullSecrets:
+      containers:
+        - name: nfd-master
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          image: "registry.k8s.io/nfd/node-feature-discovery:v0.18.3"
+          imagePullPolicy: IfNotPresent
+          command:
+            - "nfd-master"
+          args:
+            - "-prune"
+      restartPolicy: Never
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: In
+                    values:
+                      - ""
+              weight: 1
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+      resources:
+        limits:
+          memory: 4Gi
+        requests:
+          cpu: 20m
+          memory: 60Mi

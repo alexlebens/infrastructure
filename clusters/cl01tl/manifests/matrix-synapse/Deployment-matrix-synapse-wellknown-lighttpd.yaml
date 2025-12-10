@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matrix-synapse-wellknown-lighttpd
+  labels:
+    helm.sh/chart: matrix-synapse-3.12.16
+    app.kubernetes.io/name: matrix-synapse
+    app.kubernetes.io/instance: matrix-synapse
+    app.kubernetes.io/version: "1.143.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: well-known
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: matrix-synapse
+      app.kubernetes.io/instance: matrix-synapse
+      app.kubernetes.io/component: well-known
+  template:
+    metadata:
+      annotations:
+        checksum/config: 12a2f127585ae5d777c577a32e69a1fffb3d4ec75253d8d1ef7f618cf852f322
+      labels:
+        app.kubernetes.io/name: matrix-synapse
+        app.kubernetes.io/instance: matrix-synapse
+        app.kubernetes.io/component: well-known
+    spec:
+      securityContext: {}
+      containers:
+        - name: lighttpd
+          image: "ghcr.io/rtsp/docker-lighttpd:latest"
+          imagePullPolicy: Always
+          securityContext: {}
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /server-status
+              port: http
+          volumeMounts:
+            - mountPath: /etc/lighttpd/lighttpd.conf
+              name: files
+              subPath: lighttpd.conf
+            - mountPath: /var/www/localhost/htdocs/client.json
+              name: files
+              subPath: client.json
+            - mountPath: /var/www/localhost/htdocs/server.json
+              name: files
+              subPath: server.json
+            - mountPath: /run
+              name: run
+          resources: {}
+      volumes:
+        - name: files
+          configMap:
+            name: matrix-synapse-wellknown-lighttpd
+        - name: run
+          emptyDir: {}

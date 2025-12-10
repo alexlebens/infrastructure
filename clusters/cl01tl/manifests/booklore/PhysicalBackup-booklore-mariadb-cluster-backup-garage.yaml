@@ -1,0 +1,33 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: PhysicalBackup
+metadata:
+  name: booklore-mariadb-cluster-backup-garage
+  namespace: booklore
+  labels:
+    helm.sh/chart: mariadb-cluster-25.10.2
+    app.kubernetes.io/name: mariadb-cluster
+    app.kubernetes.io/instance: booklore
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  mariaDbRef:
+    name: booklore-mariadb-cluster
+    namespace: booklore
+  compression: gzip
+  maxRetention: 360h
+  schedule:
+    cron: 0 0 * * *
+    immediate: true
+    suspend: false
+  storage:
+    s3:
+      accessKeyIdSecretKeyRef:
+        key: access
+        name: booklore-mariadb-cluster-backup-secret-garage
+      bucket: mariadb-backups
+      endpoint: garage-main.garage:3900
+      prefix: cl01tl/booklore
+      region: us-east-1
+      secretAccessKeySecretKeyRef:
+        key: secret
+        name: booklore-mariadb-cluster-backup-secret-garage

@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gitea-tailscale
+  namespace: gitea
+  labels:
+    app.kubernetes.io/name: gitea-tailscale
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    tailscale.com/proxy-class: no-metrics
+  annotations:
+    tailscale.com/experimental-forward-cluster-traffic-via-ingress: "true"
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - gitea-cl01tl
+      secretName: gitea-cl01tl
+  rules:
+    - host: gitea-cl01tl
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: gitea-http
+                port:
+                  name: http

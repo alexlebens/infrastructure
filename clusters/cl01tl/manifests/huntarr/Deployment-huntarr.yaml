@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: huntarr
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: huntarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: huntarr
+    helm.sh/chart: huntarr-4.5.0
+  namespace: huntarr
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: huntarr
+      app.kubernetes.io/instance: huntarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: huntarr
+        app.kubernetes.io/name: huntarr
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+          image: ghcr.io/plexguide/huntarr:8.2.10
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /config
+              name: config
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: huntarr-config

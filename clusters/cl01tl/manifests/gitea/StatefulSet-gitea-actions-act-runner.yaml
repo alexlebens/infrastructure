@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    helm.sh/chart: gitea-actions-0.2.1
+    app: gitea-actions-act-runner
+    app.kubernetes.io/name: gitea-actions-act-runner
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "0.2.13"
+    version: "0.2.13"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+  name: gitea-actions-act-runner
+  namespace: gitea
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gitea-actions-act-runner
+      app.kubernetes.io/instance: gitea
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: gitea-actions-0.2.1
+        app: gitea-actions-act-runner
+        app.kubernetes.io/name: gitea-actions-act-runner
+        app.kubernetes.io/instance: gitea
+        app.kubernetes.io/version: "0.2.13"
+        version: "0.2.13"
+        app.kubernetes.io/managed-by: Helm
+    spec:
+      initContainers:
+        - name: init-gitea
+          image: "busybox:1.37.0"
+          command:
+            - sh
+            - -c
+            - |
+              while ! nc -z gitea-http.gitea 3000; do
+                sleep 5
+              done
+      containers:
+        - name: act-runner
+          image: "gitea/act_runner:0.2.13"
+          imagePullPolicy: IfNotPresent
+          workingDir: /data
+          env:
+            - name: DOCKER_HOST
+              value: tcp://127.0.0.1:2376
+            - name: DOCKER_TLS_VERIFY
+              value: "1"
+            - name: DOCKER_CERT_PATH
+              value: /certs/server
+            - name: GITEA_RUNNER_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: "gitea-runner-secret"
+                  key: "token"
+            - name: GITEA_INSTANCE_URL
+              value: http://gitea-http.gitea:3000
+            - name: CONFIG_FILE
+              value: /actrunner/config.yaml
+          resources: {}
+          volumeMounts:
+            - mountPath: /actrunner/config.yaml
+              name: act-runner-config
+              subPath: config.yaml
+            - mountPath: /certs/server
+              name: docker-certs
+            - mountPath: /data
+              name: data-act-runner
+        - name: dind
+          image: "docker:25.0.2-dind"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DOCKER_HOST
+              value: tcp://127.0.0.1:2376
+            - name: DOCKER_TLS_VERIFY
+              value: "1"
+            - name: DOCKER_CERT_PATH
+              value: /certs/server
+          securityContext:
+            privileged: true
+          resources: {}
+          volumeMounts:
+            - mountPath: /certs/server
+              name: docker-certs
+      volumes:
+        - name: act-runner-config
+          configMap:
+            name: gitea-actions-act-runner-config
+        - name: docker-certs
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data-act-runner
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: "ceph-block"
+        resources:
+          requests:
+            storage: 5Gi

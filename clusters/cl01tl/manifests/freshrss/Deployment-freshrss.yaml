@@ -1,0 +1,196 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: freshrss
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: freshrss
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: freshrss
+    helm.sh/chart: freshrss-4.5.0
+  namespace: freshrss
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: freshrss
+      app.kubernetes.io/instance: freshrss
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: freshrss
+        app.kubernetes.io/name: freshrss
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      initContainers:
+        - command:
+            - /bin/sh
+            - -ec
+            - |
+              apk add --no-cache git;
+              cd /tmp;
+              git clone -n --depth=1 --filter=tree:0 https://github.com/cn-tools/cntools_FreshRssExtensions.git;
+              cd cntools_FreshRssExtensions;
+              git sparse-checkout set --no-cone /xExtension-YouTubeChannel2RssFeed;
+              git checkout;
+              rm -rf /var/www/FreshRSS/extensions/xExtension-YouTubeChannel2RssFeed
+              cp -r xExtension-YouTubeChannel2RssFeed /var/www/FreshRSS/extensions
+              chown -R 568:568 /var/www/FreshRSS/extensions/xExtension-YouTubeChannel2RssFeed
+          image: alpine:3.23.0
+          imagePullPolicy: IfNotPresent
+          name: init-download-extension-1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - mountPath: /var/www/FreshRSS/extensions
+              name: extensions
+        - command:
+            - /bin/sh
+            - -ec
+            - |
+              apk add --no-cache git;
+              cd /tmp;
+              git clone -n --depth=1 --filter=tree:0 https://github.com/FreshRSS/Extensions.git;
+              cd Extensions;
+              git sparse-checkout set --no-cone /xExtension-ImageProxy;
+              git checkout;
+              rm -rf /var/www/FreshRSS/extensions/xExtension-ImageProxy
+              cp -r xExtension-ImageProxy /var/www/FreshRSS/extensions
+              chown -R 568:568 /var/www/FreshRSS/extensions/xExtension-ImageProxy
+          image: alpine:3.23.0
+          imagePullPolicy: IfNotPresent
+          name: init-download-extension-2
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - mountPath: /var/www/FreshRSS/extensions
+              name: extensions
+        - command:
+            - /bin/sh
+            - -ec
+            - |
+              cd /tmp;
+              wget https://github.com/zimmra/xExtension-karakeep-button/archive/refs/tags/v1.1.tar.gz;
+              tar -xvzf *.tar.gz;
+              rm -rf /var/www/FreshRSS/extensions/xExtension-karakeep-button
+              mkdir /var/www/FreshRSS/extensions/xExtension-karakeep-button
+              cp -r /tmp/xExtension-karakeep-button-*/* /var/www/FreshRSS/extensions/xExtension-karakeep-button
+              chown -R 568:568 /var/www/FreshRSS/extensions/xExtension-karakeep-button
+          image: alpine:3.23.0
+          imagePullPolicy: IfNotPresent
+          name: init-download-extension-3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - mountPath: /var/www/FreshRSS/extensions
+              name: extensions
+      containers:
+        - env:
+            - name: PGID
+              value: "568"
+            - name: PUID
+              value: "568"
+            - name: TZ
+              value: US/Central
+            - name: FRESHRSS_ENV
+              value: production
+            - name: CRON_MIN
+              value: 13,43
+            - name: BASE_URL
+              value: https://rss.alexlebens.dev
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: freshrss-postgresql-17-cluster-app
+            - name: DB_BASE
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: freshrss-postgresql-17-cluster-app
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: freshrss-postgresql-17-cluster-app
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: freshrss-postgresql-17-cluster-app
+            - name: FRESHRSS_INSTALL
+              value: |
+                --api-enabled
+                --base-url $(BASE_URL)
+                --db-base $(DB_BASE)
+                --db-host $(DB_HOST)
+                --db-password $(DB_PASSWORD)
+                --db-type pgsql
+                --db-user $(DB_USER)
+                --auth-type http_auth
+                --default-user admin
+                --language en
+            - name: FRESHRSS_USER
+              value: |
+                --api-password $(ADMIN_API_PASSWORD)
+                --email $(ADMIN_EMAIL)
+                --language en
+                --password $(ADMIN_PASSWORD)
+                --user admin
+            - name: OIDC_ENABLED
+              value: "1"
+            - name: OIDC_PROVIDER_METADATA_URL
+              value: https://auth.alexlebens.dev/application/o/freshrss/.well-known/openid-configuration
+            - name: OIDC_X_FORWARDED_HEADERS
+              value: X-Forwarded-Port X-Forwarded-Proto X-Forwarded-Host
+            - name: OIDC_SCOPES
+              value: openid email profile
+            - name: OIDC_REMOTE_USER_CLAIM
+              value: preferred_username
+          envFrom:
+            - secretRef:
+                name: freshrss-oidc-secret
+            - secretRef:
+                name: freshrss-install-secret
+          image: freshrss/freshrss:1.27.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /var/www/FreshRSS/data
+              name: data
+            - mountPath: /var/www/FreshRSS/extensions
+              name: extensions
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: freshrss-data
+        - name: extensions
+          persistentVolumeClaim:
+            claimName: freshrss-extensions

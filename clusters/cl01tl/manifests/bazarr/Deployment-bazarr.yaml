@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bazarr
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: bazarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: bazarr
+    helm.sh/chart: bazarr-4.5.0
+  namespace: bazarr
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: bazarr
+      app.kubernetes.io/instance: bazarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: bazarr
+        app.kubernetes.io/name: bazarr
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsUser: 1000
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+          image: ghcr.io/linuxserver/bazarr:1.5.3@sha256:4aa1e82d1e96ae712095d881b7e3840e6db6ca862c335be5b00001f31156650b
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /mnt/store
+              name: media
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: bazarr-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: bazarr-nfs-storage

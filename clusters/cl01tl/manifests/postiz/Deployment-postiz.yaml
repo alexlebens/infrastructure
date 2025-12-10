@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postiz
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: postiz
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postiz
+    helm.sh/chart: postiz-4.5.0
+  namespace: postiz
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: postiz
+      app.kubernetes.io/instance: postiz
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: postiz
+        app.kubernetes.io/name: postiz
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: MAIN_URL
+              value: https://postiz.alexlebens.dev
+            - name: FRONTEND_URL
+              value: https://postiz.alexlebens.dev
+            - name: NEXT_PUBLIC_BACKEND_URL
+              value: https://postiz.alexlebens.dev/api
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: JWT_SECRET
+                  name: postiz-config-secret
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: postiz-postgresql-17-cluster-app
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  key: REDIS_URL
+                  name: postiz-redis-config
+            - name: BACKEND_INTERNAL_URL
+              value: http://localhost:3000
+            - name: IS_GENERAL
+              value: "true"
+            - name: STORAGE_PROVIDER
+              value: local
+            - name: UPLOAD_DIRECTORY
+              value: /uploads
+            - name: NEXT_PUBLIC_UPLOAD_DIRECTORY
+              value: /uploads
+            - name: NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME
+              value: Authentik
+            - name: NEXT_PUBLIC_POSTIZ_OAUTH_LOGO_URL
+              value: https://cdn.jsdelivr.net/gh/selfhst/icons/png/authentik.png
+            - name: POSTIZ_GENERIC_OAUTH
+              value: "true"
+            - name: POSTIZ_OAUTH_URL
+              value: https://auth.alexlebens.dev
+            - name: POSTIZ_OAUTH_AUTH_URL
+              value: https://auth.alexlebens.dev/application/o/authorize/
+            - name: POSTIZ_OAUTH_TOKEN_URL
+              value: https://auth.alexlebens.dev/application/o/token/
+            - name: POSTIZ_OAUTH_USERINFO_URL
+              value: https://auth.alexlebens.dev/application/o/userinfo/
+            - name: POSTIZ_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: client
+                  name: postiz-oidc-secret
+            - name: POSTIZ_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: secret
+                  name: postiz-oidc-secret
+            - name: POSTIZ_OAUTH_SCOPE
+              value: openid profile email
+          image: ghcr.io/gitroomhq/postiz-app:v2.10.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /uploads
+              name: uploads
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: postiz-config
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: postiz-uploads

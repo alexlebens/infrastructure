@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argo-workflows-server
+  namespace: "argo-workflows"
+  labels:
+    helm.sh/chart: argo-workflows-0.46.1
+    app.kubernetes.io/name: argo-workflows-server
+    app.kubernetes.io/instance: argo-workflows
+    app.kubernetes.io/component: server
+    app: server
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argo-workflows
+    app.kubernetes.io/version: "v3.7.4"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argo-workflows-server
+      app.kubernetes.io/instance: argo-workflows
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: argo-workflows-0.46.1
+        app.kubernetes.io/name: argo-workflows-server
+        app.kubernetes.io/instance: argo-workflows
+        app.kubernetes.io/component: server
+        app: server
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: argo-workflows
+        app.kubernetes.io/version: "v3.7.4"
+      annotations:
+        checksum/cm: cc375ecbc512206075425a11c6aad6ceca79e2421592ea3a95f0b3e59267b398
+    spec:
+      serviceAccountName: argo-workflows-server
+      containers:
+        - name: argo-server
+          image: "quay.io/argoproj/argocli:v3.7.4"
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+          args:
+            - server
+            - --configmap=argo-workflows-workflow-controller-configmap
+            - "--auth-mode=sso"
+            - "--secure=false"
+            - "--loglevel"
+            - "info"
+            - "--gloglevel"
+            - "0"
+            - "--log-format"
+            - "text"
+          ports:
+            - name: web
+              containerPort: 2746
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 2746
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          env:
+            - name: IN_CLUSTER
+              value: "true"
+            - name: ARGO_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: ARGO_BASE_HREF
+              value: "/"
+          resources: {}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      nodeSelector:
+        kubernetes.io/os: linux

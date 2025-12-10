@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: garage-main
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: garage
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: garage
+    helm.sh/chart: garage-4.5.0
+  namespace: garage
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: garage
+      app.kubernetes.io/instance: garage
+  template:
+    metadata:
+      annotations:
+        checksum/configMaps: aecb65cb46684688a356974d7ecaec4abb2d4fed3f71863780e7f35505c7af02
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: garage
+        app.kubernetes.io/name: garage
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - envFrom:
+            - secretRef:
+                name: garage-token-secret
+          image: dxflrs/garage:v2.1.0
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /etc/garage.toml
+              mountPropagation: None
+              name: config
+              readOnly: true
+              subPath: garage.toml
+            - mountPath: /var/lib/garage/data
+              name: data
+            - mountPath: /var/lib/garage/meta
+              name: db
+            - mountPath: /var/lib/garage/snapshots
+              name: snapshots
+      volumes:
+        - configMap:
+            name: garage
+          name: config
+        - name: data
+          persistentVolumeClaim:
+            claimName: garage-data
+        - name: db
+          persistentVolumeClaim:
+            claimName: garage-db
+        - name: snapshots
+          persistentVolumeClaim:
+            claimName: garage-snapshots

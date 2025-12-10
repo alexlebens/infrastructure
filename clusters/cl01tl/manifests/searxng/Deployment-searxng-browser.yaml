@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng-browser
+  labels:
+    app.kubernetes.io/controller: browser
+    app.kubernetes.io/instance: searxng
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: searxng
+    helm.sh/chart: searxng-4.5.0
+  namespace: searxng
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: browser
+      app.kubernetes.io/name: searxng
+      app.kubernetes.io/instance: searxng
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: browser
+        app.kubernetes.io/instance: searxng
+        app.kubernetes.io/name: searxng
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private-key
+                  name: searxng-wireguard-conf
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 192.168.1.0/24,10.244.0.0/16
+            - name: FIREWALL_INPUT_PORTS
+              value: "8080"
+          image: ghcr.io/qdm12/gluetun:v3.40.3@sha256:ef4a44819a60469682c7b5e69183e6401171891feaa60186652d292c59e41b30
+          imagePullPolicy: IfNotPresent
+          name: gluetun
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              cpu: 10m
+              devic.es/tun: "1"
+              memory: 64Mi
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+            privileged: true
+        - env:
+            - name: SEARXNG_BASE_URL
+              value: https://searxng.alexlebens.net/
+            - name: SEARXNG_QUERY_URL
+              value: https://searxng.alexlebens.net/search?q=<query>
+            - name: SEARXNG_HOSTNAME
+              value: searxng.alexlebens.net
+            - name: SEARXNG_VALKEY_URL
+              value: valkey://127.0.0.1:6379/0
+            - name: GRANIAN_HOST
+              value: 0.0.0.0
+            - name: GRANIAN_PORT
+              value: "8080"
+          image: searxng/searxng:latest@sha256:95e59f5ba7d48b4c7ee92f2705907e52c5b98715b0d8c4802863322a502a8c4a
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /etc/searxng
+              name: browser-data
+        - image: valkey/valkey:9.0.0-alpine3.22
+          imagePullPolicy: IfNotPresent
+          name: valkey
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /data
+              name: valkey-data
+      volumes:
+        - name: browser-data
+          persistentVolumeClaim:
+            claimName: searxng-browser-data
+        - name: valkey-data
+          persistentVolumeClaim:
+            claimName: searxng-valkey-data

@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tubearchivist
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: tubearchivist
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: tubearchivist
+    helm.sh/chart: tubearchivist-4.5.0
+  namespace: tubearchivist
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: tubearchivist
+      app.kubernetes.io/instance: tubearchivist
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: tubearchivist
+        app.kubernetes.io/name: tubearchivist
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private-key
+                  name: tubearchivist-wireguard-conf
+            - name: VPN_PORT_FORWARDING
+              value: "on"
+            - name: PORT_FORWARD_ONLY
+              value: "on"
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 10.0.0.0/8
+            - name: FIREWALL_INPUT_PORTS
+              value: 80,8000,24000
+            - name: DOT
+              value: "false"
+            - name: DNS_KEEP_NAMESERVER
+              value: "true"
+            - name: DNS_PLAINTEXT_ADDRESS
+              value: 10.96.0.10
+          image: ghcr.io/qdm12/gluetun:v3.40.3@sha256:ef4a44819a60469682c7b5e69183e6401171891feaa60186652d292c59e41b30
+          imagePullPolicy: IfNotPresent
+          name: gluetun
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              cpu: 10m
+              devic.es/tun: "1"
+              memory: 128Mi
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+            privileged: true
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: HOST_UID
+              value: "1000"
+            - name: HOST_GID
+              value: "1000"
+            - name: ES_URL
+              value: https://elasticsearch-tubearchivist-es-http.tubearchivist:9200
+            - name: ES_DISABLE_VERIFY_SSL
+              value: "true"
+            - name: REDIS_CON
+              value: redis://redis-replication-tubearchivist-master.tubearchivist:6379
+            - name: TA_HOST
+              value: https://tubearchivist.alexlebens.net http://tubearchivist.tubearchivist:80/
+            - name: TA_PORT
+              value: "24000"
+            - name: TA_USERNAME
+              value: admin
+          envFrom:
+            - secretRef:
+                name: tubearchivist-config-secret
+          image: bbilly1/tubearchivist:v0.5.8
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 1Gi
+          volumeMounts:
+            - mountPath: /cache
+              name: data
+            - mountPath: /youtube
+              name: youtube
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: tubearchivist
+        - name: youtube
+          persistentVolumeClaim:
+            claimName: tubearchivist-nfs-storage

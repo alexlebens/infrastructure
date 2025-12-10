@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-feature-discovery-gc
+  namespace: node-feature-discovery
+  labels:
+    helm.sh/chart: node-feature-discovery-0.18.3
+    app.kubernetes.io/name: node-feature-discovery
+    app.kubernetes.io/instance: node-feature-discovery
+    app.kubernetes.io/version: "v0.18.3"
+    app.kubernetes.io/managed-by: Helm
+    role: gc
+spec:
+  replicas: 1
+  revisionHistoryLimit:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: node-feature-discovery
+      app.kubernetes.io/instance: node-feature-discovery
+      role: gc
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: node-feature-discovery
+        app.kubernetes.io/instance: node-feature-discovery
+        role: gc
+    spec:
+      serviceAccountName: node-feature-discovery-gc
+      dnsPolicy: ClusterFirstWithHostNet
+      imagePullSecrets:
+      securityContext: {}
+      hostNetwork: false
+      containers:
+        - name: gc
+          image: "registry.k8s.io/nfd/node-feature-discovery:v0.18.3"
+          imagePullPolicy: "IfNotPresent"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          command:
+            - "nfd-gc"
+          args:
+            - "-gc-interval=1h"
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 20m
+              memory: 60Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          ports:
+            - name: http
+              containerPort: 8080

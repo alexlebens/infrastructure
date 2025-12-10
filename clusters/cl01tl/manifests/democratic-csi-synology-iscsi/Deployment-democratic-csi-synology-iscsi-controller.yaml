@@ -1,0 +1,189 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: democratic-csi-synology-iscsi-controller
+  namespace: democratic-csi-synology-iscsi
+  labels:
+    app.kubernetes.io/name: democratic-csi
+    helm.sh/chart: democratic-csi-0.15.0
+    app.kubernetes.io/instance: democratic-csi-synology-iscsi
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/csi-role: "controller"
+    app.kubernetes.io/component: "controller-linux"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: democratic-csi
+      app.kubernetes.io/instance: democratic-csi-synology-iscsi
+      app.kubernetes.io/managed-by: Helm
+      app.kubernetes.io/csi-role: "controller"
+      app.kubernetes.io/component: "controller-linux"
+  template:
+    metadata:
+      annotations:
+        checksum/configmap: 263840c3436d67b6e25f68fabb84f358c3df828bc15d9ec327e733b38cabd1d7
+      labels:
+        app.kubernetes.io/name: democratic-csi
+        app.kubernetes.io/instance: democratic-csi-synology-iscsi
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/csi-role: "controller"
+        app.kubernetes.io/component: "controller-linux"
+    spec:
+      serviceAccount: democratic-csi-synology-iscsi-controller-sa
+      priorityClassName: "system-cluster-critical"
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      hostAliases: []
+      hostIPC: false
+      containers:
+        - name: external-attacher
+          image: "registry.k8s.io/sig-storage/csi-attacher:v4.4.0"
+          args:
+            - --v=5
+            - --leader-election
+            - --leader-election-namespace=democratic-csi-synology-iscsi
+            - --timeout=90s
+            - --worker-threads=10
+            - --csi-address=/csi-data/csi.sock
+          volumeMounts:
+            - mountPath: /csi-data
+              name: socket-dir
+        - name: external-provisioner
+          image: "registry.k8s.io/sig-storage/csi-provisioner:v3.6.0"
+          args:
+            - --v=5
+            - --leader-election
+            - --leader-election-namespace=democratic-csi-synology-iscsi
+            - --timeout=90s
+            - --worker-threads=10
+            - --extra-create-metadata
+            - --csi-address=/csi-data/csi.sock
+          volumeMounts:
+            - mountPath: /csi-data
+              name: socket-dir
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+        - name: external-resizer
+          image: "registry.k8s.io/sig-storage/csi-resizer:v1.9.0"
+          args:
+            - --v=5
+            - --leader-election
+            - --leader-election-namespace=democratic-csi-synology-iscsi
+            - --timeout=90s
+            - --workers=10
+            - --csi-address=/csi-data/csi.sock
+          volumeMounts:
+            - mountPath: /csi-data
+              name: socket-dir
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+        - name: external-snapshotter
+          image: "registry.k8s.io/sig-storage/csi-snapshotter:v8.2.1"
+          args:
+            - --v=5
+            - --leader-election
+            - --leader-election-namespace=democratic-csi-synology-iscsi
+            - --timeout=90s
+            - --worker-threads=10
+            - --csi-address=/csi-data/csi.sock
+          volumeMounts:
+            - mountPath: /csi-data
+              name: socket-dir
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+        - name: csi-driver
+          image: "docker.io/democraticcsi/democratic-csi:latest"
+          args:
+            - --csi-version=1.5.0
+            - --csi-name=org.democratic-csi.iscsi-synology
+            - --driver-config-file=/config/driver-config-file.yaml
+            - --log-level=info
+            - --csi-mode=controller
+            - --server-socket=/csi-data/csi.sock.internal
+          env:
+            - name: NODE_EXTRA_CA_CERTS
+              value: "/tmp/certs/extra-ca-certs.crt"
+          livenessProbe:
+            failureThreshold: 3
+            exec:
+              command:
+                - bin/liveness-probe
+                - --csi-version=1.5.0
+                - --csi-address=/csi-data/csi.sock.internal
+            initialDelaySeconds: 10
+            timeoutSeconds: 15
+            periodSeconds: 60
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi-data
+            - name: config
+              mountPath: /config
+            - name: extra-ca-certs
+              mountPath: /tmp/certs
+        - name: csi-proxy
+          image: "docker.io/democraticcsi/csi-grpc-proxy:v0.5.6"
+          env:
+            - name: BIND_TO
+              value: "unix:///csi-data/csi.sock"
+            - name: PROXY_TO
+              value: "unix:///csi-data/csi.sock.internal"
+          volumeMounts:
+            - mountPath: /csi-data
+              name: socket-dir
+      volumes:
+        - name: socket-dir
+          emptyDir: {}
+        - name: config
+          secret:
+            secretName: synology-iscsi-config-secret
+        - name: extra-ca-certs
+          configMap:
+            name: democratic-csi-synology-iscsi
+            items:
+              - key: extra-ca-certs
+                path: extra-ca-certs.crt
+      nodeSelector:
+        kubernetes.io/os: linux

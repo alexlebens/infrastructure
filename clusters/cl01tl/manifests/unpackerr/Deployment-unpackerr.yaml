@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unpackerr
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: unpackerr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: unpackerr
+    helm.sh/chart: unpackerr-4.5.0
+  namespace: unpackerr
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: unpackerr
+      app.kubernetes.io/instance: unpackerr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: unpackerr
+        app.kubernetes.io/name: unpackerr
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: UN_WEBSERVER_METRICS
+              value: "true"
+            - name: UN_SONARR_0_URL
+              value: http://sonarr.sonarr:80
+            - name: UN_SONARR_0_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/COMPLETED
+            - name: UN_SONARR_1_URL
+              value: http://sonarr-4k.sonarr-4k:80
+            - name: UN_SONARR_1_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/COMPLETED
+            - name: UN_SONARR_2_URL
+              value: http://sonarr-anime.sonarr-anime:80
+            - name: UN_SONARR_2_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/COMPLETED
+            - name: UN_RADARR_0_URL
+              value: http://radarr.radarr:80
+            - name: UN_RADARR_0_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/COMPLETED
+            - name: UN_RADARR_1_URL
+              value: http://radarr-4k.radarr-4k:80
+            - name: UN_RADARR_1_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/COMPLETED
+            - name: UN_RADARR_2_URL
+              value: http://radarr-anime.radarr-anime:80
+            - name: UN_RADARR_2_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/COMPLETED
+            - name: UN_RADARR_3_URL
+              value: http://radarr-standup.radarr-standup:80
+            - name: UN_RADARR_3_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/COMPLETED
+            - name: UN_LIDARR_0_URL
+              value: http://lidarr.lidarr:80
+            - name: UN_LIDARR_0_PATHS_0
+              value: /mnt/store/Torrent/FINISHED/COMPLETED
+          envFrom:
+            - secretRef:
+                name: unpackerr-key-secret
+          image: golift/unpackerr:0.14.5
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /mnt/store
+              name: storage
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: unpackerr-nfs-storage

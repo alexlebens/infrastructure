@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s3-exporter-ceph-directus
+  labels:
+    app.kubernetes.io/controller: ceph-directus
+    app.kubernetes.io/instance: s3-exporter
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: s3-exporter
+    helm.sh/chart: s3-exporter-4.5.0
+  namespace: s3-exporter
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: ceph-directus
+      app.kubernetes.io/name: s3-exporter
+      app.kubernetes.io/instance: s3-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: ceph-directus
+        app.kubernetes.io/instance: s3-exporter
+        app.kubernetes.io/name: s3-exporter
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: S3_NAME
+              value: ceph-directus
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  key: BUCKET_HOST
+                  name: s3-ceph-directus-secret
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_ACCESS_KEY_ID
+                  name: s3-ceph-directus-secret
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_SECRET_ACCESS_KEY
+                  name: s3-ceph-directus-secret
+            - name: S3_REGION
+              value: us-east-1
+            - name: LOG_LEVEL
+              value: info
+            - name: S3_FORCE_PATH_STYLE
+              value: "true"
+          image: molu8bits/s3bucket_exporter:1.0.2
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi

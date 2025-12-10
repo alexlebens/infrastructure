@@ -1,0 +1,35 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: PhysicalBackup
+metadata:
+  name: booklore-mariadb-cluster-backup-external
+  namespace: booklore
+  labels:
+    helm.sh/chart: mariadb-cluster-25.10.2
+    app.kubernetes.io/name: mariadb-cluster
+    app.kubernetes.io/instance: booklore
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  mariaDbRef:
+    name: booklore-mariadb-cluster
+    namespace: booklore
+  compression: gzip
+  maxRetention: 720h
+  schedule:
+    cron: 0 0 * * 0
+    immediate: true
+    suspend: false
+  storage:
+    s3:
+      accessKeyIdSecretKeyRef:
+        key: access
+        name: booklore-mariadb-cluster-backup-secret-external
+      bucket: mariadb-backups-b230a2f5aecf080a4b372c08
+      endpoint: nyc3.digitaloceanspaces.com
+      prefix: cl01tl/booklore
+      region: us-east-1
+      secretAccessKeySecretKeyRef:
+        key: secret
+        name: booklore-mariadb-cluster-backup-secret-external
+      tls:
+        enabled: true

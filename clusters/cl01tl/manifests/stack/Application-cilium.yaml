@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: cilium
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/part-of: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: http://gitea-http.gitea:3000/alexlebens/infrastructure
+    targetRevision: manifests
+    path: clusters/cl01tl/manifests/cilium
+  destination:
+    name: in-cluster
+    namespace: kube-system
+  revisionHistoryLimit: 3
+  ignoreDifferences:
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+      jqPathExpressions:
+        - .spec.endpoints[]?.relabelings[]?.action
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: true
+      selfHeal: false
+    retry:
+      limit: 3
+      backoff:
+        duration: 1m
+        factor: 2
+        maxDuration: 15m
+    syncOptions:
+      - CreateNamespace=false
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - PruneLast=true
+      - RespectIgnoreDifferences=true

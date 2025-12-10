@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent-qbit-manage
+  labels:
+    app.kubernetes.io/controller: qbit-manage
+    app.kubernetes.io/instance: qbittorrent
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: qbittorrent
+    helm.sh/chart: qbittorrent-4.5.0
+  annotations:
+    reloader.stakater.com/auto: "true"
+  namespace: qbittorrent
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: qbit-manage
+      app.kubernetes.io/name: qbittorrent
+      app.kubernetes.io/instance: qbittorrent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: qbit-manage
+        app.kubernetes.io/instance: qbittorrent
+        app.kubernetes.io/name: qbittorrent
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      initContainers:
+        - command:
+            - /bin/sh
+            - -ec
+            - |
+              cp /config/config.yml /app/config/config.yml
+          image: busybox:1.37.0
+          imagePullPolicy: IfNotPresent
+          name: init-copy-config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /config/config.yml
+              mountPropagation: None
+              name: qbit-manage-config
+              readOnly: true
+              subPath: config.yml
+            - mountPath: /app/config
+              name: qbit-manage-config-data
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: PGID
+              value: "1000"
+            - name: PUID
+              value: "1000"
+            - name: APPRISE_STORAGE_MODE
+              value: memory
+            - name: APPRISE_STATEFUL_MODE
+              value: disabled
+            - name: APPRISE_WORKER_COUNT
+              value: "1"
+            - name: APPRISE_STATELESS_URLS
+              valueFrom:
+                secretKeyRef:
+                  key: ntfy-url
+                  name: qbittorrent-qbit-manage-config
+          image: caronc/apprise:1.2.6
+          imagePullPolicy: IfNotPresent
+          name: apprise-api
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: QBT_SCHEDULE
+              value: 0 * * * *
+            - name: QBT_STARTUP_DELAY
+              value: "360"
+            - name: QBT_CONFIG_DIR
+              value: /app/config/
+            - name: QBT_LOGFILE
+              value: /app/var/activity.log
+            - name: QBT_LOG_LEVEL
+              value: INFO
+          image: ghcr.io/stuffanthings/qbit_manage:v4.6.5
+          imagePullPolicy: IfNotPresent
+          name: qbit-manage
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          volumeMounts:
+            - mountPath: /qbittorrent
+              name: config
+            - mountPath: /config/config.yml
+              mountPropagation: None
+              name: qbit-manage-config
+              readOnly: true
+              subPath: config.yml
+            - mountPath: /app/config
+              name: qbit-manage-config-data
+            - mountPath: /app/var
+              name: qbit-manage-config-var
+            - mountPath: /mnt/store
+              name: storage
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: qbittorrent-config
+        - configMap:
+            name: qbit-manage-config
+          name: qbit-manage-config
+        - name: qbit-manage-config-data
+          persistentVolumeClaim:
+            claimName: qbittorrent-qbit-manage-config-data
+        - emptyDir: {}
+          name: qbit-manage-config-var
+        - name: storage
+          persistentVolumeClaim:
+            claimName: qbittorrent-nfs-storage

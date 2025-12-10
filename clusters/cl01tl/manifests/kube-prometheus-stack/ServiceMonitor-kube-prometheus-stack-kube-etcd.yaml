@@ -1,0 +1,37 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-prometheus-stack-kube-etcd
+  namespace: kube-prometheus-stack
+  labels:
+    app: kube-prometheus-stack-kube-etcd
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/version: "79.12.0"
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    chart: kube-prometheus-stack-79.12.0
+    release: "kube-prometheus-stack"
+    heritage: "Helm"
+spec:
+  jobLabel: jobLabel
+  selector:
+    matchLabels:
+      app: kube-prometheus-stack-kube-etcd
+      release: "kube-prometheus-stack"
+  namespaceSelector:
+    matchNames:
+      - "kube-system"
+  endpoints:
+    - port: http-metrics
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      metricRelabelings:
+        - action: labeldrop
+          regex: pod
+      relabelings:
+        - action: replace
+          regex: ^(.*)$
+          replacement: $1
+          separator: ;
+          sourceLabels:
+            - __meta_kubernetes_pod_node_name
+          targetLabel: nodename

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: seerr-seerr-chart
+  labels:
+    helm.sh/chart: seerr-chart-3.0.0
+    app.kubernetes.io/name: seerr-chart
+    app.kubernetes.io/instance: seerr
+    app.kubernetes.io/version: "3.0.0"
+    app.kubernetes.io/part-of: seerr-chart
+    app.kubernetes.io/managed-by: Helm
+spec:
+  serviceName: seerr-seerr-chart
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seerr-chart
+      app.kubernetes.io/instance: seerr
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: seerr-chart-3.0.0
+        app.kubernetes.io/name: seerr-chart
+        app.kubernetes.io/instance: seerr
+        app.kubernetes.io/version: "3.0.0"
+        app.kubernetes.io/part-of: seerr-chart
+        app.kubernetes.io/managed-by: Helm
+    spec:
+      serviceAccountName: seerr-seerr-chart
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: seerr-chart
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          image: "ghcr.io/seerr-team/seerr:develop@sha256:f96deeef25cfb7bb0ecaa90f324bf6dfb66a844e8ed38501764f4d982a152280"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5055
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: seerr-seerr-chart-config
