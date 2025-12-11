@@ -65,23 +65,25 @@ jobs:
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             echo ""
             echo ">> Checking for changes in a pull request ..."
-            GIT_DIFF=$(git diff --name-only "${BASE_BRANCH}" | xargs -I {} dirname {} | sort -u | grep -E "hosts/[^/]+/[^/]+")
-            echo "---"
+            GIT_DIFF=$(git diff --name-only "${BASE_BRANCH}" | xargs -I {} dirname {} | sort -u)
           else
             echo ""
             echo ">> Checking for changes from a push ..."
-            GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep -E "hosts/[^/]+/[^/]+")
+            GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u)
           fi
 
-          echo "-----"
           if [ -n "${GIT_DIFF}" ]; then
             echo ""
             echo ">> Changes detected:"
             echo "$GIT_DIFF"
 
             for path in $GIT_DIFF; do
-              CHANGED_COMPOSE+=$(echo "$path")
-              CHANGED_COMPOSE+=$(echo " ")
+              if [[ echo "$path" | grep -q -E "hosts/[^/]+/[^/]+" ]]; then
+                echo ""
+                echo ">> Adding path: $path"
+                CHANGED_COMPOSE+=$(echo "$path")
+                CHANGED_COMPOSE+=$(echo " ")
+              fi
             done
 
           else
@@ -102,6 +104,11 @@ jobs:
             echo "$(echo "${CHANGED_COMPOSE}" | sort -u)" >> $GITEA_OUTPUT
             echo "EOF" >> $GITEA_OUTPUT
           else
+            echo ""
+            echo ">> Did not find any docker compose files to lint"
+
+            echo "----"
+
             echo "changes-detected=false" >> $GITEA_OUTPUT
           fi
 

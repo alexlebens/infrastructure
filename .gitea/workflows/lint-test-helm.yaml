@@ -68,22 +68,24 @@ jobs:
             echo ""
             echo ">> Checking for changes in a pull request ..."
             GIT_DIFF=$(git diff --name-only "${BASE_BRANCH}" | xargs -I {} dirname {} | sort -u | grep -E "clusters/[^/]+/helm/[^/]+")
-            echo "---"
           else
             echo ""
             echo ">> Checking for changes from a push ..."
             GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep -E "clusters/[^/]+/helm/[^/]+")
           fi
 
-          echo "-----"
           if [ -n "${GIT_DIFF}" ]; then
             echo ""
             echo ">> Changes detected:"
             echo "$GIT_DIFF"
 
             for path in $GIT_DIFF; do
-              CHANGED_CHARTS+=$(echo "$path" | awk -F '/' '{print $4}')
-              CHANGED_CHARTS+=$(echo " ")
+              if [[ echo "$path" | grep -q -E "clusters/[^/]+/helm/[^/]+" ]]; then
+                echo ""
+                echo ">> Adding path: $path"
+                CHANGED_CHARTS+=$(echo "$path" | awk -F '/' '{print $4}')
+                CHANGED_CHARTS+=$(echo " ")
+              fi
             done
 
           else
@@ -104,6 +106,11 @@ jobs:
             echo "$(echo "${CHANGED_CHARTS}" | sort -u)" >> $GITEA_OUTPUT
             echo "EOF" >> $GITEA_OUTPUT
           else
+            echo ""
+            echo ">> Did not find any helm charts files to lint"
+
+            echo "----"
+
             echo "changes-detected=false" >> $GITEA_OUTPUT
           fi
 
