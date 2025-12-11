@@ -1,22 +1,22 @@
 services:
-    # tailscale-gitea:
-    #     image: ghcr.io/tailscale/tailscale:v1.90.9
-    #     container_name: tailscale-gitea
-    #     cap_add:
-    #         - net_admin
-    #         - sys_module
-    #     environment:
-    #         - TS_STATE_DIR=/var/lib/tailscale
-    #         - TS_ENABLE_METRICS=true
-    #         - TS_HOSTNAME=gitea-ps10rp
-    #         - TS_SERVE_CONFIG=/config/serve.json
-    #     network_mode: service:gitea
-    #     restart: always
-    #     volumes:
-    #         - tailscale:/var/lib/tailscale
-    #         - ${PWD}/serve.json:/config/serve.json
-    #     devices:
-    #         - /dev/net/tun:/dev/net/tun
+    tailscale-gitea:
+        image: ghcr.io/tailscale/tailscale:v1.90.9
+        container_name: tailscale-gitea
+        cap_add:
+            - net_admin
+            - sys_module
+        environment:
+            - TS_STATE_DIR=/var/lib/tailscale
+            - TS_ENABLE_METRICS=true
+            - TS_HOSTNAME=gitea-ps10rp
+            - TS_SERVE_CONFIG=/config/serve.json
+        network_mode: service:gitea
+        restart: always
+        volumes:
+            - tailscale:/var/lib/tailscale
+            - ${PWD}/serve.json:/config/serve.json
+        devices:
+            - /dev/net/tun:/dev/net/tun
 
     postgresql:
         image: docker.io/postgres:18.1-alpine3.21
@@ -32,30 +32,30 @@ services:
         volumes:
             - postgresql18:/var/lib/postgresql
 
-    # gitea:
-    #     image: gitea/gitea:1.25.2
-    #     container_name: gitea
-    #     depends_on:
-    #         - postgresql
-    #     environment:
-    #         - GITEA__database__DB_TYPE=postgres
-    #         - GITEA__database__HOST=gitea-postgres:5432
-    #         - GITEA__database__NAME=gitea
-    #         - GITEA__database__USER=gitea
-    #     labels:
-    #         traefik.enable: true
-    #         traefik.docker.network: internal
-    #         traefik.http.routers.gitea.entrypoints: web-secure
-    #         traefik.http.routers.gitea.rule: Host(`gitea.lebens-home.net`)
-    #         traefik.http.routers.gitea.service: gitea
-    #         traefik.http.services.gitea.loadbalancer.server.port: 3000
-    #     networks:
-    #         internal: null
-    #     restart: always
-    #     volumes:
-    #         - gitea:/data
-    #         - /etc/timezone:/etc/timezone:ro
-    #         - /etc/localtime:/etc/localtime:ro
+    gitea:
+        image: gitea/gitea:1.25.2
+        container_name: gitea
+        depends_on:
+            - postgresql
+        environment:
+            - GITEA__database__DB_TYPE=postgres
+            - GITEA__database__HOST=gitea-postgres:5432
+            - GITEA__database__NAME=gitea
+            - GITEA__database__USER=gitea
+        labels:
+            traefik.enable: true
+            traefik.docker.network: internal
+            traefik.http.routers.gitea.entrypoints: web-secure
+            traefik.http.routers.gitea.rule: Host(`gitea.lebens-home.net`)
+            traefik.http.routers.gitea.service: gitea
+            traefik.http.services.gitea.loadbalancer.server.port: 3000
+        networks:
+            internal: null
+        restart: always
+        volumes:
+            - gitea:/data
+            - /etc/timezone:/etc/timezone:ro
+            - /etc/localtime:/etc/localtime:ro
 
 networks:
     internal:
