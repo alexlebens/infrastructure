@@ -29,6 +29,13 @@ spec:
       parameters:
         barmanObjectName: "argo-workflows-postgresql-18-garage-local-backup"
         serverName: "argo-workflows-postgresql-18-backup-1"
+  externalClusters:
+    - name: recovery
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: "argo-workflows-postgresql-18-recovery"
+          serverName: argo-workflows-postgresql-18-backup-1
   storage:
     size: 10Gi
     storageClass: local-path
@@ -58,22 +65,15 @@ spec:
     enablePodMonitor: true
     disableDefaultQueries: false
   bootstrap:
-    initdb:
-      import:
-        source:
-          externalCluster: importSource
-        type: microservice
-        databases:
-          - app
-        schemaOnly: false
+    recovery:
+      database: app
+      source: argo-workflows-postgresql-18-backup-1
   externalClusters:
-    - name: importSource
-      connectionParameters:
-        host: "argo-workflows-postgresql-17-cluster-rw"
-        port: "5432"
-        user: "app"
-        dbname: "app"
-        sslmode: "disable"
-      password:
-        name: argo-workflows-postgresql-17-cluster-app
-        key: password
+    - name: argo-workflows-postgresql-18-backup-1
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        enabled: true
+        isWALArchiver: false
+        parameters:
+          barmanObjectName: "argo-workflows-postgresql-18-recovery"
+          serverName: argo-workflows-postgresql-18-backup-1
