@@ -29,13 +29,6 @@ spec:
       parameters:
         barmanObjectName: "lidarr-postgresql-18-garage-local-backup"
         serverName: "lidarr-postgresql-18-backup-1"
-  externalClusters:
-    - name: recovery
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        parameters:
-          barmanObjectName: "lidarr-postgresql-18-recovery"
-          serverName: lidarr-postgresql-18-backup-1
   storage:
     size: 10Gi
     storageClass: local-path
@@ -61,22 +54,30 @@ spec:
       hot_standby_feedback: "on"
       max_slot_wal_keep_size: 2000MB
       shared_buffers: 128MB
-  managed:
-    roles:
-      - app
   monitoring:
     enablePodMonitor: true
     disableDefaultQueries: false
   bootstrap:
-    recovery:
-      database: app
-      source: lidarr-postgresql-18-backup-1
+    initdb:
+      owner: app
+      import:
+        source:
+          externalCluster: importSource
+        type: monolith
+        databases:
+          - lidarr-main
+          - lidarr-log
+        roles:
+          - app
+        schemaOnly: false
   externalClusters:
-    - name: lidarr-postgresql-18-backup-1
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        enabled: true
-        isWALArchiver: false
-        parameters:
-          barmanObjectName: "lidarr-postgresql-18-recovery"
-          serverName: lidarr-postgresql-18-backup-1
+    - name: importSource
+      connectionParameters:
+        host: "lidarr2-postgresql-17-cluster-rw"
+        port: "5432"
+        user: "app"
+        dbname: "app"
+        sslmode: "disable"
+      password:
+        name: lidarr2-postgresql-17-cluster-app
+        key: password
