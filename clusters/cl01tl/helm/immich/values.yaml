@@ -27,27 +27,27 @@ immich:
             - name: DB_HOSTNAME
               valueFrom:
                 secretKeyRef:
-                  name: immich-postgresql-17-cluster-app
+                  name: immich-postgresql-18-cluster-app
                   key: host
             - name: DB_DATABASE_NAME
               valueFrom:
                 secretKeyRef:
-                  name: immich-postgresql-17-cluster-app
+                  name: immich-postgresql-18-cluster-app
                   key: dbname
             - name: DB_PORT
               valueFrom:
                 secretKeyRef:
-                  name: immich-postgresql-17-cluster-app
+                  name: immich-postgresql-18-cluster-app
                   key: port
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: immich-postgresql-17-cluster-app
+                  name: immich-postgresql-18-cluster-app
                   key: user
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: immich-postgresql-17-cluster-app
+                  name: immich-postgresql-18-cluster-app
                   key: password
           probes:
             liveness:
@@ -284,30 +284,12 @@ postgres-18-cluster:
         - CREATE EXTENSION IF NOT EXISTS "cube" CASCADE;
         - CREATE EXTENSION IF NOT EXISTS "earthdistance" CASCADE;
   recovery:
-    method: import
+    method: objectStore
     objectStore:
       destinationPath: s3://postgres-backups/cl01tl/immich/immich-postgresql-18-cluster
       endpointURL: http://garage-main.garage:3900
       index: 1
       endpointCredentials: immich-postgresql-18-cluster-backup-secret-garage
-    import:
-      type: "microservice"
-      databases:
-        - app
-      source:
-        host: "immich-postgresql-17-cluster-rw"
-        port: 5432
-        username: app
-        database: app
-        sslMode: "disable"
-        passwordSecret:
-          name: "immich-postgresql-17-cluster-app"
-          key: "password"
-        postImportApplicationSQL:
-          - CREATE EXTENSION IF NOT EXISTS "vector";
-          - CREATE EXTENSION IF NOT EXISTS "vchord" CASCADE;
-          - CREATE EXTENSION IF NOT EXISTS "cube" CASCADE;
-          - CREATE EXTENSION IF NOT EXISTS "earthdistance" CASCADE;
   backup:
     objectStore:
       - name: external
