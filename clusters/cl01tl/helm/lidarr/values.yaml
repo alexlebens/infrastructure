@@ -168,20 +168,34 @@ postgres-18-cluster:
       requests:
         memory: 1Gi
         cpu: 200m
-    roles:
-      - app
-    # initdb:
-    #   owner: app
+    initdb:
+      owner: app
     #   postInitSQL:
     #     - CREATE DATABASE "lidarr-main" OWNER "app";
     #     - CREATE DATABASE "lidarr-log" OWNER "app";
   recovery:
-    method: objectStore
+    method: import
     objectStore:
       destinationPath: s3://postgres-backups/cl01tl/lidarr/lidarr-postgresql-18-cluster
       endpointURL: http://garage-main.garage:3900
       index: 1
       endpointCredentials: lidarr-postgresql-18-cluster-backup-secret
+    import:
+      type: "monolith"
+      databases:
+        - lidarr-main
+        - lidarr-log
+      roles:
+        - app
+      source:
+        host: "lidarr2-postgresql-17-cluster-rw"
+        port: 5432
+        username: app
+        database: app
+        sslMode: "disable"
+        passwordSecret:
+          name: "lidarr2-postgresql-17-cluster-app"
+          key: "password"
   backup:
     objectStore:
       - name: external
