@@ -29,13 +29,6 @@ spec:
       parameters:
         barmanObjectName: "grafana-operator-postgresql-18-garage-local-backup"
         serverName: "grafana-operator-postgresql-18-backup-1"
-  externalClusters:
-    - name: recovery
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        parameters:
-          barmanObjectName: "grafana-operator-postgresql-18-recovery"
-          serverName: grafana-operator-postgresql-18-backup-1
   storage:
     size: 10Gi
     storageClass: local-path
@@ -65,15 +58,22 @@ spec:
     enablePodMonitor: true
     disableDefaultQueries: false
   bootstrap:
-    recovery:
-      database: app
-      source: grafana-operator-postgresql-18-backup-1
+    initdb:
+      import:
+        source:
+          externalCluster: importSource
+        type: microservice
+        databases:
+          - app
+        schemaOnly: false
   externalClusters:
-    - name: grafana-operator-postgresql-18-backup-1
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        enabled: true
-        isWALArchiver: false
-        parameters:
-          barmanObjectName: "grafana-operator-postgresql-18-recovery"
-          serverName: grafana-operator-postgresql-18-backup-1
+    - name: importSource
+      connectionParameters:
+        host: "grafana-operator-postgresql-17-cluster-rw"
+        port: "5432"
+        user: "app"
+        dbname: "app"
+        sslmode: "disable"
+      password:
+        name: grafana-operator-postgresql-17-cluster-app
+        key: password
