@@ -240,16 +240,6 @@ mautrix-discord:
           targetPort: 29334
           protocol: HTTP
   persistence:
-    data:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 500Mi
-      retain: true
-      advancedMounts:
-        main:
-          main:
-            - path: /data
-              readOnly: false
     config:
       enabled: true
       type: secret
@@ -261,6 +251,27 @@ mautrix-discord:
               readOnly: true
               mountPropagation: None
               subPath: config.yaml
+    registration:
+      enabled: true
+      type: secret
+      name: mautrix-discord-config-secret
+      advancedMounts:
+        main:
+          main:
+            - path: /data/mautrix-discord-registration.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: mautrix-discord-registration.yaml
+    data:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 500Mi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
 mautrix-whatsapp:
   global:
     nameOverride: mautrix-whatsapp
@@ -271,6 +282,22 @@ mautrix-whatsapp:
       replicas: 1
       strategy: RollingUpdate
       revisionHistoryLimit: 3
+      initContainers:
+        init-copy-config:
+          image:
+            repository: busybox
+            tag: 1.37.0
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cp -f /tmp/config.yaml /data/config.yml
+              cp -f /tmp/mautrix-whatsapp-registration.yaml /data/registration.yml
       containers:
         main:
           image:
@@ -290,6 +317,28 @@ mautrix-whatsapp:
           targetPort: 29318
           protocol: HTTP
   persistence:
+    config:
+      enabled: true
+      type: secret
+      name: mautrix-whatsapp-config-secret
+      advancedMounts:
+        main:
+          init-copy-config:
+            - path: /tmp/config.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: config.yaml
+    registration:
+      enabled: true
+      type: secret
+      name: mautrix-whatsapp-config-secret
+      advancedMounts:
+        main:
+          init-copy-config:
+            - path: /tmp/mautrix-whatsapp-registration.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: mautrix-whatsapp-registration.yaml
     data:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
@@ -297,20 +346,12 @@ mautrix-whatsapp:
       retain: true
       advancedMounts:
         main:
+          init-copy-config:
+            - path: /data
+              readOnly: false
           main:
             - path: /data
               readOnly: false
-    config:
-      enabled: true
-      type: secret
-      name: mautrix-whatsapp-config-secret
-      advancedMounts:
-        main:
-          main:
-            - path: /data/config.yaml
-              readOnly: true
-              mountPropagation: None
-              subPath: config.yaml
 cloudflared-synapse:
   name: cloudflared-synapse
   existingSecretName: matrix-synapse-cloudflared-synapse-secret
