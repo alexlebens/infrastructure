@@ -29,6 +29,13 @@ spec:
       parameters:
         barmanObjectName: "matrix-synapse-postgresql-18-garage-local-backup"
         serverName: "matrix-synapse-postgresql-18-backup-1"
+  externalClusters:
+    - name: recovery
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: "matrix-synapse-postgresql-18-recovery"
+          serverName: matrix-synapse-postgresql-18-backup-1
   storage:
     size: 10Gi
     storageClass: local-path
@@ -58,22 +65,15 @@ spec:
     enablePodMonitor: true
     disableDefaultQueries: false
   bootstrap:
-    initdb:
-      import:
-        source:
-          externalCluster: importSource
-        type: microservice
-        databases:
-          - app
-        schemaOnly: false
+    recovery:
+      database: app
+      source: matrix-synapse-postgresql-18-backup-1
   externalClusters:
-    - name: importSource
-      connectionParameters:
-        host: "matrix-synapse-postgresql-17-cluster-rw"
-        port: "5432"
-        user: "app"
-        dbname: "app"
-        sslmode: "disable"
-      password:
-        name: matrix-synapse-postgresql-17-cluster-app
-        key: password
+    - name: matrix-synapse-postgresql-18-backup-1
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        enabled: true
+        isWALArchiver: false
+        parameters:
+          barmanObjectName: "matrix-synapse-postgresql-18-recovery"
+          serverName: matrix-synapse-postgresql-18-backup-1
