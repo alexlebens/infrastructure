@@ -81,72 +81,6 @@ sonarr-anime:
           main:
             - path: /mnt/store
               readOnly: false
-postgres-17-cluster:
-  nameOverride: sonarr4-anime-postgresql-17
-  mode: recovery
-  cluster:
-    enableSuperuserAccess: true
-    storage:
-      storageClass: local-path
-    walStorage:
-      storageClass: local-path
-    resources:
-      requests:
-        memory: 512Mi
-    monitoring:
-      enabled: true
-      prometheusRule:
-        enabled: true
-    initdb:
-      postInitSQL:
-        - CREATE DATABASE "sonarr-main" OWNER "app";
-        - CREATE DATABASE "sonarr-log" OWNER "app";
-  recovery:
-    method: objectStore
-    objectStore:
-      destinationPath: s3://postgres-backups/cl01tl/sonarr-anime/sonarr4-anime-postgresql-17-cluster
-      endpointURL: http://garage-main.garage:3900
-      index: 1
-      endpointCredentials: sonarr-anime-postgresql-17-cluster-backup-secret-garage
-  backup:
-    objectStore:
-      - name: external
-        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/sonarr4-anime/sonarr4-anime-postgresql-17-cluster
-        index: 1
-        endpointCredentials: sonarr-anime-postgresql-17-cluster-backup-secret
-        retentionPolicy: "30d"
-        isWALArchiver: false
-      - name: garage-local
-        destinationPath: s3://postgres-backups/cl01tl/sonarr-anime/sonarr4-anime-postgresql-17-cluster
-        index: 1
-        endpointURL: http://garage-main.garage:3900
-        endpointCredentials: sonarr-anime-postgresql-17-cluster-backup-secret-garage
-        endpointCredentialsIncludeRegion: true
-        retentionPolicy: "3d"
-        isWALArchiver: true
-    #   - name: garage-remote
-    #     destinationPath: s3://postgres-backups/cl01tl/sonarr-anime/sonarr4-anime-postgresql-17-cluster
-    #     index: 1
-    #     endpointURL: https://garage-ps10rp.boreal-beaufort.ts.net:3900
-    #     endpointCredentials: sonarr-anime-postgresql-17-cluster-backup-secret-garage
-    #     retentionPolicy: "30d"
-    #     data:
-    #       compression: bzip2
-    #       jobs: 2
-    scheduledBackups:
-      - name: daily-backup
-        suspend: false
-        schedule: "0 0 0 * * *"
-        backupName: external
-      - name: live-backup
-        suspend: false
-        immediate: true
-        schedule: "0 0 0 * * *"
-        backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: false
-      #   schedule: "0 30 4 * * SAT"
-      #   backupName: garage-remote
 postgres-18-cluster:
   mode: recovery
   cluster:
@@ -171,28 +105,12 @@ postgres-18-cluster:
     #     - CREATE DATABASE "sonarr-main" OWNER "app";
     #     - CREATE DATABASE "sonarr-log" OWNER "app";
   recovery:
-    method: import
+    method: objectStore
     objectStore:
       destinationPath: s3://postgres-backups/cl01tl/sonarr-anime/sonarr-anime-postgresql-18-cluster
       endpointURL: http://garage-main.garage:3900
       index: 1
       endpointCredentials: sonarr-anime-postgresql-18-cluster-backup-secret-garage
-    import:
-      type: "monolith"
-      databases:
-        - sonarr-main
-        - sonarr-log
-      roles:
-        - app
-      source:
-        host: "sonarr4-anime-postgresql-17-cluster-rw"
-        port: 5432
-        username: postgres
-        database: "*"
-        sslMode: "disable"
-        passwordSecret:
-          name: "sonarr4-anime-postgresql-17-cluster-superuser"
-          key: "password"
   backup:
     objectStore:
       - name: external
