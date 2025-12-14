@@ -1,18 +1,18 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: sonarr4-postgresql-17-cluster
+  name: sonarr-postgresql-18-cluster
   namespace: sonarr
   labels:
-    helm.sh/chart: postgres-17-cluster-6.17.1
-    app.kubernetes.io/name: sonarr4-postgresql-17
+    helm.sh/chart: postgres-18-cluster-6.17.1
+    app.kubernetes.io/name: sonarr-postgresql-18
     app.kubernetes.io/instance: sonarr
     app.kubernetes.io/part-of: sonarr
     app.kubernetes.io/version: "6.17.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   instances: 3
-  imageName: "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie"
+  imageName: "ghcr.io/cloudnative-pg/postgresql:18.1-standard-trixie"
   imagePullPolicy: IfNotPresent
   postgresUID: 26
   postgresGID: 26
@@ -21,21 +21,14 @@ spec:
       enabled: true
       isWALArchiver: false
       parameters:
-        barmanObjectName: "sonarr4-postgresql-17-external-backup"
-        serverName: "sonarr4-postgresql-17-backup-1"
+        barmanObjectName: "sonarr-postgresql-18-external-backup"
+        serverName: "sonarr-postgresql-18-backup-1"
     - name: barman-cloud.cloudnative-pg.io
       enabled: true
       isWALArchiver: true
       parameters:
-        barmanObjectName: "sonarr4-postgresql-17-garage-local-backup"
-        serverName: "sonarr4-postgresql-17-backup-1"
-  externalClusters:
-    - name: recovery
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        parameters:
-          barmanObjectName: "sonarr4-postgresql-17-recovery"
-          serverName: sonarr4-postgresql-17-backup-1
+        barmanObjectName: "sonarr-postgresql-18-garage-local-backup"
+        serverName: "sonarr-postgresql-18-backup-1"
   storage:
     size: 10Gi
     storageClass: local-path
@@ -54,7 +47,7 @@ spec:
   primaryUpdateMethod: switchover
   primaryUpdateStrategy: unsupervised
   logLevel: info
-  enableSuperuserAccess: true
+  enableSuperuserAccess: false
   enablePDB: true
   postgresql:
     parameters:
@@ -65,15 +58,27 @@ spec:
     enablePodMonitor: true
     disableDefaultQueries: false
   bootstrap:
-    recovery:
+    initdb:
       database: app
-      source: sonarr4-postgresql-17-backup-1
+      owner: app
+      import:
+        source:
+          externalCluster: importSource
+        type: monolith
+        databases:
+          - sonarr-main
+          - sonarr-log
+        roles:
+          - app
+        schemaOnly: false
   externalClusters:
-    - name: sonarr4-postgresql-17-backup-1
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        enabled: true
-        isWALArchiver: false
-        parameters:
-          barmanObjectName: "sonarr4-postgresql-17-recovery"
-          serverName: sonarr4-postgresql-17-backup-1
+    - name: importSource
+      connectionParameters:
+        host: "sonarr4-postgresql-17-cluster-rw"
+        port: "5432"
+        user: "postgres"
+        dbname: "*"
+        sslmode: "disable"
+      password:
+        name: sonarr4-postgresql-17-cluster-superuser
+        key: password
