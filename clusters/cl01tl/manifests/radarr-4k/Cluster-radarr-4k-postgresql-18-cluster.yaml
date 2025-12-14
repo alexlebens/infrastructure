@@ -1,18 +1,18 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: radarr5-4k-postgresql-17-cluster
+  name: radarr-4k-postgresql-18-cluster
   namespace: radarr-4k
   labels:
-    helm.sh/chart: postgres-17-cluster-6.17.1
-    app.kubernetes.io/name: radarr5-4k-postgresql-17
+    helm.sh/chart: postgres-18-cluster-6.17.1
+    app.kubernetes.io/name: radarr-4k-postgresql-18
     app.kubernetes.io/instance: radarr-4k
     app.kubernetes.io/part-of: radarr-4k
     app.kubernetes.io/version: "6.17.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   instances: 3
-  imageName: "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie"
+  imageName: "ghcr.io/cloudnative-pg/postgresql:18.1-standard-trixie"
   imagePullPolicy: IfNotPresent
   postgresUID: 26
   postgresGID: 26
@@ -21,21 +21,14 @@ spec:
       enabled: true
       isWALArchiver: false
       parameters:
-        barmanObjectName: "radarr5-4k-postgresql-17-external-backup"
-        serverName: "radarr5-4k-postgresql-17-backup-1"
+        barmanObjectName: "radarr-4k-postgresql-18-external-backup"
+        serverName: "radarr-4k-postgresql-18-backup-1"
     - name: barman-cloud.cloudnative-pg.io
       enabled: true
       isWALArchiver: true
       parameters:
-        barmanObjectName: "radarr5-4k-postgresql-17-garage-local-backup"
-        serverName: "radarr5-4k-postgresql-17-backup-1"
-  externalClusters:
-    - name: recovery
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        parameters:
-          barmanObjectName: "radarr5-4k-postgresql-17-recovery"
-          serverName: radarr5-4k-postgresql-17-backup-1
+        barmanObjectName: "radarr-4k-postgresql-18-garage-local-backup"
+        serverName: "radarr-4k-postgresql-18-backup-1"
   storage:
     size: 10Gi
     storageClass: local-path
@@ -46,15 +39,15 @@ spec:
     limits:
       hugepages-2Mi: 256Mi
     requests:
-      cpu: 200m
-      memory: 1Gi
+      cpu: 100m
+      memory: 256Mi
   affinity:
     enablePodAntiAffinity: true
     topologyKey: kubernetes.io/hostname
   primaryUpdateMethod: switchover
   primaryUpdateStrategy: unsupervised
   logLevel: info
-  enableSuperuserAccess: true
+  enableSuperuserAccess: false
   enablePDB: true
   postgresql:
     parameters:
@@ -65,15 +58,27 @@ spec:
     enablePodMonitor: true
     disableDefaultQueries: false
   bootstrap:
-    recovery:
+    initdb:
       database: app
-      source: radarr5-4k-postgresql-17-backup-1
+      owner: app
+      import:
+        source:
+          externalCluster: importSource
+        type: monolith
+        databases:
+          - radarr-main
+          - radarr-log
+        roles:
+          - app
+        schemaOnly: false
   externalClusters:
-    - name: radarr5-4k-postgresql-17-backup-1
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        enabled: true
-        isWALArchiver: false
-        parameters:
-          barmanObjectName: "radarr5-4k-postgresql-17-recovery"
-          serverName: radarr5-4k-postgresql-17-backup-1
+    - name: importSource
+      connectionParameters:
+        host: "radarr5-4k-postgresql-17-cluster-rw"
+        port: "5432"
+        user: "postgres"
+        dbname: "*"
+        sslmode: "disable"
+      password:
+        name: radarr5-4k-postgresql-17-cluster-superuser
+        key: password

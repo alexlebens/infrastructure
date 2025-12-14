@@ -1,18 +1,18 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: radarr5-postgresql-17-cluster
+  name: radarr-postgresql-18-cluster
   namespace: radarr
   labels:
-    helm.sh/chart: postgres-17-cluster-6.17.1
-    app.kubernetes.io/name: radarr5-postgresql-17
+    helm.sh/chart: postgres-18-cluster-6.17.1
+    app.kubernetes.io/name: radarr-postgresql-18
     app.kubernetes.io/instance: radarr
     app.kubernetes.io/part-of: radarr
     app.kubernetes.io/version: "6.17.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   instances: 3
-  imageName: "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie"
+  imageName: "ghcr.io/cloudnative-pg/postgresql:18.1-standard-trixie"
   imagePullPolicy: IfNotPresent
   postgresUID: 26
   postgresGID: 26
@@ -21,21 +21,14 @@ spec:
       enabled: true
       isWALArchiver: false
       parameters:
-        barmanObjectName: "radarr5-postgresql-17-external-backup"
-        serverName: "radarr5-postgresql-17-backup-2"
+        barmanObjectName: "radarr-postgresql-18-external-backup"
+        serverName: "radarr-postgresql-18-backup-1"
     - name: barman-cloud.cloudnative-pg.io
       enabled: true
       isWALArchiver: true
       parameters:
-        barmanObjectName: "radarr5-postgresql-17-garage-local-backup"
-        serverName: "radarr5-postgresql-17-backup-1"
-  externalClusters:
-    - name: recovery
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        parameters:
-          barmanObjectName: "radarr5-postgresql-17-recovery"
-          serverName: radarr5-postgresql-17-backup-1
+        barmanObjectName: "radarr-postgresql-18-garage-local-backup"
+        serverName: "radarr-postgresql-18-backup-1"
   storage:
     size: 10Gi
     storageClass: local-path
@@ -54,7 +47,7 @@ spec:
   primaryUpdateMethod: switchover
   primaryUpdateStrategy: unsupervised
   logLevel: info
-  enableSuperuserAccess: true
+  enableSuperuserAccess: false
   enablePDB: true
   postgresql:
     parameters:
@@ -65,15 +58,27 @@ spec:
     enablePodMonitor: true
     disableDefaultQueries: false
   bootstrap:
-    recovery:
+    initdb:
       database: app
-      source: radarr5-postgresql-17-backup-1
+      owner: app
+      import:
+        source:
+          externalCluster: importSource
+        type: monolith
+        databases:
+          - radarr-main
+          - radarr-log
+        roles:
+          - app
+        schemaOnly: false
   externalClusters:
-    - name: radarr5-postgresql-17-backup-1
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        enabled: true
-        isWALArchiver: false
-        parameters:
-          barmanObjectName: "radarr5-postgresql-17-recovery"
-          serverName: radarr5-postgresql-17-backup-1
+    - name: importSource
+      connectionParameters:
+        host: "radarr5-postgresql-17-cluster-rw"
+        port: "5432"
+        user: "postgres"
+        dbname: "*"
+        sslmode: "disable"
+      password:
+        name: radarr5-postgresql-17-cluster-superuser
+        key: password
