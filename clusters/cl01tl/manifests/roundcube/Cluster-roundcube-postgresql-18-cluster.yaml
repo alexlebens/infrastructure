@@ -1,0 +1,79 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: roundcube-postgresql-18-cluster
+  namespace: roundcube
+  labels:
+    helm.sh/chart: postgres-18-cluster-6.16.1
+    app.kubernetes.io/name: roundcube-postgresql-18
+    app.kubernetes.io/instance: roundcube
+    app.kubernetes.io/part-of: roundcube
+    app.kubernetes.io/version: "6.16.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  instances: 3
+  imageName: "ghcr.io/cloudnative-pg/postgresql:18.1-standard-trixie"
+  imagePullPolicy: IfNotPresent
+  postgresUID: 26
+  postgresGID: 26
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: false
+      parameters:
+        barmanObjectName: "roundcube-postgresql-18-external-backup"
+        serverName: "roundcube-postgresql-18-backup-1"
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: "roundcube-postgresql-18-garage-local-backup"
+        serverName: "roundcube-postgresql-18-backup-1"
+  storage:
+    size: 10Gi
+    storageClass: local-path
+  walStorage:
+    size: 2Gi
+    storageClass: local-path
+  resources:
+    limits:
+      hugepages-2Mi: 256Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+  primaryUpdateMethod: switchover
+  primaryUpdateStrategy: unsupervised
+  logLevel: info
+  enableSuperuserAccess: false
+  enablePDB: true
+  postgresql:
+    parameters:
+      hot_standby_feedback: "on"
+      max_slot_wal_keep_size: 2000MB
+      shared_buffers: 128MB
+  monitoring:
+    enablePodMonitor: true
+    disableDefaultQueries: false
+  bootstrap:
+    initdb:
+      import:
+        source:
+          externalCluster: importSource
+        type: microservice
+        databases:
+          - app
+        schemaOnly: false
+  externalClusters:
+    - name: importSource
+      connectionParameters:
+        host: "roundcube-postgresql-17-cluster-rw"
+        port: "5432"
+        user: "app"
+        dbname: "app"
+        sslmode: "disable"
+      password:
+        name: roundcube-postgresql-17-cluster-app
+        key: password
