@@ -29,6 +29,13 @@ spec:
       parameters:
         barmanObjectName: "sonarr-anime-postgresql-18-garage-local-backup"
         serverName: "sonarr-anime-postgresql-18-backup-1"
+  externalClusters:
+    - name: recovery
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: "sonarr-anime-postgresql-18-recovery"
+          serverName: sonarr-anime-postgresql-18-backup-1
   storage:
     size: 10Gi
     storageClass: local-path
@@ -58,27 +65,15 @@ spec:
     enablePodMonitor: true
     disableDefaultQueries: false
   bootstrap:
-    initdb:
+    recovery:
       database: app
-      owner: app
-      import:
-        source:
-          externalCluster: importSource
-        type: monolith
-        databases:
-          - sonarr-main
-          - sonarr-log
-        roles:
-          - app
-        schemaOnly: false
+      source: sonarr-anime-postgresql-18-backup-1
   externalClusters:
-    - name: importSource
-      connectionParameters:
-        host: "sonarr4-anime-postgresql-17-cluster-rw"
-        port: "5432"
-        user: "postgres"
-        dbname: "*"
-        sslmode: "disable"
-      password:
-        name: sonarr4-anime-postgresql-17-cluster-superuser
-        key: password
+    - name: sonarr-anime-postgresql-18-backup-1
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        enabled: true
+        isWALArchiver: false
+        parameters:
+          barmanObjectName: "sonarr-anime-postgresql-18-recovery"
+          serverName: sonarr-anime-postgresql-18-backup-1
