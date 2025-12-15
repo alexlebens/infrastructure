@@ -4,11 +4,11 @@ metadata:
   name: immich-postgresql-18-cluster
   namespace: immich
   labels:
-    helm.sh/chart: postgres-18-cluster-6.16.1
+    helm.sh/chart: postgres-18-cluster-7.1.1
     app.kubernetes.io/name: immich-postgresql-18
     app.kubernetes.io/instance: immich
     app.kubernetes.io/part-of: immich
-    app.kubernetes.io/version: "6.16.1"
+    app.kubernetes.io/version: "7.1.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   instances: 3
@@ -16,26 +16,6 @@ spec:
   imagePullPolicy: IfNotPresent
   postgresUID: 26
   postgresGID: 26
-  plugins:
-    - name: barman-cloud.cloudnative-pg.io
-      enabled: true
-      isWALArchiver: false
-      parameters:
-        barmanObjectName: "immich-postgresql-18-external-backup"
-        serverName: "immich-postgresql-18-backup-1"
-    - name: barman-cloud.cloudnative-pg.io
-      enabled: true
-      isWALArchiver: true
-      parameters:
-        barmanObjectName: "immich-postgresql-18-garage-local-backup"
-        serverName: "immich-postgresql-18-backup-1"
-  externalClusters:
-    - name: recovery
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        parameters:
-          barmanObjectName: "immich-postgresql-18-recovery"
-          serverName: immich-postgresql-18-backup-1
   storage:
     size: 10Gi
     storageClass: local-path
@@ -66,6 +46,13 @@ spec:
   monitoring:
     enablePodMonitor: true
     disableDefaultQueries: false
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: "immich-postgresql-18-garage-local-backup"
+        serverName: "immich-postgresql-18-backup-1"
   bootstrap:
     recovery:
       database: app

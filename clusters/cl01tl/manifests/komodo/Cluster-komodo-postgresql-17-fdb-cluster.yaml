@@ -4,11 +4,11 @@ metadata:
   name: komodo-postgresql-17-fdb-cluster
   namespace: komodo
   labels:
-    helm.sh/chart: postgresql-17-fdb-cluster-6.16.1
+    helm.sh/chart: postgresql-17-fdb-cluster-7.1.1
     app.kubernetes.io/name: komodo-postgresql-17-fdb
     app.kubernetes.io/instance: komodo
     app.kubernetes.io/part-of: komodo
-    app.kubernetes.io/version: "6.16.1"
+    app.kubernetes.io/version: "7.1.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   instances: 3
@@ -16,26 +16,6 @@ spec:
   imagePullPolicy: IfNotPresent
   postgresUID: 999
   postgresGID: 999
-  plugins:
-    - name: barman-cloud.cloudnative-pg.io
-      enabled: true
-      isWALArchiver: false
-      parameters:
-        barmanObjectName: "komodo-postgresql-17-fdb-external-backup"
-        serverName: "komodo-postgresql-17-fdb-backup-2"
-    - name: barman-cloud.cloudnative-pg.io
-      enabled: true
-      isWALArchiver: true
-      parameters:
-        barmanObjectName: "komodo-postgresql-17-fdb-garage-local-backup"
-        serverName: "komodo-postgresql-17-fdb-backup-1"
-  externalClusters:
-    - name: recovery
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        parameters:
-          barmanObjectName: "komodo-postgresql-17-fdb-recovery"
-          serverName: komodo-postgresql-17-fdb-backup-1
   storage:
     size: 10Gi
     storageClass: local-path
@@ -54,7 +34,7 @@ spec:
   primaryUpdateMethod: switchover
   primaryUpdateStrategy: unsupervised
   logLevel: info
-  enableSuperuserAccess: true
+  enableSuperuserAccess: false
   enablePDB: true
   postgresql:
     shared_preload_libraries:
@@ -80,11 +60,23 @@ spec:
   monitoring:
     enablePodMonitor: true
     disableDefaultQueries: false
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: "komodo-postgresql-17-fdb-garage-local-backup"
+        serverName: "komodo-postgresql-17-fdb-backup-1"
   bootstrap:
-    initdb:
-      database: ferretDB
-      owner: ferret
-      postInitApplicationSQL:
-        - create extension if not exists pg_cron;
-        - create extension if not exists documentdb cascade;
-        - grant documentdb_admin_role to ferret;
+    recovery:
+      database: app
+      source: komodo-postgresql-17-fdb-backup-1
+  externalClusters:
+    - name: komodo-postgresql-17-fdb-backup-1
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        enabled: true
+        isWALArchiver: false
+        parameters:
+          barmanObjectName: "komodo-postgresql-17-fdb-recovery"
+          serverName: komodo-postgresql-17-fdb-backup-1
