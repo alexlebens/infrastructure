@@ -72,17 +72,10 @@ yamtrack:
 postgres-18-cluster:
   mode: recovery
   cluster:
-    image:
-      repository: ghcr.io/cloudnative-pg/postgresql
-      tag: 18.1-standard-trixie
     storage:
       storageClass: local-path
     walStorage:
       storageClass: local-path
-    monitoring:
-      enabled: true
-      prometheusRule:
-        enabled: true
   recovery:
     method: objectStore
     objectStore:
@@ -92,11 +85,6 @@ postgres-18-cluster:
       endpointCredentials: yamtrack-postgresql-18-cluster-backup-secret-garage
   backup:
     objectStore:
-      - name: external
-        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/yamtrack/yamtrack-postgresql-18-cluster
-        index: 1
-        retentionPolicy: "30d"
-        isWALArchiver: false
       - name: garage-local
         destinationPath: s3://postgres-backups/cl01tl/yamtrack/yamtrack-postgresql-18-cluster
         index: 1
@@ -105,6 +93,11 @@ postgres-18-cluster:
         endpointCredentialsIncludeRegion: true
         retentionPolicy: "3d"
         isWALArchiver: true
+      # - name: external
+      #   destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/yamtrack/yamtrack-postgresql-18-cluster
+      #   index: 1
+      #   retentionPolicy: "30d"
+      #   isWALArchiver: false
       # - name: garage-remote
       #   destinationPath: s3://postgres-backups/cl01tl/yamtrack/yamtrack-postgresql-18-cluster
       #   index: 1
@@ -115,20 +108,20 @@ postgres-18-cluster:
       #     compression: bzip2
       #     jobs: 2
     scheduledBackups:
-      - name: daily-backup
-        suspend: false
-        immediate: true
-        schedule: "0 0 0 * * *"
-        backupName: external
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 0 0 * * *"
         backupName: garage-local
-      # - name: weekly-backup
+      # - name: daily-backup
       #   suspend: false
       #   immediate: true
-      #   schedule: "0 34 4 * * SAT"
+      #   schedule: "0 0 0 * * *"
+      #   backupName: external
+      # - name: weekly-backup
+      #   suspend: true
+      #   immediate: true
+      #   schedule: "0 0 4 * * SAT"
       #   backupName: garage-remote
 redis-replication:
   existingSecret:

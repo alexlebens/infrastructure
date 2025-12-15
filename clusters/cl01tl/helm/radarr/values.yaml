@@ -86,27 +86,16 @@ radarr:
 postgres-18-cluster:
   mode: recovery
   cluster:
-    image:
-      repository: ghcr.io/cloudnative-pg/postgresql
-      tag: 18.1-standard-trixie
     storage:
       storageClass: local-path
     walStorage:
       storageClass: local-path
-    monitoring:
-      enabled: true
-      prometheusRule:
-        enabled: true
-    resources:
-      requests:
-        memory: 1Gi
-        cpu: 200m
     initdb:
       database: app
       owner: app
-      # postInitSQL:
-      #   - CREATE DATABASE "radarr-main" OWNER "app";
-      #   - CREATE DATABASE "radarr-log" OWNER "app";
+      postInitSQL:
+        - CREATE DATABASE IF NOT EXISTS "radarr-main" OWNER "app";
+        - CREATE DATABASE IF NOT EXISTS "radarr-log" OWNER "app";
   recovery:
     method: objectStore
     objectStore:
@@ -116,12 +105,6 @@ postgres-18-cluster:
       endpointCredentials: radarr-postgresql-18-cluster-backup-secret-garage
   backup:
     objectStore:
-      - name: external
-        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr/radarr-postgresql-18-cluster
-        index: 1
-        endpointCredentials: radarr-postgresql-18-cluster-backup-secret
-        retentionPolicy: "30d"
-        isWALArchiver: false
       - name: garage-local
         destinationPath: s3://postgres-backups/cl01tl/radarr/radarr-postgresql-18-cluster
         index: 1
@@ -130,6 +113,12 @@ postgres-18-cluster:
         endpointCredentialsIncludeRegion: true
         retentionPolicy: "3d"
         isWALArchiver: true
+      # - name: external
+      #   destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr/radarr-postgresql-18-cluster
+      #   index: 1
+      #   endpointCredentials: radarr-postgresql-18-cluster-backup-secret
+      #   retentionPolicy: "30d"
+      #   isWALArchiver: false
       # - name: garage-remote
       #   destinationPath: s3://postgres-backups/cl01tl/radarr/radarr-postgresql-18-cluster
       #   index: 1
@@ -140,18 +129,18 @@ postgres-18-cluster:
       #     compression: bzip2
       #     jobs: 2
     scheduledBackups:
-      - name: daily-backup
-        suspend: false
-        immediate: true
-        schedule: "0 0 0 * * *"
-        backupName: external
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 0 0 * * *"
         backupName: garage-local
-      # - name: weekly-backup
+      # - name: daily-backup
       #   suspend: false
       #   immediate: true
-      #   schedule: "0 16 4 * * SAT"
+      #   schedule: "0 0 0 * * *"
+      #   backupName: external
+      # - name: weekly-backup
+      #   suspend: true
+      #   immediate: true
+      #   schedule: "0 0 4 * * SAT"
       #   backupName: garage-remote

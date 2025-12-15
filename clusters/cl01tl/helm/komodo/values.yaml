@@ -145,7 +145,7 @@ komodo:
               readOnly: false
 postgresql-17-fdb-cluster:
   nameOverride: komodo-postgresql-17-fdb
-  mode: standalone
+  mode: recovery
   cluster:
     image:
       repository: ghcr.io/ferretdb/postgres-documentdb
@@ -156,11 +156,6 @@ postgresql-17-fdb-cluster:
       storageClass: local-path
     postgresUID: 999
     postgresGID: 999
-    enableSuperuserAccess: true
-    monitoring:
-      enabled: true
-      prometheusRule:
-        enabled: true
     postgresql:
       parameters:
         cron.database_name: 'ferretDB'
@@ -198,11 +193,6 @@ postgresql-17-fdb-cluster:
       endpointCredentials: komodo-postgresql-17-cluster-backup-secret-garage
   backup:
     objectStore:
-      - name: external
-        destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-fdb-cluster
-        index: 2
-        retentionPolicy: "30d"
-        isWALArchiver: false
       - name: garage-local
         destinationPath: s3://postgres-backups/cl01tl/komodo/komodo-postgresql-17-cluster
         index: 1
@@ -211,6 +201,11 @@ postgresql-17-fdb-cluster:
         endpointCredentialsIncludeRegion: true
         retentionPolicy: "3d"
         isWALArchiver: true
+      # - name: external
+      #   destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-fdb-cluster
+      #   index: 1
+      #   retentionPolicy: "30d"
+      #   isWALArchiver: false
       # - name: garage-remote
       #   destinationPath: s3://postgres-backups/cl01tl/komodo/komodo-postgresql-17-cluster
       #   index: 1
@@ -221,16 +216,18 @@ postgresql-17-fdb-cluster:
       #     compression: bzip2
       #     jobs: 2
     scheduledBackups:
-      - name: daily-backup
-        suspend: false
-        schedule: "0 0 0 * * *"
-        backupName: external
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 0 0 * * *"
         backupName: garage-local
-      # - name: weekly-backup
+      # - name: daily-backup
       #   suspend: false
+      #   immediate: true
+      #   schedule: "0 0 0 * * *"
+      #   backupName: external
+      # - name: weekly-backup
+      #   suspend: true
+      #   immediate: true
       #   schedule: "0 0 4 * * SAT"
       #   backupName: garage-remote
