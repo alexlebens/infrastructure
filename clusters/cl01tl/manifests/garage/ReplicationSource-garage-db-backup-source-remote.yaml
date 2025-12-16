@@ -1,0 +1,29 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: garage-db-backup-source-remote
+  namespace: garage
+  labels:
+    helm.sh/chart: volsync-target-db-0.5.0
+    app.kubernetes.io/instance: garage
+    app.kubernetes.io/part-of: garage
+    app.kubernetes.io/version: "0.5.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: garage-db-backup
+spec:
+  sourcePVC: garage-db
+  trigger:
+    schedule: 0 3 * * *
+  restic:
+    pruneIntervalDays: 7
+    repository: garage-db-backup-secret-remote
+    retain:
+      daily: 3
+      hourly: 1
+      monthly: 2
+      weekly: 2
+      yearly: 4
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
+    cacheCapacity: 10Gi
