@@ -1,22 +1,22 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: code-server-config-backup-source-external
-  namespace: code-server
+  name: freshrss-data-backup-source-local
+  namespace: freshrss
   labels:
-    helm.sh/chart: volsync-target-config-0.5.0
-    app.kubernetes.io/instance: code-server
-    app.kubernetes.io/part-of: code-server
+    helm.sh/chart: volsync-target-data-0.5.0
+    app.kubernetes.io/instance: freshrss
+    app.kubernetes.io/part-of: freshrss
     app.kubernetes.io/version: "0.5.0"
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: code-server-config-backup
+    app.kubernetes.io/name: freshrss-data-backup
 spec:
-  sourcePVC: code-server-config
+  sourcePVC: freshrss-data
   trigger:
-    schedule: 0 4 * * *
+    schedule: 0 2 * * *
   restic:
     pruneIntervalDays: 7
-    repository: code-server-config-backup-secret-external
+    repository: freshrss-data-backup-secret-local
     retain:
       daily: 3
       hourly: 1
@@ -24,10 +24,15 @@ spec:
       weekly: 2
       yearly: 4
     moverSecurityContext:
-      fsGroup: 1000
+      fsGroup: 568
       fsGroupChangePolicy: OnRootMismatch
-      runAsGroup: 1000
-      runAsUser: 1000
+      runAsGroup: 568
+      runAsUser: 568
+      supplementalGroups:
+        - 44
+        - 100
+        - 109
+        - 65539
     copyMethod: Snapshot
     storageClassName: ceph-block
     volumeSnapshotClassName: ceph-blockpool-snapshot
