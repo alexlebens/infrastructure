@@ -1,0 +1,29 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: gitea-shared-storage-backup-source-local
+  namespace: gitea
+  labels:
+    helm.sh/chart: volsync-target-storage-0.5.0
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/part-of: gitea
+    app.kubernetes.io/version: "0.5.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: gitea-shared-storage-backup
+spec:
+  sourcePVC: gitea-shared-storage
+  trigger:
+    schedule: 0 0 0 * * *
+  restic:
+    pruneIntervalDays: 3
+    repository: gitea-shared-storage-backup-secret-local
+    retain:
+      daily: 1
+      hourly: 1
+      monthly: 0
+      weekly: 3
+      yearly: 0
+    copyMethod: Snapshot
+    storageClassName: ceph-filesystem
+    volumeSnapshotClassName: ceph-filesystem
+    cacheCapacity: 40Gi
