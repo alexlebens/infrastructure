@@ -25,13 +25,37 @@ jellyfin:
               gpu.intel.com/i915: 1
               cpu: 1
               memory: 2Gi
+    vue:
+      type: deployment
+      replicas: 3
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/jellyfin/jellyfin-vue
+            tag: unstable@sha256:0083110ab7def4f4e2eefe02b55bce92c40c72abc7efcd622dd5c24fc1ab48b2
+            pullPolicy: IfNotPresent
+          env:
+            - name: DEFAULT_SERVERS
+              value: http://jellyfin.jellyfin:80
+            - name: DISABLE_SERVER_SELECTION
+              value: true
   service:
     main:
+      forceRename: jellyfin
       controller: main
       ports:
         http:
           port: 80
           targetPort: 8096
+          protocol: HTTP
+    vue:
+      controller: vue
+      ports:
+        http:
+          port: 80
+          targetPort: 80
           protocol: HTTP
   persistence:
     config:
