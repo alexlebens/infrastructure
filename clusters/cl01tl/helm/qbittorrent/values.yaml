@@ -251,18 +251,6 @@ qbittorrent:
           targetPort: 9074
           protocol: HTTP
   persistence:
-    config:
-      type: persistentVolumeClaim
-      existingClaim: qbittorrent-config
-      advancedMounts:
-        main:
-          qbittorrent:
-            - path: /config
-              readOnly: false
-        qbit-manage:
-          qbit-manage:
-            - path: /qbittorrent
-              readOnly: false
     update-script:
       enabled: true
       type: configMap
@@ -273,19 +261,6 @@ qbittorrent:
           gluetun:
             - path: /gluetun/update.sh
               subPath: update.sh
-    qbit-manage-config-data:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 1Gi
-      retain: true
-      advancedMounts:
-        qbit-manage:
-          init-copy-config:
-            - path: /app/config
-              readOnly: false
-          qbit-manage:
-            - path: /app/config
-              readOnly: false
     qbit-manage-config:
       enabled: true
       type: configMap
@@ -302,14 +277,49 @@ qbittorrent:
               readOnly: true
               mountPropagation: None
               subPath: config.yml
-    qbit-manage-config-var:
-      type: emptyDir
+    config-data:
+      forceRename: qbittorrent-config-data
+      storageClass: ceph-filesystem
+      accessMode: ReadWriteMany
+      size: 1Gi
+      retain: true
       advancedMounts:
+        main:
+          qbittorrent:
+            - path: /config-new/qBittorrent
+              readOnly: false
+        # qbit-manage:
+        #   qbit-manage:
+        #     - path: /qbittorrent
+        #       readOnly: false
+    config:
+      type: persistentVolumeClaim
+      existingClaim: qbittorrent-config
+      advancedMounts:
+        main:
+          qbittorrent:
+            - path: /config
+              readOnly: false
         qbit-manage:
           qbit-manage:
-            - path: /app/var
+            - path: /qbittorrent
+              readOnly: false
+    qbit-manage-config-data:
+      forceRename: qbittorrent-qbit-manage-config-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        qbit-manage:
+          init-copy-config:
+            - path: /app/config
+              readOnly: false
+          qbit-manage:
+            - path: /app/config
               readOnly: false
     qui-config-data:
+      forceRename: qbittorrent-qui-config-data
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 1Gi
@@ -318,6 +328,13 @@ qbittorrent:
         qui:
           qui:
             - path: /config
+              readOnly: false
+    qbit-manage-config-var:
+      type: emptyDir
+      advancedMounts:
+        qbit-manage:
+          qbit-manage:
+            - path: /app/var
               readOnly: false
     storage:
       type: persistentVolumeClaim
@@ -331,3 +348,14 @@ qbittorrent:
           qbit-manage:
             - path: /mnt/store
               readOnly: false
+volsync-target-config:
+  pvcTarget: qbittorrent-config-data
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+volsync-target-qbit-manage-config:
+  pvcTarget: qbittorrent-qbit-manage-config-data
+volsync-target-qui-config:
+  pvcTarget: qbittorrent-qui-config-data
