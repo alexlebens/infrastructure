@@ -3,7 +3,7 @@ libation:
     main:
       type: cronjob
       cronjob:
-        suspend: false
+        suspend: true
         concurrencyPolicy: Forbid
         timeZone: US/Central
         schedule: "0 0 * * *"
@@ -27,13 +27,42 @@ libation:
             requests:
               cpu: 10m
               memory: 128Mi
+    debug:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ubuntu
+            tag: 26.04
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
   persistence:
+    config-new:
+      forceRename: libation
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 500Mi
+      retain: true
+      advancedMounts:
+        debug:
+          main:
+            - path: /config
+              readOnly: false
     config:
       existingClaim: libation-config
       advancedMounts:
         main:
           main:
             - path: /config
+              readOnly: false
+        debug:
+          main:
+            - path: /config-old
               readOnly: false
     data:
       existingClaim: libation-nfs-storage
@@ -42,3 +71,9 @@ libation:
           main:
             - path: /data
               readOnly: false
+        debug:
+          main:
+            - path: /data
+              readOnly: false
+volsync-target-config:
+  pvcTarget: libation
