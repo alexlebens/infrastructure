@@ -1,28 +1,29 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: mautrix-discord-data-backup-source
+  name: matrix-hookshot-backup-source-remote
   namespace: matrix-synapse
   labels:
-    app.kubernetes.io/name: mautrix-discord-data-backup-source
+    helm.sh/chart: volsync-target-hookshot-0.5.0
     app.kubernetes.io/instance: matrix-synapse
     app.kubernetes.io/part-of: matrix-synapse
+    app.kubernetes.io/version: "0.5.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: matrix-hookshot-backup
 spec:
-  sourcePVC: mautrix-discord
+  sourcePVC: matrix-hookshot
   trigger:
-    schedule: 0 4 * * *
+    schedule: 0 3 * * *
   restic:
     pruneIntervalDays: 7
-    repository: mautrix-discord-data-backup-secret
+    repository: matrix-hookshot-backup-secret-remote
     retain:
-      hourly: 1
       daily: 3
-      weekly: 2
+      hourly: 1
       monthly: 2
+      weekly: 2
       yearly: 4
-    moverSecurityContext:
-      runAsUser: 1337
-      runAsGroup: 1337
     copyMethod: Snapshot
     storageClassName: ceph-block
     volumeSnapshotClassName: ceph-blockpool-snapshot
+    cacheCapacity: 1Gi
