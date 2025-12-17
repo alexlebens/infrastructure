@@ -14,9 +14,83 @@ data:
         echo "curl could not be found, installing";
         apk add curl;
     fi;
+
+    if ! command -v jq 2>&1 >/dev/null
+    then
+        echo "jq could not be found, installing";
+        apk add jq;
+    fi;
+
+    API_ENDPOINT="http://localhost:8080/api/v2";
+
+    # echo " ";
+    # echo ">> Authentication ...";
+    # curl -i --silent --header 'Referer: http://localhost:8080' --output response_body_auth.json --data 'username=admin&password=adminadmin' "${API_ENDPOINT}/auth/login" -c cookie;
+
+    echo " ";
+    echo ">> Test access ...";
+    HTTP_STATUS=$(curl -i -X GET --silent --write-out '%{http_code}' --output response_body_test.json -b cookie -c cookie "${API_ENDPOINT}/app/version");
+    echo ">> HTTP Status Code: $HTTP_STATUS"
+
+    VERSION=$(tail -n 1 ./test/response_body_test.json)
+
+    if [ "$HTTP_STATUS" == "200" ]; then
+        echo ">> Access confirmed, qBittorrent version: ${VERSION}"
+        HTTP_STATUS=""
+    else
+        echo ">> ERROR: HTTP status code: $HTTP_STATUS"
+        exit 1
+    fi
+
+    PAYLOAD=$( jq -n \
+    --arg random_port "true" \
+    '{random_port: $random_port' );
+
+    echo " ";
     echo ">> Setting port to random ...";
-    curl -i -X POST --silent --write-out '%{http_code}' -d "json={\"random_port\": \"true\"}" "http://localhost:8080/api/v2/app/setPreferences";
+    HTTP_STATUS=$(curl -i -X POST --silent -b cookie -c cookie --write-out '%{http_code}' --output response_body_random.json --data "$PAYLOAD" "${API_ENDPOINT}/app/setPreferences");
+
+    if [ "$HTTP_STATUS" == "200" ]; then
+        echo ">> Random port set"
+        HTTP_STATUS=""
+    else
+        echo ">> ERROR: HTTP status code: $HTTP_STATUS"
+        exit 1
+    fi
+
+    echo " ";
     echo ">> Sleeping for changes to take effect";
-    sleep 10;
-    echo ">> Updating port with $1 ...";
-    curl -i -X POST --silent --write-out '%{http_code}' -d "json={\"listen_port\": \"${1}\"}" "http://localhost:8080/api/v2/app/setPreferences";
+    sleep 5;
+
+    PAYLOAD=$( jq -n \
+    --arg listen_port "${1}" \
+    '{listen_port: $listen_port' );
+
+    echo " ";
+    echo ">> Updating port with ${1} ...";
+    curl -i -X POST --silent -b cookie -c cookie --write-out '%{http_code}' --output response_body_update.json --data "$PAYLOAD" "${API_ENDPOINT}/app/setPreferences";
+
+    if [ "$HTTP_STATUS" == "200" ]; then
+        echo ">> Port set"
+        HTTP_STATUS=""
+    else
+        echo ">> ERROR: HTTP status code: $HTTP_STATUS"
+        exit 1
+    fi
+
+    echo " ";
+    echo ">> Sleeping for changes to take effect";
+    sleep 5;
+
+    echo " ";
+    echo ">> Qbittorrent's post is now:";
+    curl -i -X GET --silent -b cookie -c cookie --write-out '%{http_code}' --output response_body_check.json "${API_ENDPOINT}/app/preferences";
+
+    LISTEN_PORT=$(cat response_body_check.json | jq -r .listen_port)
+
+    [[ "$HTTP_STATUS" == "200" || "$LISTEN_PORT" == "${1}" ]];
+        echo ">> Port updated successfully!"
+    else
+        echo ">> ERROR: HTTP status code: $HTTP_STATUS"
+        exit 1
+    fi
