@@ -1,28 +1,32 @@
 apiVersion: volsync.backube/v1alpha1
 kind: ReplicationSource
 metadata:
-  name: ollama-web-data-backup-source
+  name: ollama-web-data-backup-source-external
   namespace: ollama
   labels:
-    app.kubernetes.io/name: ollama-web-data-backup-source
+    helm.sh/chart: volsync-target-data-0.5.0
     app.kubernetes.io/instance: ollama
     app.kubernetes.io/part-of: ollama
+    app.kubernetes.io/version: "0.5.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ollama-web-data-backup
 spec:
   sourcePVC: ollama-web-data
   trigger:
     schedule: 0 4 * * *
   restic:
     pruneIntervalDays: 7
-    repository: ollama-web-data-backup-secret
+    repository: ollama-web-data-backup-secret-external
     retain:
-      hourly: 1
       daily: 3
-      weekly: 2
+      hourly: 1
       monthly: 2
+      weekly: 2
       yearly: 4
     moverSecurityContext:
-      runAsUser: 1337
       runAsGroup: 1337
+      runAsUser: 1337
     copyMethod: Snapshot
     storageClassName: ceph-block
     volumeSnapshotClassName: ceph-blockpool-snapshot
+    cacheCapacity: 1Gi
