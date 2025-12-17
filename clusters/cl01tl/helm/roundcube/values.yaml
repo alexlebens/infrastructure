@@ -173,6 +173,17 @@ roundcube:
           targetPort: 80
           protocol: HTTP
   persistence:
+    config:
+      enabled: true
+      type: configMap
+      name: roundcube-config
+      advancedMounts:
+        main:
+          nginx:
+            - path: /etc/nginx/conf.d/default.conf
+              readOnly: true
+              mountPropagation: None
+              subPath: default.conf
     data:
       forceRename: roundcube-data
       storageClass: ceph-block
@@ -194,17 +205,6 @@ roundcube:
           main:
             - path: /tmp/roundcube-temp
               readOnly: false
-    config:
-      enabled: true
-      type: configMap
-      name: roundcube-config
-      advancedMounts:
-        main:
-          nginx:
-            - path: /etc/nginx/conf.d/default.conf
-              readOnly: true
-              mountPropagation: None
-              subPath: default.conf
 postgres-18-cluster:
   mode: recovery
   cluster:
@@ -259,3 +259,5 @@ postgres-18-cluster:
       #   immediate: true
       #   schedule: "0 0 4 * * SAT"
       #   backupName: garage-remote
+volsync-target-data:
+  pvcTarget: roundcube-data
