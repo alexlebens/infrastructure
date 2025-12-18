@@ -80,13 +80,13 @@ data:
     echo ">> Sleeping for changes to take effect";
     sleep 5;
 
-    echo " ";
-    echo ">> Qbittorrent's post is now:";
     HTTP_STATUS=$(curl -i -X GET --silent -b cookie -c cookie --write-out '%{http_code}' --output response_body_check.json "${API_ENDPOINT}/app/preferences");
+    LISTEN_PORT=$(tail -n 1 response_body_check.json | jq -r .listen_port)
 
-    LISTEN_PORT=$(cat response_body_check.json | jq -r .listen_port)
+    echo " ";
+    echo ">> qBittorrent's post is now: $LISTEN_PORT";
 
-    [[ "$HTTP_STATUS" == "200" || "$LISTEN_PORT" == "${1}" ]];
+    if [[ "$HTTP_STATUS" == "200" && "$LISTEN_PORT" == "${1}" ]]; then
         echo ">> Port updated successfully!"
     else
         echo ">> ERROR: HTTP status code: $HTTP_STATUS"
