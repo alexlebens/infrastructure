@@ -32,7 +32,7 @@ data:
     HTTP_STATUS=$(curl -i -X GET --silent --write-out '%{http_code}' --output response_body_test.json -b cookie -c cookie "${API_ENDPOINT}/app/version");
     echo ">> HTTP Status Code: $HTTP_STATUS"
 
-    VERSION=$(tail -n 1 ./test/response_body_test.json)
+    VERSION=$(tail -n 1 response_body_test.json)
 
     if [ "$HTTP_STATUS" == "200" ]; then
         echo ">> Access confirmed, qBittorrent version: ${VERSION}"
@@ -43,12 +43,11 @@ data:
     fi
 
     PAYLOAD=$( jq -n \
-    --arg random_port "true" \
-    '{random_port: $random_port' );
+    '{random_port: true}' );
 
     echo " ";
     echo ">> Setting port to random ...";
-    HTTP_STATUS=$(curl -i -X POST --silent -b cookie -c cookie --write-out '%{http_code}' --output response_body_random.json --data "$PAYLOAD" "${API_ENDPOINT}/app/setPreferences");
+    HTTP_STATUS=$(curl -i -X POST --silent -b cookie -c cookie --write-out '%{http_code}' --output response_body_random.json --data "json=$PAYLOAD" "${API_ENDPOINT}/app/setPreferences");
 
     if [ "$HTTP_STATUS" == "200" ]; then
         echo ">> Random port set"
@@ -63,12 +62,11 @@ data:
     sleep 5;
 
     PAYLOAD=$( jq -n \
-    --arg listen_port "${1}" \
-    '{listen_port: $listen_port' );
+    "{listen_port: ${1}}" );
 
     echo " ";
     echo ">> Updating port with ${1} ...";
-    curl -i -X POST --silent -b cookie -c cookie --write-out '%{http_code}' --output response_body_update.json --data "$PAYLOAD" "${API_ENDPOINT}/app/setPreferences";
+    curl -i -X POST --silent -b cookie -c cookie --write-out '%{http_code}' --output response_body_update.json --data "json=$PAYLOAD" "${API_ENDPOINT}/app/setPreferences";
 
     if [ "$HTTP_STATUS" == "200" ]; then
         echo ">> Port set"
