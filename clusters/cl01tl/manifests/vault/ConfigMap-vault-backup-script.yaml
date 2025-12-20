@@ -11,7 +11,7 @@ data:
   backup.sh: |
     echo " ";
     echo ">> Running S3 backup for Vault snapshot";
-    OUTPUT=$(s3cmd sync --no-check-certificate -v /opt/backup "${BUCKET}/cl01tl/cl01tl-vault-snapshots/" 2>&1)
+    OUTPUT=$(s3cmd sync --no-check-certificate -v /opt/backup/* "${BUCKET}/cl01tl/cl01tl-vault-snapshots/" 2>&1)
     STATUS=$?
 
     if [ $STATUS -ne 0 ]; then
@@ -35,28 +35,37 @@ data:
         echo " "
         echo ">> Sending message to ntfy using curl ..."
 
+        echo " "
+        echo ">> Verifying required commands ..."
+
         for i in $(seq 1 "$MAX_RETRIES"); do
             if apk update 2>&1 >/dev/null; then
+                echo " "
                 echo ">> Attempt $i: Repositories are reachable";
                 SUCCESS=true;
                 break;
             else
+                echo " "
                 echo ">> Attempt $i: Connection failed, retrying in 5 seconds ...";
                 sleep 5;
             fi;
         done;
 
         if [ "$SUCCESS" = false ]; then
+            echo " "
             echo ">> ERROR: Could not connect to apk repositories after $MAX_RETRIES attempts, exiting ...";
             exit 1;
         fi
 
         if ! command -v curl 2>&1 >/dev/null; then
+            echo " "
             echo ">> Command curl could not be found, installing";
             apk add --no-cache -q curl;
             if [ $? -eq 0 ]; then
+                echo " "
                 echo ">> Installation successful";
             else
+                echo " "
                 echo ">> Installation failed with exit code $?";
                 exit 1;
             fi;
@@ -67,14 +76,18 @@ data:
 
         echo " "
         echo ">> Sending to NTFY ..."
-        curl \
+        HTTP_STATUS=$(curl \
             --silent \
+            --write-out '%{http_code}' \
             -H "Authorization: Bearer ${NTFY_TOKEN}" \
             -H "X-Priority: 5" \
             -H "X-Tags: warning" \
             -H "X-Title: Vault Backup Failed for ${TARGET}" \
             -d "$MESSAGE" \
             ${NTFY_ENDPOINT}/${NTFY_TOPIC}
+        )
+        echo ">> HTTP Status Code: $HTTP_STATUS"
+
     else
         echo " ";
         echo ">> S3 Sync succeeded"
