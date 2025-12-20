@@ -20,7 +20,7 @@ etcd-backup:
         backoffLimit: 3
         parallelism: 1
       containers:
-        main:
+        local:
           image:
             repository: ghcr.io/siderolabs/talos-backup
             tag: v0.1.0-beta.3@sha256:05c86663b251a407551dc948097e32e163a345818117eb52c573b0447bd0c7a7
@@ -42,12 +42,104 @@ etcd-backup:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-secret
+                  name: talos-etcd-backup-local-secret
                   key: AWS_ACCESS_KEY_ID
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-secret
+                  name: talos-etcd-backup-local-secret
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_REGION
+              value: us-east-1
+            - name: CUSTOM_S3_ENDPOINT
+              value: http://garage-main.garage:3900
+            - name: BUCKET
+              value: talos-backups
+            - name: S3_PREFIX
+              value: "cl01tl/etcd"
+            - name: CLUSTER_NAME
+              value: "cl01tl"
+            - name: AGE_X25519_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-local-secret
+                  key: AGE_X25519_PUBLIC_KEY
+            - name: USE_PATH_STYLE
+              value: "false"
+        remote:
+          image:
+            repository: ghcr.io/siderolabs/talos-backup
+            tag: v0.1.0-beta.3@sha256:05c86663b251a407551dc948097e32e163a345818117eb52c573b0447bd0c7a7
+            pullPolicy: IfNotPresent
+          command:
+            - /talos-backup
+          workingDir: /tmp
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-remote-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-remote-secret
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_REGION
+              value: us-east-1
+            - name: CUSTOM_S3_ENDPOINT
+              value: https://garage-ps10rp.boreal-beaufort.ts.net:3900
+            - name: BUCKET
+              value: talos-backups
+            - name: S3_PREFIX
+              value: "cl01tl/etcd"
+            - name: CLUSTER_NAME
+              value: "cl01tl"
+            - name: AGE_X25519_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-remote-secret
+                  key: AGE_X25519_PUBLIC_KEY
+            - name: USE_PATH_STYLE
+              value: "false"
+        external:
+          image:
+            repository: ghcr.io/siderolabs/talos-backup
+            tag: v0.1.0-beta.3@sha256:05c86663b251a407551dc948097e32e163a345818117eb52c573b0447bd0c7a7
+            pullPolicy: IfNotPresent
+          command:
+            - /talos-backup
+          workingDir: /tmp
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-external-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-external-secret
                   key: AWS_SECRET_ACCESS_KEY
             - name: AWS_REGION
               value: nyc3
@@ -62,15 +154,11 @@ etcd-backup:
             - name: AGE_X25519_PUBLIC_KEY
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-secret
+                  name: talos-etcd-backup-external-secret
                   key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
               value: "false"
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-        s3-prune:
+        s3-prune-local:
           image:
             repository: d3fk/s3cmd
             tag: latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
@@ -79,48 +167,58 @@ etcd-backup:
             - /bin/sh
           args:
             - -ec
-            - |
-              export DATE_RANGE=$(date -d @$(( $(date +%s) - 1209600 )) +%Y-%m-%dT%H:%M:%SZ);
-              export FILE_MATCH="$BUCKET/cl01tl/etcd/cl01tl-$DATE_RANGE.snap.age"
-              echo ">> Running S3 prune for Talos backup repository"
-              echo ">> Backups prior to '$DATE_RANGE' will be removed"
-              echo ">> Backups to be removed:"
-              s3cmd ls ${BUCKET}/cl01tl/etcd/ |
-                awk -v file_match="$FILE_MATCH" '$4 < file_match {print $4}'
-              echo ">> Deleting ..."
-              s3cmd ls ${BUCKET}/cl01tl/etcd/ |
-                awk -v file_match="$FILE_MATCH" '$4 < file_match {print $4}' |
-                while read file; do
-                  s3cmd del "$file";
-                done;
-              echo ">> Completed S3 prune for Talos backup repository"
+            - /scripts/prune.sh
+          envFrom:
+            - secretRef:
+                name: talos-etcd-backup-local-secret
+            - secretRef:
+                name: talos-backup-ntfy-secret
           env:
-            - name: BUCKET
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-secret
-                  key: BUCKET
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
+            - name: TARGET
+              value: Local
+            - name: DATE_RANGE_SECONDS
+              value: 2419200
+        s3-prune-remote:
+          image:
+            repository: d3fk/s3cmd
+            tag: latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - /scripts/prune.sh
+          envFrom:
+            - secretRef:
+                name: talos-etcd-backup-remote-secret
+            - secretRef:
+                name: talos-backup-ntfy-secret
+          env:
+            - name: TARGET
+              value: Remote
+            - name: DATE_RANGE_SECONDS
+              value: 2419200
+        s3-prune-external:
+          image:
+            repository: d3fk/s3cmd
+            tag: latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - /scripts/prune.sh
+          envFrom:
+            - secretRef:
+                name: talos-etcd-backup-external-secret
+            - secretRef:
+                name: talos-backup-ntfy-secret
+          env:
+            - name: TARGET
+              value: External
+            - name: DATE_RANGE_SECONDS
+              value: 1209600
   persistence:
-    tmp:
-      type: emptyDir
-      medium: Memory
-      advancedMounts:
-        main:
-          main:
-            - path: /tmp
-              readOnly: false
-    talos:
-      type: emptyDir
-      medium: Memory
-      advancedMounts:
-        main:
-          main:
-            - path: /.talos
-              readOnly: false
     secret:
       enabled: true
       type: secret
@@ -131,10 +229,10 @@ etcd-backup:
             - path: /var/run/secrets/talos.dev
               readOnly: true
               mountPropagation: None
-    s3cmd-config:
+    s3cmd-config-local:
       enabled: true
       type: secret
-      name: talos-etcd-backup-secret
+      name: talos-etcd-backup-local-secret
       advancedMounts:
         main:
           s3-prune:
@@ -142,6 +240,76 @@ etcd-backup:
               readOnly: true
               mountPropagation: None
               subPath: .s3cfg
+    s3cmd-config-remote:
+      enabled: true
+      type: secret
+      name: talos-etcd-backup-remote-secret
+      advancedMounts:
+        main:
+          s3-prune:
+            - path: /root/.s3cfg
+              readOnly: true
+              mountPropagation: None
+              subPath: .s3cfg
+    s3cmd-config-external:
+      enabled: true
+      type: secret
+      name: talos-etcd-backup-external-secret
+      advancedMounts:
+        main:
+          s3-prune:
+            - path: /root/.s3cfg
+              readOnly: true
+              mountPropagation: None
+              subPath: .s3cfg
+    tmp-local:
+      type: emptyDir
+      medium: Memory
+      advancedMounts:
+        main:
+          local:
+            - path: /tmp
+              readOnly: false
+    tmp-remote:
+      type: emptyDir
+      medium: Memory
+      advancedMounts:
+        main:
+          remote:
+            - path: /tmp
+              readOnly: false
+    tmp-external:
+      type: emptyDir
+      medium: Memory
+      advancedMounts:
+        main:
+          external:
+            - path: /tmp
+              readOnly: false
+    talos-local:
+      type: emptyDir
+      medium: Memory
+      advancedMounts:
+        main:
+          local:
+            - path: /.talos
+              readOnly: false
+    talos-remote:
+      type: emptyDir
+      medium: Memory
+      advancedMounts:
+        main:
+          remote:
+            - path: /.talos
+              readOnly: false
+    talos-external:
+      type: emptyDir
+      medium: Memory
+      advancedMounts:
+        main:
+          external:
+            - path: /.talos
+              readOnly: false
 etcd-defrag:
   global:
     fullnameOverride: etcd-defrag
@@ -179,10 +347,6 @@ etcd-defrag:
           env:
             - name: TALOSCONFIG
               value: /tmp/.talos/config
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
     defrag-2:
       type: cronjob
       pod:
@@ -216,10 +380,6 @@ etcd-defrag:
           env:
             - name: TALOSCONFIG
               value: /tmp/.talos/config
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
     defrag-3:
       type: cronjob
       pod:
@@ -253,10 +413,6 @@ etcd-defrag:
           env:
             - name: TALOSCONFIG
               value: /tmp/.talos/config
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
   persistence:
     talos-config-1:
       enabled: true

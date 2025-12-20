@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-backup-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: vault-backup-script
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+data:
+  backup.sh: |
+    export DATE_RANGE=$(date -d @$(( $(date +%s) - ${DATE_RANGE_SECONDS} )) +%Y-%m-%dT%H:%M:%SZ);
+    export FILE_MATCH="${BUCKET}/cl01tl/etcd/cl01tl-${DATE_RANGE}.snap.age"
+
+    echo ">> Running S3 prune for Talos backup repository ${TARGET} ..."
+
+    echo ">> Backups prior to '$DATE_RANGE' will be removed"
+    echo ">> Backups to be removed:"
+    s3cmd ls --no-check-certificate ${BUCKET}/cl01tl/etcd/ |
+      awk -v file_match="$FILE_MATCH" '$4 < file_match {print $4}'
+
+    echo ">> Deleting ..."
+    s3cmd ls --no-check-certificate ${BUCKET}/cl01tl/etcd/ |
+      awk -v file_match="$FILE_MATCH" '$4 < file_match {print $4}' |
+      while read file; do
+        s3cmd del --no-check-certificate -v "$file";
+        if [ $? -ne 0 ]; then
+          ERROR=true
+          echo ">> Detected error, will send message to ntfy"
+        fi
+      done;
+
+    if [ "$ERROR" = true ]; then
+
+      MAX_RETRIES=5
+      SUCCESS=false
+
+      echo " "
+      echo ">> Sending message to ntfy using curl ..."
+
+      echo " "
+      echo ">> Verifying required commands ..."
+
+      for i in $(seq 1 "$MAX_RETRIES"); do
+          if apk update 2>&1 >/dev/null; then
+              echo ">> Attempt $i: Repositories are reachable";
+              SUCCESS=true;
+              break;
+          else
+              echo ">> Attempt $i: Connection failed, retrying in 5 seconds ...";
+              sleep 5;
+          fi;
+      done;
+
+      if [ "$SUCCESS" = false ]; then
+          echo ">> ERROR: Could not connect to apk repositories after $MAX_RETRIES attempts, exiting ...";
+          exit 1;
+      fi
+
+      if ! command -v curl 2>&1 >/dev/null; then
+          echo ">> Command curl could not be found, installing";
+          apk add --no-cache -q curl;
+          if [ $? -eq 0 ]; then
+              echo ">> Installation successful";
+          else
+              echo ">> Installation failed with exit code $?";
+              exit 1;
+          fi;
+      fi;
+
+      echo " "
+      echo ">> Sending to NTFY ..."
+      HTTP_STATUS=$(curl \
+          --silent \
+          --write-out '%{http_code}' \
+          -H "Authorization: Bearer ${NTFY_TOKEN}" \
+          -H "X-Priority: 5" \
+          -H "X-Tags: warning" \
+          -H "X-Title: Talos Backup Failed for ${TARGET}" \
+          -d "$MESSAGE" \
+          ${NTFY_ENDPOINT}/${NTFY_TOPIC}
+      )
+      echo ">> HTTP Status Code: $HTTP_STATUS"
+
+    echo ">> Completed S3 prune for Talos backup repository ${TARGET}"
