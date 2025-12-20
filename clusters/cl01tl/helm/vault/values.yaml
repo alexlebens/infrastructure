@@ -198,12 +198,17 @@ snapshot:
           args:
             - -ec
             - /scripts/backup.sh
+          envFrom:
+            - secretRef:
+                name: vault-backup-ntfy-secret
           env:
             - name: BUCKET
               valueFrom:
                 secretKeyRef:
                   name: vault-s3cmd-local-config
                   key: BUCKET
+            - name: TARGET
+              value: Local
         s3-backup-remote:
           image:
             repository: d3fk/s3cmd
@@ -214,12 +219,17 @@ snapshot:
           args:
             - -ec
             - /scripts/backup.sh
+          envFrom:
+            - secretRef:
+                name: vault-backup-ntfy-secret
           env:
             - name: BUCKET
               valueFrom:
                 secretKeyRef:
                   name: vault-s3cmd-remote-config
                   key: BUCKET
+            - name: TARGET
+              value: Remote
         s3-backup-external:
           image:
             repository: d3fk/s3cmd
@@ -230,12 +240,17 @@ snapshot:
           args:
             - -ec
             - /scripts/backup.sh
+          envFrom:
+            - secretRef:
+                name: vault-backup-ntfy-secret
           env:
             - name: BUCKET
               valueFrom:
                 secretKeyRef:
                   name: vault-s3cmd-external-config
                   key: BUCKET
+            - name: TARGET
+              value: External
   persistence:
     snapshot-script:
       enabled: true
@@ -370,37 +385,3 @@ unseal:
             requests:
               cpu: 10m
               memory: 24Mi
-temp:
-  controllers:
-    main:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      containers:
-        main:
-          image:
-            repository: ubuntu
-            tag: resolute-20251208
-            pullPolicy: IfNotPresent
-          command:
-            - "sleep"
-            - "infinity"
-          resources:
-            requests:
-              cpu: 10m
-              memory: 32Mi
-  persistence:
-    backup:
-      existingClaim: vault-storage-backup
-      advancedMounts:
-        main:
-          main:
-            - path: /opt/backup
-              readOnly: false
-    backup-old:
-      existingClaim: vault-nfs-storage-backup
-      advancedMounts:
-        main:
-          main:
-            - path: /opt/backup-old
-              readOnly: false
