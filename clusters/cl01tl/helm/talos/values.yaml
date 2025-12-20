@@ -65,7 +65,7 @@ etcd-backup:
                   name: talos-etcd-backup-local-secret
                   key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
-              value: "false"
+              value: "true"
         remote:
           image:
             repository: ghcr.io/siderolabs/talos-backup
@@ -111,11 +111,11 @@ etcd-backup:
                   name: talos-etcd-backup-remote-secret
                   key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
-              value: "false"
+              value: "true"
         external:
           image:
             repository: ghcr.io/siderolabs/talos-backup
-            tag: v0.1.0-beta.3@sha256:05c86663b251a407551dc948097e32e163a345818117eb52c573b0447bd0c7a7
+            tag: v0.1.0-beta.3-5-g07d09ec@sha256:96054af026b6255ec14d198f2f10ad6c813b335a2e21a76804365c053dd4ba7b
             pullPolicy: IfNotPresent
           command:
             - /talos-backup
@@ -225,10 +225,34 @@ etcd-backup:
       name: talos-backup-secrets
       advancedMounts:
         main:
-          main:
+          local:
             - path: /var/run/secrets/talos.dev
               readOnly: true
               mountPropagation: None
+          remote:
+            - path: /var/run/secrets/talos.dev
+              readOnly: true
+              mountPropagation: None
+          external:
+            - path: /var/run/secrets/talos.dev
+              readOnly: true
+              mountPropagation: None
+    prune-script:
+      enabled: true
+      type: configMap
+      name: talos-prune-script
+      defaultMode: 0755
+      advancedMounts:
+        snapshot:
+          s3-prune-local:
+            - path: /scripts/prune.sh
+              subPath: backup.sh
+          s3-prune-remote:
+            - path: /scripts/prune.sh
+              subPath: backup.sh
+          s3-prune-external:
+            - path: /scripts/prune.sh
+              subPath: backup.sh
     s3cmd-config-local:
       enabled: true
       type: secret
