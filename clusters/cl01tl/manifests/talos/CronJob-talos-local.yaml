@@ -1,0 +1,142 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: talos-local
+  labels:
+    app.kubernetes.io/controller: local
+    app.kubernetes.io/instance: talos
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: talos
+    helm.sh/chart: etcd-backup-4.5.0
+  namespace: talos
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 90
+  timeZone: US/Central
+  schedule: "0 2 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/controller: local
+            app.kubernetes.io/instance: talos
+            app.kubernetes.io/name: talos
+        spec:
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
+              operator: Exists
+          containers:
+            - command:
+                - /talos-backup
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      key: AWS_ACCESS_KEY_ID
+                      name: talos-etcd-backup-local-secret
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: AWS_SECRET_ACCESS_KEY
+                      name: talos-etcd-backup-local-secret
+                - name: AWS_REGION
+                  value: us-east-1
+                - name: CUSTOM_S3_ENDPOINT
+                  value: http://garage-main.garage:3900
+                - name: BUCKET
+                  value: talos-backups
+                - name: S3_PREFIX
+                  value: cl01tl/etcd
+                - name: CLUSTER_NAME
+                  value: cl01tl
+                - name: AGE_X25519_PUBLIC_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: AGE_X25519_PUBLIC_KEY
+                      name: talos-etcd-backup-local-secret
+                - name: USE_PATH_STYLE
+                  value: "true"
+              image: ghcr.io/siderolabs/talos-backup:v0.1.0-beta.3@sha256:05c86663b251a407551dc948097e32e163a345818117eb52c573b0447bd0c7a7
+              imagePullPolicy: IfNotPresent
+              name: backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                runAsGroup: 1000
+                runAsNonRoot: true
+                runAsUser: 1000
+                seccompProfile:
+                  type: RuntimeDefault
+              volumeMounts:
+                - mountPath: /var/run/secrets/talos.dev
+                  mountPropagation: None
+                  name: secret
+                  readOnly: true
+                - mountPath: /.talos
+                  name: talos-local
+                - mountPath: /tmp
+                  name: tmp-local
+              workingDir: /tmp
+            - args:
+                - -ec
+                - /scripts/prune.sh
+              command:
+                - /bin/sh
+              env:
+                - name: TARGET
+                  value: Local
+                - name: DATE_RANGE_SECONDS
+                  value: "2.4192e+06"
+              envFrom:
+                - secretRef:
+                    name: talos-etcd-backup-local-secret
+                - secretRef:
+                    name: talos-backup-ntfy-secret
+              image: d3fk/s3cmd:latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
+              imagePullPolicy: IfNotPresent
+              name: s3-prune
+              volumeMounts:
+                - mountPath: /scripts/prune.sh
+                  name: prune-script
+                  subPath: prune.sh
+                - mountPath: /root/.s3cfg
+                  mountPropagation: None
+                  name: s3cmd-config-local
+                  readOnly: true
+                  subPath: .s3cfg
+          volumes:
+            - configMap:
+                defaultMode: 493
+                name: talos-prune-script
+              name: prune-script
+            - name: s3cmd-config-local
+              secret:
+                secretName: talos-etcd-backup-local-secret
+            - name: secret
+              secret:
+                secretName: talos-backup-secrets
+            - emptyDir:
+                medium: Memory
+              name: talos-local
+            - emptyDir:
+                medium: Memory
+              name: tmp-local
