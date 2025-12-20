@@ -39,14 +39,7 @@ spec:
           initContainers:
             - args:
                 - -ec
-                - |
-                  apk add --no-cache jq;
-                  echo ">> Running Vault snapshot"
-                  export VAULT_TOKEN=$(vault write auth/approle/login role_id=$VAULT_APPROLE_ROLE_ID secret_id=$VAULT_APPROLE_SECRET_ID -format=json | jq -r .auth.client_token);
-                  vault operator raft snapshot save /opt/backup/vault-snapshot-latest.snap;
-                  cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
-                  cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-s3.snap;
-                  echo ">> Completed Vault snapshot"
+                - /scripts/snapshot.sh
               command:
                 - /bin/ash
               env:
@@ -58,21 +51,16 @@ spec:
               image: hashicorp/vault:1.21.1
               imagePullPolicy: IfNotPresent
               name: snapshot
-              resources:
-                requests:
-                  cpu: 10m
-                  memory: 64Mi
               volumeMounts:
                 - mountPath: /opt/backup
-                  name: config
+                  name: backup
+                - mountPath: /scripts/snapshot.sh
+                  name: snapshot-script
+                  subPath: snapshot.sh
           containers:
             - args:
                 - -ec
-                - |
-                  echo ">> Running S3 backup for Vault snapshot"
-                  s3cmd put --no-check-md5 --no-check-certificate -v /opt/backup/vault-snapshot-s3.snap ${BUCKET}/cl01tl/cl01tl-vault-snapshots/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
-                  rm -f /opt/backup/vault-snapshot-s3.snap;
-                  echo ">> Completed S3 backup for Vault snapshot"
+                - /scripts/backup.sh
               command:
                 - /bin/sh
               env:
@@ -80,26 +68,89 @@ spec:
                   valueFrom:
                     secretKeyRef:
                       key: BUCKET
-                      name: vault-s3cmd-config
+                      name: vault-s3cmd-external-config
               image: d3fk/s3cmd:latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
               imagePullPolicy: IfNotPresent
-              name: s3-backup
-              resources:
-                requests:
-                  cpu: 100m
-                  memory: 128Mi
+              name: s3-backup-external
               volumeMounts:
                 - mountPath: /opt/backup
-                  name: config
+                  name: backup
+                - mountPath: /scripts/backup.sh
+                  name: backup-script
+                  subPath: backup.sh
                 - mountPath: /root/.s3cfg
                   mountPropagation: None
-                  name: s3cmd-config
+                  name: s3cmd-external-config
+                  readOnly: true
+                  subPath: .s3cfg
+            - args:
+                - -ec
+                - /scripts/backup.sh
+              command:
+                - /bin/sh
+              env:
+                - name: BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      key: BUCKET
+                      name: vault-s3cmd-local-config
+              image: d3fk/s3cmd:latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
+              imagePullPolicy: IfNotPresent
+              name: s3-backup-local
+              volumeMounts:
+                - mountPath: /opt/backup
+                  name: backup
+                - mountPath: /scripts/backup.sh
+                  name: backup-script
+                  subPath: backup.sh
+                - mountPath: /root/.s3cfg
+                  mountPropagation: None
+                  name: s3cmd-local-config
+                  readOnly: true
+                  subPath: .s3cfg
+            - args:
+                - -ec
+                - /scripts/backup.sh
+              command:
+                - /bin/sh
+              env:
+                - name: BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      key: BUCKET
+                      name: vault-s3cmd-remote-config
+              image: d3fk/s3cmd:latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
+              imagePullPolicy: IfNotPresent
+              name: s3-backup-remote
+              volumeMounts:
+                - mountPath: /opt/backup
+                  name: backup
+                - mountPath: /scripts/backup.sh
+                  name: backup-script
+                  subPath: backup.sh
+                - mountPath: /root/.s3cfg
+                  mountPropagation: None
+                  name: s3cmd-remote-config
                   readOnly: true
                   subPath: .s3cfg
           volumes:
-            - name: config
+            - name: backup
               persistentVolumeClaim:
-                claimName: vault-nfs-storage-backup
-            - name: s3cmd-config
+                claimName: vault-storage-backup
+            - configMap:
+                defaultMode: 493
+                name: vault-backup-script
+              name: backup-script
+            - name: s3cmd-external-config
               secret:
-                secretName: vault-s3cmd-config
+                secretName: vault-s3cmd-external-config
+            - name: s3cmd-local-config
+              secret:
+                secretName: vault-s3cmd-local-config
+            - name: s3cmd-remote-config
+              secret:
+                secretName: vault-s3cmd-remote-config
+            - configMap:
+                defaultMode: 493
+                name: vault-snapshot-script
+              name: snapshot-script
