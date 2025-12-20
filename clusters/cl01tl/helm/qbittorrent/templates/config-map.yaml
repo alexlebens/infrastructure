@@ -9,6 +9,26 @@ metadata:
     app.kubernetes.io/part-of: {{ .Release.Name }}
 data:
   update.sh: |
+    API_ENDPOINT="http://localhost:8080/api/v2";
+    MAX_RETRIES=5
+    SUCCESS=false
+
+    for ((i=1; i<=$MAX_RETRIES; i++)); do
+        if apk update --short &> /dev/null; then
+            echo ">> Attempt $i: Repositories are reachable"
+            SUCCESS=true
+            break
+        else
+            echo ">> Attempt $i: Connection failed, retrying in 5 seconds ..."
+            sleep 5
+        fi
+    done
+
+    if [ "$SUCCESS" = false ]; then
+        echo ">> ERROR: Could not connect to apk repositories after $MAX_RETRIES attempts, exiting ..."
+        exit 1
+    fi
+
     if ! command -v curl 2>&1 >/dev/null
     then
         echo "curl could not be found, installing";
@@ -32,8 +52,6 @@ data:
             exit 1
         fi
     fi;
-
-    API_ENDPOINT="http://localhost:8080/api/v2";
 
     # echo " ";
     # echo ">> Authentication ...";
