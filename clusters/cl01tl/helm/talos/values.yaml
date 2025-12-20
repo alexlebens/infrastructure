@@ -1,6 +1,6 @@
 etcd-backup:
   controllers:
-    main:
+    local:
       type: cronjob
       pod:
         nodeSelector:
@@ -20,7 +20,7 @@ etcd-backup:
         backoffLimit: 3
         parallelism: 1
       containers:
-        local:
+        backup:
           image:
             repository: ghcr.io/siderolabs/talos-backup
             tag: v0.1.0-beta.3@sha256:05c86663b251a407551dc948097e32e163a345818117eb52c573b0447bd0c7a7
@@ -66,7 +66,47 @@ etcd-backup:
                   key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
               value: "true"
-        remote:
+        s3-prune:
+          image:
+            repository: d3fk/s3cmd
+            tag: latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - /scripts/prune.sh
+          envFrom:
+            - secretRef:
+                name: talos-etcd-backup-local-secret
+            - secretRef:
+                name: talos-backup-ntfy-secret
+          env:
+            - name: TARGET
+              value: Local
+            - name: DATE_RANGE_SECONDS
+              value: 2419200
+    remote:
+      type: cronjob
+      pod:
+        nodeSelector:
+          node-role.kubernetes.io/control-plane: ""
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Forbid
+        timeZone: US/Central
+        schedule: "0 3 * * *"
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 1
+        failedJobsHistory: 1
+        backoffLimit: 3
+        parallelism: 1
+      containers:
+        backup:
           image:
             repository: ghcr.io/siderolabs/talos-backup
             tag: v0.1.0-beta.3@sha256:05c86663b251a407551dc948097e32e163a345818117eb52c573b0447bd0c7a7
@@ -112,7 +152,47 @@ etcd-backup:
                   key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
               value: "true"
-        external:
+        s3-prune:
+          image:
+            repository: d3fk/s3cmd
+            tag: latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - /scripts/prune.sh
+          envFrom:
+            - secretRef:
+                name: talos-etcd-backup-remote-secret
+            - secretRef:
+                name: talos-backup-ntfy-secret
+          env:
+            - name: TARGET
+              value: Remote
+            - name: DATE_RANGE_SECONDS
+              value: 2419200
+    external:
+      type: cronjob
+      pod:
+        nodeSelector:
+          node-role.kubernetes.io/control-plane: ""
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Forbid
+        timeZone: US/Central
+        schedule: "0 4 * * *"
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 1
+        failedJobsHistory: 1
+        backoffLimit: 3
+        parallelism: 1
+      containers:
+        backup:
           image:
             repository: ghcr.io/siderolabs/talos-backup
             tag: v0.1.0-beta.3-5-g07d09ec@sha256:96054af026b6255ec14d198f2f10ad6c813b335a2e21a76804365c053dd4ba7b
@@ -158,47 +238,7 @@ etcd-backup:
                   key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
               value: "false"
-        s3-prune-local:
-          image:
-            repository: d3fk/s3cmd
-            tag: latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
-            pullPolicy: IfNotPresent
-          command:
-            - /bin/sh
-          args:
-            - -ec
-            - /scripts/prune.sh
-          envFrom:
-            - secretRef:
-                name: talos-etcd-backup-local-secret
-            - secretRef:
-                name: talos-backup-ntfy-secret
-          env:
-            - name: TARGET
-              value: Local
-            - name: DATE_RANGE_SECONDS
-              value: 2419200
-        s3-prune-remote:
-          image:
-            repository: d3fk/s3cmd
-            tag: latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
-            pullPolicy: IfNotPresent
-          command:
-            - /bin/sh
-          args:
-            - -ec
-            - /scripts/prune.sh
-          envFrom:
-            - secretRef:
-                name: talos-etcd-backup-remote-secret
-            - secretRef:
-                name: talos-backup-ntfy-secret
-          env:
-            - name: TARGET
-              value: Remote
-            - name: DATE_RANGE_SECONDS
-              value: 2419200
-        s3-prune-external:
+        s3-prune:
           image:
             repository: d3fk/s3cmd
             tag: latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
@@ -224,16 +264,18 @@ etcd-backup:
       type: secret
       name: talos-backup-secrets
       advancedMounts:
-        main:
-          local:
+        local:
+          backup:
             - path: /var/run/secrets/talos.dev
               readOnly: true
               mountPropagation: None
-          remote:
+        remote:
+          backup:
             - path: /var/run/secrets/talos.dev
               readOnly: true
               mountPropagation: None
-          external:
+        external:
+          backup:
             - path: /var/run/secrets/talos.dev
               readOnly: true
               mountPropagation: None
@@ -243,14 +285,16 @@ etcd-backup:
       name: talos-prune-script
       defaultMode: 0755
       advancedMounts:
-        main:
-          s3-prune-local:
+        local:
+          s3-prune:
             - path: /scripts/prune.sh
               subPath: prune.sh
-          s3-prune-remote:
+        remote:
+          s3-prune:
             - path: /scripts/prune.sh
               subPath: prune.sh
-          s3-prune-external:
+        external:
+          s3-prune:
             - path: /scripts/prune.sh
               subPath: prune.sh
     s3cmd-config-local:
@@ -258,7 +302,7 @@ etcd-backup:
       type: secret
       name: talos-etcd-backup-local-secret
       advancedMounts:
-        main:
+        local:
           s3-prune:
             - path: /root/.s3cfg
               readOnly: true
@@ -269,7 +313,7 @@ etcd-backup:
       type: secret
       name: talos-etcd-backup-remote-secret
       advancedMounts:
-        main:
+        remote:
           s3-prune:
             - path: /root/.s3cfg
               readOnly: true
@@ -280,7 +324,7 @@ etcd-backup:
       type: secret
       name: talos-etcd-backup-external-secret
       advancedMounts:
-        main:
+        external:
           s3-prune:
             - path: /root/.s3cfg
               readOnly: true
@@ -290,48 +334,48 @@ etcd-backup:
       type: emptyDir
       medium: Memory
       advancedMounts:
-        main:
-          local:
+        local:
+          backup:
             - path: /tmp
               readOnly: false
     tmp-remote:
       type: emptyDir
       medium: Memory
       advancedMounts:
-        main:
-          remote:
+        remote:
+          backup:
             - path: /tmp
               readOnly: false
     tmp-external:
       type: emptyDir
       medium: Memory
       advancedMounts:
-        main:
-          external:
+        external:
+          backup:
             - path: /tmp
               readOnly: false
     talos-local:
       type: emptyDir
       medium: Memory
       advancedMounts:
-        main:
-          local:
+        local:
+          backup:
             - path: /.talos
               readOnly: false
     talos-remote:
       type: emptyDir
       medium: Memory
       advancedMounts:
-        main:
-          remote:
+        remote:
+          backup:
             - path: /.talos
               readOnly: false
     talos-external:
       type: emptyDir
       medium: Memory
       advancedMounts:
-        main:
-          external:
+        external:
+          backup:
             - path: /.talos
               readOnly: false
 etcd-defrag:
