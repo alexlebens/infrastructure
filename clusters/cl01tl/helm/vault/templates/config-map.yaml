@@ -30,8 +30,8 @@ data:
     fi
 
     if ! command -v jq 2>&1 >/dev/null; then
-        echo "jq could not be found, installing";
-        apk add --no-cache jq;
+        echo ">> Command jq could not be found, installing";
+        apk add --no-cache -q jq;
         if [ $? -eq 0 ]; then
             echo ">> Installation successful";
         else
@@ -44,13 +44,13 @@ data:
     echo ">> Fetching Vault token";
     export VAULT_TOKEN=$(vault write auth/approle/login role_id=$VAULT_APPROLE_ROLE_ID secret_id=$VAULT_APPROLE_SECRET_ID -format=json | jq -r .auth.client_token);
 
-    echo " ";
-    echo ">> Taking Vault snapsot ...";
-    vault operator raft snapshot save /opt/backup/vault-snapshot-$DATE.snap
+    # echo " ";
+    # echo ">> Taking Vault snapsot ...";
+    # vault operator raft snapshot save /opt/backup/vault-snapshot-$DATE.snap
 
-    echo " ";
-    echo ">> Setting ownership of Vault snapsot ...";
-    chown 100:1000 /opt/backup/vault-snapshot-$DATE.snap
+    # echo " ";
+    # echo ">> Setting ownership of Vault snapsot ...";
+    # chown 100:1000 /opt/backup/vault-snapshot-$DATE.snap
 
     echo " ";
     echo ">> Completed Vault snapshot";
@@ -72,7 +72,6 @@ data:
     OUTPUT=$(s3cmd sync --no-check-certificate -v /opt/backup "${BUCKET}/cl01tl/cl01tl-vault-snapshots/" 2>&1)
     STATUS=$?
 
-    echo " ";
     if [ $STATUS -ne 0 ]; then
         if echo "$OUTPUT" | grep -q "403 Forbidden"; then
             MESSAGE="403 Authentication Error: Your keys are wrong or you don't have permission"
@@ -81,17 +80,53 @@ data:
         elif echo "$OUTPUT" | grep -q "Connection refused"; then
             MESSAGE="Network Error: Cannot reach the S3 endpoint"
         else
-            MESSAGE="Unknown Error: $OUTPUT"
+            MESSAGE="Unknown Error"
+            echo " ";
             echo ">> Unknown Error, output:"
             echo " "
             echo "$OUTPUT"
-            echo " "
         fi
 
+        MAX_RETRIES=5
+        SUCCESS=false
+
+        echo " "
+        echo ">> Sending message to ntfy using curl ..."
+
+        for i in $(seq 1 "$MAX_RETRIES"); do
+            if apk update 2>&1 >/dev/null; then
+                echo ">> Attempt $i: Repositories are reachable";
+                SUCCESS=true;
+                break;
+            else
+                echo ">> Attempt $i: Connection failed, retrying in 5 seconds ...";
+                sleep 5;
+            fi;
+        done;
+
+        if [ "$SUCCESS" = false ]; then
+            echo ">> ERROR: Could not connect to apk repositories after $MAX_RETRIES attempts, exiting ...";
+            exit 1;
+        fi
+
+        if ! command -v curl 2>&1 >/dev/null; then
+            echo ">> Command curl could not be found, installing";
+            apk add --no-cache -q curl;
+            if [ $? -eq 0 ]; then
+                echo ">> Installation successful";
+            else
+                echo ">> Installation failed with exit code $?";
+                exit 1;
+            fi;
+        fi;
+
+        echo " "
         echo ">> Message: $MESSAGE"
 
+        echo " "
         echo ">> Sending to NTFY ..."
         curl \
+            --silent \
             -H "Authorization: Bearer ${NTFY_TOKEN}" \
             -H "X-Priority: 5" \
             -H "X-Tags: warning" \
@@ -99,5 +134,6 @@ data:
             -d "$MESSAGE" \
             ${NTFY_ENDPOINT}/${NTFY_TOPIC}
     else
+        echo " ";
         echo ">> S3 Sync succeeded"
     fi
