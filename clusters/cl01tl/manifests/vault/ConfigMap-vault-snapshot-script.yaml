@@ -18,51 +18,48 @@ data:
 
     echo " "
     echo ">> Verifying required commands ..."
+    echo " "
 
     for i in $(seq 1 "$MAX_RETRIES"); do
         if apk update 2>&1 >/dev/null; then
-            echo " "
             echo ">> Attempt $i: Repositories are reachable";
             SUCCESS=true;
             break;
         else
-            echo " "
             echo ">> Attempt $i: Connection failed, retrying in 5 seconds ...";
             sleep 5;
         fi;
     done;
 
     if [ "$SUCCESS" = false ]; then
-        echo " "
         echo ">> ERROR: Could not connect to apk repositories after $MAX_RETRIES attempts, exiting ...";
         exit 1;
     fi
 
+    echo " "
+
     if ! command -v jq 2>&1 >/dev/null; then
-        echo " "
         echo ">> Command jq could not be found, installing";
         apk add --no-cache -q jq;
         if [ $? -eq 0 ]; then
-            echo " "
             echo ">> Installation successful";
         else
-            echo " "
             echo ">> Installation failed with exit code $?";
             exit 1;
         fi;
     fi;
 
     echo " ";
-    echo ">> Fetching Vault token";
+    echo ">> Fetching Vault token ...";
     export VAULT_TOKEN=$(vault write auth/approle/login role_id=$VAULT_APPROLE_ROLE_ID secret_id=$VAULT_APPROLE_SECRET_ID -format=json | jq -r .auth.client_token);
 
-    # echo " ";
-    # echo ">> Taking Vault snapsot ...";
-    # vault operator raft snapshot save /opt/backup/vault-snapshot-$DATE.snap
+    echo " ";
+    echo ">> Taking Vault snapsot ...";
+    vault operator raft snapshot save /opt/backup/vault-snapshot-$DATE.snap
 
-    # echo " ";
-    # echo ">> Setting ownership of Vault snapsot ...";
-    # chown 100:1000 /opt/backup/vault-snapshot-$DATE.snap
+    echo " ";
+    echo ">> Setting ownership of Vault snapsot ...";
+    chown 100:1000 /opt/backup/vault-snapshot-$DATE.snap
 
     echo " ";
     echo ">> Completed Vault snapshot";
