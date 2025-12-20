@@ -11,41 +11,43 @@ data:
   prune.sh: |
     DATE_RANGE=$(date -d @$(( $(date +%s) - $DATE_RANGE_SECONDS )) +%Y-%m-%dT%H:%M:%SZ);
     FILE_MATCH="${BUCKET}/cl01tl/etcd/cl01tl-${DATE_RANGE}.snap.age";
-    ERROR=false
+    ERROR=false;
 
-    echo " "
+    echo " ";
     echo ">> Running S3 prune for Talos backup repository ${TARGET} ...";
 
-    echo " "
-    echo ">> Configured Date Range is $(date -u -d @${DATE_RANGE_SECONDS} +"%j days, %H hours, %M minutes")"
+    echo " ";
+    echo ">> Configured Date Range is $(date -u -d @${DATE_RANGE_SECONDS} +"%j days, %H hours, %M minutes")";
     echo ">> Backups prior to '$DATE_RANGE' will be removed";
-    echo " "
+    echo " ";
     echo ">> Backups to be removed:";
-    s3cmd ls --no-check-certificate ${BUCKET}/cl01tl/etcd/ |
-        awk -v file_match="$FILE_MATCH" '$4 < file_match {print $4}'
-
-    echo " "
-    echo ">> Deleting ..."
-    s3cmd ls --no-check-certificate ${BUCKET}/cl01tl/etcd/ |
+    $FILES=$(s3cmd ls --no-check-certificate ${BUCKET}/cl01tl/etcd/ |
         awk -v file_match="$FILE_MATCH" '$4 < file_match {print $4}' |
-        while read file; do
+        grep . | sort -u);
+    echo "$FILES"
+
+    if [ -n "${FILES}" ]; then
+        echo " ";
+        echo ">> Deleting ...";
+        $FILES | while read file; do
             s3cmd del --no-check-certificate -v "$file";
             if [ $? -ne 0 ]; then
-                ERROR=true
-                echo ">> Detected error, will send message to ntfy"
-            fi
+                ERROR=true;
+                echo ">> Detected error, will send message to ntfy";
+            fi;
         done;
+    fi;
 
-    if [ "$ERROR" = true ]; then
+    if [ "$ERROR" = "true" ]; then
 
-        MAX_RETRIES=5
-        SUCCESS=false
+        MAX_RETRIES=5;
+        SUCCESS=false;
 
-        echo " "
-        echo ">> Sending message to ntfy using curl ..."
+        echo " ";
+        echo ">> Sending message to ntfy using curl ...";
 
-        echo " "
-        echo ">> Verifying required commands ..."
+        echo " ";
+        echo ">> Verifying required commands ...";
 
         for i in $(seq 1 "$MAX_RETRIES"); do
             if apk update 2>&1 >/dev/null; then
@@ -74,8 +76,8 @@ data:
             fi;
         fi;
 
-        echo " "
-        echo ">> Sending to NTFY ..."
+        echo " ";
+        echo ">> Sending to NTFY ...";
         HTTP_STATUS=$(curl \
             --silent \
             --write-out '%{http_code}' \
@@ -85,10 +87,10 @@ data:
             -H "X-Title: Talos Backup Failed for ${TARGET}" \
             -d "$MESSAGE" \
             ${NTFY_ENDPOINT}/${NTFY_TOPIC}
-        )
-        echo ">> HTTP Status Code: $HTTP_STATUS"
+        );
+        echo ">> HTTP Status Code: $HTTP_STATUS";
 
     fi;
 
-    echo " "
-    echo ">> Completed S3 prune for Talos backup repository ${TARGET}"
+    echo " ";
+    echo ">> Completed S3 prune for Talos backup repository ${TARGET}";
