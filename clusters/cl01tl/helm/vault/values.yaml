@@ -32,16 +32,10 @@ vault:
     livenessProbe:
       enabled: false
     volumes:
-      - name: vault-nfs-storage-backup
-        persistentVolumeClaim:
-          claimName: vault-nfs-storage-backup
       - name: vault-storage-backup
         persistentVolumeClaim:
           claimName: vault-storage-backup
     volumeMounts:
-      - mountPath: /opt/backups-old/
-        name: vault-nfs-storage-backup
-        readOnly: true
       - mountPath: /opt/backups/
         name: vault-storage-backup
         readOnly: false
@@ -162,6 +156,10 @@ snapshot:
   controllers:
     snapshot:
       type: cronjob
+      pod:
+        securityContext:
+          runAsUser: 100
+          runAsGroup: 1000
       cronjob:
         suspend: false
         concurrencyPolicy: Forbid
@@ -372,3 +370,37 @@ unseal:
             requests:
               cpu: 10m
               memory: 24Mi
+temp:
+  controllers:
+    main:
+      type: deployment
+      replicas: 0
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ubuntu
+            tag: resolute-20251208
+            pullPolicy: IfNotPresent
+          command:
+            - "sleep"
+            - "infinity"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+  persistence:
+    backup:
+      existingClaim: vault-storage-backup
+      advancedMounts:
+        main:
+          main:
+            - path: /opt/backup
+              readOnly: false
+    backup-old:
+      existingClaim: vault-nfs-storage-backup
+      advancedMounts:
+        main:
+          main:
+            - path: /opt/backup-old
+              readOnly: false
