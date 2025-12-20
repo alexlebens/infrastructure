@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-snapshot-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: vault-snapshot-script
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+data:
+  update.sh: |
+    MAX_RETRIES=5
+    SUCCESS=false
+
+    for ((i=1; i<=$MAX_RETRIES; i++)); do
+        if apk update --short &> /dev/null; then
+            echo ">> Attempt $i: Repositories are reachable";
+            SUCCESS=true;
+            break;
+        else
+            echo ">> Attempt $i: Connection failed, retrying in 5 seconds ...";
+            sleep 5;
+        fi;
+    done;
+
+    if [ "$SUCCESS" = false ]; then
+        echo ">> ERROR: Could not connect to apk repositories after $MAX_RETRIES attempts, exiting ...";
+        exit 1;
+    fi
+
+    if ! command -v jq 2>&1 >/dev/null;
+    then
+        echo "jq could not be found, installing";
+        apk add --no-cache jq;
+        if [ $? -eq 0 ]; then
+            echo ">> Installation successful";
+        else
+            echo ">> Installation failed with exit code $?";
+            exit 1;
+        fi;
+    fi;
+
+    echo " ";
+    echo ">> Fetching Vault token";
+    export VAULT_TOKEN=$(vault write auth/approle/login role_id=$VAULT_APPROLE_ROLE_ID secret_id=$VAULT_APPROLE_SECRET_ID -format=json | jq -r .auth.client_token);
+
+    echo " ";
+    echo ">> Taking Vault snapsot ...";
+    vault operator raft snapshot save /opt/backup/vault-snapshot-latest.snap;
+
+    echo " ";
+    echo ">> Archiving snapshot with $(date +"%Y%m%d-%H-%M") ...";
+    cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
+
+    echo " ";
+    echo ">> Completed Vault snapshot"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-snapshot-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: vault-snapshot-script
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: {{ .Release.Name }}
+data:
+  update.sh: |
+    BACKUP_FOLDER=/opt/backup
+    BACKUP_FILE=$(ls -t $BACKUP_FOLDER | head -n 1)
+
+    echo " ";
+    echo ">> Running S3 backup for Vault snapshot";
+
+    if s3cmd put --no-check-md5 --no-check-certificate -v "$BACKUP_FOLDER/$BACKUP_FILE" "${BUCKET}/cl01tl/cl01tl-vault-snapshots/$BACKUP_FILE"; then
+        echo ">> Upload succeeded"
+    else
+        echo ">> ERROR: Upload failed"
+    fi

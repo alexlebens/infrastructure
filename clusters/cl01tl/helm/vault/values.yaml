@@ -35,9 +35,15 @@ vault:
       - name: vault-nfs-storage-backup
         persistentVolumeClaim:
           claimName: vault-nfs-storage-backup
+      - name: vault-nfs-storage-backup
+        persistentVolumeClaim:
+          claimName: vault-nfs-storage-backup
     volumeMounts:
-      - mountPath: /opt/backups/
+      - mountPath: /opt/backups-old/
         name: vault-nfs-storage-backup
+        readOnly: true
+      - mountPath: /opt/backups/
+        name: vault-storage-backup
         readOnly: false
     affinity: |
       podAntiAffinity:
@@ -176,26 +182,15 @@ snapshot:
             - /bin/ash
           args:
             - -ec
-            - |
-              apk add --no-cache jq;
-              echo ">> Running Vault snapshot"
-              export VAULT_TOKEN=$(vault write auth/approle/login role_id=$VAULT_APPROLE_ROLE_ID secret_id=$VAULT_APPROLE_SECRET_ID -format=json | jq -r .auth.client_token);
-              vault operator raft snapshot save /opt/backup/vault-snapshot-latest.snap;
-              cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
-              cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-s3.snap;
-              echo ">> Completed Vault snapshot"
+            - /scripts/snapshot.sh
           envFrom:
             - secretRef:
                 name: vault-snapshot-agent-token
           env:
             - name: VAULT_ADDR
               value: http://vault-active.vault.svc.cluster.local:8200
-          resources:
-            requests:
-              cpu: 10m
-              memory: 64Mi
       containers:
-        s3-backup:
+        s3-backup-local:
           image:
             repository: d3fk/s3cmd
             tag: latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
@@ -204,43 +199,121 @@ snapshot:
             - /bin/sh
           args:
             - -ec
-            - |
-              echo ">> Running S3 backup for Vault snapshot"
-              s3cmd put --no-check-md5 --no-check-certificate -v /opt/backup/vault-snapshot-s3.snap ${BUCKET}/cl01tl/cl01tl-vault-snapshots/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
-              rm -f /opt/backup/vault-snapshot-s3.snap;
-              echo ">> Completed S3 backup for Vault snapshot"
+            - /scripts/backup.sh
           env:
             - name: BUCKET
               valueFrom:
                 secretKeyRef:
-                  name: vault-s3cmd-config
+                  name: vault-s3cmd-local-config
                   key: BUCKET
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
+        s3-backup-remote:
+          image:
+            repository: d3fk/s3cmd
+            tag: latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - /scripts/backup.sh
+          env:
+            - name: BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: vault-s3cmd-remote-config
+                  key: BUCKET
+        s3-backup-external:
+          image:
+            repository: d3fk/s3cmd
+            tag: latest@sha256:ed348a0fae5723d2e62636c175baf4dfaf732a790179ca675d1f24f863d0d68f
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+          args:
+            - -ec
+            - /scripts/backup.sh
+          env:
+            - name: BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: vault-s3cmd-external-config
+                  key: BUCKET
   persistence:
-    config:
-      existingClaim: vault-nfs-storage-backup
+    snapshot-script:
+      enabled: true
+      type: configMap
+      name: vault-snapshot-script
+      defaultMode: 0755
+      advancedMounts:
+        snapshot:
+          snapshot:
+            - path: /scripts/snapshot.sh
+              subPath: snapshot.sh
+    backup-script:
+      enabled: true
+      type: configMap
+      name: vault-backup-script
+      defaultMode: 0755
+      advancedMounts:
+        snapshot:
+          s3-backup-local:
+            - path: /scripts/backup.sh
+              subPath: backup.sh
+          s3-backup-remote:
+            - path: /scripts/backup.sh
+              subPath: backup.sh
+          s3-backup-external:
+            - path: /scripts/backup.sh
+              subPath: backup.sh
+    s3cmd-local-config:
+      enabled: true
+      type: secret
+      name: vault-s3cmd-local-config
+      advancedMounts:
+        snapshot:
+          s3-backup-local:
+            - path: /root/.s3cfg
+              readOnly: true
+              mountPropagation: None
+              subPath: .s3cfg
+    s3cmd-remote-config:
+      enabled: true
+      type: secret
+      name: vault-s3cmd-remote-config
+      advancedMounts:
+        snapshot:
+          s3-backup-remote:
+            - path: /root/.s3cfg
+              readOnly: true
+              mountPropagation: None
+              subPath: .s3cfg
+    s3cmd-external-config:
+      enabled: true
+      type: secret
+      name: vault-s3cmd-external-config
+      advancedMounts:
+        snapshot:
+          s3-backup-external:
+            - path: /root/.s3cfg
+              readOnly: true
+              mountPropagation: None
+              subPath: .s3cfg
+    backup:
+      existingClaim: vault-storage-backup
       advancedMounts:
         snapshot:
           snapshot:
             - path: /opt/backup
               readOnly: false
-          s3-backup:
+          s3-backup-local:
             - path: /opt/backup
               readOnly: false
-    s3cmd-config:
-      enabled: true
-      type: secret
-      name: vault-s3cmd-config
-      advancedMounts:
-        snapshot:
-          s3-backup:
-            - path: /root/.s3cfg
-              readOnly: true
-              mountPropagation: None
-              subPath: .s3cfg
+          s3-backup-remote:
+            - path: /opt/backup
+              readOnly: false
+          s3-backup-external:
+            - path: /opt/backup
+              readOnly: false
 unseal:
   global:
     fullnameOverride: vault-unseal
