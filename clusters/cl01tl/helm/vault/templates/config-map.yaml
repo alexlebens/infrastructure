@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/part-of: {{ .Release.Name }}
 data:
-  update.sh: |
+  snapshot.sh: |
     MAX_RETRIES=5
     SUCCESS=false
 
@@ -46,35 +46,27 @@ data:
 
     echo " ";
     echo ">> Taking Vault snapsot ...";
-    vault operator raft snapshot save /opt/backup/vault-snapshot-latest.snap;
+    vault operator raft snapshot save /opt/backup/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap
 
     echo " ";
-    echo ">> Archiving snapshot with $(date +"%Y%m%d-%H-%M") ...";
-    cp /opt/backup/vault-snapshot-latest.snap /opt/backup/vault-snapshot-$(date +"%Y%m%d-%H-%M").snap;
-
-    echo " ";
-    echo ">> Completed Vault snapshot"
+    echo ">> Completed Vault snapshot";
 
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: vault-snapshot-script
+  name: vault-backup-script
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: vault-snapshot-script
+    app.kubernetes.io/name: vault-backup-script
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/part-of: {{ .Release.Name }}
 data:
-  update.sh: |
-    BACKUP_FOLDER=/opt/backup
-    BACKUP_FILE=$(ls -t $BACKUP_FOLDER | head -n 1)
-
+  backup.sh: |
     echo " ";
     echo ">> Running S3 backup for Vault snapshot";
-
-    if s3cmd put --no-check-md5 --no-check-certificate -v "$BACKUP_FOLDER/$BACKUP_FILE" "${BUCKET}/cl01tl/cl01tl-vault-snapshots/$BACKUP_FILE"; then
-        echo ">> Upload succeeded"
+    if s3cmd sync --no-check-certificate -v /opt/backup "${BUCKET}/cl01tl/cl01tl-vault-snapshots/"; then
+        echo ">> Sync succeeded"
     else
-        echo ">> ERROR: Upload failed"
+        echo ">> ERROR: Sync failed"
     fi
