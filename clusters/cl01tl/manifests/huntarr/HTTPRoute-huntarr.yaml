@@ -1,12 +1,13 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: http-route-huntarr
-  namespace: huntarr
+  name: huntarr
   labels:
-    app.kubernetes.io/name: http-route-huntarr
     app.kubernetes.io/instance: huntarr
-    app.kubernetes.io/part-of: huntarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: huntarr
+    helm.sh/chart: huntarr-4.5.0
+  namespace: huntarr
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
@@ -14,15 +15,16 @@ spec:
       name: traefik-gateway
       namespace: traefik
   hostnames:
-    - huntarr.alexlebens.net
+    - "huntarr.alexlebens.net"
   rules:
-    - matches:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: huntarr
+          namespace: huntarr
+          port: 80
+          weight: 100
+      matches:
         - path:
             type: PathPrefix
             value: /
-      backendRefs:
-        - group: ''
-          kind: Service
-          name: huntarr
-          port: 80
-          weight: 100
