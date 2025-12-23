@@ -25,6 +25,20 @@ jellyfin:
               gpu.intel.com/i915: 1
               cpu: 1
               memory: 2Gi
+        exporter:
+          image:
+            repository: rebelcore/jellyfin-exporter
+            tag: v1.3.9
+            pullPolicy: IfNotPresent
+          args:
+            - '--jellyfin.address=http://127.0.0.1:8096'
+            - '--jellyfin.token=$(TOKEN)'
+          env:
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: jellyfin-exporter-secret
+                  key: token
   service:
     main:
       forceRename: jellyfin
@@ -34,6 +48,44 @@ jellyfin:
           port: 80
           targetPort: 8096
           protocol: HTTP
+        metrics:
+          port: 9594
+          targetPort: 9594
+          protocol: HTTP
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: jellyfin
+          app.kubernetes.io/instance: jellyfin
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          scheme: http
+          path: /metrics
+          interval: 30s
+          scrapeTimeout: 15s
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - jellyfin.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: jellyfin
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
   persistence:
     config:
       forceRename: jellyfin-config
