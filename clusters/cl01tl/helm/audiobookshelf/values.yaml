@@ -57,6 +57,41 @@ audiobookshelf:
           port: 8000
           targetPort: 8000
           protocol: HTTP
+  serviceMonitor:
+    main:
+      nameOverride: audiobookshelf-apprise
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: audiobookshelf
+          app.kubernetes.io/instance: audiobookshelf
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: apprise
+          scheme: http
+          path: /metrics
+          interval: 30s
+          scrapeTimeout: 15s
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - audiobookshelf.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: audiobookshelf
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
   persistence:
     config:
       forceRename: audiobookshelf-config

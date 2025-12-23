@@ -77,34 +77,22 @@ argo-cd:
       enabled: true
       serviceMonitor:
         enabled: true
-    ingress:
-      enabled: false
+    httproute:
+      enabled: true
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - argocd.alexlebens.net
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
   repoServer:
     replicas: 2
-    extraContainers:
-      - name: cmp-cdk8s
-        command:
-          - /var/run/argocd/argocd-cmp-server
-        image: ghcr.io/akuity/cdk8s-cmp-typescript:1.0
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 999
-        volumeMounts:
-          - mountPath: /var/run/argocd
-            name: var-files
-          - mountPath: /home/argocd/cmp-server/plugins
-            name: plugins
-          - mountPath: /home/argocd/cmp-server/config/plugin.yaml
-            subPath: cdk8s.yaml
-            name: argocd-cmp-cm
-          - mountPath: /tmp
-            name: cmp-tmp
-    volumes:
-      - name: argocd-cmp-cm
-        configMap:
-          name: argocd-cmp-cm
-      - name: cmp-tmp
-        emptyDir: {}
     metrics:
       enabled: true
       serviceMonitor:
