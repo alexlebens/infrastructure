@@ -1,12 +1,13 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: http-route-backrest
-  namespace: backrest
+  name: backrest
   labels:
-    app.kubernetes.io/name: http-route-backrest
     app.kubernetes.io/instance: backrest
-    app.kubernetes.io/part-of: backrest
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: backrest
+    helm.sh/chart: backrest-4.5.0
+  namespace: backrest
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
@@ -14,15 +15,16 @@ spec:
       name: traefik-gateway
       namespace: traefik
   hostnames:
-    - backrest.alexlebens.net
+    - "backrest.alexlebens.net"
   rules:
-    - matches:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: backrest
+          namespace: backrest
+          port: 80
+          weight: 100
+      matches:
         - path:
             type: PathPrefix
             value: /
-      backendRefs:
-        - group: ''
-          kind: Service
-          name: backrest
-          port: 80
-          weight: 100

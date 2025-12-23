@@ -23,7 +23,6 @@ spec:
       annotations:
         checksum/cmd-params: c69043802966d610c48e170dd0809d9649ae345cf78eca00e1c1f91b7eadc2f1
         checksum/cm: 4e7aebdeee6651d618d3a9c09fc012f4fc635a54cd2cf3224dbc85297c67bc62
-        checksum/cmp-cm: 3cb5131486ce5f1d65ba54c55b4e730974359abb711eddfeb0f1bdd19a83c56c
       labels:
         helm.sh/chart: argo-cd-9.1.9
         app.kubernetes.io/name: argocd-repo-server
@@ -357,23 +356,6 @@ spec:
             runAsNonRoot: true
             seccompProfile:
               type: RuntimeDefault
-        - command:
-            - /var/run/argocd/argocd-cmp-server
-          image: ghcr.io/akuity/cdk8s-cmp-typescript:1.0
-          name: cmp-cdk8s
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 999
-          volumeMounts:
-            - mountPath: /var/run/argocd
-              name: var-files
-            - mountPath: /home/argocd/cmp-server/plugins
-              name: plugins
-            - mountPath: /home/argocd/cmp-server/config/plugin.yaml
-              name: argocd-cmp-cm
-              subPath: cdk8s.yaml
-            - mountPath: /tmp
-              name: cmp-tmp
       initContainers:
         - command:
             - /bin/cp
@@ -408,11 +390,6 @@ spec:
       nodeSelector:
         kubernetes.io/os: linux
       volumes:
-        - configMap:
-            name: argocd-cmp-cm
-          name: argocd-cmp-cm
-        - emptyDir: {}
-          name: cmp-tmp
         - name: helm-working-dir
           emptyDir: {}
         - name: plugins

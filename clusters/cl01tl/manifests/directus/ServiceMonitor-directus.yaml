@@ -2,21 +2,26 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: directus
-  namespace: directus
   labels:
-    app.kubernetes.io/name: directus
     app.kubernetes.io/instance: directus
-    app.kubernetes.io/part-of: directus
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: directus
+    helm.sh/chart: directus-4.5.0
+  namespace: directus
 spec:
+  jobLabel: "directus"
+  namespaceSelector:
+    matchNames:
+      - directus
   selector:
     matchLabels:
-      app.kubernetes.io/name: directus
       app.kubernetes.io/instance: directus
+      app.kubernetes.io/name: directus
   endpoints:
-    - port: http
-      interval: 30s
-      scrapeTimeout: 15s
-      path: /metrics
-      bearerTokenSecret:
-        name: directus-metric-token
+    - bearerTokenSecret:
         key: metric-token
+        name: directus-metric-token
+      interval: 30s
+      path: /metrics
+      port: http
+      scrapeTimeout: 15s
