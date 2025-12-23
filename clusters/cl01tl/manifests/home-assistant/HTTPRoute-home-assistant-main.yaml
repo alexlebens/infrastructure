@@ -1,12 +1,13 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: http-route-home-assistant
-  namespace: home-assistant
+  name: home-assistant-main
   labels:
-    app.kubernetes.io/name: http-route-home-assistant
     app.kubernetes.io/instance: home-assistant
-    app.kubernetes.io/part-of: home-assistant
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: home-assistant
+    helm.sh/chart: home-assistant-4.5.0
+  namespace: home-assistant
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
@@ -14,15 +15,16 @@ spec:
       name: traefik-gateway
       namespace: traefik
   hostnames:
-    - home-assistant.alexlebens.net
+    - "home-assistant.alexlebens.net"
   rules:
-    - matches:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: home-assistant-main
+          namespace: home-assistant
+          port: 80
+          weight: 100
+      matches:
         - path:
             type: PathPrefix
             value: /
-      backendRefs:
-        - group: ''
-          kind: Service
-          name: home-assistant-main
-          port: 80
-          weight: 100

@@ -2,22 +2,27 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: home-assistant
-  namespace: home-assistant
   labels:
-    app.kubernetes.io/name: home-assistant
     app.kubernetes.io/instance: home-assistant
-    app.kubernetes.io/part-of: home-assistant
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: home-assistant
+    helm.sh/chart: home-assistant-4.5.0
+  namespace: home-assistant
 spec:
+  jobLabel: "home-assistant"
+  namespaceSelector:
+    matchNames:
+      - home-assistant
   selector:
     matchLabels:
+      app.kubernetes.io/instance: home-assistant
       app.kubernetes.io/name: home-assistant
       app.kubernetes.io/service: home-assistant-main
-      app.kubernetes.io/instance: home-assistant
   endpoints:
-    - port: http
-      interval: 3m
-      scrapeTimeout: 1m
-      path: /api/prometheus
-      bearerTokenSecret:
-        name: home-assistant-token-secret
+    - bearerTokenSecret:
         key: bearer-token
+        name: home-assistant-token-secret
+      interval: 3m
+      path: /api/prometheus
+      port: http
+      scrapeTimeout: 1m

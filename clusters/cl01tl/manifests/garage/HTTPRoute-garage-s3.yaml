@@ -1,0 +1,30 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: garage-s3
+  labels:
+    app.kubernetes.io/instance: garage
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: garage
+    helm.sh/chart: garage-4.5.0
+  namespace: garage
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - "garage-s3.alexlebens.net"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: garage-main
+          namespace: garage
+          port: 3900
+          weight: 100
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
