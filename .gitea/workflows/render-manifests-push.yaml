@@ -39,6 +39,12 @@ jobs:
           version: v3.17.2 # Pending https://github.com/helm/helm/pull/30743
           cache: true
 
+      - name: Configure Kubeconfig
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
       - name: Prepare Manifest Branch
         run: |
           cd ${MANIFEST_DIR}
@@ -189,17 +195,17 @@ jobs:
                 "stack")
                   echo ""
                   echo ">> Special Rendering for stack into argocd namespace ..."
-                  TEMPLATE=$(helm template $chart_name ./ --namespace argocd --include-crds --dry-run)
+                  TEMPLATE=$(helm template $chart_name ./ --namespace argocd --include-crds --dry-run=server --server-side --api-versions gateway.networking.k8s.io/v1)
                   ;;
                 "cilium" | "coredns" | "metrics-server" |"prometheus-operator-crds")
                   echo ""
                   echo ">> Special Rendering for $chart_name into kube-system namespace ..."
-                  TEMPLATE=$(helm template $chart_name ./ --namespace kube-system --include-crds --dry-run)
+                  TEMPLATE=$(helm template $chart_name ./ --namespace kube-system --include-crds --dry-run=server --server-side --api-versions gateway.networking.k8s.io/v1)
                   ;;
                 *)
                   echo ""
                   echo ">> Standard Rendering for $chart_name ..."
-                  TEMPLATE=$(helm template "$chart_name" ./ --namespace "$chart_name" --include-crds --dry-run)
+                  TEMPLATE=$(helm template "$chart_name" ./ --namespace "$chart_name" --include-crds --dry-run=server --server-side --api-versions gateway.networking.k8s.io/v1)
                   ;;
               esac
 
