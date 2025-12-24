@@ -59,6 +59,39 @@ radarr-standup:
           port: 9793
           targetPort: 9793
           protocol: TCP
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: radarr-standup
+          app.kubernetes.io/instance: radarr-standup
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          interval: 3m
+          scrapeTimeout: 1m
+          path: /metrics
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - radarr-standup.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: radarr-standup
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
   persistence:
     config:
       forceRename: radarr-standup-config
@@ -84,64 +117,50 @@ radarr-standup:
 postgres-18-cluster:
   mode: recovery
   cluster:
-    storage:
-      storageClass: local-path
-    walStorage:
-      storageClass: local-path
     initdb:
-      database: app
-      owner: app
       postInitSQL:
         - CREATE DATABASE IF NOT EXISTS "radarr-main" OWNER "app";
         - CREATE DATABASE IF NOT EXISTS "radarr-log" OWNER "app";
   recovery:
     method: objectStore
     objectStore:
-      destinationPath: s3://postgres-backups/cl01tl/radarr-standup/radarr-standup-postgresql-18-cluster
-      endpointURL: http://garage-main.garage:3900
       index: 1
-      endpointCredentials: radarr-standup-postgresql-18-cluster-backup-secret-garage
   backup:
     objectStore:
       - name: garage-local
-        destinationPath: s3://postgres-backups/cl01tl/radarr-standup/radarr-standup-postgresql-18-cluster
         index: 1
-        endpointURL: http://garage-main.garage:3900
-        endpointCredentials: radarr-standup-postgresql-18-cluster-backup-secret-garage
-        endpointCredentialsIncludeRegion: true
-        retentionPolicy: "3d"
+        destinationBucket: postgres-backups
+        externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: external
-      #   destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/radarr-standup/radarr-standup-postgresql-18-cluster
-      #   index: 1
-      #   endpointCredentials: radarr-standup-postgresql-18-cluster-backup-secret
-      #   retentionPolicy: "30d"
-      #   isWALArchiver: false
       # - name: garage-remote
-      #   destinationPath: s3://postgres-backups/cl01tl/radarr-standup/radarr-standup-postgresql-18-cluster
       #   index: 1
-      #   endpointURL: https://garage-ps10rp.boreal-beaufort.ts.net:3900
-      #   endpointCredentials: radarr-standup-postgresql-18-cluster-backup-secret-garage
-      #   retentionPolicy: "30d"
+      #   destinationBucket: postgres-backups
+      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
+      #   retentionPolicy: "90d"
       #   data:
       #     compression: bzip2
-      #     jobs: 2
+      # - name: external
+      #   index: 1
+      #   endpointURL: https://nyc3.digitaloceanspaces.com
+      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
+      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
+      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 0 0 * * *"
         backupName: garage-local
-      # - name: daily-backup
-      #   suspend: false
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
       # - name: weekly-backup
       #   suspend: true
       #   immediate: true
       #   schedule: "0 0 4 * * SAT"
       #   backupName: garage-remote
+      # - name: daily-backup
+      #   suspend: true
+      #   immediate: true
+      #   schedule: "0 0 0 * * *"
+      #   backupName: external
 volsync-target-config:
   pvcTarget: radarr-standup-config
   moverSecurityContext:

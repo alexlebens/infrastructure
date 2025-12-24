@@ -264,6 +264,81 @@ qbittorrent:
           port: 9074
           targetPort: 9074
           protocol: HTTP
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: qbittorrent
+          app.kubernetes.io/instance: qbittorrent
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          interval: 30s
+          scrapeTimeout: 15s
+          path: /metrics
+    apprise:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: qbittorrent-apprise
+          app.kubernetes.io/instance: qbittorrent-apprise
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: apprise
+          interval: 30s
+          scrapeTimeout: 15s
+          path: /metrics
+    qui:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: qbittorrent-qui
+          app.kubernetes.io/instance: qbittorrent-qui
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          interval: 30s
+          scrapeTimeout: 15s
+          path: /metrics
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - qbittorrent.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: qbittorrent
+              port: 8080
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+    qui:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - qui.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: qbittorrent-qui
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
   persistence:
     update-script:
       enabled: true
