@@ -2,22 +2,27 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: karakeep
-  namespace: karakeep
   labels:
-    app.kubernetes.io/name: karakeep
     app.kubernetes.io/instance: karakeep
-    app.kubernetes.io/part-of: karakeep
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: karakeep
+    helm.sh/chart: karakeep-4.5.0
+  namespace: karakeep
 spec:
+  jobLabel: "karakeep"
+  namespaceSelector:
+    matchNames:
+      - karakeep
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: karakeep
+      app.kubernetes.io/name: karakeep
   endpoints:
-    - port: http
-      interval: 30s
-      scrapeTimeout: 15s
-      path: /api/metrics
-      authorization:
+    - authorization:
         credentials:
           key: prometheus-token
           name: karakeep-key-secret
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: karakeep
-      app.kubernetes.io/instance: karakeep
+      interval: 30s
+      path: /api/metrics
+      port: http
+      scrapeTimeout: 15s
