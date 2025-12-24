@@ -5,12 +5,25 @@ soulsync:
       replicas: 1
       strategy: Recreate
       revisionHistoryLimit: 3
-      # pod:
-      #   securityContext:
-      #     runAsUser: 1000
-      #     runAsGroup: 1000
-      #     fsGroup: 1000
-      #     fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        init-copy-config:
+          image:
+            repository: busybox
+            tag: 1.37.0
+            pullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              echo ">> Coping files ..."
+              ls /tmp
+              cp -fv /tmp/config.json /app/config/config.json
+              echo ">> Files in config:"
+              ls /app/config
       containers:
         main:
           image:
@@ -86,8 +99,8 @@ soulsync:
       name: soulsync-config-secret
       advancedMounts:
         main:
-          main:
-            - path: /app/config/config.json
+          init-copy-config:
+            - path: /tmp/config.json
               readOnly: true
               mountPropagation: None
               subPath: config.json
@@ -99,6 +112,9 @@ soulsync:
       advancedMounts:
         main:
           main:
+            - path: /app/config
+              readOnly: false
+          init-copy-config:
             - path: /app/config
               readOnly: false
     database:
@@ -134,15 +150,5 @@ soulsync:
               readOnly: true
 volsync-target-config:
   pvcTarget: soulsync-config
-  moverSecurityContext:
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
-    fsGroupChangePolicy: OnRootMismatch
 volsync-target-database:
   pvcTarget: soulsync-database
-  moverSecurityContext:
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
-    fsGroupChangePolicy: OnRootMismatch
