@@ -122,6 +122,27 @@ komodo:
           port: 27017
           targetPort: 27017
           protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - komodo.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: komodo-main
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
   persistence:
     cache:
       storageClass: ceph-block
@@ -150,10 +171,6 @@ postgresql-17-fdb-cluster:
     image:
       repository: ghcr.io/ferretdb/postgres-documentdb
       tag: "17-0.106.0-ferretdb-2.5.0"
-    storage:
-      storageClass: local-path
-    walStorage:
-      storageClass: local-path
     postgresUID: 999
     postgresGID: 999
     postgresql:
@@ -184,50 +201,39 @@ postgresql-17-fdb-cluster:
         - create extension if not exists pg_cron;
         - create extension if not exists documentdb cascade;
         - grant documentdb_admin_role to ferret;
-  recovery:
-    method: objectStore
-    objectStore:
-      destinationPath: s3://postgres-backups/cl01tl/komodo/komodo-postgresql-17-fdb-cluster
-      endpointURL: http://garage-main.garage:3900
-      index: 1
-      endpointCredentials: komodo-postgresql-17-cluster-backup-secret-garage
   backup:
     objectStore:
       - name: garage-local
-        destinationPath: s3://postgres-backups/cl01tl/komodo/komodo-postgresql-17-cluster
         index: 1
-        endpointURL: http://garage-main.garage:3900
-        endpointCredentials: komodo-postgresql-17-cluster-backup-secret-garage
-        endpointCredentialsIncludeRegion: true
-        retentionPolicy: "3d"
+        destinationBucket: postgres-backups
+        externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: external
-      #   destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/komodo/komodo-postgresql-17-fdb-cluster
-      #   index: 1
-      #   retentionPolicy: "30d"
-      #   isWALArchiver: false
       # - name: garage-remote
-      #   destinationPath: s3://postgres-backups/cl01tl/komodo/komodo-postgresql-17-cluster
       #   index: 1
-      #   endpointURL: https://garage-ps10rp.boreal-beaufort.ts.net:3900
-      #   endpointCredentials: komodo-postgresql-17-cluster-backup-secret-garage
-      #   retentionPolicy: "30d"
+      #   destinationBucket: postgres-backups
+      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
+      #   retentionPolicy: "90d"
       #   data:
       #     compression: bzip2
-      #     jobs: 2
+      # - name: external
+      #   index: 1
+      #   endpointURL: https://nyc3.digitaloceanspaces.com
+      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
+      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
+      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 0 0 * * *"
         backupName: garage-local
-      # - name: daily-backup
-      #   suspend: false
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
       # - name: weekly-backup
       #   suspend: true
       #   immediate: true
       #   schedule: "0 0 4 * * SAT"
       #   backupName: garage-remote
+      # - name: daily-backup
+      #   suspend: true
+      #   immediate: true
+      #   schedule: "0 0 0 * * *"
+      #   backupName: external
