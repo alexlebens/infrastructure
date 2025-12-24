@@ -1,12 +1,17 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: http-route-alertmanager
+  name: kube-prometheus-stack-alertmanager
   namespace: kube-prometheus-stack
   labels:
-    app.kubernetes.io/name: http-route-alertmanager
+    app: kube-prometheus-stack-alertmanager
+    app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/version: "80.6.0"
     app.kubernetes.io/part-of: kube-prometheus-stack
+    chart: kube-prometheus-stack-80.6.0
+    release: "kube-prometheus-stack"
+    heritage: "Helm"
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
@@ -16,13 +21,10 @@ spec:
   hostnames:
     - alertmanager.alexlebens.net
   rules:
-    - matches:
+    - backendRefs:
+        - name: kube-prometheus-stack-alertmanager
+          port: 9093
+      matches:
         - path:
             type: PathPrefix
             value: /
-      backendRefs:
-        - group: ''
-          kind: Service
-          name: kube-prometheus-stack-alertmanager
-          port: 9093
-          weight: 100

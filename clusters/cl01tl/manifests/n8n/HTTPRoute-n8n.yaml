@@ -1,12 +1,13 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: http-route-n8n
-  namespace: n8n
+  name: n8n
   labels:
-    app.kubernetes.io/name: http-route-n8n
     app.kubernetes.io/instance: n8n
-    app.kubernetes.io/part-of: n8n
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: n8n
+    helm.sh/chart: n8n-4.5.0
+  namespace: n8n
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
@@ -14,22 +15,30 @@ spec:
       name: traefik-gateway
       namespace: traefik
   hostnames:
-    - n8n.alexlebens.net
+    - "n8n.alexlebens.net"
   rules:
-    - matches:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: n8n-main
+          namespace: n8n
+          port: 80
+          weight: 100
+      matches:
         - path:
             type: PathPrefix
             value: /
         - path:
             type: PathPrefix
             value: /webhook-test/
-      backendRefs:
-        - group: ''
+    - backendRefs:
+        - group: ""
           kind: Service
-          name: n8n-main
+          name: n8n-webhook
+          namespace: n8n
           port: 80
           weight: 100
-    - matches:
+      matches:
         - path:
             type: PathPrefix
             value: /webhook/
@@ -39,9 +48,3 @@ spec:
         - path:
             type: PathPrefix
             value: /form/
-      backendRefs:
-        - group: ''
-          kind: Service
-          name: n8n-webhook
-          port: 80
-          weight: 100

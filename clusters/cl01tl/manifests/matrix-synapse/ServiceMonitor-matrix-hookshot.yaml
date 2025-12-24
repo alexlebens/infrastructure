@@ -2,18 +2,23 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: matrix-hookshot
-  namespace: matrix-synapse
   labels:
-    app.kubernetes.io/name: matrix-hookshot
     app.kubernetes.io/instance: matrix-synapse
-    app.kubernetes.io/part-of: matrix-synapse
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: matrix-hookshot
+    helm.sh/chart: matrix-hookshot-4.5.0
+  namespace: matrix-synapse
 spec:
+  jobLabel: "matrix-hookshot"
+  namespaceSelector:
+    matchNames:
+      - matrix-synapse
   selector:
     matchLabels:
+      app.kubernetes.io/instance: matrix-hookshot
       app.kubernetes.io/name: matrix-hookshot
-      app.kubernetes.io/instance: matrix-synapse
   endpoints:
-    - targetPort: 9001
-      interval: 3m
-      scrapeTimeout: 1m
+    - interval: 3m
       path: /metrics
+      scrapeTimeout: 1m
+      targetPort: 9001

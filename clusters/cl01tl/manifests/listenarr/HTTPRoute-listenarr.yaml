@@ -1,12 +1,13 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: http-route-listenarr
-  namespace: listenarr
+  name: listenarr
   labels:
-    app.kubernetes.io/name: http-route-listenarr
     app.kubernetes.io/instance: listenarr
-    app.kubernetes.io/part-of: listenarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: listenarr
+    helm.sh/chart: listenarr-4.5.0
+  namespace: listenarr
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
@@ -14,15 +15,16 @@ spec:
       name: traefik-gateway
       namespace: traefik
   hostnames:
-    - listenarr.alexlebens.net
+    - "listenarr.alexlebens.net"
   rules:
-    - matches:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: listenarr
+          namespace: listenarr
+          port: 80
+          weight: 100
+      matches:
         - path:
             type: PathPrefix
             value: /
-      backendRefs:
-        - group: ''
-          kind: Service
-          name: listenarr
-          port: 80
-          weight: 100
