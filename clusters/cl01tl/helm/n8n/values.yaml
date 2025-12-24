@@ -292,6 +292,80 @@ n8n:
           port: 80
           targetPort: 5678
           protocol: HTTP
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: n8n-main
+          app.kubernetes.io/instance: n8n-main
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: http
+          interval: 3m
+          scrapeTimeout: 1m
+          path: /metrics
+    worker:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: n8n-worker
+          app.kubernetes.io/instance: n8n-worker
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: http
+          interval: 3m
+          scrapeTimeout: 1m
+          path: /metrics
+    webhook:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: n8n-webhook
+          app.kubernetes.io/instance: n8n-webhook
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: http
+          interval: 3m
+          scrapeTimeout: 1m
+          path: /metrics
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - n8n.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: n8n-main
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+            - path:
+                type: PathPrefix
+                value: /webhook-test/
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: n8n-webhook
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /webhook/
+            - path:
+                type: PathPrefix
+                value: /webhook-waiting/
+            - path:
+                type: PathPrefix
+                value: /form/
   persistence:
     data:
       storageClass: ceph-block
@@ -315,58 +389,46 @@ n8n:
               readOnly: false
 postgres-18-cluster:
   mode: recovery
-  cluster:
-    storage:
-      storageClass: local-path
-    walStorage:
-      storageClass: local-path
   recovery:
     method: objectStore
     objectStore:
-      destinationPath: s3://postgres-backups/cl01tl/n8n/n8n-postgresql-18-cluster
-      endpointURL: http://garage-main.garage:3900
       index: 1
-      endpointCredentials: n8n-postgresql-18-cluster-backup-secret-garage
   backup:
     objectStore:
       - name: garage-local
-        destinationPath: s3://postgres-backups/cl01tl/n8n/n8n-postgresql-18-cluster
         index: 1
-        endpointURL: http://garage-main.garage:3900
-        endpointCredentials: n8n-postgresql-18-cluster-backup-secret-garage
-        endpointCredentialsIncludeRegion: true
-        retentionPolicy: "3d"
+        destinationBucket: postgres-backups
+        externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: external
-      #   destinationPath: s3://postgres-backups-ce540ddf106d186bbddca68a/cl01tl/n8n/n8n-postgresql-18-cluster
-      #   index: 1
-      #   retentionPolicy: "30d"
-      #   isWALArchiver: false
       # - name: garage-remote
-      #   destinationPath: s3://postgres-backups/cl01tl/n8n/n8n-postgresql-18-cluster
       #   index: 1
-      #   endpointURL: https://garage-ps10rp.boreal-beaufort.ts.net:3900
-      #   endpointCredentials: n8n-postgresql-18-cluster-backup-secret-garage
-      #   retentionPolicy: "30d"
+      #   destinationBucket: postgres-backups
+      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
+      #   retentionPolicy: "90d"
       #   data:
       #     compression: bzip2
-      #     jobs: 2
+      # - name: external
+      #   index: 1
+      #   endpointURL: https://nyc3.digitaloceanspaces.com
+      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
+      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
+      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 0 0 * * *"
         backupName: garage-local
-      # - name: daily-backup
-      #   suspend: false
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
       # - name: weekly-backup
       #   suspend: true
       #   immediate: true
       #   schedule: "0 0 4 * * SAT"
       #   backupName: garage-remote
+      # - name: daily-backup
+      #   suspend: true
+      #   immediate: true
+      #   schedule: "0 0 0 * * *"
+      #   backupName: external
 redis-replication:
   existingSecret:
     enabled: false
