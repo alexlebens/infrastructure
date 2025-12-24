@@ -1,0 +1,154 @@
+navidrome:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: deluan/navidrome
+            tag: 0.59.0@sha256:4edc8a1de3e042f30b78a478325839f4395177eb8201c27543dccc0eba674f23
+            pullPolicy: IfNotPresent
+          env:
+            - name: ND_MUSICFOLDER
+              value: /music
+            - name: ND_DATAFOLDER
+              value: /data
+            - name: ND_CACHEFOLDER
+              value: /cache
+            - name: ND_BASEURL
+              value: docker
+            - name: ND_ENABLEINSIGHTSCOLLECTOR
+              value: false
+            - name: ND_PROMETHEUS_ENABLED
+              value: true
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              gpu.intel.com/i915: 1
+              cpu: 10m
+              memory: 128Mi
+    feishin:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/jeffvli/feishin
+            tag: 1.0.1-beta.1@sha256:61239641f23a33f99c2858419b14afb66683f3cd82010363fba92be3993fd894
+            pullPolicy: IfNotPresent
+          env:
+            - name: SERVER_NAME
+              value: talos
+            - name: SERVER_LOCK
+              value: true
+            - name: SERVER_TYPE
+              value: navidrome
+            - name: SERVER_URL
+              value: http://navidrome-main.navidrome:80
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 4533
+          protocol: HTTP
+    feishin:
+      controller: feishin
+      ports:
+        http:
+          port: 80
+          targetPort: 9180
+          protocol: HTTP
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: navidrome
+          app.kubernetes.io/instance: navidrome
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: http
+          scheme: http
+          path: /metrics
+          interval: 30s
+          scrapeTimeout: 15s
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - navidrome.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: navidrome
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+    feishin:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - feishin.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: feishin
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      forceRename: navidrome-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+    cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /cache
+              readOnly: false
+    music:
+      existingClaim: navidrome-music-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store/Music
+              readOnly: true
+volsync-target-data:
+  pvcTarget: navidrome-data
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
