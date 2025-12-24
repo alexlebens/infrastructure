@@ -1,12 +1,13 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: http-route-plex
-  namespace: plex
+  name: plex
   labels:
-    app.kubernetes.io/name: http-route-plex
     app.kubernetes.io/instance: plex
-    app.kubernetes.io/part-of: plex
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: plex
+    helm.sh/chart: plex-4.5.0
+  namespace: plex
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
@@ -14,15 +15,16 @@ spec:
       name: traefik-gateway
       namespace: traefik
   hostnames:
-    - plex.alexlebens.net
+    - "plex.alexlebens.net"
   rules:
-    - matches:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: plex
+          namespace: plex
+          port: 32400
+          weight: 100
+      matches:
         - path:
             type: PathPrefix
             value: /
-      backendRefs:
-        - group: ''
-          kind: Service
-          name: plex
-          port: 32400
-          weight: 100
