@@ -33,6 +33,22 @@ kube-prometheus-stack:
                 basic_auth:
                   username: ntfy-alertmanager
                   password_file: /etc/alertmanager/secrets/alertmanager-config-secret/ntfy_password
+    route:
+      main:
+        enabled: true
+        apiVersion: gateway.networking.k8s.io/v1
+        kind: HTTPRoute
+        hostnames:
+          - alertmanager.alexlebens.net
+        parentRefs:
+          - group: gateway.networking.k8s.io
+            kind: Gateway
+            name: traefik-gateway
+            namespace: traefik
+        matches:
+          - path:
+              type: PathPrefix
+              value: /
     alertmanagerSpec:
       secrets:
         - alertmanager-config-secret
@@ -87,8 +103,22 @@ kube-prometheus-stack:
         annotations:
           argocd.argoproj.io/hook: PreSync
   prometheus:
-    ingress:
-      enabled: false
+    route:
+      main:
+        enabled: true
+        apiVersion: gateway.networking.k8s.io/v1
+        kind: HTTPRoute
+        hostnames:
+          - alertmanager.alexlebens.net
+        parentRefs:
+          - group: gateway.networking.k8s.io
+            kind: Gateway
+            name: traefik-gateway
+            namespace: traefik
+        matches:
+          - path:
+              type: PathPrefix
+              value: /
     prometheusSpec:
       scrapeInterval: 30s
       retention: 30d
