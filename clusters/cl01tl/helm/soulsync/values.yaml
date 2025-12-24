@@ -1,0 +1,163 @@
+soulsync:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+      containers:
+        main:
+          image:
+            repository: boulderbadgedad/soulsync
+            tag: latest@sha256:6cb116bd7c0d0a56a017a7d84245d0356f372345fc3f98c820abae681b5e41c5
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+            - name: UMASK
+              value: 022
+            - name: FLASK_ENV
+              value: production
+            - name: PYTHONPATH
+              value: /app
+            - name: SOULSYNC_CONFIG_PATH
+              value: /app/config/config.json
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                  - CMD
+                  - curl
+                  - -f
+                  - http://localhost:8888/
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 30
+                successThreshold: 1
+                timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8008
+          protocol: HTTP
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: soulsync
+          app.kubernetes.io/instance: soulsync
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: http
+          scheme: http
+          path: /metrics
+          interval: 30s
+          scrapeTimeout: 15s
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - soulsync.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: soulsync
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    config-file:
+      enabled: true
+      type: secret
+      name: soulsync
+      advancedMounts:
+        main:
+          main:
+            - path: /app/config/config.json
+              readOnly: true
+              mountPropagation: None
+              subPath: config.json
+    config:
+      forceRename: soulsync-config
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /app/config
+              readOnly: false
+    database:
+      forceRename: soulsync-config
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /app/database
+              readOnly: false
+    downloads:
+      existingClaim: soulsync-slskd-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /app/downloads
+              readOnly: true
+    transfer:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /app/Transfer
+              readOnly: false
+    music:
+      existingClaim: soulsync-music-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /music
+              readOnly: true
+volsync-target-config:
+  pvcTarget: soulsync-config
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+volsync-target-database:
+  pvcTarget: soulsync-database
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
