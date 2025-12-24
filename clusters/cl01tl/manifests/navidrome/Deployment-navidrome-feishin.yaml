@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navidrome-feishin
+  labels:
+    app.kubernetes.io/controller: feishin
+    app.kubernetes.io/instance: navidrome
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: navidrome
+    helm.sh/chart: navidrome-4.5.0
+  namespace: navidrome
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: feishin
+      app.kubernetes.io/name: navidrome
+      app.kubernetes.io/instance: navidrome
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: feishin
+        app.kubernetes.io/instance: navidrome
+        app.kubernetes.io/name: navidrome
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: SERVER_NAME
+              value: talos
+            - name: SERVER_LOCK
+              value: "true"
+            - name: SERVER_TYPE
+              value: navidrome
+            - name: SERVER_URL
+              value: http://navidrome-main.navidrome:80
+          image: ghcr.io/jeffvli/feishin:1.0.1-beta.1@sha256:61239641f23a33f99c2858419b14afb66683f3cd82010363fba92be3993fd894
+          imagePullPolicy: IfNotPresent
+          name: main
