@@ -33,6 +33,31 @@ spec:
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
+      initContainers:
+        - command:
+            - /bin/sh
+            - -ec
+            - |
+              echo ">> Coping files ..."
+              ls /tmp
+              cp -fv /tmp/config.json /app/config/config.json
+              echo ">> Files in config:"
+              ls /app/config
+          image: busybox:1.37.0
+          imagePullPolicy: IfNotPresent
+          name: init-copy-config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /app/config
+              name: config
+            - mountPath: /tmp/config.json
+              mountPropagation: None
+              name: secret
+              readOnly: true
+              subPath: config.json
       containers:
         - env:
             - name: TZ
@@ -76,11 +101,6 @@ spec:
             - mountPath: /music
               name: music
               readOnly: true
-            - mountPath: /app/config/config.json
-              mountPropagation: None
-              name: secret
-              readOnly: true
-              subPath: config.json
             - mountPath: /app/Transfer
               name: transfer
       volumes:
