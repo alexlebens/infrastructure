@@ -114,6 +114,46 @@ searxng:
           port: 80
           targetPort: 8080
           protocol: HTTP
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: searxng-browser
+          app.kubernetes.io/instance: searxng-browser
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: mail
+          interval: 30s
+          scrapeTimeout: 15s
+          path: /metrics
+          basicAuth:
+            password:
+              name: searxng-browser-metrics-auth
+              key: metrics-password
+            username:
+              name: searxng-browser-metrics-auth
+              key: metrics-username
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - searxng.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: searxng-browser
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
   persistence:
     config:
       enabled: true
