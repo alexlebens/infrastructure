@@ -1,0 +1,34 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: soulsync-database-backup-source-remote
+  namespace: soulsync
+  labels:
+    helm.sh/chart: volsync-target-database-0.6.0
+    app.kubernetes.io/instance: soulsync
+    app.kubernetes.io/part-of: soulsync
+    app.kubernetes.io/version: "0.6.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: soulsync-database-backup
+spec:
+  sourcePVC: soulsync-database
+  trigger:
+    schedule: 0 10 * * *
+  restic:
+    pruneIntervalDays: 7
+    repository: soulsync-database-backup-secret-remote
+    retain:
+      daily: 7
+      hourly: 0
+      monthly: 3
+      weekly: 4
+      yearly: 1
+    moverSecurityContext:
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+      runAsGroup: 1000
+      runAsUser: 1000
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
+    cacheCapacity: 1Gi

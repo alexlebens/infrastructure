@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soulsync
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: soulsync
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: soulsync
+    helm.sh/chart: soulsync-4.5.0
+  namespace: soulsync
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: soulsync
+      app.kubernetes.io/instance: soulsync
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: soulsync
+        app.kubernetes.io/name: soulsync
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsUser: 1000
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: US/Central
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: UMASK
+              value: "18"
+            - name: FLASK_ENV
+              value: production
+            - name: PYTHONPATH
+              value: /app
+            - name: SOULSYNC_CONFIG_PATH
+              value: /app/config/config.json
+          image: boulderbadgedad/soulsync:latest@sha256:6cb116bd7c0d0a56a017a7d84245d0356f372345fc3f98c820abae681b5e41c5
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+                - CMD
+                - curl
+                - -f
+                - http://localhost:8888/
+            failureThreshold: 5
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 10
+          name: main
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+          volumeMounts:
+            - mountPath: /app/config
+              name: config
+            - mountPath: /app/config/config.json
+              mountPropagation: None
+              name: config-file
+              readOnly: true
+              subPath: config.json
+            - mountPath: /app/database
+              name: database
+            - mountPath: /app/downloads
+              name: downloads
+              readOnly: true
+            - mountPath: /music
+              name: music
+              readOnly: true
+            - mountPath: /app/Transfer
+              name: transfer
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: soulsync-config
+        - name: config-file
+          secret:
+            secretName: soulsync
+        - name: database
+          persistentVolumeClaim:
+            claimName: soulsync-config
+        - name: downloads
+          persistentVolumeClaim:
+            claimName: soulsync-slskd-nfs-storage
+        - name: music
+          persistentVolumeClaim:
+            claimName: soulsync-music-nfs-storage
+        - emptyDir: {}
+          name: transfer
