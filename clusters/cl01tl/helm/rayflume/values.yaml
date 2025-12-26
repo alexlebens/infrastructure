@@ -1,0 +1,92 @@
+rayflume:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: harbor.alexlebens.net/images/rayflume
+            tag: 0.0.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: DEBUG
+              value: False
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rayflume-config-secret
+                  key: SECRET_KEY
+            - name: ALLOWED_HOSTS
+              value: rayflume.alexlebens.net
+            - name: LIDARR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: rayflume-config-secret
+                  key: LIDARR_TOKEN
+            - name: YOUTUBE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rayflume-config-secret
+                  key: YOUTUBE_API_KEY
+            - name: YOUTUBE_QUOTA_SAFE_PAGE_SIZE
+              value: 50
+            - name: MB_USER_AGENT
+              valueFrom:
+                secretKeyRef:
+                  name: rayflume-config-secret
+                  key: MB_USER_AGENT
+            - name: CELERY_BROKER_URL
+              value: redis://redis-replication-rayflume-master:6379/0
+            - name: CELERY_RESULT_BACKEND
+              value: redis://redis-replication-rayflume-master:6379/0
+            - name: REFRESH_MINUTES
+              value: 60
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 80
+          protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - rayflume.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: rayflume
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      forceRename: rayflume-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+volsync-target-data:
+  pvcTarget: rayflume-data
