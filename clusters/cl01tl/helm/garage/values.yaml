@@ -1,6 +1,6 @@
 garage:
   controllers:
-    main:
+    server-1:
       type: deployment
       replicas: 1
       strategy: Recreate
@@ -18,18 +18,42 @@ garage:
             requests:
               cpu: 10m
               memory: 128Mi
-        debug:
+    server-2:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
           image:
-            repository: ubuntu
-            tag: resolute-20251208
+            repository: dxflrs/garage
+            tag: v2.1.0
             pullPolicy: IfNotPresent
-          command:
-            - "sleep"
-            - "infinity"
+          envFrom:
+            - secretRef:
+                name: garage-token-secret
           resources:
             requests:
               cpu: 10m
-              memory: 32Mi
+              memory: 128Mi
+    server-3:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: dxflrs/garage
+            tag: v2.1.0
+            pullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: garage-token-secret
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
     webui:
       type: deployment
       replicas: 1
@@ -60,7 +84,7 @@ garage:
       enabled: true
       data:
         garage.toml: |
-          replication_factor = 1
+          replication_factor = 3
 
           metadata_dir = "/var/lib/garage/meta"
           data_dir = "/var/lib/garage/data"
@@ -90,8 +114,49 @@ garage:
           api_bind_addr = "[::]:3903"
           metrics_require_token = true
   service:
-    main:
-      controller: main
+    server-1:
+      forceRename: garage-main
+      controller: server-1
+      ports:
+        s3:
+          port: 3900
+          targetPort: 3900
+          protocol: HTTP
+        rpc:
+          port: 3901
+          targetPort: 3901
+          protocol: HTTP
+        web:
+          port: 3902
+          targetPort: 3902
+          protocol: HTTP
+        admin:
+          port: 3903
+          targetPort: 3903
+          protocol: HTTP
+    server-2:
+      forceRename: garage-2
+      controller: server-2
+      ports:
+        s3:
+          port: 3900
+          targetPort: 3900
+          protocol: HTTP
+        rpc:
+          port: 3901
+          targetPort: 3901
+          protocol: HTTP
+        web:
+          port: 3902
+          targetPort: 3902
+          protocol: HTTP
+        admin:
+          port: 3903
+          targetPort: 3903
+          protocol: HTTP
+    server-3:
+      forceRename: garage-3
+      controller: server-3
       ports:
         s3:
           port: 3900
@@ -178,13 +243,20 @@ garage:
       type: configMap
       name: garage
       advancedMounts:
-        main:
+        server-1:
           main:
             - path: /etc/garage.toml
               readOnly: true
               mountPropagation: None
               subPath: garage.toml
-          debug:
+        server-2:
+          main:
+            - path: /etc/garage.toml
+              readOnly: true
+              mountPropagation: None
+              subPath: garage.toml
+        server-3:
+          main:
             - path: /etc/garage.toml
               readOnly: true
               mountPropagation: None
@@ -195,44 +267,81 @@ garage:
               readOnly: true
               mountPropagation: None
               subPath: garage.toml
-    db:
+    db-1:
       forceRename: garage-db
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 50Gi
       retain: true
       advancedMounts:
-        main:
+        server-1:
           main:
             - path: /var/lib/garage/meta
               readOnly: false
-          debug:
-            - path: /var/lib/garage/meta
-              readOnly: false
-    data:
+    # db-2:
+    #   forceRename: garage-db-2
+    #   storageClass: ceph-block
+    #   accessMode: ReadWriteOnce
+    #   size: 50Gi
+    #   retain: true
+    #   advancedMounts:
+    #     server-2:
+    #       main:
+    #         - path: /var/lib/garage/meta
+    #           readOnly: false
+    # db-3:
+    #   forceRename: garage-db-3
+    #   storageClass: ceph-block
+    #   accessMode: ReadWriteOnce
+    #   size: 50Gi
+    #   retain: true
+    #   advancedMounts:
+    #     server-3:
+    #       main:
+    #         - path: /var/lib/garage/meta
+    #           readOnly: false
+    data-1:
+      forceRename: garage-data
       storageClass: synology-iscsi-delete
       accessMode: ReadWriteOnce
       size: 800Gi
       retain: true
       advancedMounts:
-        main:
+        server-1:
           main:
             - path: /var/lib/garage/data
               readOnly: false
-          debug:
-            - path: /var/lib/garage/data
-              readOnly: false
+    # data-2:
+    #   forceRename: garage-data-2
+    #   storageClass: synology-iscsi-delete
+    #   accessMode: ReadWriteOnce
+    #   size: 800Gi
+    #   retain: true
+    #   advancedMounts:
+    #     server-2:
+    #       main:
+    #         - path: /var/lib/garage/data
+    #           readOnly: false
+    # data-3:
+    #   forceRename: garage-data-3
+    #   storageClass: synology-iscsi-delete
+    #   accessMode: ReadWriteOnce
+    #   size: 800Gi
+    #   retain: true
+    #   advancedMounts:
+    #     server-3:
+    #       main:
+    #         - path: /var/lib/garage/data
+    #           readOnly: false
     snapshots:
+      forceRename: garage-snapshots
       storageClass: synology-iscsi-delete
       accessMode: ReadWriteOnce
       size: 50Gi
       retain: true
       advancedMounts:
-        main:
+        server-1:
           main:
-            - path: /var/lib/garage/snapshots
-              readOnly: false
-          debug:
             - path: /var/lib/garage/snapshots
               readOnly: false
 volsync-target-db:
