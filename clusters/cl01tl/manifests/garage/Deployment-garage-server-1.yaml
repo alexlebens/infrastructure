@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: garage-main
+  name: garage-server-1
   labels:
-    app.kubernetes.io/controller: main
+    app.kubernetes.io/controller: server-1
     app.kubernetes.io/instance: garage
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: garage
@@ -16,17 +16,18 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      app.kubernetes.io/controller: main
+      app.kubernetes.io/controller: server-1
       app.kubernetes.io/name: garage
       app.kubernetes.io/instance: garage
   template:
     metadata:
       annotations:
-        checksum/configMaps: aecb65cb46684688a356974d7ecaec4abb2d4fed3f71863780e7f35505c7af02
+        checksum/configMaps: 222a823b4d415557153f5025ab461945265a16cbb7a39b759091687596c24c29
       labels:
-        app.kubernetes.io/controller: main
+        app.kubernetes.io/controller: server-1
         app.kubernetes.io/instance: garage
         app.kubernetes.io/name: garage
+        garage-type: server
     spec:
       enableServiceLinks: false
       serviceAccountName: default
@@ -35,29 +36,17 @@ spec:
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: garage-type
+                    operator: In
+                    values:
+                      - server
+              topologyKey: kubernetes.io/hostname
       containers:
-        - command:
-            - sleep
-            - infinity
-          image: ubuntu:resolute-20251208
-          imagePullPolicy: IfNotPresent
-          name: debug
-          resources:
-            requests:
-              cpu: 10m
-              memory: 32Mi
-          volumeMounts:
-            - mountPath: /etc/garage.toml
-              mountPropagation: None
-              name: config
-              readOnly: true
-              subPath: garage.toml
-            - mountPath: /var/lib/garage/data
-              name: data
-            - mountPath: /var/lib/garage/meta
-              name: db
-            - mountPath: /var/lib/garage/snapshots
-              name: snapshots
         - envFrom:
             - secretRef:
                 name: garage-token-secret
@@ -75,19 +64,19 @@ spec:
               readOnly: true
               subPath: garage.toml
             - mountPath: /var/lib/garage/data
-              name: data
+              name: data-1
             - mountPath: /var/lib/garage/meta
-              name: db
+              name: db-1
             - mountPath: /var/lib/garage/snapshots
               name: snapshots
       volumes:
         - configMap:
             name: garage
           name: config
-        - name: data
+        - name: data-1
           persistentVolumeClaim:
             claimName: garage-data
-        - name: db
+        - name: db-1
           persistentVolumeClaim:
             claimName: garage-db
         - name: snapshots

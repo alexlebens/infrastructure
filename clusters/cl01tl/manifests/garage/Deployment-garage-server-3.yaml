@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: garage-webui
+  name: garage-server-3
   labels:
-    app.kubernetes.io/controller: webui
+    app.kubernetes.io/controller: server-3
     app.kubernetes.io/instance: garage
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: garage
@@ -16,7 +16,7 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      app.kubernetes.io/controller: webui
+      app.kubernetes.io/controller: server-3
       app.kubernetes.io/name: garage
       app.kubernetes.io/instance: garage
   template:
@@ -24,9 +24,10 @@ spec:
       annotations:
         checksum/configMaps: 222a823b4d415557153f5025ab461945265a16cbb7a39b759091687596c24c29
       labels:
-        app.kubernetes.io/controller: webui
+        app.kubernetes.io/controller: server-3
         app.kubernetes.io/instance: garage
         app.kubernetes.io/name: garage
+        garage-type: server
     spec:
       enableServiceLinks: false
       serviceAccountName: default
@@ -35,18 +36,21 @@ spec:
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: garage-type
+                    operator: In
+                    values:
+                      - server
+              topologyKey: kubernetes.io/hostname
       containers:
-        - env:
-            - name: API_BASE_URL
-              value: http://garage-main.garage:3903
-            - name: S3_ENDPOINT_URL
-              value: http://garage-main.garage:3900
-            - name: API_ADMIN_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: GARAGE_ADMIN_TOKEN
-                  name: garage-token-secret
-          image: khairul169/garage-webui:1.1.0
+        - envFrom:
+            - secretRef:
+                name: garage-token-secret
+          image: dxflrs/garage:v2.1.0
           imagePullPolicy: IfNotPresent
           name: main
           resources:
