@@ -62,3 +62,43 @@ promtail:
     clients:
       - url: http://loki-gateway.loki.svc.cluster.local:80/loki/api/v1/push
         tenant_id: 1
+alloy:
+  crds:
+    create: true
+  configMap:
+    create: true
+    content: |
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      discovery.relabel "pod_logs" {
+        targets = discovery.kubernetes.pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+      }
+
+      loki.source.kubernetes "pod_logs" {
+        targets    = discovery.relabel.pod_logs.output
+        forward_to = [loki.write.loki_endpoint.receiver]
+      }
+
+      loki.write "loki_endpoint" {
+        endpoint {
+          url = "http://loki-gateway.loki.svc.cluster.local:80/loki/api/v1/push"
+        }
+      }
+  controller:
+    type: 'daemonset'
+  serviceMonitor:
+    enabled: true
