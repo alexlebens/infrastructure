@@ -1,0 +1,34 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: radarr-standup-config-backup-source-local
+  namespace: radarr-standup
+  labels:
+    helm.sh/chart: volsync-target-config-0.7.0
+    app.kubernetes.io/instance: radarr-standup
+    app.kubernetes.io/part-of: radarr-standup
+    app.kubernetes.io/version: "0.7.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: radarr-standup-config-backup
+spec:
+  sourcePVC: radarr-standup-config
+  trigger:
+    schedule: 14 11 * * *
+  restic:
+    pruneIntervalDays: 7
+    repository: radarr-standup-config-backup-secret-local
+    retain:
+      daily: 7
+      hourly: 0
+      monthly: 3
+      weekly: 4
+      yearly: 1
+    moverSecurityContext:
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+      runAsGroup: 1000
+      runAsUser: 1000
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
+    cacheCapacity: 1Gi
