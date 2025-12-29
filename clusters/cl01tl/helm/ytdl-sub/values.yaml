@@ -1,0 +1,100 @@
+ytdl-sub:
+  controllers:
+    main:
+      type: cronjob
+      cronjob:
+        suspend: false
+        concurrencyPolicy: Forbid
+        timeZone: US/Central
+        schedule: 0 0 1 1 *
+        startingDeadlineSeconds: 90
+        successfulJobsHistory: 1
+        failedJobsHistory: 1
+        backoffLimit: 3
+        parallelism: 1
+      containers:
+        main:
+          image:
+            repository: ghcr.io/jmbannon/ytdl-sub
+            tag: 2025.12.26
+            pullPolicy: IfNotPresent
+          command:
+            - ytdl-sub
+          args:
+            - --dry-run
+            - --config /config/config.yaml
+            - sub /config/subscriptions.yaml
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: CRON_RUN_ON_START
+              value: false
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  configMaps:
+    config:
+      enabled: true
+      data:
+        config.yaml: |
+          configuration:
+            working_directory: /cache
+
+          presets:
+            Music:
+              preset:
+                - "Max MP3 Quality"
+
+              embed_thumbnail: True
+
+              square_thumbnail: True
+
+              throttle_protection:
+                sleep_per_download_s:
+                  min: 5
+                  max: 15
+                sleep_per_subscription_s:
+                  min: 5
+                  max: 15
+                max_downloads_per_subscription:
+                  min: 1
+                  max: 200
+
+              overrides:
+                music_directory: "/music"
+
+        subscriptions.yaml: |
+          Music:
+            - "https://www.youtube.com/playlist?list=PLtiOoYqxYXtKK3fMya_xhqK0Wit0i10Gy&si=8wNBH-kGT9Nx0XBK"  # Music Saved
+
+  persistence:
+    config:
+      enabled: true
+      type: configMap
+      name: ytdl-sub
+      advancedMounts:
+        main:
+          main:
+            - path: /config/config.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: config.yaml
+            - path: /config/subscriptions.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: subscriptions.yaml
+    cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /cache
+              readOnly: false
+    music:
+      existingClaim: ytdl-sub-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /music
+              readOnly: false
