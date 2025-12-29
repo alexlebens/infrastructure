@@ -1,0 +1,83 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ytdl-sub
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: ytdl-sub
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ytdl-sub
+    helm.sh/chart: ytdl-sub-4.5.0
+  namespace: ytdl-sub
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 90
+  timeZone: US/Central
+  schedule: "0 0 1 1 *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          annotations:
+            checksum/configMaps: fe569dcb0775262f67f6e0444f99ab79b8bc7334a7bba3bbdc0fe41c984a70b5
+          labels:
+            app.kubernetes.io/controller: main
+            app.kubernetes.io/instance: ytdl-sub
+            app.kubernetes.io/name: ytdl-sub
+        spec:
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          containers:
+            - args:
+                - --dry-run
+                - --config /config/config.yaml
+                - sub /config/subscriptions.yaml
+              command:
+                - ytdl-sub
+              env:
+                - name: TZ
+                  value: America/Chicago
+                - name: CRON_RUN_ON_START
+                  value: "false"
+              image: ghcr.io/jmbannon/ytdl-sub:2025.12.26
+              imagePullPolicy: IfNotPresent
+              name: main
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 128Mi
+              volumeMounts:
+                - mountPath: /cache
+                  name: cache
+                - mountPath: /config/config.yaml
+                  mountPropagation: None
+                  name: config
+                  readOnly: true
+                  subPath: config.yaml
+                - mountPath: /config/subscriptions.yaml
+                  mountPropagation: None
+                  name: config
+                  readOnly: true
+                  subPath: subscriptions.yaml
+                - mountPath: /music
+                  name: music
+          volumes:
+            - emptyDir: {}
+              name: cache
+            - configMap:
+                name: ytdl-sub
+              name: config
+            - name: music
+              persistentVolumeClaim:
+                claimName: ytdl-sub-nfs-storage
