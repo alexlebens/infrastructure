@@ -1,0 +1,29 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: jellyfin-config-backup-source-local
+  namespace: jellyfin
+  labels:
+    helm.sh/chart: volsync-target-config-0.7.0
+    app.kubernetes.io/instance: jellyfin
+    app.kubernetes.io/part-of: jellyfin
+    app.kubernetes.io/version: "0.7.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: jellyfin-config-backup
+spec:
+  sourcePVC: jellyfin-config
+  trigger:
+    schedule: 30 8 * * *
+  restic:
+    pruneIntervalDays: 7
+    repository: jellyfin-config-backup-secret-local
+    retain:
+      daily: 7
+      hourly: 0
+      monthly: 3
+      weekly: 4
+      yearly: 1
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
+    cacheCapacity: 10Gi
