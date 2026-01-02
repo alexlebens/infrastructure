@@ -1,39 +1,36 @@
 apiVersion: redis.redis.opstreelabs.in/v1beta2
-kind: RedisReplication
+kind: RedisSentinel
 metadata:
-  name: redis-replication-postiz
-  namespace: postiz
+  name: redis-sentinel-directus
+  namespace: directus
   labels:
     helm.sh/chart: redis-replication-0.5.0
     app.kubernetes.io/version: "0.5.0"
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: redis-replication-postiz
-    app.kubernetes.io/instance: postiz
-    app.kubernetes.io/part-of: postiz
+    app.kubernetes.io/name: redis-sentinel-directus
+    app.kubernetes.io/instance: directus
+    app.kubernetes.io/part-of: directus
 spec:
   clusterSize: 3
   podSecurityContext:
     fsGroup: 1000
     runAsUser: 1000
+  redisSentinelConfig:
+    redisReplicationName: redis-replication-directus
+    redisReplicationPassword:
+      secretKeyRef:
+        name: directus-redis-config
+        key: password
   kubernetesConfig:
-    image: "quay.io/opstree/redis:v8.4.0"
+    image: "quay.io/opstree/redis-sentinel:v8.4.0"
     imagePullPolicy: IfNotPresent
     resources:
       requests:
         cpu: 10m
         memory: 32Mi
     redisSecret:
-      name: postiz-redis-config
+      name: directus-redis-config
       key: password
-  storage:
-    volumeClaimTemplate:
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: 1Gi
-        storageClassName: ceph-block
   redisExporter:
     enabled: true
     image: "quay.io/opstree/redis-exporter:v1.80.1"
