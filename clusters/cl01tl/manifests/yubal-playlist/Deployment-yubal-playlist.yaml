@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yubal-playlist
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: yubal-playlist
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: yubal-playlist
+    helm.sh/chart: yubal-playlist-4.5.0
+  namespace: yubal-playlist
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: yubal-playlist
+      app.kubernetes.io/instance: yubal-playlist
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: yubal-playlist
+        app.kubernetes.io/name: yubal-playlist
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: YUBAL_TZ
+              value: US/Chicago
+            - name: YUBAL_PORT
+              value: "8000"
+            - name: YUBAL_DEBUG
+              value: "8000"
+            - name: YUBAL_MB_USER_AGENT
+              value: alexanderlebens@gmail.com
+          image: harbor.alexlebens.net/images/yubal-playlist:0.0.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /app/ytdlp
+              name: cache
+            - mountPath: /app/data
+              name: music
+      volumes:
+        - emptyDir: {}
+          name: cache
+        - name: music
+          persistentVolumeClaim:
+            claimName: ytdl-sub-nfs-storage
