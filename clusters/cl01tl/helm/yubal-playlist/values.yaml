@@ -1,0 +1,70 @@
+yubal-playlist:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: harbor.alexlebens.net/images/yubal-playlist
+            tag: 0.0.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: YUBAL_TZ
+              value: US/Chicago
+            - name: YUBAL_PORT
+              value: 8000
+            - name: YUBAL_DEBUG
+              value: 8000
+            - name: YUBAL_MB_USER_AGENT
+              value: alexanderlebens@gmail.com
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8000
+          protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - yubal-playlist.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: yubal-playlist
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /app/ytdlp
+              readOnly: false
+    music:
+      existingClaim: ytdl-sub-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data
+              readOnly: false
