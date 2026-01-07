@@ -1,0 +1,30 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: jellyfin-main
+  labels:
+    app.kubernetes.io/instance: jellyfin
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: jellyfin
+    helm.sh/chart: jellyfin-4.5.0
+  namespace: jellyfin
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - "jellyfin.alexlebens.net"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: jellyfin
+          namespace: jellyfin
+          port: 80
+          weight: 100
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
