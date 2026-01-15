@@ -1,0 +1,96 @@
+shelfmark:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/calibrain/shelfmark
+            tag: v1.0.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: FLASK_PORT
+              value: 8084
+            - name: INGEST_DIR
+              value: /ingest
+            - name: SEARCH_MODE
+              value: direct
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                  - CMD
+                  - curl
+                  - -sf
+                  - http://localhost:8084/api/health
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 30
+                successThreshold: 1
+                timeoutSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+  service:
+    main:
+      ports:
+        http:
+          port: 8084
+          targetPort: 8084
+          protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - shelfmark.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: shelfmark
+              port: 8084
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    ingest:
+      existingClaim: shelfmark-import-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /ingest
+              readOnly: false
+volsync-target-config:
+  pvcTarget: shelfmark-config
+  local:
+    enabled: true
+    schedule: 0 8 * * *
+  remote:
+    enabled: false
+  external:
+    enabled: true
+    schedule: 0 9 * * *
