@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shelfmark
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: shelfmark
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: shelfmark
+    helm.sh/chart: shelfmark-4.6.1
+  namespace: shelfmark
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: shelfmark
+      app.kubernetes.io/instance: shelfmark
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: shelfmark
+        app.kubernetes.io/name: shelfmark
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: FLASK_PORT
+              value: "8084"
+            - name: INGEST_DIR
+              value: /ingest
+            - name: SEARCH_MODE
+              value: direct
+          image: ghcr.io/calibrain/shelfmark:v1.0.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+                - CMD
+                - curl
+                - -sf
+                - http://localhost:8084/api/health
+            failureThreshold: 5
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 30
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /ingest
+              name: ingest
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: shelfmark
+        - name: ingest
+          persistentVolumeClaim:
+            claimName: shelfmark-import-nfs-storage
