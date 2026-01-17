@@ -37,7 +37,7 @@ spec:
         - command:
             - /bin/sh
             - -ec
-            - |-
+            - |
               if [ ! -f "/app/ytdlp/cookies.txt" ]; then
                 echo ">> Coping files ..."
                 ls /app/ytdlp
@@ -47,7 +47,15 @@ spec:
               fi
           image: busybox:1.37.0
           imagePullPolicy: IfNotPresent
-          name: init-copy-config
+          name: init-copy-cookie
+          volumeMounts:
+            - mountPath: /app/ytdlp
+              name: config
+            - mountPath: /app/ytdlp/cookies-ro.txt
+              mountPropagation: None
+              name: cookie
+              readOnly: true
+              subPath: cookies.txt
       containers:
         - env:
             - name: VPN_SERVICE_PROVIDER
@@ -150,11 +158,6 @@ spec:
           volumeMounts:
             - mountPath: /app/ytdlp
               name: config
-            - mountPath: /app/ytdlp/cookies-ro.txt
-              mountPropagation: None
-              name: cookie
-              readOnly: true
-              subPath: cookies.txt
             - mountPath: /app/data
               name: music
       volumes:
