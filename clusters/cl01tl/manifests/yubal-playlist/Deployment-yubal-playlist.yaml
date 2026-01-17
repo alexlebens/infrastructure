@@ -33,6 +33,21 @@ spec:
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
+      initContainers:
+        - command:
+            - /bin/sh
+            - -ec
+            - |-
+              if [ ! -f "/app/ytdlp/cookies.txt" ]; then
+                echo ">> Coping files ..."
+                ls /app/ytdlp
+                cp -fv /app/ytdlp/cookies-ro.txt /app/ytdlp/cookies.txt
+                echo ">> Files in ytdlp:"
+                ls /app/ytdlp
+              fi
+          image: busybox:1.37.0
+          imagePullPolicy: IfNotPresent
+          name: init-copy-config
       containers:
         - env:
             - name: VPN_SERVICE_PROVIDER
@@ -135,7 +150,7 @@ spec:
           volumeMounts:
             - mountPath: /app/ytdlp
               name: config
-            - mountPath: /app/ytdlp/cookies.txt
+            - mountPath: /app/ytdlp/cookies-ro.txt
               mountPropagation: None
               name: cookie
               readOnly: true
