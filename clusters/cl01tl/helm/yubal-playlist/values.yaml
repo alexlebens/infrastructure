@@ -5,6 +5,23 @@ yubal-playlist:
       replicas: 1
       strategy: Recreate
       revisionHistoryLimit: 3
+      initContainers:
+        init-copy-config:
+          image:
+            repository: busybox
+            tag: 1.37.0
+            pullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              if [ ! -f "/app/ytdlp/cookies.txt" ]; then
+                echo ">> Coping files ..."
+                ls /app/ytdlp
+                cp -fv /app/ytdlp/cookies-ro.txt /app/ytdlp/cookies.txt
+                echo ">> Files in ytdlp:"
+                ls /app/ytdlp
+              fi
       containers:
         main:
           image:
@@ -146,7 +163,7 @@ yubal-playlist:
       advancedMounts:
         main:
           main:
-            - path: /app/ytdlp/cookies.txt
+            - path: /app/ytdlp/cookies-ro.txt
               readOnly: true
               mountPropagation: None
               subPath: cookies.txt
