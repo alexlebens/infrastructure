@@ -39,20 +39,6 @@ jellyfin:
                 secretKeyRef:
                   name: jellyfin-exporter-secret
                   key: token
-    fladder:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      containers:
-        main:
-          image:
-            repository: ghcr.io/donutware/fladder
-            tag: v0.9.0
-            pullPolicy: IfNotPresent
-          env:
-            - name: BASE_URL
-              value: https://jellyfin.alexlebens.net/
   service:
     main:
       forceRename: jellyfin
@@ -65,14 +51,6 @@ jellyfin:
         metrics:
           port: 9594
           targetPort: 9594
-          protocol: HTTP
-    fladder:
-      forceRename: fladder
-      controller: fladder
-      ports:
-        http:
-          port: 80
-          targetPort: 80
           protocol: HTTP
   serviceMonitor:
     main:
@@ -102,26 +80,6 @@ jellyfin:
             - group: ''
               kind: Service
               name: jellyfin
-              port: 80
-              weight: 100
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
-    fladder:
-      kind: HTTPRoute
-      parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
-      hostnames:
-        - fladder.alexlebens.net
-      rules:
-        - backendRefs:
-            - group: ''
-              kind: Service
-              name: fladder
               port: 80
               weight: 100
           matches:
