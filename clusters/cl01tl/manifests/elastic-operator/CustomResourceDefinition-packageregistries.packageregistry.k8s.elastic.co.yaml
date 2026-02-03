@@ -10,18 +10,18 @@ metadata:
     app.kubernetes.io/name: 'eck-operator-crds'
     app.kubernetes.io/version: '3.3.0'
     helm.sh/chart: 'eck-operator-crds-3.3.0'
-  name: elasticmapsservers.maps.k8s.elastic.co
+  name: packageregistries.packageregistry.k8s.elastic.co
 spec:
-  group: maps.k8s.elastic.co
+  group: packageregistry.k8s.elastic.co
   names:
     categories:
       - elastic
-    kind: ElasticMapsServer
-    listKind: ElasticMapsServerList
-    plural: elasticmapsservers
+    kind: PackageRegistry
+    listKind: PackageRegistryList
+    plural: packageregistries
     shortNames:
-      - ems
-    singular: elasticmapsserver
+      - epr
+    singular: packageregistry
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
@@ -32,7 +32,7 @@ spec:
           jsonPath: .status.availableNodes
           name: nodes
           type: integer
-        - description: ElasticMapsServer version
+        - description: PackageRegistry version
           jsonPath: .status.version
           name: version
           type: string
@@ -42,7 +42,7 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: ElasticMapsServer represents an Elastic Map Server resource in a Kubernetes cluster.
+          description: PackageRegistry represents an Elastic Package Registry resource in a Kubernetes cluster.
           properties:
             apiVersion:
               description: |-
@@ -62,15 +62,15 @@ spec:
             metadata:
               type: object
             spec:
-              description: MapsSpec holds the specification of an Elastic Maps Server instance.
+              description: PackageRegistrySpec holds the specification of an Elastic Package Registry instance.
               properties:
                 config:
-                  description: 'Config holds the ElasticMapsServer configuration. See: https://www.elastic.co/guide/en/kibana/current/maps-connect-to-ems.html#elastic-maps-server-configuration'
+                  description: 'Config holds the PackageRegistry configuration. See: https://github.com/elastic/package-registry/blob/main/config.reference.yml'
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
                 configRef:
                   description: |-
-                    ConfigRef contains a reference to an existing Kubernetes Secret holding the Elastic Maps Server configuration.
+                    ConfigRef contains a reference to an existing Kubernetes Secret holding the Elastic Package Registry configuration.
                     Configuration settings are merged and have precedence over settings specified in `config`.
                   properties:
                     secretName:
@@ -78,39 +78,11 @@ spec:
                       type: string
                   type: object
                 count:
-                  description: Count of Elastic Maps Server instances to deploy.
+                  description: Count of Elastic Package Registry instances to deploy.
                   format: int32
                   type: integer
-                elasticsearchRef:
-                  description: ElasticsearchRef is a reference to an Elasticsearch cluster running in the same Kubernetes cluster.
-                  properties:
-                    name:
-                      description: Name of an existing Kubernetes object corresponding to an Elastic resource managed by ECK.
-                      type: string
-                    namespace:
-                      description: Namespace of the Kubernetes object. If empty, defaults to the current namespace.
-                      type: string
-                    secretName:
-                      description: |-
-                        SecretName is the name of an existing Kubernetes secret that contains connection information for associating an
-                        Elastic resource not managed by the operator.
-                        The referenced secret must contain the following:
-                        - `url`: the URL to reach the Elastic resource
-                        - `username`: the username of the user to be authenticated to the Elastic resource
-                        - `password`: the password of the user to be authenticated to the Elastic resource
-                        - `ca.crt`: the CA certificate in PEM format (optional)
-                        - `api-key`: the key to authenticate against the Elastic resource instead of a username and password (supported only for `elasticsearchRefs` in AgentSpec and in BeatSpec)
-                        This field cannot be used in combination with the other fields name, namespace or serviceName.
-                      type: string
-                    serviceName:
-                      description: |-
-                        ServiceName is the name of an existing Kubernetes service which is used to make requests to the referenced
-                        object. It has to be in the same namespace as the referenced resource. If left empty, the default HTTP service of
-                        the referenced resource is used.
-                      type: string
-                  type: object
                 http:
-                  description: HTTP holds the HTTP layer configuration for Elastic Maps Server.
+                  description: HTTP holds the HTTP layer configuration for Elastic Package Registry.
                   properties:
                     service:
                       description: Service defines the template for the associated Kubernetes Service object.
@@ -516,33 +488,25 @@ spec:
                       type: object
                   type: object
                 image:
-                  description: Image is the Elastic Maps Server Docker image to deploy.
+                  description: Image is the Elastic Package Registry Docker image to deploy.
                   type: string
                 podTemplate:
-                  description: PodTemplate provides customisation options (labels, annotations, affinity rules, resource requests, and so on) for the Elastic Maps Server pods
+                  description: PodTemplate provides customisation options (labels, annotations, affinity rules, resource requests, and so on) for the Elastic Package Registry pods
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
                 revisionHistoryLimit:
                   description: RevisionHistoryLimit is the number of revisions to retain to allow rollback in the underlying Deployment.
                   format: int32
                   type: integer
-                serviceAccountName:
-                  description: |-
-                    ServiceAccountName is used to check access from the current resource to a resource (for ex. Elasticsearch) in a different namespace.
-                    Can only be used if ECK is enforcing RBAC on references.
-                  type: string
                 version:
-                  description: Version of Elastic Maps Server.
+                  description: Version of Elastic Package Registry.
                   type: string
               required:
                 - version
               type: object
             status:
-              description: MapsStatus defines the observed state of Elastic Maps Server
+              description: PackageRegistryStatus defines the observed state of Elastic Package Registry
               properties:
-                associationStatus:
-                  description: AssociationStatus is the status of an association resource.
-                  type: string
                 availableNodes:
                   description: AvailableNodes is the number of available replicas in the deployment.
                   format: int32
@@ -556,10 +520,10 @@ spec:
                   type: string
                 observedGeneration:
                   description: |-
-                    ObservedGeneration is the most recent generation observed for this Elastic Maps Server.
+                    ObservedGeneration is the most recent generation observed for this Elastic Package Registry.
                     It corresponds to the metadata generation, which is updated on mutation by the API Server.
-                    If the generation observed in status diverges from the generation in metadata, the Elastic
-                    Maps controller has not yet processed the changes contained in the Elastic Maps specification.
+                    If the generation observed in status diverges from the generation in metadata, the Elastic Package Registry
+                    controller has not yet processed the changes contained in the Elastic Package Registry specification.
                   format: int64
                   type: integer
                 selector:
