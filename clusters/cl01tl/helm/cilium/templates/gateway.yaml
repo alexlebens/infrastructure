@@ -4,26 +4,36 @@ metadata:
   name: cilium-tls-gateway
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: tls-gateway
+    app.kubernetes.io/name: cilium-tls-gateway
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/part-of: {{ .Release.Name }}
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-issuer
 spec:
+  addresses:
+    - type: IPAddress
+      value: 10.232.2.23
   gatewayClassName: cilium
   listeners:
     - allowedRoutes:
         namespaces:
           from: All
       hostname: '*.alexlebens.net'
-      name: http
-      port: 80
-      protocol: HTTP
+      name: https
+      port: 443
+      protocol: HTTPS
+      tls:
+        certificateRefs:
+          - group: ''
+            kind: Secret
+            name: https-gateway-cert
+            namespace: kube-system
+        mode: Terminate
     - allowedRoutes:
         namespaces:
           from: All
-      hostname: '*.alexlebens.net'
-      name: https
+      hostname: 'alexlebens.net'
+      name: https-domain
       port: 443
       protocol: HTTPS
       tls:
