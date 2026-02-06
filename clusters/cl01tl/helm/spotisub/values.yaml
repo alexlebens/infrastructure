@@ -1,0 +1,194 @@
+spotisub:
+  controllers:
+    main:
+      type: deployment
+      replicas: 0
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: blastbeng/spotisub
+            tag: v0.3.6
+            pullPolicy: IfNotPresent
+          env:
+            - name: SPOTIPY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: spotisub-config-secret
+                  key: spotify-client-id
+            - name: SPOTIPY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: spotisub-config-secret
+                  key: spotify-client-secret
+            - name: SPOTIPY_REDIRECT_URI
+              valueFrom:
+                secretKeyRef:
+                  name: spotisub-config-secret
+                  key: spotify-redirect-uri
+            - name: SUBSONIC_API_HOST
+              value: http://navidrome-main.navidrome
+            - name: SUBSONIC_API_PORT
+              value: 80
+            - name: SUBSONIC_API_USER
+              valueFrom:
+                secretKeyRef:
+                  name: spotisub-config-secret
+                  key: subsonic-user
+            - name: SUBSONIC_API_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: spotisub-config-secret
+                  key: subsonic-password
+            - name: PLAYLIST_PREFIX
+              value: "Spotify - "
+            - name: NUM_USER_PLAYLISTS
+              value: 0
+            - name: ARTIST_GEN_SCHED
+              value: 0
+            - name: RECOMEND_GEN_SCHED
+              value: 0
+            - name: SPOTDL_ENABLED
+              value: 1
+            - name: SPOTDL_OUT_FORMAT
+              value: "/mnt/store/Music Youtube/Andrew Lebens/{artist}/{album} ({year})/{artists} - {album} - {track-number} - {title}.{output-ext}"
+            - name: LIDARR_ENABLED
+              value: 1
+            - name: LIDARR_IP
+              value: http://lidarr.lidarr
+            - name: LIDARR_PORT
+              value: 80
+            - name: LIDARR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: spotisub-config-secret
+                  key: lidarr-key
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - "curl -s http://127.0.0.1:5183/api/v1/utils/healthcheck | grep -q 'Ok!'"
+                failureThreshold: 5
+                initialDelaySeconds: 30
+                periodSeconds: 30
+                successThreshold: 1
+                timeoutSeconds: 15
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+        gluetun:
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.41.0@sha256:6b54856716d0de56e5bb00a77029b0adea57284cf5a466f23aad5979257d3045
+            pullPolicy: IfNotPresent
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "(ip rule del table 51820; ip -6 rule del table 51820) || true"]
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: spotisub-wireguard-conf
+                  key: private-key
+            - name: UPDATER_PROTONVPN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: spotisub-wireguard-conf
+                  key: proton-email
+            - name: UPDATER_PROTONVPN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: spotisub-wireguard-conf
+                  key: proton-password
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 10.0.0.0/8
+            - name: FIREWALL_INPUT_PORTS
+              value: 5183
+            - name: DNS_UPSTREAM_RESOLVER_TYPE
+              value: dot
+          securityContext:
+            privileged: True
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /gluetun-entrypoint
+                    - healthcheck
+                failureThreshold: 5
+                initialDelaySeconds: 30
+                periodSeconds: 30
+                successThreshold: 1
+                timeoutSeconds: 15
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              devic.es/tun: "1"
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 5183
+          protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - spotisub.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: spotisub
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    cache:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /home/user/spotisub/cache
+              readOnly: false
+    music:
+      existingClaim: spotisub-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store/Music Youtube/
+              readOnly: false
