@@ -2,7 +2,7 @@ komodo:
   controllers:
     main:
       type: deployment
-      replicas: 0
+      replicas: 1
       strategy: Recreate
       revisionHistoryLimit: 3
       containers:
@@ -57,7 +57,7 @@ komodo:
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: komodo-postgresql-17-fdb-cluster-app
+                  name: komodo-postgresql-17-fdb-cluster-ferret
                   key: password
             - name: KOMODO_DATABASE_URI
               value: mongodb://$(DB_USERNAME):$(DB_PASSWORD)@komodo-ferretdb-2.komodo:27017/komodo
@@ -95,11 +95,15 @@ komodo:
             tag: 2.7.0
             pullPolicy: IfNotPresent
           env:
-            - name: FERRETDB_POSTGRESQL_URL
+            - name: DB_USERNAME
+              value: ferret
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: komodo-postgresql-17-fdb-cluster-ferret
-                  key: uri
+                  key: password
+            - name: FERRETDB_POSTGRESQL_URL
+              value: postgresql://$(DB_USERNAME):$(DB_PASSWORD)@komodo-postgresql-17-fdb-cluster-rw.komodo.svc.cluster.local:5432/ferretDB
           resources:
             requests:
               cpu: 10m
@@ -198,15 +202,7 @@ postgresql-17-fdb-cluster:
       postInitApplicationSQL:
         - CREATE EXTENSION IF NOT EXISTS pg_cron;
         - CREATE EXTENSION IF NOT EXISTS documentdb CASCADE;
-        - ALTER USER ferret WITH PASSWORD '${PASSWORD}';
         - GRANT documentdb_admin_role TO ferret;
-        - GRANT USAGE ON SCHEMA documentdb_core TO ferret;
-        - GRANT USAGE ON SCHEMA documentdb_api TO ferret;
-        - GRANT USAGE ON SCHEMA documentdb_core TO pg_monitor;
-        - GRANT USAGE ON SCHEMA documentdb_api TO pg_monitor;
-        - GRANT SELECT ON ALL TABLES IN SCHEMA documentdb_core TO pg_monitor;
-        - GRANT SELECT ON ALL TABLES IN SCHEMA documentdb_api TO pg_monitor;
-        - GRANT SELECT ON ALL TABLES IN SCHEMA documentdb_api_internal TO pg_monitor;
   recovery:
     method: objectStore
     objectStore:
