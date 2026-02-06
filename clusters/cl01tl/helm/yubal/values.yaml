@@ -1,0 +1,145 @@
+yubal:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/guillevc/yubal
+            tag: 0.4.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: YUBAL_TZ
+              value: America/Chicago
+            - name: YUBAL_HOST
+              value: 0.0.0.0
+            - name: YUBAL_PORT
+              value: 8080
+            - name: YUBAL_LOG_LEVEL
+              value: DEBUG
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+        gluetun:
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.41.0@sha256:6b54856716d0de56e5bb00a77029b0adea57284cf5a466f23aad5979257d3045
+            pullPolicy: IfNotPresent
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "(ip rule del table 51820; ip -6 rule del table 51820) || true"]
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: yubal-wireguard-conf
+                  key: private-key
+            - name: UPDATER_PROTONVPN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: yubal-wireguard-conf
+                  key: proton-email
+            - name: UPDATER_PROTONVPN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: yubal-wireguard-conf
+                  key: proton-password
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 10.0.0.0/8
+            - name: FIREWALL_INPUT_PORTS
+              value: 8080
+            - name: DNS_UPSTREAM_RESOLVER_TYPE
+              value: dot
+          securityContext:
+            privileged: True
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /gluetun-entrypoint
+                    - healthcheck
+                failureThreshold: 5
+                initialDelaySeconds: 30
+                periodSeconds: 30
+                successThreshold: 1
+                timeoutSeconds: 15
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              devic.es/tun: "1"
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8000
+          protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - yubal.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: yubal
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    config:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /app/config
+              readOnly: false
+    ytdlp:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /app/ytdlp
+              readOnly: false
+    music:
+      existingClaim: yubal-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data
+              readOnly: false
