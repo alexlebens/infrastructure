@@ -1,0 +1,178 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spotisub
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: spotisub
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: spotisub
+    helm.sh/chart: spotisub-4.6.2
+  namespace: spotisub
+spec:
+  revisionHistoryLimit: 3
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: spotisub
+      app.kubernetes.io/instance: spotisub
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: spotisub
+        app.kubernetes.io/name: spotisub
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private-key
+                  name: spotisub-wireguard-conf
+            - name: UPDATER_PROTONVPN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  key: proton-email
+                  name: spotisub-wireguard-conf
+            - name: UPDATER_PROTONVPN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: proton-password
+                  name: spotisub-wireguard-conf
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 10.0.0.0/8
+            - name: FIREWALL_INPUT_PORTS
+              value: "5183"
+            - name: DNS_UPSTREAM_RESOLVER_TYPE
+              value: dot
+          image: ghcr.io/qdm12/gluetun:v3.41.0@sha256:6b54856716d0de56e5bb00a77029b0adea57284cf5a466f23aad5979257d3045
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - (ip rule del table 51820; ip -6 rule del table 51820) || true
+          livenessProbe:
+            exec:
+              command:
+                - /gluetun-entrypoint
+                - healthcheck
+            failureThreshold: 5
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 15
+          name: gluetun
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              cpu: 10m
+              devic.es/tun: "1"
+              memory: 128Mi
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+            privileged: true
+        - env:
+            - name: SPOTIPY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: spotify-client-id
+                  name: spotisub-config-secret
+            - name: SPOTIPY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: spotify-client-secret
+                  name: spotisub-config-secret
+            - name: SPOTIPY_REDIRECT_URI
+              valueFrom:
+                secretKeyRef:
+                  key: spotify-redirect-uri
+                  name: spotisub-config-secret
+            - name: SUBSONIC_API_HOST
+              value: http://navidrome-main.navidrome
+            - name: SUBSONIC_API_PORT
+              value: "80"
+            - name: SUBSONIC_API_USER
+              valueFrom:
+                secretKeyRef:
+                  key: subsonic-user
+                  name: spotisub-config-secret
+            - name: SUBSONIC_API_PASS
+              valueFrom:
+                secretKeyRef:
+                  key: subsonic-password
+                  name: spotisub-config-secret
+            - name: PLAYLIST_PREFIX
+              value: 'Spotify - '
+            - name: NUM_USER_PLAYLISTS
+              value: "0"
+            - name: ARTIST_GEN_SCHED
+              value: "0"
+            - name: RECOMEND_GEN_SCHED
+              value: "0"
+            - name: SPOTDL_ENABLED
+              value: "1"
+            - name: SPOTDL_OUT_FORMAT
+              value: /mnt/store/Music Youtube/Andrew Lebens/{artist}/{album} ({year})/{artists} - {album} - {track-number} - {title}.{output-ext}
+            - name: LIDARR_ENABLED
+              value: "1"
+            - name: LIDARR_IP
+              value: http://lidarr.lidarr
+            - name: LIDARR_PORT
+              value: "80"
+            - name: LIDARR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: lidarr-key
+                  name: spotisub-config-secret
+          image: blastbeng/spotisub:v0.3.6
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - curl -s http://127.0.0.1:5183/api/v1/utils/healthcheck | grep -q 'Ok!'
+            failureThreshold: 5
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 15
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /home/user/spotisub/cache
+              name: cache
+            - mountPath: /mnt/store/Music Youtube/
+              name: music
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: spotisub
+        - name: music
+          persistentVolumeClaim:
+            claimName: spotisub-nfs-storage
