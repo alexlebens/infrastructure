@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yubal
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: yubal
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: yubal
+    helm.sh/chart: yubal-4.6.2
+  namespace: yubal
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: yubal
+      app.kubernetes.io/instance: yubal
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: yubal
+        app.kubernetes.io/name: yubal
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private-key
+                  name: yubal-wireguard-conf
+            - name: UPDATER_PROTONVPN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  key: proton-email
+                  name: yubal-wireguard-conf
+            - name: UPDATER_PROTONVPN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: proton-password
+                  name: yubal-wireguard-conf
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 10.0.0.0/8
+            - name: FIREWALL_INPUT_PORTS
+              value: "8080"
+            - name: DNS_UPSTREAM_RESOLVER_TYPE
+              value: dot
+          image: ghcr.io/qdm12/gluetun:v3.41.0@sha256:6b54856716d0de56e5bb00a77029b0adea57284cf5a466f23aad5979257d3045
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - (ip rule del table 51820; ip -6 rule del table 51820) || true
+          livenessProbe:
+            exec:
+              command:
+                - /gluetun-entrypoint
+                - healthcheck
+            failureThreshold: 5
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 15
+          name: gluetun
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              cpu: 10m
+              devic.es/tun: "1"
+              memory: 128Mi
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+            privileged: true
+        - env:
+            - name: YUBAL_TZ
+              value: America/Chicago
+            - name: YUBAL_HOST
+              value: 0.0.0.0
+            - name: YUBAL_PORT
+              value: "8080"
+            - name: YUBAL_LOG_LEVEL
+              value: DEBUG
+          image: ghcr.io/guillevc/yubal:0.4.0
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /app/config
+              name: config
+            - mountPath: /app/data
+              name: music
+            - mountPath: /app/ytdlp
+              name: ytdlp
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: yubal-config
+        - name: music
+          persistentVolumeClaim:
+            claimName: yubal-nfs-storage
+        - name: ytdlp
+          persistentVolumeClaim:
+            claimName: yubal-ytdlp
