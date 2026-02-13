@@ -1,0 +1,247 @@
+rybbit:
+  controllers:
+    backend:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/rybbit-io/rybbit-backend
+            tag: v2.4.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: CLICKHOUSE_HOST
+              value: http://rybbit-clickhouse.rybbit:8123
+            - name: CLICKHOUSE_DB
+              value: analytics
+            - name: CLICKHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rybbit-config-secret
+                  key: clickhouse-user
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rybbit-config-secret
+                  key: clickhouse-password
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: rybbit-postgresql-18-cluster-app
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: rybbit-postgresql-18-cluster-app
+                  key: port
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: rybbit-postgresql-18-cluster-app
+                  key: database
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rybbit-postgresql-18-cluster-app
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rybbit-postgresql-18-cluster-app
+                  key: password
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rybbit-config-secret
+                  key: better-auth-secret
+            - name: BASE_URL
+              value: https://rybbit.alexlebens.dev
+            - name: DISABLE_SIGNUP
+              value: false
+            - name: DISABLE_TELEMETRY
+              value: true
+            - name: MAPBOX_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: rybbit-config-secret
+                  key: mapbox-token
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                  - CMD
+                  - wget
+                  - --no-verbose
+                  - --tries=1
+                  - --spider
+                  - http://127.0.0.1:3001/api/health
+                failureThreshold: 5
+                initialDelaySeconds: 10
+                periodSeconds: 30
+                successThreshold: 1
+                timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+    client:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/rybbit-io/rybbit-client
+            tag: v2.4.0
+            pullPolicy: IfNotPresent
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: NEXT_PUBLIC_BACKEND_URL
+              value: https://rybbit.alexlebens.dev
+            - name: NEXT_PUBLIC_DISABLE_SIGNUP
+              value: false
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+    clickhouse:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: clickhouse/clickhouse-server
+            tag: 25.4.2
+            pullPolicy: IfNotPresent
+          env:
+            - name: CLICKHOUSE_DB
+              value: analytics
+            - name: CLICKHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rybbit-config-secret
+                  key: clickhouse-user
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rybbit-config-secret
+                  key: clickhouse-password
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                  - CMD
+                  - wget
+                  - --no-verbose
+                  - --tries=1
+                  - --spider
+                  - http://localhost:8123/ping
+                failureThreshold: 5
+                initialDelaySeconds: 10
+                periodSeconds: 30
+                successThreshold: 1
+                timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi
+  service:
+    backend:
+      controller: backend
+      ports:
+        http:
+          port: 3001
+          targetPort: 3001
+          protocol: HTTP
+    client:
+      controller: client
+      ports:
+        http:
+          port: 80
+          targetPort: 3002
+          protocol: TCP
+    clickhouse:
+      controller: clickhouse
+      ports:
+        http:
+          port: 8123
+          targetPort: 8123
+          protocol: TCP
+  persistence:
+    clickhouse:
+      forceRename: clickhouse-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: true
+      advancedMounts:
+        clickhouse:
+          main:
+            - path: /var/lib/clickhouse
+              readOnly: false
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    method: objectStore
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      - name: garage-local
+        index: 1
+        destinationBucket: postgres-backups
+        externalSecretCredentialPath: /garage/home-infra/postgres-backups
+        isWALArchiver: true
+      # - name: garage-remote
+      #   index: 1
+      #   destinationBucket: postgres-backups
+      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
+      #   retentionPolicy: "90d"
+      #   data:
+      #     compression: bzip2
+      # - name: external
+      #   index: 1
+      #   endpointURL: https://nyc3.digitaloceanspaces.com
+      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
+      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
+      #   isWALArchiver: false
+    scheduledBackups:
+      - name: live-backup
+        suspend: true
+        immediate: true
+        schedule: "0 0 0 * * *"
+        backupName: garage-local
+      # - name: weekly-backup
+      #   suspend: true
+      #   immediate: true
+      #   schedule: "0 0 4 * * SAT"
+      #   backupName: garage-remote
+      # - name: daily-backup
+      #   suspend: true
+      #   immediate: true
+      #   schedule: "0 0 0 * * *"
+      #   backupName: external
+volsync-target-clickhouse-data:
+  pvcTarget: clickhouse-data
+  local:
+    enabled: false
+    schedule: 38 11 * * *
+  remote:
+    enabled: false
+  external:
+    enabled: false
+    schedule: 38 12 * * *
