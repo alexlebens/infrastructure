@@ -1,0 +1,58 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: rybbit-postgresql-18-cluster
+  namespace: rybbit
+  labels:
+    helm.sh/chart: postgres-18-cluster-7.5.1
+    app.kubernetes.io/name: rybbit-postgresql-18
+    app.kubernetes.io/instance: rybbit
+    app.kubernetes.io/part-of: rybbit
+    app.kubernetes.io/version: "7.5.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  instances: 3
+  imageName: "ghcr.io/cloudnative-pg/postgresql:18.1-standard-trixie"
+  imagePullPolicy: IfNotPresent
+  postgresUID: 26
+  postgresGID: 26
+  storage:
+    size: 10Gi
+    storageClass: local-path
+  walStorage:
+    size: 2Gi
+    storageClass: local-path
+  resources:
+    limits:
+      hugepages-2Mi: 256Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+  primaryUpdateMethod: switchover
+  primaryUpdateStrategy: unsupervised
+  logLevel: info
+  enableSuperuserAccess: false
+  enablePDB: true
+  postgresql:
+    parameters:
+      hot_standby_feedback: "on"
+      max_slot_wal_keep_size: 2000MB
+      shared_buffers: 128MB
+  monitoring:
+    enablePodMonitor: true
+    disableDefaultQueries: false
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: "rybbit-postgresql-18-backup-garage-local"
+        serverName: "rybbit-postgresql-18-backup-1"
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+  externalClusters:

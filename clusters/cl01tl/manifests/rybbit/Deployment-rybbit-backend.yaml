@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rybbit-backend
+  labels:
+    app.kubernetes.io/controller: backend
+    app.kubernetes.io/instance: rybbit
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: rybbit
+    helm.sh/chart: rybbit-4.6.2
+  namespace: rybbit
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: backend
+      app.kubernetes.io/name: rybbit
+      app.kubernetes.io/instance: rybbit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: backend
+        app.kubernetes.io/instance: rybbit
+        app.kubernetes.io/name: rybbit
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: NODE_ENV
+              value: production
+            - name: CLICKHOUSE_HOST
+              value: http://rybbit-clickhouse.rybbit:8123
+            - name: CLICKHOUSE_DB
+              value: analytics
+            - name: CLICKHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  key: clickhouse-user
+                  name: rybbit-config-secret
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: clickhouse-password
+                  name: rybbit-config-secret
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: rybbit-postgresql-18-cluster-app
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: rybbit-postgresql-18-cluster-app
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  key: database
+                  name: rybbit-postgresql-18-cluster-app
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: rybbit-postgresql-18-cluster-app
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: rybbit-postgresql-18-cluster-app
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: better-auth-secret
+                  name: rybbit-config-secret
+            - name: BASE_URL
+              value: https://rybbit.alexlebens.dev
+            - name: DISABLE_SIGNUP
+              value: "false"
+            - name: DISABLE_TELEMETRY
+              value: "true"
+            - name: MAPBOX_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: mapbox-token
+                  name: rybbit-config-secret
+          image: ghcr.io/rybbit-io/rybbit-backend:v2.4.0
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+                - CMD
+                - wget
+                - --no-verbose
+                - --tries=1
+                - --spider
+                - http://127.0.0.1:3001/api/health
+            failureThreshold: 5
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 256Mi

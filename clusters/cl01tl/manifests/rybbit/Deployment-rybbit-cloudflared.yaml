@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rybbit-cloudflared
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: rybbit
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/version: 2026.2.0
+    helm.sh/chart: cloudflared-2.3.0
+  namespace: rybbit
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: cloudflared
+      app.kubernetes.io/instance: rybbit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: rybbit
+        app.kubernetes.io/name: cloudflared
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - args:
+            - tunnel
+            - --protocol
+            - http2
+            - --no-autoupdate
+            - run
+            - --token
+            - $(CF_MANAGED_TUNNEL_TOKEN)
+          env:
+            - name: CF_MANAGED_TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: cf-tunnel-token
+                  name: rybbit-cloudflared-secret
+          image: cloudflare/cloudflared:2026.2.0
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
