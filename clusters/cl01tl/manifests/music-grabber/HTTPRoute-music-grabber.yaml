@@ -1,0 +1,30 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: music-grabber
+  labels:
+    app.kubernetes.io/instance: music-grabber
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: music-grabber
+    helm.sh/chart: music-grabber-4.6.2
+  namespace: music-grabber
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - "music-grabber.alexlebens.net"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: music-grabber
+          namespace: music-grabber
+          port: 80
+          weight: 100
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
