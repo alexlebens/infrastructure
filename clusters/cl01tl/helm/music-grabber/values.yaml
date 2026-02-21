@@ -1,0 +1,159 @@
+music-grabber:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: g33kphr33k/musicgrabber
+            tag: 2.0.4
+            pullPolicy: IfNotPresent
+          env:
+            - name: MUSIC_DIR
+              value: /mnt/store/Music Grabber/
+            - name: ENABLE_MUSICBRAINZ
+              value: true
+            - name: ORGANISE_BY_ARTIST
+              value: true
+            - name: NAVIDROME_URL
+              value: http://navidrome-main.navidrome:80
+            - name: NAVIDROME_USER
+              valueFrom:
+                secretKeyRef:
+                  name: music-grabber-config-secret
+                  key: navidrome-user
+            - name: NAVIDROME_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: music-grabber-config-secret
+                  key: navidrome-password
+            - name: SLSKD_URL
+              value: http://slskd.slskd:5030
+            - name: SLSKD_USER
+              valueFrom:
+                secretKeyRef:
+                  name: music-grabber-config-secret
+                  key: slskd-user
+            - name: SLSKD_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: music-grabber-config-secret
+                  key: slskd-password
+            - name: SLSKD_DOWNLOADS_PATH
+              value: /mnt/store/slskd/Downloads
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+        gluetun:
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.41.1@sha256:1a5bf4b4820a879cdf8d93d7ef0d2d963af56670c9ebff8981860b6804ebc8ab
+            pullPolicy: IfNotPresent
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "(ip rule del table 51820; ip -6 rule del table 51820) || true"]
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: music-grabber-wireguard-conf
+                  key: private-key
+            - name: UPDATER_PROTONVPN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: music-grabber-wireguard-conf
+                  key: proton-email
+            - name: UPDATER_PROTONVPN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: music-grabber-wireguard-conf
+                  key: proton-password
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 10.0.0.0/8
+            - name: FIREWALL_INPUT_PORTS
+              value: 5183
+            - name: DNS_UPSTREAM_RESOLVER_TYPE
+              value: dot
+          securityContext:
+            privileged: True
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /gluetun-entrypoint
+                    - healthcheck
+                failureThreshold: 5
+                initialDelaySeconds: 30
+                periodSeconds: 30
+                successThreshold: 1
+                timeoutSeconds: 15
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              devic.es/tun: "1"
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8080
+          protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - music-grabber.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: music-grabber
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    cache:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+    music:
+      existingClaim: music-grabber-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/store/
+              readOnly: false
