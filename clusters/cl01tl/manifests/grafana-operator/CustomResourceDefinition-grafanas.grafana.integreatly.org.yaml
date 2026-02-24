@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: grafanas.grafana.integreatly.org
 spec:
   group: grafana.integreatly.org
@@ -3683,6 +3683,10 @@ spec:
                                                       type: integer
                                                     signerName:
                                                       type: string
+                                                    userAnnotations:
+                                                      additionalProperties:
+                                                        type: string
+                                                      type: object
                                                   required:
                                                     - keyType
                                                     - signerName
@@ -3957,6 +3961,15 @@ spec:
                         - key
                       type: object
                       x-kubernetes-map-type: atomic
+                    tenantNamespace:
+                      default: default
+                      description: |-
+                        TenantNamespace is used as the `namespace` value for GrafanaManifest resources in multi-tenant scenarios
+                        defaults to `default`
+                      type: string
+                      x-kubernetes-validations:
+                        - message: Value is immutable
+                          rule: self == oldSelf
                     tls:
                       description: DEPRECATED, use top level `tls` instead.
                       properties:
@@ -3980,8 +3993,10 @@ spec:
                           rule: (has(self.insecureSkipVerify) && !(has(self.certSecretRef))) || (has(self.certSecretRef) && !(has(self.insecureSkipVerify)))
                     url:
                       description: URL of the external grafana instance you want to manage.
+                      pattern: ^https?://.+$
                       type: string
                   required:
+                    - tenantNamespace
                     - url
                   type: object
                 httpRoute:
@@ -4298,11 +4313,6 @@ spec:
                           maxItems: 32
                           type: array
                         rules:
-                          default:
-                            - matches:
-                                - path:
-                                    type: PathPrefix
-                                    value: /
                           description: |-
                             Rules are a list of HTTP matchers, filters and actions.
 
@@ -8235,7 +8245,7 @@ spec:
                   description: |-
                     Version sets the tag of the default image: docker.io/grafana/grafana.
                     Allows full image refs with/without sha256checksum: "registry/repo/image:tag@sha"
-                    default: 12.3.0
+                    default: 12.3.3
                   type: string
               type: object
             status:
@@ -8321,6 +8331,10 @@ spec:
                 lastMessage:
                   type: string
                 libraryPanels:
+                  items:
+                    type: string
+                  type: array
+                manifests:
                   items:
                     type: string
                   type: array
