@@ -85,11 +85,27 @@ radarr-4k:
         - radarr-4k.alexlebens.net
       rules:
         - backendRefs:
+            - name: ak-outpost-traefik-proxy-auth
+              namespace: authentik
+              port: 9000
+              weight: 100
+          filters: []
+          matches:
+            - path:
+                type: PathPrefix
+                value: /outpost.goauthentik.io
+        - backendRefs:
             - group: ''
               kind: Service
               name: radarr-4k
               port: 80
               weight: 100
+          filters:
+            - type: ExtensionRef
+              extensionRef:
+                group: traefik.io
+                kind: Middleware
+                name: oidc-forward-auth
           matches:
             - path:
                 type: PathPrefix
