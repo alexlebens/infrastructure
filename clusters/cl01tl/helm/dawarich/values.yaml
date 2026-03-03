@@ -1,0 +1,344 @@
+dawarich:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: freikin/dawarich
+            tag: 1.3.1
+            pullPolicy: IfNotPresent
+          command: ["web-entrypoint.sh"]
+          args: ["bin/rails", "server", "-p", "3000", "-b", "::"]
+          env:
+            - name: RAILS_ENV
+              value: production
+            - name: REDIS_URL
+              value: redis://dawarich-valkey.dawarich:6379
+            - name: DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-postgresql-18-cluster-app
+                  key: host
+            - name: DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-postgresql-18-cluster-app
+                  key: port
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-postgresql-18-cluster-app
+                  key: user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-postgresql-18-cluster-app
+                  key: password
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-postgresql-18-cluster-app
+                  key: dbname
+            - name: APPLICATION_HOSTS
+              value: dawarich.alexlebens.net,localhost,::1,127.0.0.1
+            - name: TIME_ZONE
+              value: America/Chicago
+            - name: APPLICATION_PROTOCOL
+              value: http
+            - name: OIDC_ISSUER
+              value: https://authentik.alexlebens.net/application/o/darwich/.well-known/openid-configuration
+            - name: OIDC_REDIRECT_URI
+              value: https://dawarich.alexlebens.net/users/auth/openid_connect/callback
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-oidc-secret
+                  key: client
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-oidc-secret
+                  key: secret
+            - name: OIDC_PROVIDER_NAME
+              value: Authentik
+            - name: OIDC_AUTO_REGISTER
+              value: true
+            - name: PROMETHEUS_EXPORTER_ENABLED
+              value: true
+            - name: PROMETHEUS_EXPORTER_HOST
+              value: 0.0.0.0
+            - name: PROMETHEUS_EXPORTER_PORT
+              value: 9394
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-key-secret
+                  key: key
+            - name: RAILS_LOG_TO_STDOUT
+              value: true
+            - name: SELF_HOSTED
+              value: true
+            - name: STORE_GEODATA
+              value: true
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - wget -qO - http://127.0.0.1:3000/api/v1/health | grep -q '\"status\"\\s*:\\s*\"ok\"'
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+        sidekiq:
+          image:
+            repository: freikin/dawarich
+            tag: 1.3.1
+            pullPolicy: IfNotPresent
+          command: ["sidekiq-entrypoint.sh"]
+          args: ["sidekiq"]
+          env:
+            - name: RAILS_ENV
+              value: production
+            - name: REDIS_URL
+              value: redis://dawarich-valkey.dawarich:6379
+            - name: DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-postgresql-18-cluster-app
+                  key: host
+            - name: DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-postgresql-18-cluster-app
+                  key: port
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-postgresql-18-cluster-app
+                  key: user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-postgresql-18-cluster-app
+                  key: password
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-postgresql-18-cluster-app
+                  key: dbname
+            - name: APPLICATION_HOSTS
+              value: dawarich.alexlebens.net,localhost,::1,127.0.0.1
+            - name: TIME_ZONE
+              value: America/Chicago
+            - name: APPLICATION_PROTOCOL
+              value: http
+            - name: DISTANCE_UNIT
+              value: mi
+            - name: OIDC_ISSUER
+              value: https://authentik.alexlebens.net/application/o/darwich/.well-known/openid-configuration
+            - name: OIDC_REDIRECT_URI
+              value: https://dawarich.alexlebens.net/users/auth/openid_connect/callback
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-oidc-secret
+                  key: client
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-oidc-secret
+                  key: secret
+            - name: OIDC_PROVIDER_NAME
+              value: Authentik
+            - name: OIDC_AUTO_REGISTER
+              value: true
+            - name: PROMETHEUS_EXPORTER_ENABLED
+              value: true
+            - name: PROMETHEUS_EXPORTER_HOST
+              value: 0.0.0.0
+            - name: PROMETHEUS_EXPORTER_PORT
+              value: 9394
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-key-secret
+                  key: key
+            - name: RAILS_LOG_TO_STDOUT
+              value: true
+            - name: SELF_HOSTED
+              value: true
+            - name: STORE_GEODATA
+              value: true
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - pgrep -f sidekiq
+                failureThreshold: 5
+                initialDelaySeconds: 60
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 3000
+          protocol: TCP
+        metrics:
+          port: 9394
+          targetPort: 9394
+          protocol: TCP
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: dawarich
+          app.kubernetes.io/instance: dawarich
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          interval: 30s
+          scrapeTimeout: 15s
+          path: /metrics
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - dawarich.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ""
+              kind: Service
+              name: dawarich
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    storage:
+      forceRename: dawarich-storage
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /var/app/storage
+              readOnly: false
+          sidekiq:
+            - path: /var/app/storage
+              readOnly: false
+    public:
+      forceRename: dawarich-public
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /var/app/public
+              readOnly: false
+          sidekiq:
+            - path: /var/app/public
+              readOnly: false
+    watched:
+      forceRename: dawarich-watched
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /var/app/tmp/imports/watched
+              readOnly: false
+          sidekiq:
+            - path: /var/app/tmp/imports/watched
+              readOnly: false
+postgres-18-cluster:
+  mode: standalone
+  cluster:
+    image:
+      repository: ghcr.io/cloudnative-pg/postgis
+      tag: 18.3-standard-trixie
+    initdb:
+      postInitTemplateSQL:
+        - CREATE EXTENSION postgis;
+        - CREATE EXTENSION postgis_topology;
+        - CREATE EXTENSION fuzzystrmatch;
+        - CREATE EXTENSION postgis_tiger_geocoder;
+  recovery:
+    method: objectStore
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      - name: garage-local
+        index: 1
+        destinationBucket: postgres-backups
+        externalSecretCredentialPath: /garage/home-infra/postgres-backups
+        isWALArchiver: true
+      # - name: garage-remote
+      #   index: 1
+      #   destinationBucket: postgres-backups
+      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
+      #   retentionPolicy: "90d"
+      #   data:
+      #     compression: bzip2
+      # - name: external
+      #   index: 1
+      #   endpointURL: https://nyc3.digitaloceanspaces.com
+      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
+      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
+      #   isWALArchiver: false
+    scheduledBackups:
+      - name: live-backup
+        suspend: true
+        immediate: true
+        schedule: "0 0 0 * * *"
+        backupName: garage-local
+      # - name: weekly-backup
+      #   suspend: true
+      #   immediate: true
+      #   schedule: "0 0 4 * * SAT"
+      #   backupName: garage-remote
+      # - name: daily-backup
+      #   suspend: true
+      #   immediate: true
+      #   schedule: "0 0 0 * * *"
+      #   backupName: external
