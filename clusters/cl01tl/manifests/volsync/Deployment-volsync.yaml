@@ -4,10 +4,10 @@ metadata:
   name: volsync
   labels:
     control-plane: volsync-controller
-    helm.sh/chart: volsync-0.14.0
+    helm.sh/chart: volsync-0.15.0
     app.kubernetes.io/name: volsync
     app.kubernetes.io/instance: volsync
-    app.kubernetes.io/version: "0.14.0"
+    app.kubernetes.io/version: "0.15.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 2
@@ -33,46 +33,21 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: kube-rbac-proxy
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - "ALL"
-            readOnlyRootFilesystem: true
-          image: "quay.io/brancz/kube-rbac-proxy:v0.19.0"
-          args:
-            - --secure-listen-address=0.0.0.0:8443
-            - --upstream=http://127.0.0.1:8080/
-            - --logtostderr=true
-            - "--tls-min-version=VersionTLS12"
-            - --v=0
-            - --ignore-paths=/metrics
-          ports:
-            - containerPort: 8443
-              protocol: TCP
-              name: https
-          resources:
-            limits:
-              cpu: 500m
-              memory: 128Mi
-            requests:
-              cpu: 5m
-              memory: 64Mi
         - name: manager
           args:
             - --health-probe-bind-address=:8081
-            - --metrics-bind-address=127.0.0.1:8080
+            - --metrics-bind-address=:8443
             - --leader-elect
-            - --rclone-container-image=quay.io/backube/volsync:0.14.0
-            - --restic-container-image=quay.io/backube/volsync:0.14.0
-            - --rsync-container-image=quay.io/backube/volsync:0.14.0
-            - --rsync-tls-container-image=quay.io/backube/volsync:0.14.0
-            - --syncthing-container-image=quay.io/backube/volsync:0.14.0
+            - --rclone-container-image=quay.io/backube/volsync:0.15.0
+            - --restic-container-image=quay.io/backube/volsync:0.15.0
+            - --rsync-container-image=quay.io/backube/volsync:0.15.0
+            - --rsync-tls-container-image=quay.io/backube/volsync:0.15.0
+            - --syncthing-container-image=quay.io/backube/volsync:0.15.0
             - --scc-name=volsync-privileged-mover
+            - --metrics-require-rbac=false
           command:
             - /manager
-          image: "quay.io/backube/volsync:0.14.0"
+          image: "quay.io/backube/volsync:0.15.0"
           imagePullPolicy: IfNotPresent
           env:
             - name: VOLSYNC_NAMESPACE
