@@ -1,47 +1,37 @@
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
-  name: kube-prometheus-stack-valkey
+  name: grafana-operator-valkey-remote-cache
   labels:
     helm.sh/chart: valkey-0.9.3
-    app.kubernetes.io/name: valkey
-    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/name: valkey-remote-cache
+    app.kubernetes.io/instance: grafana-operator
     app.kubernetes.io/version: "9.0.3"
     app.kubernetes.io/managed-by: Helm
 spec:
-  serviceName: kube-prometheus-stack-valkey-headless
-  replicas: 3
-  podManagementPolicy: OrderedReady
+  replicas: 1
+  strategy:
+    type: RollingUpdate
   selector:
     matchLabels:
-      app.kubernetes.io/name: valkey
-      app.kubernetes.io/instance: kube-prometheus-stack
-  volumeClaimTemplates:
-    - metadata:
-        name: valkey-data
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        storageClassName: "ceph-block"
-        resources:
-          requests:
-            storage: "10Gi"
+      app.kubernetes.io/name: valkey-remote-cache
+      app.kubernetes.io/instance: grafana-operator
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: valkey
-        app.kubernetes.io/instance: kube-prometheus-stack
+        app.kubernetes.io/name: valkey-remote-cache
+        app.kubernetes.io/instance: grafana-operator
       annotations:
-        checksum/initconfig: "19aa72242c390a2a3c03b27433fec083"
+        checksum/initconfig: d790dfe3185267fe6c217c9572cfa9fb
     spec:
       automountServiceAccountToken: false
-      serviceAccountName: kube-prometheus-stack-valkey
+      serviceAccountName: grafana-operator-valkey-remote-cache
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
         runAsUser: 1000
       initContainers:
-        - name: kube-prometheus-stack-valkey-init
+        - name: grafana-operator-valkey-remote-cache-init
           image: docker.io/valkey/valkey:9.0.3
           imagePullPolicy: IfNotPresent
           securityContext:
@@ -52,18 +42,13 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
           command: ["/scripts/init.sh"]
-          env:
-            - name: POD_INDEX
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
           volumeMounts:
             - name: valkey-data
               mountPath: /data
             - name: scripts
               mountPath: /scripts
       containers:
-        - name: kube-prometheus-stack-valkey
+        - name: grafana-operator-valkey-remote-cache
           image: docker.io/valkey/valkey:9.0.3
           imagePullPolicy: IfNotPresent
           command: ["valkey-server"]
@@ -76,10 +61,6 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
           env:
-            - name: POD_INDEX
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
             - name: VALKEY_LOGLEVEL
               value: "notice"
           ports:
@@ -121,9 +102,12 @@ spec:
               memory: 64M
           env:
             - name: REDIS_ALIAS
-              value: kube-prometheus-stack-valkey
+              value: grafana-operator-valkey-remote-cache
       volumes:
         - name: scripts
           configMap:
-            name: kube-prometheus-stack-valkey-init-scripts
+            name: grafana-operator-valkey-remote-cache-init-scripts
             defaultMode: 0555
+        - name: valkey-data
+          persistentVolumeClaim:
+            claimName: grafana-operator-valkey-remote-cache

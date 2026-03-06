@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: grafana-operator-valkey
+  name: matrix-synapse-valkey
   labels:
     helm.sh/chart: valkey-0.9.3
     app.kubernetes.io/name: valkey
-    app.kubernetes.io/instance: grafana-operator
+    app.kubernetes.io/instance: matrix-synapse
     app.kubernetes.io/version: "9.0.3"
     app.kubernetes.io/managed-by: Helm
 spec:
-  serviceName: grafana-operator-valkey-headless
+  serviceName: matrix-synapse-valkey-headless
   replicas: 3
   podManagementPolicy: OrderedReady
   selector:
     matchLabels:
       app.kubernetes.io/name: valkey
-      app.kubernetes.io/instance: grafana-operator
+      app.kubernetes.io/instance: matrix-synapse
   volumeClaimTemplates:
     - metadata:
         name: valkey-data
@@ -30,18 +30,18 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: valkey
-        app.kubernetes.io/instance: grafana-operator
+        app.kubernetes.io/instance: matrix-synapse
       annotations:
-        checksum/initconfig: "4e54d550c2f6ca49dbd7140e4d7a0cdc"
+        checksum/initconfig: "fb8ae470a9464112ac420b4e06117ac5"
     spec:
       automountServiceAccountToken: false
-      serviceAccountName: grafana-operator-valkey
+      serviceAccountName: matrix-synapse-valkey
       securityContext:
         fsGroup: 1000
         runAsGroup: 1000
         runAsUser: 1000
       initContainers:
-        - name: grafana-operator-valkey-init
+        - name: matrix-synapse-valkey-init
           image: docker.io/valkey/valkey:9.0.3
           imagePullPolicy: IfNotPresent
           securityContext:
@@ -62,8 +62,13 @@ spec:
               mountPath: /data
             - name: scripts
               mountPath: /scripts
+            - name: valkey-acl
+              mountPath: /etc/valkey
+            - name: valkey-users-secret
+              mountPath: /valkey-users-secret
+              readOnly: true
       containers:
-        - name: grafana-operator-valkey
+        - name: matrix-synapse-valkey
           image: docker.io/valkey/valkey:9.0.3
           imagePullPolicy: IfNotPresent
           command: ["valkey-server"]
@@ -99,6 +104,8 @@ spec:
           volumeMounts:
             - name: valkey-data
               mountPath: /data
+            - name: valkey-acl
+              mountPath: /etc/valkey
         - name: metrics
           image: ghcr.io/oliver006/redis_exporter:v1.81.0
           imagePullPolicy: "IfNotPresent"
@@ -121,9 +128,16 @@ spec:
               memory: 64M
           env:
             - name: REDIS_ALIAS
-              value: grafana-operator-valkey
+              value: matrix-synapse-valkey
       volumes:
         - name: scripts
           configMap:
-            name: grafana-operator-valkey-init-scripts
+            name: matrix-synapse-valkey-init-scripts
             defaultMode: 0555
+        - name: valkey-acl
+          emptyDir:
+            medium: Memory
+        - name: valkey-users-secret
+          secret:
+            secretName: matrix-synapse-valkey-secret
+            defaultMode: 0400

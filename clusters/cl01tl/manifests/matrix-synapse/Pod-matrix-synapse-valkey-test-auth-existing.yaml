@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: matrix-synapse-valkey-test-auth-existing
+  labels:
+    helm.sh/chart: valkey-0.9.3
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: matrix-synapse
+    app.kubernetes.io/version: "9.0.3"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  containers:
+    - name: test-auth
+      image: "valkey/valkey:9.0.3"
+      command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "Testing authentication with usersExistingSecret..."
+          TLS_FLAGS=""
+
+          # Test basic connection (no auth - will fail if auth is properly configured)
+          PING_RESULT=$(valkey-cli -h matrix-synapse-valkey -p 6379 $TLS_FLAGS PING 2>&1 || true)
+          if [ "$PING_RESULT" = "PONG" ]; then
+            echo "✗ Authentication test failed: server allows unauthenticated access"
+            exit 1
+          fi
+
+          echo "✓ Authentication is enforced (unauthenticated access denied)"
+          echo "✓ Received expected error: $PING_RESULT"
+          echo "⚠ Manual verification recommended for usersExistingSecret configuration"
+          exit 0
+      volumeMounts:
+        - name: valkey-users-secret
+          mountPath: /valkey-users-secret
+          readOnly: true
+  volumes:
+    - name: valkey-users-secret
+      secret:
+        secretName: matrix-synapse-valkey-secret

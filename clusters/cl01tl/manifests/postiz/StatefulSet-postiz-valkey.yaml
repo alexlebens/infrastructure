@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/name: valkey
         app.kubernetes.io/instance: postiz
       annotations:
-        checksum/initconfig: "8ebc9d0805e0ac2e6000ec208f86483c"
+        checksum/initconfig: "fe93fb7000602d0fb3b36b111a77c4a3"
     spec:
       automountServiceAccountToken: false
       serviceAccountName: postiz-valkey
@@ -62,6 +62,11 @@ spec:
               mountPath: /data
             - name: scripts
               mountPath: /scripts
+            - name: valkey-acl
+              mountPath: /etc/valkey
+            - name: valkey-users-secret
+              mountPath: /valkey-users-secret
+              readOnly: true
       containers:
         - name: postiz-valkey
           image: docker.io/valkey/valkey:9.0.3
@@ -99,6 +104,8 @@ spec:
           volumeMounts:
             - name: valkey-data
               mountPath: /data
+            - name: valkey-acl
+              mountPath: /etc/valkey
         - name: metrics
           image: ghcr.io/oliver006/redis_exporter:v1.81.0
           imagePullPolicy: "IfNotPresent"
@@ -127,3 +134,10 @@ spec:
           configMap:
             name: postiz-valkey-init-scripts
             defaultMode: 0555
+        - name: valkey-acl
+          emptyDir:
+            medium: Memory
+        - name: valkey-users-secret
+          secret:
+            secretName: postiz-valkey-config
+            defaultMode: 0400

@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/name: valkey
         app.kubernetes.io/instance: directus
       annotations:
-        checksum/initconfig: "1a02492c8a38ab0baf1fc607dedf1a27"
+        checksum/initconfig: "6307ecb287c2f05dc09ba3cf7cdfd155"
     spec:
       automountServiceAccountToken: false
       serviceAccountName: directus-valkey
@@ -62,6 +62,11 @@ spec:
               mountPath: /data
             - name: scripts
               mountPath: /scripts
+            - name: valkey-acl
+              mountPath: /etc/valkey
+            - name: valkey-users-secret
+              mountPath: /valkey-users-secret
+              readOnly: true
       containers:
         - name: directus-valkey
           image: docker.io/valkey/valkey:9.0.3
@@ -99,6 +104,8 @@ spec:
           volumeMounts:
             - name: valkey-data
               mountPath: /data
+            - name: valkey-acl
+              mountPath: /etc/valkey
         - name: metrics
           image: ghcr.io/oliver006/redis_exporter:v1.81.0
           imagePullPolicy: "IfNotPresent"
@@ -127,3 +134,10 @@ spec:
           configMap:
             name: directus-valkey-init-scripts
             defaultMode: 0555
+        - name: valkey-acl
+          emptyDir:
+            medium: Memory
+        - name: valkey-users-secret
+          secret:
+            secretName: directus-valkey-config
+            defaultMode: 0400
