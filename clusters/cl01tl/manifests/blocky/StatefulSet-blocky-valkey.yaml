@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: blocky-valkey
   labels:
@@ -9,20 +9,30 @@ metadata:
     app.kubernetes.io/version: "9.0.3"
     app.kubernetes.io/managed-by: Helm
 spec:
-  replicas: 1
-  strategy:
-    type: RollingUpdate
+  serviceName: blocky-valkey-headless
+  replicas: 3
+  podManagementPolicy: OrderedReady
   selector:
     matchLabels:
       app.kubernetes.io/name: valkey
       app.kubernetes.io/instance: blocky
+  volumeClaimTemplates:
+    - metadata:
+        name: valkey-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "ceph-block"
+        resources:
+          requests:
+            storage: "1Gi"
   template:
     metadata:
       labels:
         app.kubernetes.io/name: valkey
         app.kubernetes.io/instance: blocky
       annotations:
-        checksum/initconfig: 2d752b6b5c2e159b0111a667752e1fca
+        checksum/initconfig: "b997c0967aeeee370412add1d41691a1"
     spec:
       automountServiceAccountToken: false
       serviceAccountName: blocky-valkey
@@ -42,6 +52,11 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
           command: ["/scripts/init.sh"]
+          env:
+            - name: POD_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
           volumeMounts:
             - name: valkey-data
               mountPath: /data
@@ -61,6 +76,10 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
           env:
+            - name: POD_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
             - name: VALKEY_LOGLEVEL
               value: "notice"
           ports:
@@ -108,6 +127,3 @@ spec:
           configMap:
             name: blocky-valkey-init-scripts
             defaultMode: 0555
-        - name: valkey-data
-          persistentVolumeClaim:
-            claimName: blocky-valkey
