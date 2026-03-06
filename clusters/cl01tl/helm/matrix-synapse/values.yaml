@@ -112,9 +112,9 @@ matrix-synapse:
   redis:
     enabled: false
   externalRedis:
-    host: redis-replication-matrix-synapse-master
+    host: matrix-synapse-valkey
     port: 6379
-    existingSecret: matrix-synapse-redis-secret
+    existingSecret: matrix-synapse-valkey-secret
     existingSecretPasswordKey: password
   persistence:
     enabled: true
@@ -453,22 +453,17 @@ postgres-18-cluster:
     - name: mautrix-whatsapp
       ensure: present
       owner: app
-redis-replication-matrix-synapse:
-  replicationNameOverride: redis-replication-matrix-synapse
-  existingSecret:
-    enabled: true
-    name: matrix-synapse-redis-secret
-    key: password
-  redisReplication:
-    clusterSize: 3
-    sentinel:
+valkey-matrix-synapse:
+  valkey:
+    auth:
       enabled: true
-redis-replication-hookshot:
-  replicationNameOverride: redis-replication-hookshot
-  redisReplication:
-    clusterSize: 3
-    sentinel:
-      enabled: true
+      usersExistingSecret: matrix-synapse-valkey-secret
+      aclUsers:
+        default:
+          permissions: "~* &* +@all"
+valkey-hookshot:
+  valkey:
+    nameOverride: valkey-hookshot
 volsync-target-synapse:
   pvcTarget: matrix-synapse
   local:
