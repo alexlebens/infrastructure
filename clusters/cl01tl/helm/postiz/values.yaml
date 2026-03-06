@@ -31,7 +31,7 @@ postiz:
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:
-                  name: postiz-redis-config
+                  name: postiz-valkey-config
                   key: REDIS_URL
             - name: BACKEND_INTERNAL_URL
               value: http://localhost:3000
@@ -167,15 +167,13 @@ postgres-18-cluster:
       #   immediate: true
       #   schedule: "0 0 0 * * *"
       #   backupName: external
-redis-replication:
-  existingSecret:
+valkey:
+  auth:
     enabled: true
-    name: postiz-redis-config
-    key: password
-  redisReplication:
-    clusterSize: 3
-    sentinel:
-      enabled: true
+    usersExistingSecret: postiz-valkey-config
+    aclUsers:
+      default:
+        permissions: "~* &* +@all"
 volsync-target-config:
   pvcTarget: postiz-config
   local:
