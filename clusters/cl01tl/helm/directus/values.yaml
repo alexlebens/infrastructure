@@ -72,16 +72,16 @@ directus:
             - name: REDIS_ENABLED
               value: true
             - name: REDIS_HOST
-              value: redis-replication-directus-master
+              value: directus-valkey
             - name: REDIS_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: directus-redis-config
+                  name: directus-valkey-config
                   key: user
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: directus-redis-config
+                  name: directus-valkey-config
                   key: password
             - name: STORAGE_LOCATIONS
               value: s3
@@ -231,12 +231,10 @@ postgres-18-cluster:
       #   immediate: true
       #   schedule: "0 0 0 * * *"
       #   backupName: external
-redis-replication:
-  existingSecret:
+valkey:
+  auth:
     enabled: true
-    name: directus-redis-config
-    key: password
-  redisReplication:
-    clusterSize: 3
-    sentinel:
-      enabled: true
+    usersExistingSecret: directus-valkey-config
+    aclUsers:
+      default:
+        permissions: "~* &* +@all"
