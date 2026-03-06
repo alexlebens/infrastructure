@@ -70,13 +70,13 @@ gitea:
       cache:
         ENABLED: true
         ADAPTER: redis
-        HOST: redis://redis-replication-gitea-master.gitea:6379
+        HOST: redis://gitea-valkey.gitea:6379
       queue:
         TYPE: redis
-        CONN_STR: redis://redis-replication-gitea-master.gitea:6379
+        CONN_STR: redis://gitea-valkey.gitea:6379
       session:
         PROVIDER: redis
-        PROVIDER_CONFIG: redis://redis-replication-gitea-master.gitea:6379
+        PROVIDER_CONFIG: redis://gitea-valkey.gitea:6379
       indexer:
         ISSUE_INDEXER_ENABLED: true
         ISSUE_INDEXER_TYPE: meilisearch
@@ -234,40 +234,20 @@ postgres-18-cluster:
       #   immediate: true
       #   schedule: "0 0 0 * * *"
       #   backupName: external
-redis-replication-gitea:
-  replicationNameOverride: redis-replication-gitea
-  redisReplication:
-    clusterSize: 3
-    resources:
-      requests:
-        cpu: 20m
-        memory: 400Mi
-    volumeClaimTemplate:
-      spec:
-        resources:
-          requests:
-            storage: 10Gi
-    sentinel:
-      enabled: true
-valkey-renovate:
-  image:
-    registry: ghcr.io
-    repository: valkey-io/valkey
-    tag: 9.0.3-alpine
+valkey-gitea:
   resources:
     requests:
-      cpu: 10m
-      memory: 32Mi
+      cpu: 20m
+      memory: 256Mi
   dataStorage:
-    enabled: false
+    requestedSize: 10Gi
+  replica:
+    persistence:
+      size: 10Gi
+valkey-renovate:
+  nameOverride: valkey-renovate
   replica:
     enabled: false
-  metrics:
-    enabled: true
-    serviceMonitor:
-      enabled: true
-    podMonitor:
-      enabled: true
 volsync-target-storage:
   pvcTarget: gitea-shared-storage
   moverSecurityContext:
