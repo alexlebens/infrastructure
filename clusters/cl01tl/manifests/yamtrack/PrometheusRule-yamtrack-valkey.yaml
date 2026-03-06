@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: yamtrack-valkey
+  labels:
+    helm.sh/chart: valkey-0.9.3
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: yamtrack
+    app.kubernetes.io/version: "9.0.3"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: valkey
+spec:
+  groups:
+    - name: yamtrack-valkey
+      rules:
+        - alert: ValkeyDown
+          annotations:
+            description: Valkey instance {{ $labels.instance }} is down.
+            summary: Valkey instance {{ $labels.instance }} down
+          expr: |
+            redis_up{service="yamtrack-valkey-metrics"} == 0
+          for: 2m
+          labels:
+            severity: error
+        - alert: ValkeyMemoryHigh
+          annotations:
+            description: |
+              Valkey instance {{ $labels.instance }} is using {{ $value }}% of its available memory.
+            summary: Valkey instance {{ $labels.instance }} is using too much memory
+          expr: |
+            redis_memory_used_bytes{service="yamtrack-valkey-metrics"} * 100
+            /
+            redis_memory_max_bytes{service="yamtrack-valkey-metrics"}
+            > 90 <= 100
+          for: 2m
+          labels:
+            severity: error
+        - alert: ValkeyKeyEviction
+          annotations:
+            description: |
+              Valkey instance {{ $labels.instance }} has evicted {{ $value }} keys in the last 5 minutes.
+            summary: Valkey instance {{ $labels.instance }} has evicted keys
+          expr: |
+            increase(redis_evicted_keys_total{service="yamtrack-valkey-metrics"}[5m]) > 0
+          for: 1s
+          labels:
+            severity: error

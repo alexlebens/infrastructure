@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-prometheus-stack-valkey-init-scripts
+  labels:
+    helm.sh/chart: valkey-0.9.3
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/version: "9.0.3"
+    app.kubernetes.io/managed-by: Helm
+data:
+  init.sh: |-
+    #!/bin/sh
+    set -eu
+
+    # Default config paths
+    VALKEY_CONFIG=${VALKEY_CONFIG_PATH:-/data/conf/valkey.conf}
+
+    LOGFILE="/data/init.log"
+    DATA_DIR="/data/conf"
+
+    # Logging function (outputs to stderr and file)
+    log() {
+      echo "$(date) $1" | tee -a "$LOGFILE" >&2
+    }
+
+    # Clean old log if requested
+    if [ "${KEEP_OLD_LOGS:-false}" != "true" ]; then
+      rm -f "$LOGFILE"
+    fi
+
+    if [ -f "$LOGFILE" ]; then
+      log "Detected restart of this instance ($HOSTNAME)"
+    fi
+
+    log "Creating configuration in $DATA_DIR..."
+    mkdir -p "$DATA_DIR"
+    rm -f "$VALKEY_CONFIG"
+
+
+    # Base valkey.conf
+    log "Generating base valkey.conf"
+    {
+      echo "port 6379"
+      echo "protected-mode no"
+      echo "bind * -::*"
+      echo "dir /data"
+    } >>"$VALKEY_CONFIG"
+    # Replica mode configuration
+    log "Configuring replication mode"
+
+    # Use POD_INDEX from Kubernetes metadata
+    POD_INDEX=${POD_INDEX:-0}
+    IS_MASTER=false
+
+    # Check if this is pod-0 (master)
+    if [ "$POD_INDEX" = "0" ]; then
+      IS_MASTER=true
+      log "This pod (index $POD_INDEX) is configured as MASTER"
+    else
+      log "This pod (index $POD_INDEX) is configured as REPLICA"
+    fi
+
+    # Configure replica settings
+    if [ "$IS_MASTER" = "false" ]; then
+      MASTER_HOST="kube-prometheus-stack-valkey-0.kube-prometheus-stack-valkey-headless.kube-prometheus-stack.svc.cluster.local"
+      MASTER_PORT="6379"
+
+      log "Configuring replica to follow master at $MASTER_HOST:$MASTER_PORT"
+
+      {
+        echo ""
+        echo "# Replica Configuration"
+        echo "replicaof $MASTER_HOST $MASTER_PORT"
+        echo "replica-announce-ip kube-prometheus-stack-valkey-$POD_INDEX.kube-prometheus-stack-valkey-headless.kube-prometheus-stack.svc.cluster.local"
+      } >>"$VALKEY_CONFIG"
+    fi
+
+    # Append extra configs if present
+    if [ -f /usr/local/etc/valkey/valkey.conf ]; then
+      log "Appending /usr/local/etc/valkey/valkey.conf"
+      cat /usr/local/etc/valkey/valkey.conf >>"$VALKEY_CONFIG"
+    fi
+    if [ -d /extravalkeyconfigs ]; then
+      log "Appending files in /extravalkeyconfigs/"
+      cat /extravalkeyconfigs/* >>"$VALKEY_CONFIG"
+    fi
