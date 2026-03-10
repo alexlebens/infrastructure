@@ -1,0 +1,30 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: movie-roulette
+  labels:
+    app.kubernetes.io/instance: movie-roulette
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: movie-roulette
+    helm.sh/chart: movie-roulette-4.6.2
+  namespace: movie-roulette
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - "movie-roulette.alexlebens.net"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: movie-roulette
+          namespace: movie-roulette
+          port: 80
+          weight: 100
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
