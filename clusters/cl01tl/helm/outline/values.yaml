@@ -66,30 +66,7 @@ outline:
             - name: REDIS_URL
               value: redis://outline-valkey.outline:6379
             - name: FILE_STORAGE
-              value: s3
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: ceph-bucket-outline
-                  key: AWS_ACCESS_KEY_ID
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: ceph-bucket-outline
-                  key: AWS_SECRET_ACCESS_KEY
-            - name: AWS_REGION
-              value: us-east-1
-            - name: AWS_S3_UPLOAD_BUCKET_NAME
-              valueFrom:
-                configMapKeyRef:
-                  name: ceph-bucket-outline
-                  key: BUCKET_NAME
-            - name: AWS_S3_UPLOAD_BUCKET_URL
-              value: https://objects.alexlebens.dev
-            - name: AWS_S3_FORCE_PATH_STYLE
-              value: true
-            - name: AWS_S3_ACL
-              value: private
+              value: local
             - name: FILE_STORAGE_UPLOAD_MAX_SIZE
               value: "26214400"
             - name: FORCE_HTTPS
@@ -142,6 +119,18 @@ outline:
           port: 3000
           targetPort: 3000
           protocol: HTTP
+  persistence:
+    data:
+      forceRename: outline-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /var/lib/outline/data
+              readOnly: false
 postgres-18-cluster:
   mode: recovery
   recovery:
@@ -184,3 +173,13 @@ postgres-18-cluster:
       #   immediate: true
       #   schedule: "0 0 0 * * *"
       #   backupName: external
+volsync-target-data:
+  pvcTarget: outline-data
+  local:
+    enabled: true
+    schedule: 50 11 * * *
+  remote:
+    enabled: false
+  external:
+    enabled: true
+    schedule: 50 12 * * *
