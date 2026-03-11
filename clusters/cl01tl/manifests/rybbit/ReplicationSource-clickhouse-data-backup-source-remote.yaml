@@ -1,0 +1,34 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: clickhouse-data-backup-source-remote
+  namespace: rybbit
+  labels:
+    helm.sh/chart: volsync-target-clickhouse-data-0.8.0
+    app.kubernetes.io/instance: rybbit
+    app.kubernetes.io/part-of: rybbit
+    app.kubernetes.io/version: "0.8.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: clickhouse-data-backup
+spec:
+  sourcePVC: clickhouse-data
+  trigger:
+    schedule: 14 12 * * *
+  restic:
+    pruneIntervalDays: 7
+    repository: clickhouse-data-backup-secret-remote
+    retain:
+      daily: 7
+      hourly: 0
+      monthly: 3
+      weekly: 4
+      yearly: 1
+    moverSecurityContext:
+      fsGroup: 101
+      fsGroupChangePolicy: OnRootMismatch
+      runAsGroup: 101
+      runAsUser: 101
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
+    cacheCapacity: 1Gi
