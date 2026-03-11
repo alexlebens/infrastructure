@@ -1,0 +1,147 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rclone-talos-backups
+  labels:
+    app.kubernetes.io/controller: talos-backups
+    app.kubernetes.io/instance: rclone
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: rclone
+    helm.sh/chart: rclone-4.6.2
+  namespace: rclone
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 90
+  timeZone: US/Central
+  schedule: "0 20 6 * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/controller: talos-backups
+            app.kubernetes.io/instance: rclone
+            app.kubernetes.io/name: rclone
+        spec:
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          containers:
+            - args:
+                - delete
+                - dest:talos-backups
+                - --min-age
+                - 90d
+                - --verbose
+              env:
+                - name: RCLONE_CONFIG_DEST_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_DEST_PROVIDER
+                  value: Other
+                - name: RCLONE_CONFIG_DEST_ENV_AUTH
+                  value: "false"
+                - name: RCLONE_CONFIG_DEST_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_KEY_ID
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_DEST_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_SECRET_KEY
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_DEST_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_REGION
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_DEST_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      key: DEST_ENDPOINT
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_SRC_S3_FORCE_PATH_STYLE
+                  value: "true"
+              image: rclone/rclone:1.73.2
+              imagePullPolicy: IfNotPresent
+              name: prune
+            - args:
+                - sync
+                - src:talos-backups
+                - dest:talos-backups
+                - --s3-no-check-bucket
+                - --max-age
+                - 90d
+                - --verbose
+              env:
+                - name: RCLONE_S3_PROVIDER
+                  value: Other
+                - name: RCLONE_CONFIG_SRC_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_SRC_PROVIDER
+                  value: Other
+                - name: RCLONE_CONFIG_SRC_ENV_AUTH
+                  value: "false"
+                - name: RCLONE_CONFIG_SRC_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_KEY_ID
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_SECRET_KEY
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_SRC_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_REGION
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_SRC_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      key: SRC_ENDPOINT
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_SRC_S3_FORCE_PATH_STYLE
+                  value: "true"
+                - name: RCLONE_CONFIG_DEST_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_DEST_PROVIDER
+                  value: Other
+                - name: RCLONE_CONFIG_DEST_ENV_AUTH
+                  value: "false"
+                - name: RCLONE_CONFIG_DEST_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_KEY_ID
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_DEST_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_SECRET_KEY
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_DEST_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_REGION
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_DEST_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      key: DEST_ENDPOINT
+                      name: garage-talos-backups-secret
+                - name: RCLONE_CONFIG_SRC_DEST_FORCE_PATH_STYLE
+                  value: "true"
+              image: rclone/rclone:1.73.2
+              imagePullPolicy: IfNotPresent
+              name: sync
