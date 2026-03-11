@@ -39,45 +39,6 @@ s3-exporter:
             requests:
               cpu: 10m
               memory: 64Mi
-    ceph-directus:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      containers:
-        main:
-          image:
-            repository: molu8bits/s3bucket_exporter
-            tag: 1.0.2
-            pullPolicy: IfNotPresent
-          env:
-            - name: S3_NAME
-              value: ceph-directus
-            - name: S3_ENDPOINT
-              valueFrom:
-                secretKeyRef:
-                  name: s3-ceph-directus-secret
-                  key: BUCKET_HOST
-            - name: S3_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: s3-ceph-directus-secret
-                  key: AWS_ACCESS_KEY_ID
-            - name: S3_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: s3-ceph-directus-secret
-                  key: AWS_SECRET_ACCESS_KEY
-            - name: S3_REGION
-              value: us-east-1
-            - name: LOG_LEVEL
-              value: info
-            - name: S3_FORCE_PATH_STYLE
-              value: true
-          resources:
-            requests:
-              cpu: 10m
-              memory: 64Mi
     garage-local:
       type: deployment
       replicas: 1
@@ -158,13 +119,6 @@ s3-exporter:
           port: 9655
           targetPort: 9655
           protocol: TCP
-    ceph-directus:
-      controller: ceph-directus
-      ports:
-        metrics:
-          port: 9655
-          targetPort: 9655
-          protocol: TCP
     garage-local:
       controller: garage-local
       ports:
@@ -187,18 +141,6 @@ s3-exporter:
           app.kubernetes.io/instance: s3-exporter
           app.kubernetes.io/service: s3-exporter-digital-ocean
       serviceName: s3-exporter-digital-ocean
-      endpoints:
-        - port: metrics
-          interval: 5m
-          scrapeTimeout: 120s
-          path: /metrics
-    ceph-directus:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: s3-exporter
-          app.kubernetes.io/instance: s3-exporter
-          app.kubernetes.io/service: s3-exporter-ceph-directus
-      serviceName: s3-exporter-ceph-directus
       endpoints:
         - port: metrics
           interval: 5m
