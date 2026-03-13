@@ -114,41 +114,26 @@ audiobookshelf:
           main:
             - path: /metadata
               readOnly: false
-    audiobooks-data:
-      forceRename: audiobookshelf-audiobooks
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 40Gi
-      retain: true
+    books:
+      existingClaim: audiobookshelf-books-nfs-storage
       advancedMounts:
         main:
           main:
-            - path: /mnt/Audiobooks
+            - path: /mnt/store/Books
               readOnly: false
-    books-data:
-      forceRename: audiobookshelf-books
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 10Gi
-      retain: true
+    audiobooks:
+      existingClaim: audiobookshelf-audiobooks-nfs-storage
       advancedMounts:
         main:
           main:
-            - path: /mnt/Books
+            - path: /mnt/store/Audiobooks
               readOnly: false
-    podcasts-data:
+    podcasts:
       existingClaim: audiobookshelf-podcasts-nfs-storage
       advancedMounts:
         main:
           main:
-            - path: /mnt/Podcasts
-              readOnly: false
-    audiobooks:
-      existingClaim: audiobookshelf-nfs-storage
-      advancedMounts:
-        main:
-          main:
-            - path: /mnt/store/
+            - path: /mnt/store/Podcasts
               readOnly: false
 volsync-target-config:
   pvcTarget: audiobookshelf-config
@@ -172,31 +157,37 @@ volsync-target-metadata:
   external:
     enabled: true
     schedule: 4 10 * * *
+volsync-target-books:
+  pvcTarget: audiobookshelf-books
+  local:
+    enabled: true
+    schedule: 14 8 * * *
+    restic:
+      copyMethod: Direct
+  remote:
+    enabled: false
+    schedule: 14 9 * * *
+    restic:
+      copyMethod: Direct
+  external:
+    enabled: false
+    schedule: 14 10 * * *
+    restic:
+      copyMethod: Direct
 volsync-target-audiobooks:
   pvcTarget: audiobookshelf-audiobooks
   local:
     enabled: true
     schedule: 14 8 * * *
     restic:
-      cacheCapacity: 10Gi
+      copyMethod: Direct
   remote:
-    enabled: true
+    enabled: false
     schedule: 14 9 * * *
     restic:
-      cacheCapacity: 10Gi
+      copyMethod: Direct
   external:
-    enabled: true
+    enabled: false
     schedule: 14 10 * * *
     restic:
-      cacheCapacity: 10Gi
-volsync-target-books:
-  pvcTarget: audiobookshelf-books
-  local:
-    enabled: true
-    schedule: 14 8 * * *
-  remote:
-    enabled: true
-    schedule: 14 9 * * *
-  external:
-    enabled: true
-    schedule: 14 10 * * *
+      copyMethod: Direct
