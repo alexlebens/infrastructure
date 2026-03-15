@@ -260,6 +260,39 @@ jobs:
           token: ${{ secrets.GITEA_TOKEN }}
           version: v3.19.2
 
+      - name: Add Repositories
+        env:
+          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+        run: |
+          echo ">> Adding repositories for chart dependencies ..."
+          echo ""
+
+          for DIR in ${CHANGED_CHARTS}; do
+            helm dependency list --max-col-width 120 clusters/${CLUSTER}/helm/${DIR} 2> /dev/null \
+              | tail -n +2 \
+              | awk 'NF > 0 { print $1, $3 }' \
+              | while read -r REPO_NAME REPO_URL; do
+                if [[ "${REPO_URL}" == oci://* ]]; then
+                  echo ">> Ignoring OCI repo: ${REPO_URL}"
+
+                elif [[ -n "${REPO_NAME}" && -n "${REPO_URL}" ]]; then
+                  helm repo add "${REPO_NAME}" "${REPO_URL}"
+
+                fi
+
+              done || true
+          done
+
+          if helm repo list > /dev/null 2>&1; then
+            echo ""
+            echo ">> Update repository cache ..."
+            helm repo update
+
+          fi
+
+          echo ""
+          echo "----"
+
       - name: Validate Rendered Templates
         id: validate
         env:
