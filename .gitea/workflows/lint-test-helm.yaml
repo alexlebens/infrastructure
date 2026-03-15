@@ -16,10 +16,15 @@ on:
 env:
   CLUSTER: cl01tl
   BASE_BRANCH: "origin/${{ github.base_ref }}"
+  KUBECONFORM_VERSION: "v0.6.7"
 
 jobs:
   lint-helm:
     runs-on: ubuntu-js
+    outputs:
+      chart-dir: ${{ steps.check-dir-changes.outputs.chart-dir }}
+      chart-dir-csv: ${{ steps.check-dir-changes.outputs.chart-dir-csv }}
+      changes-detected: ${{ steps.check-dir-changes.outputs.changes-detected }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -152,11 +157,13 @@ jobs:
           echo "----"
 
       - name: Lint Helm Chart
+        id: lint
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
         env:
           CHANGED_CHARTS: ${{ steps.check-dir-changes.outputs.chart-dir }}
         run: |
           EXIT_CODE=0
+          FAILED_CHARTS=""
 
           echo ">> Running linting on changed charts ..."
 
@@ -171,7 +178,18 @@ jobs:
 
               echo ""
               echo ">> Linting helm chart ${CHART_NAME} ..."
-              helm lint "${CHART_PATH}" --namespace "default" || EXIT_CODE=1
+
+              if ! helm lint "${CHART_PATH}" --namespace "default"; then
+                EXIT_CODE=1
+
+                if [ -z "${FAILED_CHARTS}" ]; then
+                  FAILED_CHARTS="${DIR}"
+
+                else
+                  FAILED_CHARTS="${FAILED_CHARTS}, ${DIR}"
+
+                fi
+              fi
 
             else
               echo ""
@@ -183,6 +201,8 @@ jobs:
 
           echo ""
           echo "----"
+
+          echo "failed-charts=${FAILED_CHARTS}" >> "$GITHUB_OUTPUT"
 
           exit $EXIT_CODE
 
@@ -196,7 +216,105 @@ jobs:
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
-          details: "Helm linting for cluster '${CLUSTER}' with charts: ${{ steps.check-dir-changes.outputs.chart-dir-csv }}"
+          details: "Helm linting for cluster '${CLUSTER}' failed on charts: ${{ steps.lint.outputs.failed-charts }}"
           icon: 'https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png'
-          actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/infrastructure/actions?workflow=lint-test-helm.yaml", "clear": true}]'
+          actions: '[{"action": "view", "label": "View Run", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+          image: true
+
+  validate-kubeconform:
+    needs: lint-helm
+    runs-on: ubuntu-js
+    if: |
+      needs.lint-helm.result == 'success' &&
+      needs.lint-helm.outputs.changes-detected == 'true' &&
+      github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Kubeconform
+        run: |
+          echo ">> Downloading Kubeconform ${{ env.KUBECONFORM_VERSION }} ..."
+          wget -q https://github.com/yannh/kubeconform/releases/download/${{ env.KUBECONFORM_VERSION }}/kubeconform-linux-amd64.tar.gz
+
+          echo ""
+          echo ">> Extracting Kubeconform ..."
+          tar xf kubeconform-linux-amd64.tar.gz
+
+          echo ""
+          echo ">> Installing Kubeconform ..."
+          sudo mv kubeconform /usr/local/bin/
+
+          echo ""
+          echo ">> Verifying installation ..."
+          kubeconform -v
+
+          echo ""
+          echo "----"
+
+      - name: Set Up Helm
+        uses: azure/setup-helm@v4
+        with:
+          token: ${{ secrets.GITEA_TOKEN }}
+          version: v3.19.2
+
+      - name: Validate Rendered Templates
+        id: validate
+        env:
+          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+        run: |
+          SCHEMA_LOCATIONS="-schema-location default -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
+
+          EXIT_CODE=0
+          FAILED_CHARTS=""
+
+          for DIR in ${CHANGED_CHARTS}; do
+            CHART_PATH="clusters/${CLUSTER}/helm/${DIR}"
+            echo ""
+            echo ">> Validating: ${DIR}"
+
+            helm dependency build "${CHART_PATH}" --skip-refresh
+
+            if ! helm template "${DIR}" "${CHART_PATH}" --include-crds --namespace default --api-versions "gateway.networking.k8s.io/v1/HTTPRoute" | \
+              kubeconform \
+                ${SCHEMA_LOCATIONS} \
+                -ignore-missing-schemas \
+                -strict \
+                -summary; then
+
+              EXIT_CODE=1
+
+              if [ -z "${FAILED_CHARTS}" ]; then
+                FAILED_CHARTS="${DIR}"
+
+              else
+                FAILED_CHARTS="${FAILED_CHARTS}, ${DIR}"
+
+              fi
+            fi
+
+          done
+
+          echo ""
+          echo "----"
+
+          echo "failed-charts=${FAILED_CHARTS}" >> "$GITHUB_OUTPUT"
+
+          exit $EXIT_CODE
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@master
+        if: failure()
+        with:
+          url: '${{ secrets.NTFY_URL }}'
+          topic: '${{ secrets.NTFY_TOPIC }}'
+          title: 'Kubeconform Test Failure'
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "Kubeconform for cluster '${CLUSTER}' failed on charts: ${{ steps.validate.outputs.failed-charts }}"
+          icon: 'https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png'
+          actions: '[{"action": "view", "label": "View Run", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "clear": true}]'
           image: true
