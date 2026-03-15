@@ -260,6 +260,17 @@ jobs:
           token: ${{ secrets.GITEA_TOKEN }}
           version: v3.19.2
 
+      - name: Cache Helm Dependencies
+        if: steps.branch-exists.outputs.exists == 'true'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/helm
+            ~/.config/helm
+          key: helm-cache-${{ runner.os }}-${{ hashFiles('infrastructure/clusters/cl01tl/helm/**/Chart.yaml', 'infrastructure/clusters/cl01tl/helm/**/Chart.lock') }}
+          restore-keys: |
+            helm-cache-${{ runner.os }}-
+
       - name: Add Repositories
         env:
           CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
