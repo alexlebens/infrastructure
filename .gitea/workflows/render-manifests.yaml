@@ -484,6 +484,49 @@ jobs:
 
           fi
 
+      - name: Update Pull Request
+        id: update-pull-request
+        if: steps.commit-push.outputs.push == 'true' && steps.check-for-pull-request.outputs.pull-request-exists != 'false' && steps.mode.outputs.is_automerge == 'false'
+        env:
+          GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GITEA_URL: ${{ secrets.REPO_URL }}
+          PR_NUMBER: ${{ steps.check-for-pull-request.outputs.pull-request-exists }}
+          CHARTS: ${{ steps.check-dir-changes.outputs.render-dir-csv }}
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref_name }}
+        run: |
+          cd "${MANIFEST_DIR}"
+
+          API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls/${PR_NUMBER}"
+
+          EXISTING_BODY=$(jq -r '.[0].body' response_body.json)
+
+          NEW_DETAILS=$(printf "### Update Details (%s)\n- **Trigger**: \`%s\` by \`@%s\`\n- **Commit**: \`%s\` (on \`%s\`)\n- **Charts Updated**: \`%s\`" "$(date -u +'%Y-%m-%d %H:%M UTC')" "${EVENT_NAME}" "${ACTOR}" "${SHA:0:7}" "${REF}" "${CHARTS}")
+
+          UPDATED_BODY=$(printf "%s\n\n%s" "${EXISTING_BODY}" "${NEW_DETAILS}")
+
+          PAYLOAD=$(jq -n --arg body "${UPDATED_BODY}" '{body: $body}')
+
+          HTTP_STATUS=$(curl -X PATCH -s -w '%{http_code}' -o update_response.json --data "$PAYLOAD" -H "Authorization: token ${GITEA_TOKEN}" -H "Content-Type: application/json" "$API_ENDPOINT")
+
+          if [ "$HTTP_STATUS" == "201" ] || [ "$HTTP_STATUS" == "200" ]; then
+            echo ">> Pull Request updated successfully!"
+
+            echo ""
+            echo "----"
+
+            echo "pull-request-operation=updated" >> "$GITHUB_OUTPUT"
+
+          else
+            echo ">> Failed to update PR, HTTP status code: $HTTP_STATUS"; exit 1
+
+            echo ""
+            echo "----"
+
+          fi
+
       - name: Merge Changes
         id: merge-changes
         if: steps.commit-push.outputs.push == 'true' && steps.mode.outputs.is_automerge == 'true'
