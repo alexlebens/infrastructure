@@ -15,7 +15,7 @@ on:
 
 env:
   CLUSTER: cl01tl
-  BASE_BRANCH: "origin/${{ gitea.base_ref }}"
+  BASE_BRANCH: "origin/${{ github.base_ref }}"
 
 jobs:
   lint-helm:
@@ -31,25 +31,26 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: GuillaumeFalourd/branch-exists@v1.1
         with:
-          branch: ${{ gitea.base_ref }}
+          branch: ${{ github.base_ref }}
 
       - name: Report Branch Exists
         id: branch-exists
         if: github.event_name == 'push' || steps.check-branch-exists.outputs.exists == 'true' && github.event_name == 'pull_request'
         run: |
-          if [ ${{ github.event_name == 'push' }} ]; then
+          if [ "${{ github.event_name }}" == "push" ]; then
             echo ">> Action is from a push event, will continue with linting"
 
           else
-            echo ">> Branch ${{ gitea.base_ref }} exists, will continue with linting"
+            echo ">> Branch ${{ github.base_ref }} exists, will continue with linting"
 
           fi
 
+          echo ""
           echo "----"
 
           echo "exists=true" >> $GITEA_OUTPUT
 
-      - name: Set up Helm
+      - name: Set Up Helm
         if: steps.branch-exists.outputs.exists == 'true'
         uses: azure/setup-helm@v4
         with:
@@ -57,62 +58,63 @@ jobs:
           version: v3.19.2
           cache: true
 
+      - name: Cache Helm Dependencies
+        if: steps.branch-exists.outputs.exists == 'true'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/helm
+            ~/.config/helm
+          key: helm-cache-${{ runner.os }}-${{ hashFiles('infrastructure/clusters/cl01tl/helm/**/Chart.yaml', 'infrastructure/clusters/cl01tl/helm/**/Chart.lock') }}
+          restore-keys: |
+            helm-cache-${{ runner.os }}-
+
       - name: Check Directories for Changes
         id: check-dir-changes
         if: steps.branch-exists.outputs.exists == 'true'
         run: |
-          CHANGED_CHARTS=()
-
           echo ">> Target branch for diff is: ${BASE_BRANCH}"
 
           if [ "${{ github.event_name }}" == "pull_request" ]; then
+            DIFF_TARGET="${BASE_BRANCH}"
             echo ""
             echo ">> Checking for changes in a pull request ..."
-            GIT_DIFF=$(git diff --name-only "${BASE_BRANCH}" | xargs -I {} dirname {} | sort -u)
+
           else
+            DIFF_TARGET="${{ github.event.before }}..HEAD"
             echo ""
             echo ">> Checking for changes from a push ..."
-            GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u)
-          fi
-
-          if [ -n "${GIT_DIFF}" ]; then
-            echo ""
-            echo ">> Changes detected:"
-            echo "$GIT_DIFF"
-
-            for path in $GIT_DIFF; do
-              if echo "$path" | grep -q -E "clusters/[^/]+/helm/[^/]+"; then
-                echo ""
-                echo ">> Adding path: $path"
-                CHANGED_CHARTS+=$(echo "$path" | awk -F '/' '{print $4}')
-                CHANGED_CHARTS+=$(echo "\n")
-              fi
-            done
-
-          else
-            echo ""
-            echo ">> No changes detected"
 
           fi
+
+          CHANGED_CHARTS=$(git diff --name-only "${DIFF_TARGET}" | grep -E "^clusters/${CLUSTER}/helm/" | awk -F '/' '{print $4}' | sort -u || true)
 
           if [ -n "${CHANGED_CHARTS}" ]; then
             echo ""
             echo ">> Chart to Lint:"
-            echo "$(echo "${CHANGED_CHARTS}" | sort -u)"
+            echo ""
+            echo "${CHANGED_CHARTS}"
 
+            CHANGED_CHARTS_CSV=$(echo "$CHANGED_CHARTS" | paste -sd ',' -)
+
+            echo ""
             echo "----"
 
             echo "changes-detected=true" >> $GITEA_OUTPUT
+            echo "chart-dir-csv=${CHANGED_CHARTS_CSV}" >> $GITEA_OUTPUT
             echo "chart-dir<<EOF" >> $GITEA_OUTPUT
-            echo "$(echo "${CHANGED_CHARTS}" | sort -u)" >> $GITEA_OUTPUT
+            echo "${CHANGED_CHARTS}" >> $GITEA_OUTPUT
             echo "EOF" >> $GITEA_OUTPUT
+
           else
             echo ""
             echo ">> Did not find any helm charts files to lint"
 
+            echo ""
             echo "----"
 
             echo "changes-detected=false" >> $GITEA_OUTPUT
+
           fi
 
       - name: Add Repositories
@@ -121,26 +123,32 @@ jobs:
           CHANGED_CHARTS: ${{ steps.check-dir-changes.outputs.chart-dir }}
         run: |
           echo ">> Adding repositories for chart dependencies ..."
-          for dir in ${CHANGED_CHARTS}; do
-            helm dependency list --max-col-width 120 clusters/${CLUSTER}/helm/$dir 2> /dev/null \
-              | tail +2 | head -n -1 \
-              | awk '{ print "helm repo add " $1 " " $3 }' \
-              | while read cmd; do
-                if [[ "$cmd" == "*oci://*" ]]; then
-                  echo ">> Ignoring OCI repo"
-                else
-                  echo ">> Command: $cmd"
-                  echo "$cmd" | sh;
+          echo ""
+
+          for DIR in ${CHANGED_CHARTS}; do
+            helm dependency list --max-col-width 120 clusters/${CLUSTER}/helm/${DIR} 2> /dev/null \
+              | tail -n +2 \
+              | awk 'NF > 0 { print $1, $3 }' \
+              | while read -r REPO_NAME REPO_URL; do
+                if [[ "${REPO_URL}" == oci://* ]]; then
+                  echo ">> Ignoring OCI repo: ${REPO_URL}"
+
+                elif [[ -n "${REPO_NAME}" && -n "${REPO_URL}" ]]; then
+                  helm repo add "${REPO_NAME}" "${REPO_URL}"
+
                 fi
+
               done || true
           done
 
-          if helm repo list | tail +2 | read -r; then
+          if helm repo list > /dev/null 2>&1; then
             echo ""
             echo ">> Update repository cache ..."
             helm repo update
+
           fi
 
+          echo ""
           echo "----"
 
       - name: Lint Helm Chart
@@ -148,29 +156,35 @@ jobs:
         env:
           CHANGED_CHARTS: ${{ steps.check-dir-changes.outputs.chart-dir }}
         run: |
+          EXIT_CODE=0
+
           echo ">> Running linting on changed charts ..."
 
-          for dir in ${CHANGED_CHARTS}; do
-            chart_path=clusters/${CLUSTER}/helm/$dir
-            chart_name=$(basename "$chart_path")
+          for DIR in ${CHANGED_CHARTS}; do
+            CHART_PATH="clusters/${CLUSTER}/helm/${DIR}"
+            CHART_NAME=$(basename "${CHART_PATH}")
 
-            if [ -f "$chart_path/Chart.yaml" ]; then
-              cd $chart_path
+            if [ -f "${CHART_PATH}/Chart.yaml" ]; then
+              echo ""
+              echo ">> Building helm dependency for ${CHART_NAME} ..."
+              helm dependency build "${CHART_PATH}" --skip-refresh
 
               echo ""
-              echo ">> Building helm dependency ..."
-              helm dependency build --skip-refresh
-
-              echo ""
-              echo ">> Linting helm ..."
-              helm lint --namespace "$chart_name"
+              echo ">> Linting helm chart ${CHART_NAME} ..."
+              helm lint "${CHART_PATH}" --namespace "default" || EXIT_CODE=1
 
             else
               echo ""
-              echo ">> Directory $chart_path does not contain a Chart.yaml. Skipping ..."
-              echo ""
+              echo ">> Directory ${CHART_PATH} does not contain a Chart.yaml. Skipping ..."
+
             fi
+
           done
+
+          echo ""
+          echo "----"
+
+          exit $EXIT_CODE
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@master
@@ -178,11 +192,11 @@ jobs:
         with:
           url: '${{ secrets.NTFY_URL }}'
           topic: '${{ secrets.NTFY_TOPIC }}'
-          title: 'Test Failure - Infrastructure'
+          title: 'Helm Test Failure'
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
-          details: 'Helm linting on Pull Request for Infrastructure has failed!'
+          details: "Helm linting for cluster '${CLUSTER}' with charts: ${{ steps.check-dir-changes.outputs.chart-dir-csv }}"
           icon: 'https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png'
-          actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/infrastructure/actions?workflow=lint-test-helm-pull.yaml", "clear": true}]'
+          actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/infrastructure/actions?workflow=lint-test-helm.yaml", "clear": true}]'
           image: true
