@@ -45,24 +45,38 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBECONFIG }}
 
+      - name: Cache Helm Dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/helm
+            ~/.config/helm
+          key: helm-cache-${{ runner.os }}-${{ hashFiles('infrastructure/clusters/cl01tl/helm/**/Chart.yaml', 'infrastructure/clusters/cl01tl/helm/**/Chart.lock') }}
+          restore-keys: |
+            helm-cache-${{ runner.os }}-
+
       - name: Prepare Manifest Branch
         run: |
-          cd ${MANIFEST_DIR}
+          cd "${MANIFEST_DIR}"
 
+          echo ""
           echo ">> Configure git to use gitea-bot as user ..."
           git config user.name "gitea-bot"
           git config user.email "gitea-bot@alexlebens.net"
 
           echo ">> Checking if PR branch exists ..."
-          if [[ $(git ls-remote --heads origin "${BRANCH_NAME}" | wc -l) -gt 0 ]]; then
+          if git ls-remote --exit-code --heads origin "${BRANCH_NAME}" > /dev/null 2>&1; then
+            echo ""
             echo ">> Branch '${BRANCH_NAME}' exists, pulling changes ..."
             git fetch origin "${BRANCH_NAME}"
             git checkout "${BRANCH_NAME}"
             git pull --rebase
 
           else
+            echo ""
             echo ">> Branch '${BRANCH_NAME}' does not exist, creating ..."
-            git checkout -b $BRANCH_NAME
+            git checkout -b "${BRANCH_NAME}"
+
           fi
 
           echo "----"
@@ -70,38 +84,31 @@ jobs:
       - name: Check which Directories have Changes
         id: check-dir-changes
         run: |
-          cd ${MAIN_DIR}
+          cd "${MAIN_DIR}"
 
-          RENDER_DIR=()
-
+          echo ""
           echo ">> Checking for changes ..."
-          GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u | grep -E "clusters/[^/]+/helm/[^/]+")
 
-          if [ -n "${GIT_DIFF}" ]; then
-            echo ">> Changes detected:"
-            echo "$GIT_DIFF"
-            for path in $GIT_DIFF; do
-              RENDER_DIR+=$(echo "$path" | awk -F '/' '{print $4}')
-              RENDER_DIR+=$(echo " ")
-            done
-
-          else
-            echo ">> No changes detected"
-
-          fi
+          # Extract the chart names from the git diff
+          RENDER_DIR=$(git diff --name-only ${{ gitea.event.before }}..HEAD | grep -E "^clusters/${CLUSTER}/helm/" | awk -F '/' '{print $4}' | sort -u || true)
 
           if [ -n "${RENDER_DIR}" ]; then
+            echo ""
             echo ">> Directories to Render:"
-            echo "$(echo "${RENDER_DIR}" | sort -u)"
+            echo "${RENDER_DIR}"
 
             echo "----"
 
-            echo "changes-detected=true" >> $GITEA_OUTPUT
-            echo "render-dir<<EOF" >> $GITEA_OUTPUT
-            echo "$(echo "${RENDER_DIR}" | sort -u)" >> $GITEA_OUTPUT
-            echo "EOF" >> $GITEA_OUTPUT
+            echo "changes-detected=true" >> "$GITEA_OUTPUT"
+            echo "render-dir<<EOF" >> "$GITEA_OUTPUT"
+            echo "${RENDER_DIR}" >> "$GITEA_OUTPUT"
+            echo "EOF" >> "$GITEA_OUTPUT"
+
           else
-            echo "changes-detected=false" >> $GITEA_OUTPUT
+            echo ""
+            echo ">> No chart changes detected"
+            echo "changes-detected=false" >> "$GITEA_OUTPUT"
+
           fi
 
       - name: Add Repositories
@@ -109,25 +116,31 @@ jobs:
         env:
           RENDER_DIR: ${{ steps.check-dir-changes.outputs.render-dir }}
         run: |
-          cd ${MAIN_DIR}
+          cd "${MAIN_DIR}"
 
+          echo ""
           echo ">> Adding repositories for chart dependencies ..."
-          for dir in ${RENDER_DIR}; do
-            helm dependency list --max-col-width 120 ${MAIN_DIR}/clusters/${CLUSTER}/helm/$dir 2> /dev/null \
-              | tail +2 | head -n -1 \
-              | awk '{ print "helm repo add " $1 " " $3 }' \
-              | while read cmd; do
-                if [[ "$cmd" == "*oci://*" ]]; then
-                  echo ">> Ignoring OCI repo"
-                else
-                  echo "$cmd" | sh;
+          for DIR in ${RENDER_DIR}; do
+            helm dependency list --max-col-width 120 "${MAIN_DIR}/clusters/${CLUSTER}/helm/${DIR}" 2> /dev/null \
+              | tail -n +2 \
+              | awk 'NF > 0 { print $1, $3 }' \
+              | while read -r REPO_NAME REPO_URL; do
+                if [[ "${REPO_URL}" == oci://* ]]; then
+                  echo ""
+                  echo ">> Ignoring OCI repo: ${REPO_URL}"
+
+                elif [[ -n "${REPO_NAME}" && -n "${REPO_URL}" ]]; then
+                  helm repo add "${REPO_NAME}" "${REPO_URL}"
+
                 fi
               done || true
           done
 
-          if helm repo list | tail +2 | read -r; then
+          if helm repo list > /dev/null 2>&1; then
+            echo ""
             echo ">> Update repository cache ..."
             helm repo update
+
           fi
 
           echo "----"
@@ -137,15 +150,17 @@ jobs:
         env:
           RENDER_DIR: ${{ steps.check-dir-changes.outputs.render-dir }}
         run: |
-          cd ${MANIFEST_DIR}
+          cd "${MANIFEST_DIR}"
 
+          echo ""
           echo ">> Remove manfiest files and rebuild from source ..."
 
-          for dir in ${RENDER_DIR}; do
-            chart_path=${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$dir
+          for DIR in ${RENDER_DIR}; do
+            CHART_PATH=${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/${DIR}
 
-            echo "$chart_path"
-            rm -rf $chart_path/*
+            echo ""
+            echo "${CHART_PATH}"
+            rm -rf ${CHART_PATH}/*
           done
 
           echo "----"
@@ -158,60 +173,57 @@ jobs:
         run: |
           cd ${MAIN_DIR}
 
+          echo ""
           echo ">> Rendering Manifests ..."
 
-          for dir in ${RENDER_DIR}; do
-            chart_path=${MAIN_DIR}/clusters/${CLUSTER}/helm/$dir
-            chart_name=$(basename "$chart_path")
+          render_chart() {
+            local DIR="$1"
+            local CHART_PATH="${MAIN_DIR}/clusters/${CLUSTER}/helm/${DIR}"
+            local CHART_NAME=$(basename "${CHART_PATH}")
 
             echo ""
-            echo ""
-            echo ">> Rendering chart: $chart_name"
-            echo ">> Chart path $chart_path"
+            echo ">> Rendering ..."
+            echo ">> Chart: ${CHART_NAME}"
+            echo ">> Path: ${CHART_PATH}"
 
-            if [ -f "$chart_path/Chart.yaml" ]; then
-              OUTPUT_FOLDER="${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$chart_name/"
-              TEMPLATE=""
+            if [ -f "${CHART_PATH}/Chart.yaml" ]; then
+              local OUTPUT_FOLDER="${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/${CHART_NAME}/"
 
-              mkdir -p ${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/$chart_name
-
-              cd $chart_path
+              mkdir -p "${OUTPUT_FOLDER}"
+              cd "${CHART_PATH}"
 
               echo ""
-              echo ">> Updating helm dependency ..."
-              helm dependency update --skip-refresh
+              echo ">> Updating helm dependencies ..."
+              helm dependency update --skip-refresh > /dev/null
 
               echo ""
-              echo ">> Building helm dependency ..."
-              helm dependency build --skip-refresh
+              echo ">> Linting helm chart ..."
+              helm lint --namespace "${CHART_NAME}" --quiet
 
-              echo ""
-              echo ">> Linting helm ..."
-              helm lint --namespace "$chart_name"
-
-              echo ""
-              echo ">> Rendering templates ..."
-              case "$chart_name" in
+              local NAMESPACE="${CHART_NAME}"
+              case "${CHART_NAME}" in
                 "stack")
+                  NAMESPACE="argocd"
                   echo ""
-                  echo ">> Special Rendering for stack into argocd namespace ..."
-                  TEMPLATE=$(helm template $chart_name ./ --namespace argocd --include-crds --dry-run=server --api-versions "gateway.networking.k8s.io/v1/HTTPRoute")
+                  echo ">> Special Rendering into 'argocd' namespace ..."
                   ;;
-                "cilium" | "coredns" | "metrics-server" |"prometheus-operator-crds")
+                "cilium" | "coredns" | "metrics-server" | "prometheus-operator-crds")
+                  NAMESPACE="kube-system"
                   echo ""
-                  echo ">> Special Rendering for $chart_name into kube-system namespace ..."
-                  TEMPLATE=$(helm template $chart_name ./ --namespace kube-system --include-crds --dry-run=server --api-versions "gateway.networking.k8s.io/v1/HTTPRoute")
+                  echo ">> Special Rendering for ${CHART_NAME} into 'kube-system' namespace ..."
                   ;;
                 *)
                   echo ""
-                  echo ">> Standard Rendering for $chart_name ..."
-                  TEMPLATE=$(helm template "$chart_name" ./ --namespace "$chart_name" --include-crds --dry-run=server --api-versions "gateway.networking.k8s.io/v1/HTTPRoute")
-                  ;;
+                  echo ">> Standard Rendering for ${CHART_NAME} ..."
               esac
 
               echo ""
               echo ">> Formating rendered template ..."
-              echo "$TEMPLATE" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"$OUTPUT_FOLDER"'" + .kind + "-" + .metadata.name + ".yaml"'
+              local TEMPLATE
+              TEMPLATE=$(helm template "${CHART_NAME}" ./ --namespace "${NAMESPACE}" --include-crds --dry-run=server --api-versions "gateway.networking.k8s.io/v1/HTTPRoute")
+
+              # Format and split rendered template
+              echo "${TEMPLATE}" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${OUTPUT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
 
               # Strip comments again to ensure formatting correctness
               for file in "$OUTPUT_FOLDER"/*; do
@@ -219,15 +231,23 @@ jobs:
               done
 
               echo ""
-              echo ">> Manifests for $chart_name rendered to $OUTPUT_FOLDER"
+              echo ">> Manifests for ${CHART_NAME} rendered to ${OUTPUT_FOLDER}:"
               ls $OUTPUT_FOLDER
               echo ""
             else
               echo ""
-              echo ">> Directory $chart_path does not contain a Chart.yaml. Skipping ..."
+              echo ">> Directory ${CHART_PATH} does not contain a Chart.yaml. Skipping ..."
               echo ""
             fi
-          done
+          }
+
+          export -f render_chart
+          export MAIN_DIR CLUSTER MANIFEST_DIR
+
+          # Run rendering in parallel
+          for DIR in ${RENDER_DIR}; do
+            echo "${DIR}"
+          done | xargs -n 1 -P 4 -I {} bash -c 'render_chart "$@"' _ {}
 
           echo "----"
 
@@ -235,16 +255,18 @@ jobs:
         id: check-changes
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
         run: |
-          cd ${MANIFEST_DIR}
+          cd "${MANIFEST_DIR}"
 
           GIT_CHANGES=$(git status --porcelain)
 
-          if [ -n "$GIT_CHANGES" ]; then
+          if [ -n "${GIT_CHANGES}" ]; then
+            echo ""
             echo ">> Changes detected"
             git status --porcelain
             echo "changes-detected=true" >> $GITEA_OUTPUT
 
           else
+            echo ""
             echo ">> No changes detected, skipping PR creation"
 
           fi
@@ -255,20 +277,23 @@ jobs:
         id: commit-push
         if: steps.check-changes.outputs.changes-detected == 'true'
         run: |
-          cd ${MANIFEST_DIR}
+          cd "${MANIFEST_DIR}"
 
+          echo ""
           echo ">> Commiting changes to ${BRANCH_NAME} ..."
           git add .
           git commit -m "chore: Update manifests after change"
 
           REPO_URL="${{ secrets.REPO_URL }}/${{ gitea.repository }}"
-          echo ">> Pushing changes to $REPO_URL ..."
-          git push -u "https://oauth2:${{ secrets.BOT_TOKEN }}@$(echo $REPO_URL | sed -e 's|https://||')" ${BRANCH_NAME}
+          echo ""
+          echo ">> Pushing changes to ${REPO_URL} ..."
+
+          git push -u "https://oauth2:${{ secrets.BOT_TOKEN }}@${REPO_URL#*://}" "${BRANCH_NAME}"
 
           echo "----"
 
-          echo "HEAD_BRANCH=${BRANCH_NAME}" >> $GITEA_OUTPUT
-          echo "push=true" >> $GITEA_OUTPUT
+          echo "HEAD_BRANCH=${BRANCH_NAME}" >> "$GITEA_OUTPUT"
+          echo "push=true" >> "$GITEA_OUTPUT"
 
       - name: Check for Pull Request
         id: check-for-pull-requst
