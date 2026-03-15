@@ -14,7 +14,7 @@ on:
       - 'hosts/**'
 
 env:
-  BASE_BRANCH: "origin/${{ gitea.base_ref }}"
+  BASE_BRANCH: "origin/${{ github.base_ref }}"
 
 jobs:
   lint-docker-compose:
@@ -36,19 +36,20 @@ jobs:
         id: branch-exists
         if: github.event_name == 'push' || steps.check-branch-exists.outputs.exists == 'true' && github.event_name == 'pull_request'
         run: |
-          if [ ${{ github.event_name == 'push' }} ]; then
+          if [ "${{ github.event_name }}" == "push" ]; then
             echo ">> Action is from a push event, will continue with linting"
 
           else
-            echo ">> Branch ${{ gitea.base_ref }} exists, will continue with linting"
+            echo ">> Branch ${{ github.base_ref }} exists, will continue with linting"
 
           fi
 
+          echo ""
           echo "----"
 
-          echo "exists=true" >> $GITEA_OUTPUT
+          echo "exists=true" >> $GITHUB_OUTPUT
 
-      - name: Set up Node.js
+      - name: Set Up Node.js
         if: steps.branch-exists.outputs.exists == 'true'
         uses: actions/setup-node@v6
         with:
@@ -58,58 +59,48 @@ jobs:
         id: check-dir-changes
         if: steps.branch-exists.outputs.exists == 'true'
         run: |
-          CHANGED_COMPOSE=()
-
           echo ">> Target branch for diff is: ${BASE_BRANCH}"
 
           if [ "${{ github.event_name }}" == "pull_request" ]; then
+            DIFF_TARGET="${BASE_BRANCH}"
             echo ""
             echo ">> Checking for changes in a pull request ..."
-            GIT_DIFF=$(git diff --name-only "${BASE_BRANCH}" | xargs -I {} dirname {} | sort -u)
+
           else
+            DIFF_TARGET="${{ github.event.before }}..HEAD"
             echo ""
             echo ">> Checking for changes from a push ..."
-            GIT_DIFF=$(git diff --name-only ${{ gitea.event.before }}..HEAD | xargs -I {} dirname {} | sort -u)
-          fi
-
-          if [ -n "${GIT_DIFF}" ]; then
-            echo ""
-            echo ">> Changes detected:"
-            echo "$GIT_DIFF"
-
-            for path in $GIT_DIFF; do
-              if echo "$path" | grep -q -E "hosts/[^/]+/[^/]+"; then
-                echo ""
-                echo ">> Adding path: $path"
-                CHANGED_COMPOSE+=$(echo "$path")
-                CHANGED_COMPOSE+=$(echo " ")
-              fi
-            done
-
-          else
-            echo ""
-            echo ">> No changes detected"
 
           fi
+
+          CHANGED_COMPOSE=$(git diff --name-only "${DIFF_TARGET}" | grep -E "^hosts/[^/]+/[^/]+/" | cut -d/ -f1,2,3 | sort -u || true)
 
           if [ -n "${CHANGED_COMPOSE}" ]; then
             echo ""
             echo ">> Compose to Lint:"
-            echo "$(echo "${CHANGED_COMPOSE}" | sort -u)"
+            echo ""
+            echo "${CHANGED_COMPOSE}"
 
+            CHANGED_COMPOSE_CSV=$(echo "$CHANGED_COMPOSE" | paste -sd ',' -)
+
+            echo ""
             echo "----"
 
-            echo "changes-detected=true" >> $GITEA_OUTPUT
-            echo "compose-dir<<EOF" >> $GITEA_OUTPUT
-            echo "$(echo "${CHANGED_COMPOSE}" | sort -u)" >> $GITEA_OUTPUT
-            echo "EOF" >> $GITEA_OUTPUT
+            echo "changes-detected=true" >> $GITHUB_OUTPUT
+            echo "compose-dir-csv=${CHANGED_COMPOSE_CSV}" >> $GITHUB_OUTPUT
+            echo "compose-dir<<EOF" >> $GITHUB_OUTPUT
+            echo "${CHANGED_COMPOSE}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+
           else
             echo ""
             echo ">> Did not find any docker compose files to lint"
 
+            echo ""
             echo "----"
 
-            echo "changes-detected=false" >> $GITEA_OUTPUT
+            echo "changes-detected=false" >> $GITHUB_OUTPUT
+
           fi
 
       - name: Lint Docker Compose
@@ -117,13 +108,16 @@ jobs:
         env:
           CHANGED_COMPOSE: ${{ steps.check-dir-changes.outputs.compose-dir }}
         run: |
-          echo ">> Running dclint on changed compose files:"
-          echo "$CHANGED_COMPOSE"
+          echo ">> Running dclint on changed compose files ..."
 
-          for compose in $CHANGED_COMPOSE; do
-            echo ">> Linting $compose ..."
-            npx dclint $compose
+          for COMPOSE in $CHANGED_COMPOSE; do
+            echo ">> Linting ${COMPOSE} ..."
+            npx dclint ${COMPOSE}
+
           done
+
+          echo ""
+          echo "----"
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@master
@@ -131,11 +125,11 @@ jobs:
         with:
           url: '${{ secrets.NTFY_URL }}'
           topic: '${{ secrets.NTFY_TOPIC }}'
-          title: 'Test Failure - Infrastructure'
+          title: 'Docker Compose Test Failure'
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
-          details: 'Docker linting on Pull Request for Infrastructure has failed!'
+          details: "Docker linting for compose dirs: ${{ steps.check-dir-changes.outputs.compose-dir-csv }}"
           icon: 'https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png'
-          actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/infrastructure/actions?workflow=lint-test-docker-pull.yaml", "clear": true}]'
+          actions: '[{"action": "view", "label": "Open Gitea", "url": "https://gitea.alexlebens.dev/alexlebens/infrastructure/actions?workflow=lint-test-docker.yaml", "clear": true}]'
           image: true
