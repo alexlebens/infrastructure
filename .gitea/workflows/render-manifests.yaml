@@ -80,18 +80,15 @@ jobs:
           DIFF_TARGET=""
 
           if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo ""
             echo ">> Mode: Dispatch/Schedule (Render All)"
             RENDER_ALL="true"
 
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             if [[ "${{ contains(github.event.pull_request.labels.*.name, 'automerge') }}" == "true" ]]; then
-              echo ""
               echo ">> Mode: PR Merged (Automerge)"
               IS_AUTOMERGE="true"
 
             else
-              echo ""
               echo ">> Mode: PR Merged (Standard)"
 
             fi
@@ -99,12 +96,12 @@ jobs:
             DIFF_TARGET="HEAD^..HEAD"
 
           elif [[ "${{ github.event_name }}" == "push" ]]; then
-            echo ""
             echo ">> Mode: Push (Standard)"
             DIFF_TARGET="${{ github.event.before }}..HEAD"
 
           fi
 
+          echo ""
           echo "----"
 
           echo "is_automerge=${IS_AUTOMERGE}" >> "$GITHUB_OUTPUT"
@@ -118,7 +115,6 @@ jobs:
         run: |
           cd "${MANIFEST_DIR}"
 
-          echo ""
           echo ">> Configure git to use gitea-bot as user ..."
           git config user.name "gitea-bot"
           git config user.email "gitea-bot@alexlebens.net"
@@ -149,6 +145,7 @@ jobs:
             fi
           fi
 
+          echo ""
           echo "----"
 
           echo "BRANCH_NAME=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
@@ -162,12 +159,10 @@ jobs:
           cd "${MAIN_DIR}"
 
           if [[ "$RENDER_ALL" == "true" ]]; then
-            echo ""
             echo ">> Triggered on dispatch, will check all paths ..."
             RENDER_DIR=$(find "clusters/${CLUSTER}/helm" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort -u)
 
           else
-            echo ""
             echo ">> Checking for changes from ${DIFF_TARGET} ..."
             RENDER_DIR=$(git diff --name-only "${DIFF_TARGET}" | grep -E "^clusters/${CLUSTER}/helm/" | awk -F '/' '{print $4}' | sort -u || true)
 
@@ -176,6 +171,7 @@ jobs:
           if [ -n "${RENDER_DIR}" ]; then
             echo ""
             echo ">> Directories to Render:"
+            echo ""
             echo "${RENDER_DIR}"
 
             echo "----"
@@ -190,6 +186,7 @@ jobs:
             echo ""
             echo ">> No chart changes detected"
 
+            echo ""
             echo "----"
 
             echo "changes-detected=false" >> "$GITHUB_OUTPUT"
@@ -203,18 +200,15 @@ jobs:
         run: |
           cd "${MAIN_DIR}"
 
-          echo ""
           echo ">> Adding repositories for chart dependencies ..."
+          echo ""
 
           for DIR in ${RENDER_DIR}; do
             helm dependency list --max-col-width 120 "${MAIN_DIR}/clusters/${CLUSTER}/helm/${DIR}" 2> /dev/null \
               | tail -n +2 \
               | awk 'NF > 0 { print $1, $3 }' \
               | while read -r REPO_NAME REPO_URL; do
-                if [[ "${REPO_URL}" == oci://* ]]; then
-                  echo ">> Ignoring OCI repo: ${REPO_URL}"
-
-                elif [[ -n "${REPO_NAME}" && -n "${REPO_URL}" ]]; then
+                if [[ -n "${REPO_NAME}" && -n "${REPO_URL}" ]]; then
                   helm repo add "${REPO_NAME}" "${REPO_URL}"
 
                 fi
@@ -229,6 +223,7 @@ jobs:
 
           fi
 
+          echo ""
           echo "----"
 
       - name: Remove Changed Manifest Files
@@ -238,18 +233,17 @@ jobs:
         run: |
           cd "${MANIFEST_DIR}"
 
-          echo ""
           echo ">> Remove manifest files and rebuild from source ..."
 
           for DIR in ${RENDER_DIR}; do
             CHART_PATH="${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/${DIR}"
 
-            echo ""
             echo "${CHART_PATH}"
             rm -rf "${CHART_PATH}"/*
 
           done
 
+          echo ""
           echo "----"
 
       - name: Render Helm Manifests
@@ -260,7 +254,6 @@ jobs:
         run: |
           cd "${MAIN_DIR}"
 
-          echo ""
           echo ">> Rendering Manifests ..."
 
           render_chart() {
@@ -306,10 +299,10 @@ jobs:
               echo "${TEMPLATE}" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${OUTPUT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
 
               # Strip comments again to ensure formatting correctness
-              if ls "${OUTPUT_FOLDER}"*.yaml 1> /dev/null 2>&1; then
-                yq -i '... comments=""' "${OUTPUT_FOLDER}"*.yaml
+              for file in "$OUTPUT_FOLDER"/*; do
+                yq -i '... comments=""' $file
 
-              fi
+              done
 
               echo ""
               echo ">> Manifests for ${CHART_NAME} rendered successfully."
@@ -329,8 +322,9 @@ jobs:
           for DIR in ${RENDER_DIR}; do
             echo "${DIR}"
 
-          done | xargs -n 1 -P 4 -I {} bash -c 'render_chart "$@"' _ {}
+          done | xargs -P 4 -I {} bash -c 'render_chart "$@"' _ {}
 
+          echo ""
           echo "----"
 
       - name: Check for Changes
@@ -342,18 +336,18 @@ jobs:
           GIT_CHANGES=$(git status --porcelain)
 
           if [ -n "${GIT_CHANGES}" ]; then
-            echo ""
             echo ">> Changes detected"
             git status --porcelain
 
+            echo ""
             echo "----"
 
             echo "changes-detected=true" >> "$GITHUB_OUTPUT"
 
           else
-            echo ""
             echo ">> No changes detected, skipping PR creation"
 
+            echo ""
             echo "----"
 
           fi
@@ -374,7 +368,6 @@ jobs:
 
           fi
 
-          echo ""
           echo ">> Commiting changes to ${BRANCH_NAME} ..."
           git add .
           git commit -m "${MSG}"
@@ -386,6 +379,7 @@ jobs:
 
           git push -u "https://oauth2:${{ secrets.BOT_TOKEN }}@${REPO_URL#*://}" "${BRANCH_NAME}"
 
+          echo ""
           echo "----"
 
           echo "push=true" >> "$GITHUB_OUTPUT"
@@ -403,7 +397,6 @@ jobs:
 
           API_ENDPOINT="${GITEA_URL}/api/v1/repos/${{ gitea.repository }}/pulls?base_branch=${BASE_BRANCH}&state=open&page=1"
 
-          echo ""
           echo ">> Checking if PR from branch ${HEAD_BRANCH} into ${BASE_BRANCH}"
           echo ">> With Endpoint of:"
           echo "$API_ENDPOINT"
@@ -414,6 +407,7 @@ jobs:
             echo ""
             echo ">> Pull Request has been found open, will update"
 
+            echo ""
             echo "----"
 
             echo "pull-request-exists=$(cat response_body.json | jq -r .[0].number)" >> "$GITHUB_OUTPUT"
@@ -423,6 +417,7 @@ jobs:
             echo ""
             echo ">> Pull Request not found"
 
+            echo ""
             echo "----"
 
             echo "pull-request-exists=false" >> "$GITHUB_OUTPUT"
@@ -463,9 +458,9 @@ jobs:
           HTTP_STATUS=$(curl -X POST -s -w '%{http_code}' -o response_body.json --data "$PAYLOAD" -H "Authorization: token ${GITEA_TOKEN}" -H "Content-Type: application/json" "$API_ENDPOINT")
 
           if [ "$HTTP_STATUS" == "201" ]; then
-            echo ""
             echo ">> Pull Request created successfully!"
 
+            echo ""
             echo "----"
 
             echo "pull-request-url=$(jq -r .html_url response_body.json)" >> "$GITHUB_OUTPUT"
@@ -477,9 +472,15 @@ jobs:
             echo ""
             echo ">> Failed to create PR (Already exists)"
 
+            echo ""
+            echo "----"
+
           else
             echo ""
             echo ">> Failed to create PR, HTTP status code: $HTTP_STATUS"; exit 1
+
+            echo ""
+            echo "----"
 
           fi
 
@@ -500,16 +501,18 @@ jobs:
           HTTP_STATUS=$(curl -X POST -s -w '%{http_code}' -o response_body.json --data "$PAYLOAD" -H "Authorization: token ${GITEA_TOKEN}" -H "Content-Type: application/json" "$API_ENDPOINT")
 
           if [ "$HTTP_STATUS" == "200" ]; then
-            echo ""
             echo ">> Pull Request merged successfully!"
 
+            echo ""
             echo "----"
 
             echo "pull-request-operation=merged" >> "$GITHUB_OUTPUT"
 
           else
-            echo ""
             echo ">> Failed to merge PR, HTTP status code: $HTTP_STATUS"; exit 1
+
+            echo ""
+            echo "----"
 
           fi
 
@@ -520,10 +523,10 @@ jobs:
         run: |
           cd "${MANIFEST_DIR}"
 
-          echo ""
           echo ">> Removing branch: ${BRANCH_NAME}"
           git push origin --delete "${BRANCH_NAME}" || true
 
+          echo ""
           echo "----"
 
       - name: ntfy Created
