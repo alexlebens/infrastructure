@@ -104,14 +104,14 @@ jobs:
           echo ""
           echo "----"
 
-          echo "is_automerge=${IS_AUTOMERGE}" >> "$GITHUB_OUTPUT"
-          echo "render_all=${RENDER_ALL}" >> "$GITHUB_OUTPUT"
-          echo "diff_target=${DIFF_TARGET}" >> "$GITHUB_OUTPUT"
+          echo "is-automerge=${IS_AUTOMERGE}" >> "$GITHUB_OUTPUT"
+          echo "render-all=${RENDER_ALL}" >> "$GITHUB_OUTPUT"
+          echo "diff-target=${DIFF_TARGET}" >> "$GITHUB_OUTPUT"
 
       - name: Prepare Manifest Branch
         id: prepare-manifest-branch
         env:
-          IS_AUTOMERGE: ${{ steps.mode.outputs.is_automerge }}
+          IS_AUTOMERGE: ${{ steps.mode.outputs.is-automerge }}
         run: |
           cd "${MANIFEST_DIR}"
 
@@ -148,13 +148,13 @@ jobs:
           echo ""
           echo "----"
 
-          echo "BRANCH_NAME=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
+          echo "branch-name=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Check Which Directories Have Changes
         id: check-dir-changes
         env:
-          RENDER_ALL: ${{ steps.mode.outputs.render_all }}
-          DIFF_TARGET: ${{ steps.mode.outputs.diff_target }}
+          RENDER_ALL: ${{ steps.mode.outputs.render-all }}
+          DIFF_TARGET: ${{ steps.mode.outputs.diff-target }}
         run: |
           cd "${MAIN_DIR}"
 
@@ -178,7 +178,6 @@ jobs:
             echo "----"
 
             echo "changes-detected=true" >> "$GITHUB_OUTPUT"
-            echo "render-dir-csv=$(echo "${RENDER_DIR}" | paste -sd ',' -)" >> "$GITHUB_OUTPUT"
             echo "render-dir<<EOF" >> "$GITHUB_OUTPUT"
             echo "${RENDER_DIR}" >> "$GITHUB_OUTPUT"
             echo "EOF" >> "$GITHUB_OUTPUT"
@@ -342,10 +341,13 @@ jobs:
             echo ">> Changes detected"
             git status --porcelain
 
+            CHANGED_CHARTS=$(echo "$GIT_CHANGES" | grep -oE "clusters/${CLUSTER}/manifests/[^/]+" | awk -F '/' '{print $4}' | sort -u | paste -sd ',' -)
+
             echo ""
             echo "----"
 
             echo "changes-detected=true" >> "$GITHUB_OUTPUT"
+            echo "changed-charts-csv=${CHANGED_CHARTS}" >> "$GITHUB_OUTPUT"
 
           else
             echo ">> No changes detected, skipping PR creation"
@@ -359,8 +361,8 @@ jobs:
         id: commit-push
         if: steps.check-changes.outputs.changes-detected == 'true'
         env:
-          BRANCH_NAME: ${{ steps.prepare-manifest-branch.outputs.BRANCH_NAME }}
-          IS_AUTOMERGE: ${{ steps.mode.outputs.is_automerge }}
+          BRANCH_NAME: ${{ steps.prepare-manifest-branch.outputs.branch-name }}
+          IS_AUTOMERGE: ${{ steps.mode.outputs.is-automerge }}
         run: |
           cd "${MANIFEST_DIR}"
 
@@ -386,15 +388,15 @@ jobs:
           echo "----"
 
           echo "push=true" >> "$GITHUB_OUTPUT"
-          echo "HEAD_BRANCH=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
+          echo "head-branch=${BRANCH_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Check for Pull Request
         id: check-for-pull-request
-        if: steps.commit-push.outputs.push == 'true' && steps.mode.outputs.is_automerge == 'false'
+        if: steps.commit-push.outputs.push == 'true' && steps.mode.outputs.is-automerge == 'false'
         env:
           GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
           GITEA_URL: ${{ secrets.REPO_URL }}
-          HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
+          HEAD_BRANCH: ${{ steps.commit-push.outputs.head-branch }}
         run: |
           cd "${MANIFEST_DIR}"
 
@@ -429,13 +431,13 @@ jobs:
 
       - name: Create Pull Request
         id: create-pull-request
-        if: steps.commit-push.outputs.push == 'true' && (steps.mode.outputs.is_automerge == 'true' || steps.check-for-pull-request.outputs.pull-request-exists == 'false')
+        if: steps.commit-push.outputs.push == 'true' && (steps.mode.outputs.is-automerge == 'true' || steps.check-for-pull-request.outputs.pull-request-exists == 'false')
         env:
-          IS_AUTOMERGE: ${{ steps.mode.outputs.is_automerge }}
+          IS_AUTOMERGE: ${{ steps.mode.outputs.is-automerge }}
           GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
           GITEA_URL: ${{ secrets.REPO_URL }}
-          HEAD_BRANCH: ${{ steps.commit-push.outputs.HEAD_BRANCH }}
-          CHARTS: ${{ steps.check-dir-changes.outputs.render-dir-csv }}
+          HEAD_BRANCH: ${{ steps.commit-push.outputs.head-branch }}
+          CHARTS: ${{ steps.check-changes.outputs.changed-charts-csv }}
           EVENT_NAME: ${{ github.event_name }}
           ACTOR: ${{ github.actor }}
           SHA: ${{ github.sha }}
@@ -491,12 +493,12 @@ jobs:
 
       - name: Update Pull Request
         id: update-pull-request
-        if: steps.commit-push.outputs.push == 'true' && steps.check-for-pull-request.outputs.pull-request-exists != 'false' && steps.mode.outputs.is_automerge == 'false'
+        if: steps.commit-push.outputs.push == 'true' && steps.check-for-pull-request.outputs.pull-request-exists != 'false' && steps.mode.outputs.is-automerge == 'false'
         env:
           GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
           GITEA_URL: ${{ secrets.REPO_URL }}
           PR_NUMBER: ${{ steps.check-for-pull-request.outputs.pull-request-exists }}
-          CHARTS: ${{ steps.check-dir-changes.outputs.render-dir-csv }}
+          CHARTS: ${{ steps.check-changes.outputs.changed-charts-csv }}
           EVENT_NAME: ${{ github.event_name }}
           ACTOR: ${{ github.actor }}
           SHA: ${{ github.sha }}
@@ -534,7 +536,7 @@ jobs:
 
       - name: Merge Changes
         id: merge-changes
-        if: steps.commit-push.outputs.push == 'true' && steps.mode.outputs.is_automerge == 'true'
+        if: steps.commit-push.outputs.push == 'true' && steps.mode.outputs.is-automerge == 'true'
         env:
           GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
           GITEA_URL: ${{ secrets.REPO_URL }}
@@ -565,9 +567,9 @@ jobs:
           fi
 
       - name: Cleanup Branch
-        if: failure() && steps.mode.outputs.is_automerge == 'true'
+        if: failure() && steps.mode.outputs.is-automerge == 'true'
         env:
-          BRANCH_NAME: ${{ steps.prepare-manifest-branch.outputs.BRANCH_NAME }}
+          BRANCH_NAME: ${{ steps.prepare-manifest-branch.outputs.branch-name }}
         run: |
           cd "${MANIFEST_DIR}"
 
@@ -579,7 +581,7 @@ jobs:
 
       - name: ntfy Created
         uses: niniyas/ntfy-action@master
-        if: steps.create-pull-request.outputs.pull-request-operation == 'created' && steps.mode.outputs.is_automerge == 'false'
+        if: steps.create-pull-request.outputs.pull-request-operation == 'created' && steps.mode.outputs.is-automerge == 'false'
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
@@ -587,13 +589,13 @@ jobs:
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Created renderd manifests for cluster '${CLUSTER}' with charts: ${{ steps.check-dir-changes.outputs.render-dir-csv }}"
+          details: "Created renderd manifests for cluster '${CLUSTER}' with charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions: '[{"action": "view", "label": "Open Gitea", "url": "${{ steps.create-pull-request.outputs.pull-request-url }}", "clear": true}]'
 
       - name: ntfy Updated
         uses: niniyas/ntfy-action@master
-        if: steps.commit-push.outputs.push == 'true' && steps.check-for-pull-request.outputs.pull-request-exists != 'false' && steps.mode.outputs.is_automerge == 'false'
+        if: steps.commit-push.outputs.push == 'true' && steps.check-for-pull-request.outputs.pull-request-exists != 'false' && steps.mode.outputs.is-automerge == 'false'
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
@@ -601,7 +603,7 @@ jobs:
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Updated rendered manifests PR for cluster '${CLUSTER}' with charts: ${{ steps.check-dir-changes.outputs.render-dir-csv }}"
+          details: "Updated rendered manifests PR for cluster '${CLUSTER}' with charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions: '[{"action": "view", "label": "Open Gitea", "url": "${{ steps.check-for-pull-request.outputs.pull-request-url }}", "clear": true}]'
 
@@ -615,7 +617,7 @@ jobs:
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Automerged manifest rendering for cluster '${CLUSTER}' with charts: ${{ steps.check-dir-changes.outputs.render-dir-csv }}"
+          details: "Automerged manifest rendering for cluster '${CLUSTER}' with charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions: '[{"action": "view", "label": "Open Gitea", "url": "${{ steps.create-pull-request.outputs.pull-request-url }}", "clear": true}]'
 
