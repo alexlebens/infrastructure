@@ -1,0 +1,85 @@
+medialyze:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/frederikemmer/medialyze
+            tag: 0.2.1
+            pullPolicy: IfNotPresent
+          env:
+            - name: HOST_PORT
+              value: 8080
+            - name: SCAN_RUNTIME_WORKER_COUNT
+              value: 2
+            - name: TZ
+              value: America/Chicago
+            - name: MEDIA_HOST_DIR
+              value: /media
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8080
+          protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - medialyze.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: medialyze
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      forceRename: medialyze-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    media:
+      existingClaim: medialyze-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /media
+              readOnly: true
+volsync-target-data:
+  pvcTarget: medialyze-data
+  local:
+    enabled: true
+    schedule: 36 11 * * *
+  remote:
+    enabled: true
+    schedule: 36 12 * * *
+  external:
+    enabled: true
+    schedule: 36 14 * * *
