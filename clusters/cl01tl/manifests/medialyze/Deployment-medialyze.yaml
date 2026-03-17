@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medialyze
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: medialyze
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: medialyze
+    helm.sh/chart: medialyze-4.6.2
+  namespace: medialyze
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: medialyze
+      app.kubernetes.io/instance: medialyze
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: medialyze
+        app.kubernetes.io/name: medialyze
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: HOST_PORT
+              value: "8080"
+            - name: SCAN_RUNTIME_WORKER_COUNT
+              value: "2"
+            - name: TZ
+              value: America/Chicago
+            - name: MEDIA_HOST_DIR
+              value: /media
+          image: ghcr.io/frederikemmer/medialyze:0.2.1
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /config
+              name: data
+            - mountPath: /media
+              name: media
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: medialyze-data
+        - name: media
+          persistentVolumeClaim:
+            claimName: medialyze-nfs-storage
