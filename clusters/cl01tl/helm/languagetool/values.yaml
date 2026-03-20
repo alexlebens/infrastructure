@@ -1,0 +1,76 @@
+languagetool:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: erikvl87/languagetool
+            tag: 6.7
+            pullPolicy: IfNotPresent
+          env:
+            - name: langtool_languageModel
+              value: /ngrams
+            - name: Java_Xms
+              value: 512m
+            - name: Java_Xmx
+              value: 1g
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8010
+          protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - languagetool.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: languagetool
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      forceRename: languagetool-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /ngrams
+              readOnly: false
+volsync-target-data:
+  pvcTarget: languagetool-data
+  local:
+    enabled: true
+    schedule: 38 11 * * *
+  remote:
+    enabled: true
+    schedule: 38 12 * * *
+  external:
+    enabled: true
+    schedule: 38 14 * * *
