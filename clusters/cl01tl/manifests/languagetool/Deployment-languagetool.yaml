@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: languagetool
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: languagetool
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: languagetool
+    helm.sh/chart: languagetool-4.6.2
+  namespace: languagetool
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: languagetool
+      app.kubernetes.io/instance: languagetool
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: languagetool
+        app.kubernetes.io/name: languagetool
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: langtool_languageModel
+              value: /ngrams
+            - name: Java_Xms
+              value: 512m
+            - name: Java_Xmx
+              value: 1g
+          image: erikvl87/languagetool:6.7
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /ngrams
+              name: data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: languagetool-data
