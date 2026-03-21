@@ -1,0 +1,75 @@
+houndarr:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/av1155/houndarr
+            tag: v1.3.2
+            pullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: HOUNDARR_SECURE_COOKIES
+              value: true
+            - name: HOUNDARR_TRUSTED_PROXIES
+              value: 10.96.0.0/12
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8877
+          protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - houndarr.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: houndarr
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      forceRename: houndarr-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+volsync-target-data:
+  pvcTarget: houndarr-data
+  local:
+    enabled: true
+    schedule: 40 11 * * *
+  remote:
+    enabled: true
+    schedule: 40 12 * * *
+  external:
+    enabled: true
+    schedule: 40 14 * * *
