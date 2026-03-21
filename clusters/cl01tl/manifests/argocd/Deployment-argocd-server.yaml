@@ -369,8 +369,6 @@ spec:
               name: tmp
             - name: argocd-cmd-params-cm
               mountPath: /home/argocd/params
-            - mountPath: /tmp/extensions
-              name: extensions
           ports:
             - name: server
               containerPort: 8080
@@ -406,31 +404,6 @@ spec:
             runAsNonRoot: true
             seccompProfile:
               type: RuntimeDefault
-      initContainers:
-        - name: extension-trivy
-          image: quay.io/argoprojlabs/argocd-extension-installer:v0.0.9
-          imagePullPolicy: IfNotPresent
-          resources: {}
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 1000
-            seccompProfile:
-              type: RuntimeDefault
-          volumeMounts:
-            - name: extensions
-              mountPath: /tmp/extensions/
-            - name: tmp
-              mountPath: /tmp
-          env:
-            - name: EXTENSION_URL
-              value: https://github.com/mziyabo/argocd-trivy-extension/releases/download/v0.2.0/extension-trivy.tar
-            - name: EXTENSION_CHECKSUM_URL
-              value: https://github.com/mziyabo/argocd-trivy-extension/releases/download/v0.2.0/extension-trivy_checksums.txt
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -443,8 +416,6 @@ spec:
       nodeSelector:
         kubernetes.io/os: linux
       volumes:
-        - name: extensions
-          emptyDir: {}
         - name: plugins-home
           emptyDir: {}
         - name: tmp
