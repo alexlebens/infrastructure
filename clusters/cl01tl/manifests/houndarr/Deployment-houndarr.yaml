@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: decluttarr
+  name: houndarr
   labels:
     app.kubernetes.io/controller: main
-    app.kubernetes.io/instance: decluttarr
+    app.kubernetes.io/instance: houndarr
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: decluttarr
-    helm.sh/chart: decluttarr-4.6.2
-  namespace: decluttarr
+    app.kubernetes.io/name: houndarr
+    helm.sh/chart: houndarr-4.6.2
+  namespace: houndarr
 spec:
   revisionHistoryLimit: 3
   replicas: 1
@@ -17,14 +17,14 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/controller: main
-      app.kubernetes.io/name: decluttarr
-      app.kubernetes.io/instance: decluttarr
+      app.kubernetes.io/name: houndarr
+      app.kubernetes.io/instance: houndarr
   template:
     metadata:
       labels:
         app.kubernetes.io/controller: main
-        app.kubernetes.io/instance: decluttarr
-        app.kubernetes.io/name: decluttarr
+        app.kubernetes.io/instance: houndarr
+        app.kubernetes.io/name: houndarr
     spec:
       enableServiceLinks: false
       serviceAccountName: default
@@ -37,7 +37,11 @@ spec:
         - env:
             - name: TZ
               value: America/Chicago
-          image: ghcr.io/manimatter/decluttarr:v2.0.0
+            - name: HOUNDARR_SECURE_COOKIES
+              value: "true"
+            - name: HOUNDARR_TRUSTED_PROXIES
+              value: 10.96.0.0/12
+          image: ghcr.io/av1155/houndarr:v1.3.2
           imagePullPolicy: IfNotPresent
           name: main
           resources:
@@ -45,12 +49,9 @@ spec:
               cpu: 10m
               memory: 128Mi
           volumeMounts:
-            - mountPath: /app/config/config.yaml
-              mountPropagation: None
-              name: config
-              readOnly: true
-              subPath: config.yaml
+            - mountPath: /data
+              name: data
       volumes:
-        - name: config
-          secret:
-            secretName: decluttarr-config-secret
+        - name: data
+          persistentVolumeClaim:
+            claimName: houndarr-data
