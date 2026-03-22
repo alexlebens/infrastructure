@@ -1,0 +1,87 @@
+foldergram:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      revisionHistoryLimit: 3
+      containers:
+        main:
+          image:
+            repository: ghcr.io/foldergram/foldergram
+            tag: v1.0.5
+            pullPolicy: IfNotPresent
+          env:
+            - name: IMAGE_DETAIL_SOURCE
+              value: original
+            - name: DERIVATIVE_MODE
+              value: lazy
+            - name: DATA_ROOT
+              value: ./data
+            - name: GALLERY_ROOT
+              value: /gallery
+            - name: CSRF_TRUSTED_ORIGINS
+              value: https://foldergram.alexlebens.net
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 4141
+          protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - foldergram.alexlebens.net
+      rules:
+        - backendRefs:
+            - group: ''
+              kind: Service
+              name: foldergram
+              port: 80
+              weight: 100
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    cache:
+      forceRename: foldergram-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      retain: false
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data
+              readOnly: false
+    pictures:
+      existingClaim: foldergram-pictures-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /gallery/pictures
+              readOnly: true
+volsync-target-data:
+  pvcTarget: foldergram-data
+  local:
+    enabled: true
+    schedule: 46 11 * * *
+  remote:
+    enabled: true
+    schedule: 46 12 * * *
+  external:
+    enabled: true
+    schedule: 46 13 * * *
