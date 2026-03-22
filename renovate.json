@@ -5,6 +5,14 @@
     "mergeConfidence:all-badges",
     ":rebaseStalePrs"
   ],
+  "timezone": "US/Central",
+  "labels": [],
+  "prHourlyLimit": 0,
+  "prConcurrentLimit": 0,
+  "pinDigests": true,
+  "baseBranchPatterns": [
+    "main"
+  ],
   "customManagers": [
     {
       "description": "Update appVersion in Chart.yaml",
@@ -53,14 +61,45 @@
       "versioningTemplate": "semver"
     }
   ],
-  "timezone": "US/Central",
-  "labels": [],
-  "prHourlyLimit": 0,
-  "prConcurrentLimit": 0,
-  "baseBranchPatterns": [
-    "main"
-  ],
   "packageRules": [
+    {
+      "description": "Disable updates to digests",
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Label charts and docker, merged",
+      "matchManagers": [
+        "custom.regex",
+        "helm-values"
+      ],
+      "groupName": "{{#if packageName}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' packageName)}}}{{else}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' depName)}}}{{/if}}",
+      "groupSlug": "unified-{{{groupName}}}",
+      "addLabels": [
+        "image"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Automerge charts and docker, merged",
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "matchManagers": [
+        "custom.regex",
+        "helm-values"
+      ],
+      "groupName": "{{#if packageName}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' packageName)}}}{{else}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' depName)}}}{{/if}}",
+      "groupSlug": "unified-{{{groupName}}}",
+      "addLabels": [
+        "image",
+        "automerge"
+      ],
+      "automerge": true,
+      "minimumReleaseAge": "1 days"
+    },
     {
       "description": "Label charts",
       "matchDatasources": [
@@ -102,19 +141,6 @@
       "automergeType": "branch"
     },
     {
-      "description": "Label images, helm",
-      "matchManagers": [
-        "custom.regex",
-        "helm-values"
-      ],
-      "groupName": "{{#if packageName}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' packageName)}}}{{else}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' depName)}}}{{/if}}",
-      "groupSlug": "unified-{{{groupName}}}",
-      "addLabels": [
-        "image"
-      ],
-      "automerge": false
-    },
-    {
       "description": "Label images, docker",
       "matchDatasources": [
         "docker"
@@ -125,29 +151,9 @@
       "automerge": false
     },
     {
-      "description": "Automerge image patches, helm",
-      "matchUpdateTypes": [
-        "patch",
-        "digest"
-      ],
-      "matchManagers": [
-        "custom.regex",
-        "helm-values"
-      ],
-      "groupName": "{{#if packageName}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' packageName)}}}{{else}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' depName)}}}{{/if}}",
-      "groupSlug": "unified-{{{groupName}}}",
-      "addLabels": [
-        "image",
-        "automerge"
-      ],
-      "automerge": true,
-      "minimumReleaseAge": "1 days"
-    },
-    {
       "description": "Automerge image patches, docker",
       "matchUpdateTypes": [
-        "patch",
-        "digest"
+        "patch"
       ],
       "matchDatasources": [
         "docker"
