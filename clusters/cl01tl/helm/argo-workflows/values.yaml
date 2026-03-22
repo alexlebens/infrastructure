@@ -2,8 +2,6 @@ argo-workflows:
   crds:
     install: true
     keep: true
-    # -- Use full CRDs with complete OpenAPI schemas. When false, uses minified CRDs with x-kubernetes-preserve-unknown-fields.
-    # Full CRDs are very large and are installed via a pre-install/pre-upgrade hook Job that uses server-side apply.
     full: true
     upgradeJob:
       image:
@@ -13,11 +11,6 @@ argo-workflows:
     metricsConfig:
       enabled: true
     persistence:
-      connectionPool:
-        maxIdleConns: 100
-        maxOpenConns: 0
-      nodeStatusOffLoad: true
-      archive: true
       postgresql:
         host: argo-workflows-postgresql-18-cluster-rw
         port: 5432
@@ -32,24 +25,34 @@ argo-workflows:
         ssl: false
         sslMode: disable
     workflowWorkers: 2
-    workflowTTLWorkers: 1
-    podCleanupWorkers: 1
-    cronWorkflowWorkers: 1
+    workflowTTLWorkers: 2
+    podCleanupWorkers: 2
+    cronWorkflowWorkers: 2
     resources:
       requests:
         cpu: 10m
-        memory: 128Mi
+        memory: 32Mi
     serviceMonitor:
       enabled: true
-    name: workflow-controller
     workflowNamespaces:
-      - argocd
       - argo-workflows
   server:
     authModes:
       - sso
-    ingress:
-      enabled: false
+    httproute:
+      enabled: true
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - argo-workflows.alexlebens.net
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
     sso:
       enabled: true
       issuer: https://authentik.alexlebens.net/application/o/argo-workflows/
@@ -66,15 +69,15 @@ argo-workflows:
         - openid
         - email
         - profile
-  useStaticCredentials: true
-  artifactRepository:
-    archiveLogs: false
 argo-events:
+  crds:
+    install: true
+    keep: true
   controller:
     resources:
       requests:
         cpu: 10m
-        memory: 128Mi
+        memory: 32Mi
     metrics:
       enabled: true
       serviceMonitor:
@@ -84,7 +87,7 @@ argo-events:
     resources:
       requests:
         cpu: 10m
-        memory: 128Mi
+        memory: 32Mi
 postgres-18-cluster:
   mode: recovery
   recovery:
@@ -98,32 +101,9 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 0 14 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
