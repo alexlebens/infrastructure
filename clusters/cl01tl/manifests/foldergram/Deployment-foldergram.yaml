@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: foldergram
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: foldergram
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: foldergram
+    helm.sh/chart: foldergram-4.6.2
+  namespace: foldergram
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: foldergram
+      app.kubernetes.io/instance: foldergram
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: foldergram
+        app.kubernetes.io/name: foldergram
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: IMAGE_DETAIL_SOURCE
+              value: original
+            - name: DERIVATIVE_MODE
+              value: lazy
+            - name: DATA_ROOT
+              value: ./data
+            - name: GALLERY_ROOT
+              value: /gallery
+            - name: CSRF_TRUSTED_ORIGINS
+              value: https://foldergram.alexlebens.net
+          image: ghcr.io/foldergram/foldergram:v1.0.5
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /app/data
+              name: cache
+            - mountPath: /gallery/pictures
+              name: pictures
+              readOnly: true
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: foldergram-data
+        - name: pictures
+          persistentVolumeClaim:
+            claimName: foldergram-pictures-nfs-storage
