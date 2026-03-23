@@ -4,28 +4,25 @@ audiobookshelf:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/advplyr/audiobookshelf
-            tag: 2.33.1
-            pullPolicy: IfNotPresent
+            tag: 2.33.1@sha256:a4a5841bba093d81e5f4ad1eaedb4da3fda6dbb2528c552349da50ad1f7ae708
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 200Mi
         apprise-api:
           image:
-            repository: caronc/apprise
-            tag: v1.3.2
-            pullPolicy: IfNotPresent
+            repository: ghcr.io/caronc/apprise
+            tag: v1.3.2@sha256:1aafc2118b6eae5d70d17831d9a8a52adee7104fd6f2bb018e6421664699c903
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: PGID
               value: "1000"
             - name: PUID
@@ -41,10 +38,6 @@ audiobookshelf:
                 secretKeyRef:
                   name: audiobookshelf-apprise-config
                   key: ntfy-url
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
   service:
     main:
       controller: main
@@ -82,11 +75,8 @@ audiobookshelf:
         - audiobookshelf.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: audiobookshelf
+            - name: audiobookshelf
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -97,7 +87,6 @@ audiobookshelf:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 2Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -108,7 +97,6 @@ audiobookshelf:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 10Gi
-      retain: true
       advancedMounts:
         main:
           main:
