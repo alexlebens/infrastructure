@@ -9,7 +9,6 @@ backrest:
           image:
             repository: ghcr.io/garethgeorge/backrest
             tag: v1.12.1@sha256:f4d34bd6fa985d13bdb6c01c5d8727e07708899afa9567d800808357d77b9fb0
-            pullPolicy: IfNotPresent
           env:
             - name: TZ
               value: America/Chicago
@@ -33,6 +32,19 @@ backrest:
           port: 80
           targetPort: 9898
           protocol: TCP
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: backrest
+          app.kubernetes.io/instance: backrest
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: http
+          scheme: http
+          path: /metrics
+          interval: 300s
+          scrapeTimeout: 15s
   route:
     main:
       kind: HTTPRoute
