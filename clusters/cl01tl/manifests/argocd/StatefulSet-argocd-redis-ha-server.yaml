@@ -47,7 +47,7 @@ spec:
       automountServiceAccountToken: false
       initContainers:
         - name: config-init
-          image: ecr-public.aws.com/docker/library/redis:8.2.3-alpine
+          image: redis:8.6.1-alpine@sha256:315270d166080f537bbdf1b489b603aaaa213cb55a544acfa51feb7481abb1c0
           imagePullPolicy: IfNotPresent
           resources: {}
           command:
@@ -79,7 +79,7 @@ spec:
               mountPath: /data
       containers:
         - name: redis
-          image: ecr-public.aws.com/docker/library/redis:8.2.3-alpine
+          image: redis:8.6.1-alpine@sha256:315270d166080f537bbdf1b489b603aaaa213cb55a544acfa51feb7481abb1c0
           imagePullPolicy: IfNotPresent
           command:
             - redis-server
@@ -128,7 +128,10 @@ spec:
                 - sh
                 - -c
                 - /health/redis_readiness.sh
-          resources: {}
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 64Mi
           ports:
             - name: redis
               containerPort: 6379
@@ -147,7 +150,7 @@ spec:
                   - /bin/sh
                   - /readonly-config/trigger-failover-if-master.sh
         - name: sentinel
-          image: ecr-public.aws.com/docker/library/redis:8.2.3-alpine
+          image: redis:8.6.1-alpine@sha256:315270d166080f537bbdf1b489b603aaaa213cb55a544acfa51feb7481abb1c0
           imagePullPolicy: IfNotPresent
           command:
             - redis-sentinel
@@ -207,7 +210,7 @@ spec:
               name: health
           lifecycle: {}
         - name: split-brain-fix
-          image: ecr-public.aws.com/docker/library/redis:8.2.3-alpine
+          image: redis:8.6.1-alpine@sha256:315270d166080f537bbdf1b489b603aaaa213cb55a544acfa51feb7481abb1c0
           imagePullPolicy: IfNotPresent
           command:
             - sh
@@ -237,6 +240,43 @@ spec:
               readOnly: true
             - mountPath: /data
               name: data
+        - name: redis-exporter
+          image: "ghcr.io/oliver006/redis_exporter:v1.82.0@sha256:6a97d4dd743b533e1f950c677b87d880e44df363c61af3f406fc9e53ed65ee03"
+          imagePullPolicy: IfNotPresent
+          args:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: REDIS_ADDR
+              value: redis://localhost:6379
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9121
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9121
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 2
+            timeoutSeconds: 3
+          resources: {}
+          ports:
+            - name: exporter-port
+              containerPort: 9121
+          volumeMounts:
       volumes:
         - name: config
           configMap:
@@ -245,5 +285,16 @@ spec:
           configMap:
             name: argocd-redis-ha-health-configmap
             defaultMode: 0755
-        - name: data
-          emptyDir: {}
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: data
+        annotations:
+        labels: {}
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "10Gi"

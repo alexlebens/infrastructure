@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argocd-redis-ha
+spec:
+  groups:
+    - name: argocd-redis-ha
+      interval: 30s
+      rules:
+        - alert: RedisPodDown
+          annotations:
+            description: Redis pod {{ $labels.pod }} is down
+            summary: Redis pod {{ $labels.pod }} is down
+          expr: |
+            redis_up{job="argocd-redis-ha"} == 0
+          for: 5m
+          labels:
+            severity: critical

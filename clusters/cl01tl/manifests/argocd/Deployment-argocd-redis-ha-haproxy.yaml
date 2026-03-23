@@ -28,9 +28,6 @@ spec:
         component: haproxy
         app.kubernetes.io/name: argocd-redis-ha-haproxy
       annotations:
-        prometheus.io/port: "9101"
-        prometheus.io/scrape: "true"
-        prometheus.io/path: "/metrics"
         checksum/config: 41729c8b600983b574147eb778eb317992f0a620e163e58b070b159548c3f8e6
     spec:
       serviceAccountName: argocd-redis-ha-haproxy
@@ -52,7 +49,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       initContainers:
         - name: config-init
-          image: ecr-public.aws.com/docker/library/haproxy:3.0.8-alpine
+          image: haproxy:3.3.6-alpine@sha256:744be2dca649a44d490a4c565d36968d19482dd387f1bdd44c168f4322bc6b1e
           imagePullPolicy: IfNotPresent
           resources: {}
           command:
@@ -76,7 +73,7 @@ spec:
               mountPath: /data
       containers:
         - name: haproxy
-          image: ecr-public.aws.com/docker/library/haproxy:3.0.8-alpine
+          image: haproxy:3.3.6-alpine@sha256:744be2dca649a44d490a4c565d36968d19482dd387f1bdd44c168f4322bc6b1e
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -106,7 +103,10 @@ spec:
               containerPort: 6379
             - name: metrics-port
               containerPort: 9101
-          resources: {}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
           volumeMounts:
             - name: data
               mountPath: /usr/local/etc/haproxy
