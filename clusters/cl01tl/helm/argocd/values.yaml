@@ -1,12 +1,11 @@
 argo-cd:
   crds:
     install: true
+    keep: true
   configs:
     cm:
       admin.enabled: true
       accounts.homepage: apiKey
-      timeout.reconciliation: 100s
-      timeout.reconciliation.jitter: 60s
       url: https://argocd.alexlebens.net
       statusbadge.url: https://argocd.alexlebens.net/
       statusbadge.enabled: true
@@ -33,12 +32,53 @@ argo-cd:
         g, homepage, role:readonly
   controller:
     replicas: 1
+    resources:
+      requests:
+        cpu: 15m
+        memory: 1Gi
+    readinessProbe:
+      failureThreshold: 3
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 5
     metrics:
       enabled: true
       serviceMonitor:
         enabled: true
+      rules:
+        enabled: true
+      spec:
+        - alert: ArgoAppMissing
+          expr: |
+            absent(argocd_app_info) == 1
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "[Argo CD] No reported applications"
+            description: >
+              Argo CD has not reported any applications data for the past 15 minutes which
+              means that it must be down or not functioning properly.  This needs to be
+              resolved for this cloud to continue to maintain state.
+        - alert: ArgoAppNotSynced
+          expr: |
+            argocd_app_info{sync_status!="Synced"} == 1
+          for: 12h
+          labels:
+            severity: warning
+          annotations:
+            summary: "[{{`{{$labels.name}}`}}] Application not synchronized"
+            description: >
+              The application [{{`{{$labels.name}}`}} has not been synchronized for over
+              12 hours which means that the state of this cloud has drifted away from the
+              state inside Git.
   dex:
     enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
     metrics:
       enabled: true
       serviceMonitor:
@@ -49,13 +89,57 @@ argo-cd:
       enabled: true
   redis-ha:
     enabled: true
+    image:
+      repository: redis
+      tag: 8.6.1@sha256:315270d166080f537bbdf1b489b603aaaa213cb55a544acfa51feb7481abb1c0
+    persistentVolume:
+      enabled: true
+    redis:
+      resources:
+        requests:
+          cpu: 1000m
+          memory: 64Mi
+    haproxy:
+      enabled: true
+      image:
+        repository: haproxy
+        tag: 3.0.19-alpine@sha256:ec781a129b8c4837c76fcb26f7b585708966873b536b9d7aa7cbcc342ae8a76f
+      resources:
+        requests:
+          cpu: 10m
+          memory: 128Mi
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+    exporter:
+      enabled: true
+      image: ghcr.io/oliver006/redis_exporter
+      tag: v1.82.0@sha256:6a97d4dd743b533e1f950c677b87d880e44df363c61af3f406fc9e53ed65ee03
+      serviceMonitor:
+        enabled: true
+    prometheusRule:
+      enabled: true
+      interval: 30s
+      rules:
+        - alert: RedisPodDown
+          expr: |
+            redis_up{job="{{ include "redis-ha.fullname" . }}"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            description: Redis pod {{ "{{ $labels.pod }}" }} is down
+            summary: Redis pod {{ "{{ $labels.pod }}" }} is down
     auth: false
   redisSecretInit:
     enabled: false
   server:
     replicas: 2
-    extensions:
-      enabled: false
+    resources:
+     requests:
+       cpu: 10m
+       memory: 64Mi
     metrics:
       enabled: true
       serviceMonitor:
@@ -69,31 +153,56 @@ argo-cd:
           namespace: traefik
       hostnames:
         - argocd.alexlebens.net
-      rules:
-        - matches:
-            - path:
-                type: PathPrefix
-                value: /
   repoServer:
     replicas: 2
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+    readinessProbe:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 5
+    livenessProbe:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 5
     metrics:
       enabled: true
       serviceMonitor:
         enabled: true
   applicationSet:
     replicas: 2
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
     metrics:
       enabled: true
       serviceMonitor:
         enabled: true
-    livenessProbe:
-      enabled: true
     readinessProbe:
       enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 5
+    livenessProbe:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 5
   notifications:
-    enabled: true
-    context:
-      argocdUrl: https://argocd.alexlebens.net
+    argocdUrl: https://argocd.alexlebens.net
     secret:
       create: false
       name: argocd-notifications-secret
@@ -107,6 +216,10 @@ argo-cd:
         headers:
           - name: Authorization
             value: Bearer $ntfy-token
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
     livenessProbe:
       enabled: true
     readinessProbe:
