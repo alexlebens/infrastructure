@@ -30,8 +30,23 @@ authentik:
     redis:
       host: authentik-valkey
   server:
-    name: server
-    replicas: 1
+    replicas: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 700Mi
+    livenessProbe:
+      failureThreshold: 3
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 5
+    readinessProbe:
+      failureThreshold: 3
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 5
     metrics:
       enabled: true
       serviceMonitor:
@@ -39,8 +54,6 @@ authentik:
     route:
       main:
         enabled: true
-        apiVersion: gateway.networking.k8s.io/v1
-        kind: HTTPRoute
         hostnames:
           - authentik.alexlebens.net
         parentRefs:
@@ -48,21 +61,20 @@ authentik:
             kind: Gateway
             name: traefik-gateway
             namespace: traefik
-        httpsRedirect: false
-        matches:
-          - path:
-              type: PathPrefix
-              value: /
   worker:
     name: worker
-    replicas: 1
+    replicas: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
   prometheus:
     rules:
       enabled: true
-  postgresql:
-    enabled: false
-  redis:
-    enabled: false
 postgres-18-cluster:
   mode: recovery
   recovery:
@@ -76,32 +88,9 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 5 14 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
