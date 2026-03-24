@@ -9,7 +9,7 @@ komodo:
         main:
           image:
             repository: ghcr.io/moghtech/komodo-core
-            tag: 1.19.5
+            tag: 2.0.0@sha256:3cc134272b39313ae1fb34ea8a3c8a0c2f629a3c2eeaf71258702159f154f9e9
             pullPolicy: IfNotPresent
           env:
             - name: COMPOSE_LOGGING_DRIVER
@@ -145,6 +145,17 @@ komodo:
                 type: PathPrefix
                 value: /
   persistence:
+    keys:
+      forceRename: komodo-keys
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      retain: true
+      advancedMounts:
+        main:
+          main:
+            - path: /config/keys
+              readOnly: false
     cache:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
@@ -242,3 +253,14 @@ postgresql-17-fdb-cluster:
       #   immediate: true
       #   schedule: "0 0 0 * * *"
       #   backupName: external
+volsync-target-keys:
+  pvcTarget: komodo-keys
+  local:
+    enabled: true
+    schedule: 54 11 * * *
+  remote:
+    enabled: true
+    schedule: 54 12 * * *
+  external:
+    enabled: true
+    schedule: 54 13 * * *
