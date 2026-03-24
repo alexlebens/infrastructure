@@ -1,0 +1,233 @@
+grimmory:
+  controllers:
+    main:
+      type: deployment
+      replicas: 0
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+      containers:
+        main:
+          image:
+            repository: ghcr.io/grimmory-tools/grimmory
+            tag: v2.3.0@sha256:9014247f591074529894f81115ca40f899db697e89f72c2fe91ec530e3f19597
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: USER_ID
+              value: 1000
+            - name: GROUP_ID
+              value: 1000
+            - name: DATABASE_URL
+              value: jdbc:mariadb://grimmory-mariadb-cluster-primary.grimmory:3306/booklore
+            - name: DATABASE_USERNAME
+              value: grimmory
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grimmory-database-secret
+                  key: password
+            - name: GRIMMORY_PORT
+              value: 6060
+            - name: SWAGGER_ENABLED
+              value: false
+          resources:
+            requests:
+              cpu: 10m
+              memory: 1Gi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 6060
+          protocol: HTTP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - grimmory.alexlebens.net
+      rules:
+        - backendRefs:
+            - name: grimmory
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    config:
+      forceRename: grimmory-config
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data
+              readOnly: false
+    books-import:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /bookdrop
+              readOnly: false
+    data:
+      existingClaim: grimmory-books-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+              readOnly: false
+    ingest:
+      existingClaim: grimmory-books-import-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /bookdrop/ingest
+              readOnly: false
+mariadb-cluster:
+  mariadb:
+    rootPasswordSecretKeyRef:
+      generate: false
+      name: grimmory-database-secret
+      key: password
+    storage:
+      size: 5Gi
+    replicas: 3
+    galera:
+      enabled: true
+    bootstrapFrom:
+      s3:
+        bucket: mariadb-backups-b230a2f5aecf080a4b372c08
+        prefix: cl01tl/booklore
+        endpoint: nyc3.digitaloceanspaces.com
+        region: us-east-1
+        accessKeyIdSecretKeyRef:
+          name: grimmory-mariadb-cluster-backup-secret-external
+          key: access
+        secretAccessKeySecretKeyRef:
+          name: grimmory-mariadb-cluster-backup-secret-external
+          key: secret
+        tls:
+          enabled: true
+      backupContentType: Physical
+  databases:
+    - name: booklore
+      characterSet: utf8
+      collate: utf8_general_ci
+      cleanupPolicy: Delete
+      requeueInterval: 10h
+  users:
+    - name: grimmory
+      passwordSecretKeyRef:
+        name: grimmory-database-secret
+        key: password
+      host: '%'
+      cleanupPolicy: Delete
+      requeueInterval: 10h
+      retryInterval: 30s
+  grants:
+    - name: grimmory
+      privileges:
+        - "ALL PRIVILEGES"
+      database: "booklore"
+      table: "*"
+      username: grimmory
+      grantOption: true
+      host: '%'
+      cleanupPolicy: Delete
+      requeueInterval: 10h
+      retryInterval: 30s
+  physicalBackups:
+    - name: backup-external
+      schedule:
+        cron: "0 0 * * 0"
+        suspend: false
+        immediate: true
+      compression: gzip
+      maxRetention: 2160h
+      successfulJobsHistoryLimit: 1
+      storage:
+        s3:
+          bucket: mariadb-backups-b230a2f5aecf080a4b372c08
+          prefix: cl01tl/grimmory
+          endpoint: nyc3.digitaloceanspaces.com
+          region: us-east-1
+          accessKeyIdSecretKeyRef:
+            name: grimmory-mariadb-cluster-backup-secret-external
+            key: access
+          secretAccessKeySecretKeyRef:
+            name: grimmory-mariadb-cluster-backup-secret-external
+            key: secret
+          tls:
+            enabled: true
+    - name: backup-remote
+      schedule:
+        cron: "0 0 * * 0"
+        suspend: false
+        immediate: true
+      compression: gzip
+      maxRetention: 2160h
+      successfulJobsHistoryLimit: 1
+      storage:
+        s3:
+          bucket: mariadb-backups
+          prefix: cl01tl/grimmory
+          endpoint: garage-ps10rp.boreal-beaufort.ts.net:3900
+          region: us-east-1
+          accessKeyIdSecretKeyRef:
+            name: grimmory-mariadb-cluster-backup-secret-garage
+            key: access
+          secretAccessKeySecretKeyRef:
+            name: grimmory-mariadb-cluster-backup-secret-garage
+            key: secret
+          tls:
+            enabled: true
+    - name: backup-garage
+      schedule:
+        cron: "0 0 * * *"
+        suspend: false
+        immediate: true
+      compression: gzip
+      maxRetention: 360h
+      successfulJobsHistoryLimit: 1
+      storage:
+        s3:
+          bucket: mariadb-backups
+          prefix: cl01tl/grimmory
+          endpoint: garage-main.garage:3900
+          region: us-east-1
+          accessKeyIdSecretKeyRef:
+            name: grimmory-mariadb-cluster-backup-secret-garage
+            key: access
+          secretAccessKeySecretKeyRef:
+            name: grimmory-mariadb-cluster-backup-secret-garage
+            key: secret
+volsync-target-config:
+  pvcTarget: grimmory-config
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+  local:
+    enabled: true
+    schedule: 12 8 * * *
+  remote:
+    enabled: true
+    schedule: 12 9 * * *
+  external:
+    enabled: true
+    schedule: 12 10 * * *
