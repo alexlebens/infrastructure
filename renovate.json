@@ -3,7 +3,10 @@
   "extends": [
     "config:recommended",
     "mergeConfidence:all-badges",
-    ":rebaseStalePrs"
+    ":rebaseStalePrs",
+    "group:recommended",
+    "group:monorepos",
+    "group:kubernetes"
   ],
   "timezone": "America/Chicago",
   "labels": [],
@@ -71,28 +74,50 @@
       "enabled": false
     },
     {
-      "description": "Label charts",
+      "description": "Label by datasource",
       "matchDatasources": [
+        "helm",
+        "docker",
+        "github-actions"
+      ],
+      "addLabels": [
+        "{{{datasource}}}"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Automerge helm chart lock files",
+      "matchManagers": [
         "helm"
       ],
+      "lockFileMaintenance": {
+        "enabled": true
+      },
       "addLabels": [
-        "chart"
+        "automerge"
       ],
-      "automerge": false
+      "automerge": true,
+      "automergeType": "branch"
     },
     {
-      "description": "Label images",
+      "description": "Automerge patches",
+      "matchUpdateTypes": [
+        "patch",
+        "pinDigest"
+      ],
       "matchDatasources": [
-        "docker"
+        "helm",
+        "docker",
+        "github-actions"
       ],
       "addLabels": [
-        "image"
+        "automerge"
       ],
-      "automerge": false
+      "automerge": true,
+      "minimumReleaseAge": "1 days"
     },
-
     {
-      "description": "Label appVersion and images, merged",
+      "description": "Label appVersion and images, grouped",
       "matchManagers": [
         "custom.regex",
         "helm-values"
@@ -105,7 +130,7 @@
       "automerge": false
     },
     {
-      "description": "Automerge appVersion and images, merged",
+      "description": "Automerge appVersion and images, grouped",
       "matchUpdateTypes": [
         "patch",
         "pinDigest"
@@ -117,57 +142,26 @@
       "groupName": "{{#if packageName}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' packageName)}}}{{else}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' depName)}}}{{/if}}",
       "groupSlug": "unified-{{{groupName}}}",
       "addLabels": [
-        "image",
         "automerge"
       ],
       "automerge": true,
       "minimumReleaseAge": "1 days"
     },
     {
-      "description": "Automerge digests for actions",
-      "matchManagers": [
-        "github-actions"
-      ],
-      "matchUpdateTypes": [
-        "digest"
-      ],
-      "addLabels": [
-        "actions",
-        "automerge"
-      ],
-      "enabled": true,
-      "automerge": true,
-      "minimumReleaseAge": "1 days"
+      "description": "Group apps by their keyword",
+      "groupName": "{{{appName}}}",
+      "groupSlug": "unified-{{{appName}}}",
+      "matchPackageNames": [
+        "/(^|/)(?<appName>dawarich|komodo|immich|home-assistant|element-web|cilium)/"
+      ]
     },
     {
-      "description": "Automerge helm chart lock files",
-      "matchManagers": [
-        "helm"
-      ],
-      "lockFileMaintenance": {
-        "enabled": true
-      },
-      "addLabels": [
-        "chart",
-        "automerge"
-      ],
-      "automerge": true,
-      "automergeType": "branch"
-    },
-    {
-      "description": "Automerge chart patches",
-      "matchUpdateTypes": [
-        "patch"
-      ],
-      "matchDatasources": [
-        "helm"
-      ],
-      "addLabels": [
-        "chart",
-        "automerge"
-      ],
-      "automerge": true,
-      "minimumReleaseAge": "1 days"
+      "description": "Group Rook-Ceph dependencies",
+      "groupName": "rook-ceph",
+      "groupSlug": "unified-rook-ceph",
+      "matchPackageNames": [
+        "/^rook(-ceph|\\/rook|\\/ceph)/"
+      ]
     },
     {
       "description": "Automerge digest updates, specific packages",
@@ -181,27 +175,10 @@
         "searxng/searxng"
       ],
       "addLabels": [
-        "image",
         "automerge"
       ],
       "enabled": true,
       "automerge": true
-    },
-    {
-      "description": "Automerge image patches",
-      "matchUpdateTypes": [
-        "patch",
-        "pinDigest"
-      ],
-      "matchDatasources": [
-        "docker"
-      ],
-      "addLabels": [
-        "image",
-        "automerge"
-      ],
-      "automerge": true,
-      "minimumReleaseAge": "1 days"
     },
     {
       "description": "Automerge images, specific packages",
@@ -217,68 +194,9 @@
         "ghcr.io/prometheus-community/charts/kube-prometheus-stack"
       ],
       "addLabels": [
-        "image",
         "automerge"
       ],
       "automerge": true
-    },
-    {
-      "description": "Group Dawarich dependencies",
-      "groupName": "dawarich",
-      "groupSlug": "unified-dawarich",
-      "matchPackageNames": [
-        "/^(ghcr\\.io/|docker\\.io/)?(freika|freikin)/dawarich/"
-      ]
-    },
-    {
-      "description": "Group Komodo dependencies",
-      "groupName": "komodo",
-      "groupSlug": "unified-komodo",
-      "matchPackageNames": [
-        "/^moghtech/komodo/",
-        "/^ghcr\\.io/moghtech/komodo/",
-        "/^docker\\.io/moghtech/komodo/"
-      ]
-    },
-    {
-      "description": "Group Immich dependencies",
-      "groupName": "immich",
-      "groupSlug": "unified-immich",
-      "matchPackageNames": [
-        "/^immich-app/immich/",
-        "/^ghcr\\.io/immich-app/immich/",
-        "/^docker\\.io/immich-app/immich/"
-      ]
-    },
-    {
-      "description": "Group Home Assistant dependencies",
-      "groupName": "home-assistant",
-      "groupSlug": "unified-home-assistant",
-      "matchPackageNames": [
-        "/^home-assistant//",
-        "/^ghcr\\.io/home-assistant//",
-        "/^docker\\.io/home-assistant//"
-      ]
-    },
-    {
-      "description": "Group Rook Ceph dependencies",
-      "groupName": "rook-ceph",
-      "groupSlug": "unified-rook-ceph",
-      "matchPackageNames": [
-        "rook/rook",
-        "/^rook-ceph/",
-        "/^rook\/ceph/"
-      ]
-    },
-    {
-      "description": "Group Element Web updates",
-      "groupName": "element-web",
-      "groupSlug": "unified-element-web",
-      "matchPackageNames": [
-        "/element-web/",
-        "/vectorim/element-web/",
-        "/element-hq/element-web/"
-      ]
     }
   ]
 }
