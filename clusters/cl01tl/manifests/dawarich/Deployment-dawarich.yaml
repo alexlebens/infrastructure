@@ -114,13 +114,23 @@ spec:
               value: "true"
             - name: STORE_GEODATA
               value: "true"
-          image: freikin/dawarich:1.4.0
-          imagePullPolicy: IfNotPresent
+          image: freikin/dawarich:1.4.0@sha256:07adb7643b00d1d8f606c675931d3604317fa3851b91b74ec503df8d50734cb8
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - wget -qO - http://127.0.0.1:3000/api/v1/health | grep -q '"status"\s*:\s*"ok"'
+            failureThreshold: 5
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 10
           name: main
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 750Mi
           volumeMounts:
             - mountPath: /var/app/public
               name: public
@@ -205,13 +215,19 @@ spec:
               value: "true"
             - name: STORE_GEODATA
               value: "true"
-          image: freikin/dawarich:1.4.0
-          imagePullPolicy: IfNotPresent
+          image: freikin/dawarich:1.4.0@sha256:07adb7643b00d1d8f606c675931d3604317fa3851b91b74ec503df8d50734cb8
+          livenessProbe:
+            exec:
+              command:
+                - pgrep
+                - -f
+                - sidekiq
+            failureThreshold: 5
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 10
           name: sidekiq
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
           volumeMounts:
             - mountPath: /var/app/public
               name: public
