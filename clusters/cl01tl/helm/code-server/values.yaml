@@ -4,16 +4,18 @@ code-server:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
       containers:
         main:
           image:
             repository: ghcr.io/linuxserver/code-server
             tag: 4.112.0@sha256:4bb5b8ad22268001687c047f0f04933799fb03df1eb0e1e266ba15ed2d9f4e8b
-            pullPolicy: IfNotPresent
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: PUID
               value: 1000
             - name: PGID
@@ -26,7 +28,7 @@ code-server:
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 80Mi
   service:
     main:
       controller: main
@@ -47,11 +49,8 @@ code-server:
         - code-server.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: code-server
+            - name: code-server
               port: 8443
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -62,7 +61,6 @@ code-server:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 2Gi
-      retain: true
       advancedMounts:
         main:
           main:

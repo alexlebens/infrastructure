@@ -1,23 +1,18 @@
 coredns:
   image:
     repository: registry.k8s.io/coredns/coredns
-    tag: v1.14.2
+    tag: v1.14.2@sha256:e7e6440cfd1e919280958f5b5a6ab2b184d385bba774c12ad2a9e1e4183f90d9
   replicaCount: 3
   resources:
+    limits:
+      cpu: null
+      memory: null
     requests:
-      cpu: 50m
-      memory: 128Mi
-  rollingUpdate:
-    maxUnavailable: 1
-    maxSurge: 25%
-  terminationGracePeriodSeconds: 30
-  serviceType: "ClusterIP"
+      cpu: 20m
+      memory: 32Mi
   prometheus:
     service:
       enabled: true
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9153"
     monitor:
       enabled: true
       namespace: kube-system
@@ -29,18 +24,7 @@ coredns:
   serviceAccount:
     create: true
     name: coredns
-  rbac:
-    create: true
-  isClusterService: true
   priorityClassName: system-cluster-critical
-  securityContext:
-    capabilities:
-      add:
-        - NET_BIND_SERVICE
-      drop:
-        - ALL
-    readOnlyRootFilesystem: true
-    allowPrivilegeEscalation: false
   servers:
     - zones:
         - zone: .
@@ -77,6 +61,8 @@ coredns:
         - name: errors
         - name: cache
           parameters: 30
+        - name: prometheus
+          parameters: :9153
         - name: forward
           parameters: . 10.111.232.172
     - zones:
@@ -88,6 +74,8 @@ coredns:
         - name: errors
         - name: cache
           parameters: 30
+        - name: prometheus
+          parameters: :9153
         - name: forward
           parameters: . 10.97.20.219
   nodeSelector:
@@ -100,6 +88,4 @@ coredns:
       operator: Exists
       effect: NoSchedule
   deployment:
-    skipConfig: false
-    enabled: true
     name: coredns

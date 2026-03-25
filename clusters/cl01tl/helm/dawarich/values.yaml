@@ -4,15 +4,20 @@ dawarich:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: freikin/dawarich
-            tag: 1.4.0
-            pullPolicy: IfNotPresent
-          command: ["web-entrypoint.sh"]
-          args: ["bin/rails", "server", "-p", "3000", "-b", "::"]
+            tag: 1.4.0@sha256:07adb7643b00d1d8f606c675931d3604317fa3851b91b74ec503df8d50734cb8
+          command:
+            - "web-entrypoint.sh"
+          args:
+            - "bin/rails"
+            - "server"
+            - "-p"
+            - "3000"
+            - "-b"
+            - "::"
           env:
             - name: RAILS_ENV
               value: production
@@ -86,14 +91,14 @@ dawarich:
               value: true
           probes:
             liveness:
-              enabled: false
+              enabled: true
               custom: true
               spec:
                 exec:
                   command:
                     - /bin/sh
                     - -c
-                    - wget -qO - http://127.0.0.1:3000/api/v1/health | grep -Eq '\"status\"\\s*:\\s*\"ok\"'
+                    - "wget -qO - http://127.0.0.1:3000/api/v1/health | grep -q '\"status\"\\s*:\\s*\"ok\"'"
                 failureThreshold: 5
                 initialDelaySeconds: 60
                 periodSeconds: 10
@@ -102,14 +107,15 @@ dawarich:
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 750Mi
         sidekiq:
           image:
             repository: freikin/dawarich
-            tag: 1.4.0
-            pullPolicy: IfNotPresent
-          command: ["sidekiq-entrypoint.sh"]
-          args: ["sidekiq"]
+            tag: 1.4.0@sha256:07adb7643b00d1d8f606c675931d3604317fa3851b91b74ec503df8d50734cb8
+          command:
+            - "sidekiq-entrypoint.sh"
+          args:
+            - "sidekiq"
           env:
             - name: RAILS_ENV
               value: production
@@ -185,23 +191,19 @@ dawarich:
               value: true
           probes:
             liveness:
-              enabled: false
+              enabled: true
               custom: true
               spec:
                 exec:
                   command:
-                    - /bin/sh
-                    - -c
-                    - pgrep -f sidekiq
+                    - pgrep
+                    - -f
+                    - sidekiq
                 failureThreshold: 5
                 initialDelaySeconds: 60
                 periodSeconds: 10
                 successThreshold: 1
                 timeoutSeconds: 10
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
   service:
     main:
       controller: main
@@ -238,11 +240,8 @@ dawarich:
         - dawarich.alexlebens.net
       rules:
         - backendRefs:
-            - group: ""
-              kind: Service
-              name: dawarich
+            - name: dawarich
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -253,7 +252,6 @@ dawarich:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 5Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -267,7 +265,6 @@ dawarich:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 5Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -281,7 +278,6 @@ dawarich:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 1Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -313,32 +309,9 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 10 14 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
