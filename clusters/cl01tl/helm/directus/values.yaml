@@ -4,12 +4,11 @@ directus:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
-            repository: directus/directus
-            tag: 11.17.0
+            repository: ghcr.io/directus/directus
+            tag: 11.17.0@sha256:076269ccbe7d4a0c44ce5f5b7f11e2ea5f7b3e4c4f704c0f88a52805e069c1c6
             pullPolicy: IfNotPresent
           env:
             - name: PUBLIC_URL
@@ -144,7 +143,7 @@ directus:
           resources:
             requests:
               cpu: 10m
-              memory: 256Mi
+              memory: 1Gi
   service:
     main:
       controller: main
@@ -180,11 +179,8 @@ directus:
         - directus.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: directus
+            - name: directus
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -202,35 +198,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 15 14 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 valkey:
   valkey:
     auth:
@@ -239,5 +212,3 @@ valkey:
       aclUsers:
         default:
           permissions: "~* &* +@all"
-    metrics:
-      enabled: false
