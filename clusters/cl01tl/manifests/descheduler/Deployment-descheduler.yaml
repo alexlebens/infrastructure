@@ -10,7 +10,7 @@ metadata:
     app.kubernetes.io/version: "0.35.1"
     app.kubernetes.io/managed-by: Helm
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app.kubernetes.io/name: descheduler
@@ -21,7 +21,7 @@ spec:
         app.kubernetes.io/name: descheduler
         app.kubernetes.io/instance: descheduler
       annotations:
-        checksum/config: 52cdde3aae105c8d407cdec96dbaf5f9d630289083aa3d4fbf77f0d5962eda6d
+        checksum/config: b8b492edc39a8750e56e18b3d9ef6a7fee693fd63dd0d63b55b4336e63ae8dcb
     spec:
       priorityClassName: system-cluster-critical
       serviceAccountName: descheduler
@@ -35,6 +35,13 @@ spec:
             - --policy-config-file=/policy-dir/policy.yaml
             - --descheduling-interval=5m
             - --v=3
+            - --leader-elect=true
+            - --leader-elect-lease-duration=15s
+            - --leader-elect-renew-deadline=10s
+            - --leader-elect-retry-period=2s
+            - --leader-elect-resource-lock=leases
+            - --leader-elect-resource-name=descheduler
+            - --leader-elect-resource-namespace=descheduler
           ports:
             - containerPort: 10258
               protocol: TCP
@@ -48,12 +55,10 @@ spec:
             periodSeconds: 20
             timeoutSeconds: 5
           resources:
-            limits:
-              cpu: 500m
-              memory: 256Mi
+            limits: {}
             requests:
               cpu: 10m
-              memory: 64Mi
+              memory: 50Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
