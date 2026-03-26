@@ -1,27 +1,22 @@
 descheduler:
   kind: Deployment
   resources:
+    limits:
+      cpu: null
+      memory: null
     requests:
       cpu: 10m
-      memory: 64Mi
-  securityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-        - ALL
-    privileged: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 1000
+      memory: 50Mi
   deschedulingInterval: 5m
-  replicas: 1
+  replicas: 3
   leaderElection:
-    enabled: false
-  command:
-  - "/bin/descheduler"
-  cmdOptions:
-    v: 3
-  deschedulerPolicyAPIVersion: "descheduler/v1alpha2"
+    enabled: true
+    leaseDuration: 15s
+    renewDeadline: 10s
+    retryPeriod: 2s
+    resourceLock: "leases"
+    resourceName: "descheduler"
+    resourceNamespace: "descheduler"
   deschedulerPolicy:
     profiles:
       - name: default
@@ -53,13 +48,13 @@ descheduler:
           - name: LowNodeUtilization
             args:
               thresholds:
-                cpu: 30
-                memory: 30
-                pods: 50
+                cpu: 20
+                memory: 20
+                pods: 20
               targetThresholds:
-                cpu: 60
-                memory: 40
-                pods: 80
+                cpu: 50
+                memory: 50
+                pods: 60
         plugins:
           balance:
             enabled:
