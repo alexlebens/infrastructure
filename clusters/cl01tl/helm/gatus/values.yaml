@@ -1,27 +1,16 @@
 gatus:
   deployment:
-    strategy: Recreate
-  readinessProbe:
-    enabled: true
-  livenessProbe:
-    enabled: true
+    strategy: RollingUpdate
+    annotateConfigChecksum: true
+    revisionHistoryLimit: 3
   image:
     repository: ghcr.io/twin/gatus
-    tag: v5.35.0
+    tag: v5.35.0@sha256:21609f31be8c4e680ce3004b24276305666239c99aff58391503f3fb6142f39d
   annotations:
     reloader.stakater.com/auto: "true"
-  service:
-    type: ClusterIP
-    port: 80
-    targetPort: 8080
-    portName: http
-  ingress:
-    enabled: false
   gateway:
-    apiVersion: gateway.networking.k8s.io/v1
     route:
       enabled: true
-      path: /
       parentRefs:
         - group: gateway.networking.k8s.io
           kind: Gateway
@@ -73,24 +62,13 @@ gatus:
   resources:
     requests:
       cpu: 10m
-      memory: 128Mi
+      memory: 20Mi
   persistence:
     enabled: true
     size: 1Gi
-    mountPath: /data
-    accessModes:
-      - ReadWriteOnce
-    finalizers:
-      - kubernetes.io/pvc-protection
     storageClassName: ceph-block
   serviceMonitor:
     enabled: true
-    interval: 1m
-    path: /metrics
-    scheme: http
-    scrapeTimeout: 30s
-  networkPolicy:
-    enabled: false
   config:
     metrics: true
     connectivity:
@@ -425,35 +403,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 25 14 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-data:
   pvcTarget: gatus
   local:

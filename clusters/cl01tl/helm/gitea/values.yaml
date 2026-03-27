@@ -2,9 +2,14 @@ gitea:
   global:
     imageRegistry: registry.hub.docker.com
   replicaCount: 3
+  strategy:
+    type: "RollingUpdate"
+    rollingUpdate:
+      maxSurge: "100%"
+      maxUnavailable: 1
   image:
     repository: gitea/gitea
-    tag: 1.25.5
+    tag: 1.25.5@sha256:f846d26a4fc389c5806a580a765e00bfdd1fd181e6f2060da98ea2669d914472
   service:
     http:
       type: ClusterIP
@@ -14,8 +19,10 @@ gitea:
       type: ClusterIP
       port: 22
       clusterIP: 10.103.160.140
-  ingress:
-    enabled: false
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 600Mi
   persistence:
     storageClass: ceph-filesystem
     size: 40Gi
@@ -41,7 +48,7 @@ gitea:
     metrics:
       enabled: true
       serviceMonitor:
-        enabled: false
+        enabled: true
     oauth:
       - name: Authentik
         provider: openidConnect
@@ -139,9 +146,10 @@ gitea-actions:
     replicas: 6
     timezone: America/Chicago
     actRunner:
-      registry: ""
+      registry: registry.hub.docker.com
       repository: gitea/act_runner
-      tag: 0.2.13
+      # renovate: datasource=docker depName=gitea/act_runner
+      tag: 0.3.1@sha256:c2a169c5e99864c25e32527cef3d82203225e09558773022bf3dc164a2e6d762
       config: |
         log:
           level: debug
@@ -154,17 +162,19 @@ gitea-actions:
             - "ubuntu-24.04:docker://harbor.alexlebens.net/proxy-hub.docker/gitea/runner-images:ubuntu-24.04"
             - "ubuntu-22.04:docker://harbor.alexlebens.net/proxy-hub.docker/gitea/runner-images:ubuntu-22.04"
     dind:
-      registry: ""
+      registry: registry.hub.docker.com
       repository: docker
-      tag: 28.3.3-dind
+      # renovate: datasource=docker depName=docker
+      tag: 29.3.1-dind@sha256:4d90f1f6c400315c2dba96d3ec93c01e64198395cbba04f79d12adce4f737029
     persistence:
       storageClass: ceph-block
-      size: 5Gi
+      size: 10Gi
   init:
     image:
-      registry: ""
+      registry: registry.hub.docker.com
       repository: busybox
-      tag: "1.37.0"
+      # renovate: datasource=docker depName=busybox
+      tag: 1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
   existingSecret: gitea-runner-secret
   existingSecretKey: token
   giteaRootURL: http://gitea-http.gitea:3000
@@ -175,17 +185,14 @@ meilisearch:
     MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE: true
   auth:
     existingMasterKeySecret: gitea-meilisearch-master-key-secret
-  service:
-    type: ClusterIP
-    port: 7700
   persistence:
     enabled: true
     storageClass: ceph-block
     size: 5Gi
   resources:
     requests:
-      cpu: 10m
-      memory: 128Mi
+      cpu: 1m
+      memory: 160Mi
   serviceMonitor:
     enabled: true
 postgres-18-cluster:
@@ -193,8 +200,8 @@ postgres-18-cluster:
   cluster:
     resources:
       requests:
-        memory: 1Gi
-        cpu: 200m
+        cpu: 100m
+        memory: 100Mi
   recovery:
     method: objectStore
     objectStore:
@@ -206,41 +213,18 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 0 7 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 valkey-gitea:
   valkey:
     resources:
       requests:
         cpu: 20m
-        memory: 256Mi
+        memory: 2Gi
     dataStorage:
       requestedSize: 10Gi
     replica:
