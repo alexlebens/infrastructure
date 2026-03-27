@@ -4,84 +4,11 @@ freshrss:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
-      initContainers:
-        init-download-extension-1:
-          securityContext:
-            runAsUser: 0
-          image:
-            repository: alpine
-            tag: 3.23.3
-            pullPolicy: IfNotPresent
-          command:
-            - /bin/sh
-            - -ec
-            - |
-              apk add --no-cache git;
-              cd /tmp;
-              git clone -n --depth=1 --filter=tree:0 https://github.com/cn-tools/cntools_FreshRssExtensions.git;
-              cd cntools_FreshRssExtensions;
-              git sparse-checkout set --no-cone /xExtension-YouTubeChannel2RssFeed;
-              git checkout;
-              rm -rf /var/www/FreshRSS/extensions/xExtension-YouTubeChannel2RssFeed
-              cp -r xExtension-YouTubeChannel2RssFeed /var/www/FreshRSS/extensions
-              chown -R 568:568 /var/www/FreshRSS/extensions/xExtension-YouTubeChannel2RssFeed
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
-        init-download-extension-2:
-          securityContext:
-            runAsUser: 0
-          image:
-            repository: alpine
-            tag: 3.23.3
-            pullPolicy: IfNotPresent
-          command:
-            - /bin/sh
-            - -ec
-            - |
-              apk add --no-cache git;
-              cd /tmp;
-              git clone -n --depth=1 --filter=tree:0 https://github.com/FreshRSS/Extensions.git;
-              cd Extensions;
-              git sparse-checkout set --no-cone /xExtension-ImageProxy;
-              git checkout;
-              rm -rf /var/www/FreshRSS/extensions/xExtension-ImageProxy
-              cp -r xExtension-ImageProxy /var/www/FreshRSS/extensions
-              chown -R 568:568 /var/www/FreshRSS/extensions/xExtension-ImageProxy
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
-        init-download-extension-3:
-          securityContext:
-            runAsUser: 0
-          image:
-            repository: alpine
-            tag: 3.23.3
-            pullPolicy: IfNotPresent
-          command:
-            - /bin/sh
-            - -ec
-            - |
-              cd /tmp;
-              wget https://github.com/zimmra/xExtension-karakeep-button/archive/refs/tags/v1.1.tar.gz;
-              tar -xvzf *.tar.gz;
-              rm -rf /var/www/FreshRSS/extensions/xExtension-karakeep-button
-              mkdir /var/www/FreshRSS/extensions/xExtension-karakeep-button
-              cp -r /tmp/xExtension-karakeep-button-*/* /var/www/FreshRSS/extensions/xExtension-karakeep-button
-              chown -R 568:568 /var/www/FreshRSS/extensions/xExtension-karakeep-button
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
       containers:
         main:
           image:
             repository: freshrss/freshrss
-            tag: 1.28.1
-            pullPolicy: IfNotPresent
+            tag: 1.28.1@sha256:9100f649f5c946f589f54cdb9be7a65996528f48f691ef90eb262a0e06e5a522
           env:
             - name: PGID
               value: "568"
@@ -151,7 +78,7 @@ freshrss:
                 name: freshrss-install-secret
           resources:
             requests:
-              cpu: 10m
+              cpu: 1m
               memory: 128Mi
   service:
     main:
@@ -167,30 +94,10 @@ freshrss:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 5Gi
-      retain: true
       advancedMounts:
         main:
           main:
             - path: /var/www/FreshRSS/data
-              readOnly: false
-    extensions:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 1Gi
-      retain: true
-      advancedMounts:
-        main:
-          init-download-extension-1:
-            - path: /var/www/FreshRSS/extensions
-              readOnly: false
-          init-download-extension-2:
-            - path: /var/www/FreshRSS/extensions
-              readOnly: false
-          init-download-extension-3:
-            - path: /var/www/FreshRSS/extensions
-              readOnly: false
-          main:
-            - path: /var/www/FreshRSS/extensions
               readOnly: false
 postgres-18-cluster:
   mode: recovery
@@ -205,35 +112,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 20 14 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-data:
   pvcTarget: freshrss-data
   moverSecurityContext:
@@ -241,11 +125,6 @@ volsync-target-data:
     runAsGroup: 568
     fsGroup: 568
     fsGroupChangePolicy: OnRootMismatch
-    supplementalGroups:
-      - 44
-      - 100
-      - 109
-      - 65539
   local:
     enabled: true
     schedule: 18 8 * * *

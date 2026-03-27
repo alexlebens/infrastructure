@@ -4,7 +4,6 @@ garage:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
         labels:
           garage-type: server
@@ -22,32 +21,18 @@ garage:
         main:
           image:
             repository: dxflrs/garage
-            tag: v2.2.0
-            pullPolicy: IfNotPresent
+            tag: v2.2.0@sha256:45a61ce3f7c9c24fc23d9ed2b09b27ed560ab87b34605d175d5c588f539c24e4
           envFrom:
             - secretRef:
                 name: garage-token-secret
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
-        debug:
-          image:
-            repository: ubuntu
-            tag: resolute-20260312
-            pullPolicy: IfNotPresent
-          command:
-            - "sleep"
-            - "infinity"
-          resources:
-            requests:
-              cpu: 10m
-              memory: 32Mi
+              memory: 400Mi
     server-2:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
         labels:
           garage-type: server
@@ -65,20 +50,18 @@ garage:
         main:
           image:
             repository: dxflrs/garage
-            tag: v2.2.0
-            pullPolicy: IfNotPresent
+            tag: v2.2.0@sha256:45a61ce3f7c9c24fc23d9ed2b09b27ed560ab87b34605d175d5c588f539c24e4
           envFrom:
             - secretRef:
                 name: garage-token-secret
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 400Mi
     server-3:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
         labels:
           garage-type: server
@@ -96,26 +79,23 @@ garage:
         main:
           image:
             repository: dxflrs/garage
-            tag: v2.2.0
-            pullPolicy: IfNotPresent
+            tag: v2.2.0@sha256:45a61ce3f7c9c24fc23d9ed2b09b27ed560ab87b34605d175d5c588f539c24e4
           envFrom:
             - secretRef:
                 name: garage-token-secret
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 400Mi
     webui:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: khairul169/garage-webui
-            tag: 1.1.0
-            pullPolicy: IfNotPresent
+            tag: 1.1.0@sha256:17c793551873155065bf9a022dabcde874de808a1f26e648d4b82e168806439c
           env:
             - name: API_BASE_URL
               value: http://garage-main.garage:3903
@@ -128,8 +108,8 @@ garage:
                   key: GARAGE_ADMIN_TOKEN
           resources:
             requests:
-              cpu: 10m
-              memory: 128Mi
+              cpu: 1m
+              memory: 10Mi
   configMaps:
     config:
       enabled: true
@@ -320,11 +300,8 @@ garage:
         - garage-webui.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: garage-webui
+            - name: garage-webui
               port: 3909
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -340,11 +317,8 @@ garage:
         - garage-s3.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: garage-main
+            - name: garage-main
               port: 3900
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -357,11 +331,6 @@ garage:
       advancedMounts:
         server-1:
           main:
-            - path: /etc/garage.toml
-              readOnly: true
-              mountPropagation: None
-              subPath: garage-1.toml
-          debug:
             - path: /etc/garage.toml
               readOnly: true
               mountPropagation: None
@@ -389,13 +358,9 @@ garage:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 50Gi
-      retain: true
       advancedMounts:
         server-1:
           main:
-            - path: /var/lib/garage/meta
-              readOnly: false
-          debug:
             - path: /var/lib/garage/meta
               readOnly: false
     db-2:
@@ -403,7 +368,6 @@ garage:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 50Gi
-      retain: true
       advancedMounts:
         server-2:
           main:
@@ -414,7 +378,6 @@ garage:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 50Gi
-      retain: true
       advancedMounts:
         server-3:
           main:
@@ -425,13 +388,9 @@ garage:
       storageClass: synology-iscsi-delete
       accessMode: ReadWriteOnce
       size: 800Gi
-      retain: true
       advancedMounts:
         server-1:
           main:
-            - path: /var/lib/garage/data
-              readOnly: false
-          debug:
             - path: /var/lib/garage/data
               readOnly: false
     data-2:
