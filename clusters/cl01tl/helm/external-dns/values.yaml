@@ -1,25 +1,27 @@
 external-dns-unifi:
   fullnameOverride: external-dns-unifi
+  resources:
+    requests:
+      cpu: 1m
+      memory: 80Mi
   serviceMonitor:
     enabled: true
-  interval: 1m
+  interval: 360m
   sources:
-    - ingress
     - crd
     - gateway-httproute
     - gateway-tlsroute
   policy: sync
-  registry: txt
   txtOwnerId: default
   txtPrefix: k8s.
   domainFilters: ["alexlebens.net"]
-  excludeDomains: []
+  excludeDomains: ["alexlebens.dev"]
   provider:
     name: webhook
     webhook:
       image:
         repository: ghcr.io/kashalls/external-dns-unifi-webhook
-        tag: v0.8.2
+        tag: v0.8.2@sha256:7f0ddbbc83a36a2a9d762e25eef9cafcb3adf0493068a27d72ae71087eafe6f0
       env:
         - name: UNIFI_HOST
           value: https://192.168.1.1
@@ -29,18 +31,6 @@ external-dns-unifi:
               name: external-dns-unifi-secret
               key: api-key
         - name: LOG_LEVEL
-          value: debug
-      livenessProbe:
-        httpGet:
-          path: /healthz
-          port: http-webhook
-        initialDelaySeconds: 10
-        timeoutSeconds: 5
-      readinessProbe:
-        httpGet:
-          path: /readyz
-          port: http-webhook
-        initialDelaySeconds: 10
-        timeoutSeconds: 5
+          value: info
   extraArgs:
     - --ignore-ingress-tls-spec

@@ -1,50 +1,37 @@
 eraser:
   runtimeConfig:
-    apiVersion: eraser.sh/v1alpha3
-    kind: EraserConfig
     manager:
-      runtime:
-        name: containerd
-        address: unix:///run/containerd/containerd.sock
-      logLevel: info
       scheduling:
         repeatInterval: 24h
         beginImmediately: true
-      profile:
-        enabled: false
-        port: 6060
       imageJob:
-        successRatio: 1.0
         cleanup:
           delayOnSuccess: 0s
           delayOnFailure: 24h
-      nodeFilter:
-        type: exclude
-        selectors:
-          - eraser.sh/cleanup.filter
-          - kubernetes.io/os=windows
     components:
       collector:
-        enabled: true
+        image:
+          repo: ghcr.io/eraser-dev/collector
+          tag: v1.4.1@sha256:827588ff826c3558bf2c50b1fc94f20122b054dfcf3480c3ffe6f0bae25c3dad
         request:
-          cpu: 10m
-          memory: 128Mi
+          cpu: 1m
+          memory: 20Mi
       scanner:
         enabled: false
-        request:
-          cpu: 100m
-          memory: 128Mi
-        config: ""
       remover:
+        image:
+          repo: ghcr.io/eraser-dev/remover
+          tag: v1.4.1@sha256:e57592157d717588f69c011cd0b6ab783a19a53b447a5350b27e7e66aae67525
         request:
-          cpu: 10m
-          memory: 128Mi
+          cpu: 1m
+          memory: 20Mi
   deploy:
-    securityContext:
-      allowPrivilegeEscalation: false
+    image:
+      repo: ghcr.io/eraser-dev/eraser-manager
+      tag: v1.4.1@sha256:5f18fb7da4ccad93a8643ece496681f1489b0d7b0ce45e18a94774cf8b6a717d
     resources:
+      limits:
+        memory: null
       requests:
-        cpu: 10m
-        memory: 30Mi
-    nodeSelector:
-      kubernetes.io/os: linux
+        cpu: 1m
+        memory: 20Mi
