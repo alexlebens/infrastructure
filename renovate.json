@@ -16,49 +16,19 @@
   "baseBranchPatterns": [
     "main"
   ],
-  "regexManagers": [
-    {
-      "fileMatch": ["(^|/)values\\.yaml$", "(^|/)values-.*\\.yaml$"],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+tag:\\s+(?<currentValue>.*)"
-      ],
-      "datasourceTemplate": "{{{datasource}}}",
-      "depNameTemplate": "{{{depName}}}"
-    }
-  ],
   "customManagers": [
     {
-      "description": "Update appVersion in Chart.yaml",
+      "description": "Generic Renovate tag matcher for Helm",
       "customType": "regex",
       "managerFilePatterns": [
-        "/(^|/)Chart\\.yaml$/"
+        "(^|/)Chart\\.yaml$",
+        "(^|/)values\\.yaml$",
+        "(^|/)templates/.*\\.yaml$"
       ],
       "matchStrings": [
-        "#\\s*renovate:\\s*datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+appVersion:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
+        "#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[^\\s]+))?\\s*[a-zA-Z0-9_-]+:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
       ],
       "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}"
-    },
-    {
-      "description": "Update specific images in values",
-      "customType": "regex",
-      "managerFilePatterns": [
-        "(^|/)values\\.yaml$"
-      ],
-      "matchStrings": [
-        "#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)\\s*\\n\\s+tag:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
-      ],
-      "depNameTemplate": "{{{depName}}}",
-      "datasourceTemplate": "{{{datasource}}}"
-    },
-    {
-      "description": "Update images in templates",
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/(^|/)templates/.*\\.yaml$/"
-      ],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)\\s+tag:\\s*[\"']?(?<currentValue>[^@\"'\\s\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?[\"']?"
-      ]
     },
     {
       "description": "Update Helm CLI version in GitHub Actions",
@@ -96,11 +66,9 @@
       "enabled": false
     },
     {
-      "description": "Label by datasource",
-      "matchDatasources": [
-        "helm",
-        "docker",
-        "github-actions"
+      "description": "Universal dynamic labeling by datasource",
+      "matchPackageNames": [
+        "*"
       ],
       "addLabels": [
         "{{{datasource}}}"
@@ -116,13 +84,11 @@
       ]
     },
     {
-      "description": "Group packages together when stripping registry",
+      "description": "Group packages together by stripping all registry/namespace prefixes",
       "matchManagers": [
-        "custom.regex",
-        "helm-values",
-        "docker"
+        "*"
       ],
-      "groupName": "{{#if packageName}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' packageName)}}}{{else}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' depName)}}}{{/if}}",
+      "groupName": "{{#if packageName}}{{{replace '^.*?/(.*)$' '$1' packageName}}}{{else}}{{{replace '^.*?/(.*)$' '$1' depName}}}{{/if}}",
       "groupSlug": "unified-{{{groupName}}}"
     },
     {
@@ -143,6 +109,7 @@
         "enabled": true
       },
       "addLabels": [
+        "{{{datasource}}}",
         "automerge"
       ],
       "automerge": true,
@@ -163,13 +130,11 @@
       "matchUpdateTypes": [
         "digest"
       ],
-      "matchDatasources": [
-        "docker"
-      ],
       "matchPackageNames": [
         "searxng/searxng"
       ],
       "addLabels": [
+        "{{{datasource}}}",
         "automerge"
       ],
       "enabled": true,
@@ -182,33 +147,32 @@
         "pinDigest"
       ],
       "matchDatasources": [
-        "helm",
-        "docker",
-        "github-actions"
+        "*"
       ],
       "addLabels": [
+        "{{{datasource}}}",
         "automerge"
       ],
       "automerge": true,
-      "minimumReleaseAge": "1 days"
+      "minimumReleaseAge": "3 days"
     },
     {
       "description": "Automerge images, specific packages",
       "matchUpdateTypes": [
+        "minor",
         "patch",
-        "minor"
-      ],
-      "matchDatasources": [
-        "docker"
+        "pinDigest"
       ],
       "matchPackageNames": [
         "ghcr.io/renovatebot/renovate",
         "ghcr.io/prometheus-community/charts/kube-prometheus-stack"
       ],
       "addLabels": [
+        "{{{datasource}}}",
         "automerge"
       ],
-      "automerge": true
+      "automerge": true,
+      "minimumReleaseAge": "3 days"
     }
   ]
 }
