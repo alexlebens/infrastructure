@@ -74,6 +74,17 @@
       "enabled": false
     },
     {
+      "description": "Label by datasource",
+      "matchDatasources": [
+        "helm",
+        "docker",
+        "github-actions"
+      ],
+      "addLabels": [
+        "{{{datasource}}}"
+      ]
+    },
+    {
       "description": "Versioning for LinuxServer images",
       "versioning": "regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<revision>\\d+)$",
       "matchPackageNames": [
@@ -83,16 +94,22 @@
       ]
     },
     {
-      "description": "Label by datasource",
-      "matchDatasources": [
-        "helm",
-        "docker",
-        "github-actions"
+      "description": "Group packages together when stripping registry",
+      "matchManagers": [
+        "custom.regex",
+        "helm-values"
       ],
-      "addLabels": [
-        "{{{datasource}}}"
+      "groupName": "{{#if packageName}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' packageName)}}}{{else}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' depName)}}}{{/if}}",
+      "groupSlug": "unified-{{{groupName}}}"
+    },
+    {
+      "description": "Group for specific apps",
+      "matchPackageNames": [
+        "/(^|/)(dawarich|komodo|immich|home-assistant|element-web|cilium|tdarr|argo-cd|traefik|bazarr|code-server)/",
+        "/^rook(-ceph|\\/rook|\\/ceph)/"
       ],
-      "automerge": false
+      "groupName": "{{{replace '^.*(dawarich|komodo|immich|home-assistant|element-web|cilium|tdarr|argo-cd|traefik|bazarr|code-server|rook-ceph).*$' '$1' depName}}}",
+      "groupSlug": "unified-{{{groupName}}}"
     },
     {
       "description": "Automerge helm chart lock files",
@@ -107,86 +124,6 @@
       ],
       "automerge": true,
       "automergeType": "branch"
-    },
-    {
-      "description": "Automerge patches",
-      "matchUpdateTypes": [
-        "patch",
-        "pinDigest"
-      ],
-      "matchDatasources": [
-        "helm",
-        "docker",
-        "github-actions"
-      ],
-      "addLabels": [
-        "automerge"
-      ],
-      "automerge": true,
-      "minimumReleaseAge": "1 days"
-    },
-    {
-      "description": "Label appVersion and images, grouped",
-      "matchManagers": [
-        "custom.regex",
-        "helm-values"
-      ],
-      "groupName": "{{#if packageName}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' packageName)}}}{{else}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' depName)}}}{{/if}}",
-      "groupSlug": "unified-{{{groupName}}}",
-      "addLabels": [
-        "docker"
-      ],
-      "automerge": false
-    },
-    {
-      "description": "Automerge appVersion and images, grouped",
-      "matchUpdateTypes": [
-        "patch",
-        "pinDigest"
-      ],
-      "matchManagers": [
-        "custom.regex",
-        "helm-values"
-      ],
-      "groupName": "{{#if packageName}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' packageName)}}}{{else}}{{{replace 'ghcr.io/' '' (replace 'docker.io/' '' depName)}}}{{/if}}",
-      "groupSlug": "unified-{{{groupName}}}",
-      "addLabels": [
-        "automerge"
-      ],
-      "automerge": true,
-      "minimumReleaseAge": "1 days"
-    },
-    {
-      "description": "Group apps by their keyword",
-      "groupName": "{{{replace '^.*(dawarich|komodo|immich|home-assistant|element-web|cilium|tdarr|argo-cd|traefik).*$' '$1' depName}}}",
-      "groupSlug": "unified-{{{groupName}}}",
-      "matchPackageNames": [
-        "/(^|/)(?<appName>dawarich|komodo|immich|home-assistant|element-web|cilium|tdarr|argo-cd|traefik)/"
-      ]
-    },
-    {
-      "description": "Group Bazarr dependencies",
-      "groupName": "bazarr",
-      "groupSlug": "unified-bazarr",
-      "matchPackageNames": [
-        "bazarr$"
-      ]
-    },
-    {
-      "description": "Group Code Server dependencies",
-      "groupName": "code-server",
-      "groupSlug": "unified-code-server",
-      "matchPackageNames": [
-        "code-server$"
-      ]
-    },
-    {
-      "description": "Group Rook-Ceph dependencies",
-      "groupName": "rook-ceph",
-      "groupSlug": "unified-rook-ceph",
-      "matchPackageNames": [
-        "/^rook(-ceph|\\/rook|\\/ceph)/"
-      ]
     },
     {
       "description": "Open for digest updates, specific packages",
@@ -214,6 +151,23 @@
       ],
       "enabled": true,
       "automerge": true
+    },
+    {
+      "description": "Automerge patches",
+      "matchUpdateTypes": [
+        "patch",
+        "pinDigest"
+      ],
+      "matchDatasources": [
+        "helm",
+        "docker",
+        "github-actions"
+      ],
+      "addLabels": [
+        "automerge"
+      ],
+      "automerge": true,
+      "minimumReleaseAge": "1 days"
     },
     {
       "description": "Automerge images, specific packages",
