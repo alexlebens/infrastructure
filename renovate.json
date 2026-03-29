@@ -16,6 +16,29 @@
   ],
   "customManagers": [
     {
+      "description": "Renovate tag matcher for Helm chart appVersion",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "(^|/)Chart\\.yaml$"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?\\r?\\n\\s*appVersion:\\s*[\"']?(?<currentValue>[^\\s\"']+)[\"']?"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}"
+    },
+    {
+      "description": "Renovate tag matcher for Helm values and templates",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "(^|/)values\\.yaml$",
+        "(^|/)templates/.*\\.yaml$"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?\\r?\\n\\s*tag:\\s*[\"']?(?<currentValue>[^@\\s\"']+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?[\"']?"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}docker{{/if}}"
+    },
+    {
       "description": "Update Helm CLI version in GitHub Actions",
       "customType": "regex",
       "managerFilePatterns": [
@@ -52,7 +75,7 @@
     },
     {
       "description": "Universal dynamic labeling by datasource",
-      "matchPackageNames": [
+      "matchPackagePatterns": [
         "*"
       ],
       "addLabels": [
@@ -62,7 +85,7 @@
     {
       "description": "Versioning for LinuxServer images",
       "versioning": "regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<revision>\\d+)$",
-      "matchPackageNames": [
+      "matchPackagePatterns": [
         "/^linuxserver\\//",
         "/^ghcr\\.io/linuxserver\\//",
         "/^lscr\\.io/linuxserver\\//"
@@ -70,10 +93,16 @@
     },
     {
       "description": "Group packages together by stripping all registry/namespace prefixes",
-      "matchManagers": [
-        "*"
-      ],
       "groupName": "{{#if packageName}}{{{replace '^.*\\/([^\\/]+)$' '$1' packageName}}}{{else}}{{{replace '^.*\\/([^\\/]+)$' '$1' depName}}}{{/if}}",
+      "groupSlug": "unified-{{{groupName}}}"
+    },
+    {
+      "description": "Group for specific apps",
+      "matchPackagePatterns": [
+        "/(^|/)(argo-cd|bazarr|cilium|code-server|dawarich|element-web|home-assistant|immich|komodo|rook-ceph|tdarr|traefik)/",
+        "/^rook(-ceph|\\/rook|\\/ceph)/"
+      ],
+      "groupName": "{{{replace '^.*(argo-cd|bazarr|cilium|code-server|dawarich|element-web|home-assistant|immich|komodo|rook-ceph|tdarr|traefik).*$' '$1' depName}}}",
       "groupSlug": "unified-{{{groupName}}}"
     },
     {
