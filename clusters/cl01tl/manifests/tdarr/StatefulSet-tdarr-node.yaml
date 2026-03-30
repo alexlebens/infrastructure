@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: DaemonSet
+kind: StatefulSet
 metadata:
   name: tdarr-node
   labels:
@@ -11,14 +11,18 @@ metadata:
   namespace: tdarr
 spec:
   revisionHistoryLimit: 3
+  replicas: 3
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/controller: node
       app.kubernetes.io/name: tdarr
       app.kubernetes.io/instance: tdarr
+  serviceName: tdarr
   template:
     metadata:
-      annotations:
       labels:
         app.kubernetes.io/controller: node
         app.kubernetes.io/instance: tdarr
@@ -33,6 +37,16 @@ spec:
       dnsPolicy: ClusterFirst
       nodeSelector:
         intel.feature.node.kubernetes.io/gpu: "true"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/instance
+                    operator: In
+                    values:
+                      - tdarr
+              topologyKey: kubernetes.io/hostname
       containers:
         - env:
             - name: TZ
@@ -70,10 +84,18 @@ spec:
               name: media
               readOnly: true
             - mountPath: /tcache
-              name: node-cache
+              name: transcode-cache
       volumes:
         - name: media
           persistentVolumeClaim:
             claimName: tdarr-nfs-storage
-        - emptyDir: {}
-          name: node-cache
+  volumeClaimTemplates:
+    - metadata:
+        name: transcode-cache
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+        storageClassName: local-path
