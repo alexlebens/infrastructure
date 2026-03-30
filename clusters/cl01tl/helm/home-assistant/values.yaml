@@ -4,28 +4,29 @@ home-assistant:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
       containers:
         main:
           image:
             repository: ghcr.io/home-assistant/home-assistant
-            tag: 2026.3.4
-            pullPolicy: IfNotPresent
+            tag: 2026.3.4@sha256:916682086154a7390114a9788782b8efb199852d4f7d47066722c2bc5d1829e6
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
           resources:
             requests:
-              cpu: 50m
-              memory: 512Mi
+              cpu: 1m
+              memory: 400Mi
         code-server:
           image:
             repository: ghcr.io/linuxserver/code-server
             tag: 4.112.0@sha256:4bb5b8ad22268001687c047f0f04933799fb03df1eb0e1e266ba15ed2d9f4e8b
-            pullPolicy: IfNotPresent
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: PUID
               value: 1000
             - name: PGID
@@ -35,10 +36,6 @@ home-assistant:
           envFrom:
             - secretRef:
                 name: home-assistant-code-server-password-secret
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
   service:
     main:
       controller: main
@@ -82,11 +79,8 @@ home-assistant:
         - home-assistant.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: home-assistant-main
+            - name: home-assistant-main
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -102,11 +96,8 @@ home-assistant:
         - home-assistant-code-server.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: home-assistant-code-server
+            - name: home-assistant-code-server
               port: 8443
-              weight: 100
           matches:
             - path:
                 type: PathPrefix

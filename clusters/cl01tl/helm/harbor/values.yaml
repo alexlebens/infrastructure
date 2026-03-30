@@ -21,13 +21,9 @@ harbor:
         size: 100Gi
   existingSecretAdminPassword: harbor-secret
   existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
-  internalTLS:
-    enabled: false
   ipFamily:
     ipv6:
       enabled: false
-    ipv4:
-      enabled: true
   updateStrategy:
     type: Recreate
   existingSecretSecretKey: harbor-secret
@@ -73,12 +69,12 @@ harbor:
     credentials:
       existingSecret: harbor-secret
     upload_purging:
-      enabled: true
       age: 72h
-      interval: 24h
-      dryrun: false
   trivy:
     enabled: true
+    image:
+      repository: ghcr.io/goharbor/trivy-adapter-photon
+      tag: v2.15.0@sha256:6fd6de9cfbbb04cb1d94722cfa01cf71b8994d3f9e7891d3b03a89a7536480ba
   database:
     type: external
     external:
@@ -109,32 +105,9 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 35 14 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
