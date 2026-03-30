@@ -39,9 +39,28 @@ tdarr:
               cpu: 200m
               memory: 1Gi
     node:
-      type: daemonset
+      type: statefulset
+      replicas: 3
       revisionHistoryLimit: 3
+      statefulset:
+        volumeClaimTemplates:
+          - name: transcode-cache
+            accessMode: ReadWriteOnce
+            size: 20Gi
+            storageClass: local-path
+            globalMounts:
+              - path: /tcache
       pod:
+        affinity:
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/instance
+                      operator: In
+                      values:
+                        - tdarr
+                topologyKey: kubernetes.io/hostname
         nodeSelector:
           intel.feature.node.kubernetes.io/gpu: "true"
       containers:
@@ -141,13 +160,6 @@ tdarr:
       type: emptyDir
       advancedMounts:
         server:
-          main:
-            - path: /tcache
-              readOnly: false
-    node-cache:
-      type: emptyDir
-      advancedMounts:
-        node:
           main:
             - path: /tcache
               readOnly: false
