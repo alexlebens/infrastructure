@@ -1,0 +1,207 @@
+paperless-ngx:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/paperless-ngx/paperless-ngx
+            tag: 2.20.13@sha256:4b05bcd28e6923768000b5d247cbf2c66fd49bdc3f3b05955bd4f6790a638b01
+          env:
+            - name: PAPERLESS_REDIS
+              value: redis://paperless-ngx-valkey.paperless-ngx:6379
+            - name: PAPERLESS_DBHOST
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-ngx-postgresql-18-cluster-app
+                  key: host
+            - name: PAPERLESS_DBPORT
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-ngx-postgresql-18-cluster-app
+                  key: port
+            - name: PAPERLESS_DBUSER
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-ngx-postgresql-18-cluster-app
+                  key: user
+            - name: PAPERLESS_DBPASS
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-ngx-postgresql-18-cluster-app
+                  key: password
+            - name: PAPERLESS_TIKA_ENABLED
+              value: true
+            - name: PAPERLESS_TIKA_GOTENBERG_ENDPOINT
+              value: http://localhost:3000/
+            - name: PAPERLESS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-ngx-secret
+                  key: secret-key
+            - name: PAPERLESS_URL
+              value: https://paperless-ngx.alexlebens.net
+            - name: PAPERLESS_ALLOWED_HOSTS
+              value: paperless-ngx.alexlebens.net, paperless-ngx.paperless-ngx
+            - name: PAPERLESS_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-ngx-secret
+                  key: admin-user
+            - name: PAPERLESS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-ngx-secret
+                  key: admin-password
+            - name: PAPERLESS_ACCOUNT_ALLOW_SIGNUPS
+              value: true
+            - name: PAPERLESS_SOCIAL_AUTO_SIGNUP
+              value: true
+            - name: PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS
+              value: true
+            - name: PAPERLESS_APPS
+              value: allauth.socialaccount.providers.openid_connect
+            - name: PAPERLESS_LOGOUT_REDIRECT_URL
+              value: https://authentik.alexlebens.net/application/o/paperless-ngx/end-session/
+            - name: PAPERLESS_SOCIALACCOUNT_PROVIDERS
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-ngx-oidc-secret
+                  key: PAPERLESS_SOCIALACCOUNT_PROVIDERS
+            - name: PAPERLESS_TIME_ZONE
+              value: America/Chicago
+          resources:
+            requests:
+              cpu: 1m
+              memory: 100Mi
+        gotenberg:
+          image:
+            repository: gotenberg/gotenberg
+            tag: 8.29.1@sha256:36c925776fa0db0fd1030408d131fde7ac3453027a559883555155b72adb16a7
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8000
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - paperless-ngx.alexlebens.net
+      rules:
+        - backendRefs:
+            - name: paperless-ngx
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      forceRename: paperless-ngx-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /usr/src/paperless/data
+    media:
+      forceRename: paperless-ngx-media
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /usr/src/paperless/media
+    export:
+      forceRename: paperless-ngx-export
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /usr/src/paperless/export
+    consume:
+      forceRename: paperless-ngx-consume
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /usr/src/paperless/consume
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    method: objectStore
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      - name: garage-local
+        index: 1
+        destinationBucket: postgres-backups
+        externalSecretCredentialPath: /garage/home-infra/postgres-backups
+        isWALArchiver: true
+    scheduledBackups:
+      - name: live-backup
+        suspend: false
+        immediate: true
+        schedule: "0 15 15 * * *"
+        backupName: garage-local
+volsync-target-data:
+  pvcTarget: paperless-ngx-data
+  local:
+    enabled: true
+    schedule: 2 8 * * *
+  remote:
+    enabled: true
+    schedule: 2 9 * * *
+  external:
+    enabled: true
+    schedule: 2 10 * * *
+volsync-target-media:
+  pvcTarget: paperless-ngx-metadata
+  local:
+    enabled: true
+    schedule: 4 8 * * *
+  remote:
+    enabled: true
+    schedule: 4 9 * * *
+  external:
+    enabled: true
+    schedule: 4 10 * * *
+volsync-target-export:
+  pvcTarget: paperless-ngx-data
+  local:
+    enabled: true
+    schedule: 2 8 * * *
+  remote:
+    enabled: true
+    schedule: 2 9 * * *
+  external:
+    enabled: true
+    schedule: 2 10 * * *
+volsync-target-consume:
+  pvcTarget: paperless-ngx-metadata
+  local:
+    enabled: true
+    schedule: 4 8 * * *
+  remote:
+    enabled: true
+    schedule: 4 9 * * *
+  external:
+    enabled: true
+    schedule: 4 10 * * *
