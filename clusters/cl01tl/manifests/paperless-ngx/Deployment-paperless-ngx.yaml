@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paperless-ngx
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: paperless-ngx
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: paperless-ngx
+    helm.sh/chart: paperless-ngx-4.6.2
+  namespace: paperless-ngx
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: paperless-ngx
+      app.kubernetes.io/instance: paperless-ngx
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: paperless-ngx
+        app.kubernetes.io/name: paperless-ngx
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - image: gotenberg/gotenberg:8.29.1@sha256:36c925776fa0db0fd1030408d131fde7ac3453027a559883555155b72adb16a7
+          name: gotenberg
+        - env:
+            - name: PAPERLESS_REDIS
+              value: redis://paperless-ngx-valkey.paperless-ngx:6379
+            - name: PAPERLESS_DBHOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: paperless-ngx-postgresql-18-cluster-app
+            - name: PAPERLESS_DBPORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: paperless-ngx-postgresql-18-cluster-app
+            - name: PAPERLESS_DBUSER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: paperless-ngx-postgresql-18-cluster-app
+            - name: PAPERLESS_DBPASS
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: paperless-ngx-postgresql-18-cluster-app
+            - name: PAPERLESS_TIKA_ENABLED
+              value: "true"
+            - name: PAPERLESS_TIKA_GOTENBERG_ENDPOINT
+              value: http://localhost:3000/
+            - name: PAPERLESS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-key
+                  name: paperless-ngx-secret
+            - name: PAPERLESS_URL
+              value: https://paperless-ngx.alexlebens.net
+            - name: PAPERLESS_ALLOWED_HOSTS
+              value: paperless-ngx.alexlebens.net, paperless-ngx.paperless-ngx
+            - name: PAPERLESS_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  key: admin-user
+                  name: paperless-ngx-secret
+            - name: PAPERLESS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: admin-password
+                  name: paperless-ngx-secret
+            - name: PAPERLESS_ACCOUNT_ALLOW_SIGNUPS
+              value: "true"
+            - name: PAPERLESS_SOCIAL_AUTO_SIGNUP
+              value: "true"
+            - name: PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS
+              value: "true"
+            - name: PAPERLESS_APPS
+              value: allauth.socialaccount.providers.openid_connect
+            - name: PAPERLESS_LOGOUT_REDIRECT_URL
+              value: https://authentik.alexlebens.net/application/o/paperless-ngx/end-session/
+            - name: PAPERLESS_SOCIALACCOUNT_PROVIDERS
+              valueFrom:
+                secretKeyRef:
+                  key: PAPERLESS_SOCIALACCOUNT_PROVIDERS
+                  name: paperless-ngx-oidc-secret
+            - name: PAPERLESS_TIME_ZONE
+              value: America/Chicago
+          image: ghcr.io/paperless-ngx/paperless-ngx:2.20.13@sha256:4b05bcd28e6923768000b5d247cbf2c66fd49bdc3f3b05955bd4f6790a638b01
+          name: main
+          resources:
+            requests:
+              cpu: 1m
+              memory: 100Mi
+          volumeMounts:
+            - mountPath: /usr/src/paperless/consume
+              name: consume
+            - mountPath: /usr/src/paperless/data
+              name: data
+            - mountPath: /usr/src/paperless/export
+              name: export
+            - mountPath: /usr/src/paperless/media
+              name: media
+      volumes:
+        - name: consume
+          persistentVolumeClaim:
+            claimName: paperless-ngx-consume
+        - name: data
+          persistentVolumeClaim:
+            claimName: paperless-ngx-data
+        - name: export
+          persistentVolumeClaim:
+            claimName: paperless-ngx-export
+        - name: media
+          persistentVolumeClaim:
+            claimName: paperless-ngx-media
