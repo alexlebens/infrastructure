@@ -4,16 +4,14 @@ immich:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/immich-app/immich-server
-            tag: v2.6.3
-            pullPolicy: IfNotPresent
+            tag: v2.6.3@sha256:0cc1f82953d9598eb9e9dd11cbde1f50fe54f9c46c4506b089e8ad7bfc9d1f0c
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: IMMICH_TELEMETRY_INCLUDE
               value: all
             - name: IMMICH_CONFIG_FILE
@@ -87,7 +85,7 @@ immich:
             requests:
               gpu.intel.com/i915: 1
               cpu: 10m
-              memory: 512Mi
+              memory: 500Mi
   service:
     main:
       controller: main
@@ -132,11 +130,8 @@ immich:
         - immich.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: immich
+            - name: immich
               port: 2283
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -192,35 +187,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 40 14 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-data:
   pvcTarget: immich
   local:
