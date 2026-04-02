@@ -4,16 +4,14 @@ jellystat:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
-            repository: cyfershepard/jellystat
-            tag: 1.1.8
-            pullPolicy: IfNotPresent
+            repository: ghcr.io/cyfershepard/jellystat
+            tag: 1.1.8@sha256:c8c451704ba7985340142cd047e2364cabaf41b613669b6c5340688ed217f82a
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
@@ -57,7 +55,7 @@ jellystat:
           resources:
             requests:
               cpu: 10m
-              memory: 256Mi
+              memory: 400Mi
   service:
     main:
       controller: main
@@ -65,7 +63,6 @@ jellystat:
         http:
           port: 80
           targetPort: 3000
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -78,11 +75,8 @@ jellystat:
         - jellystat.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: jellystat
+            - name: jellystat
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -93,7 +87,6 @@ jellystat:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 5Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -112,35 +105,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 45 14 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-data:
   pvcTarget: jellystat-data
   local:

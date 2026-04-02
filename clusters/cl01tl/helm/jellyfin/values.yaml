@@ -4,16 +4,14 @@ jellyfin:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/jellyfin/jellyfin
-            tag: 10.11.7
-            pullPolicy: IfNotPresent
+            tag: 10.11.7@sha256:2b93aa3830dcd0aab7185c635e20edef1f8dc5d2e999768baf1724e88c078004
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: JELLYFIN_hostwebclient
               value: true
             - name: JELLYFIN_PublishedServerUrl
@@ -24,12 +22,11 @@ jellyfin:
             requests:
               gpu.intel.com/i915: 1
               cpu: 1
-              memory: 2Gi
+              memory: 1Gi
         exporter:
           image:
             repository: rebelcore/jellyfin-exporter
-            tag: v1.4.0
-            pullPolicy: IfNotPresent
+            tag: v1.4.0@sha256:dd35d901df663141025670b4b44a62a178b331e9fa084b17016f6fba46343ce9
           args:
             - '--jellyfin.address=http://127.0.0.1:8096'
             - '--jellyfin.token=$(TOKEN)'
@@ -47,11 +44,9 @@ jellyfin:
         http:
           port: 80
           targetPort: 8096
-          protocol: HTTP
         metrics:
           port: 9594
           targetPort: 9594
-          protocol: HTTP
   serviceMonitor:
     main:
       selector:
@@ -77,11 +72,8 @@ jellyfin:
         - jellyfin.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: jellyfin
+            - name: jellyfin
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -92,14 +84,16 @@ jellyfin:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 100Gi
-      retain: true
       advancedMounts:
         main:
           main:
             - path: /config
               readOnly: false
     cache:
-      type: emptyDir
+      forceRename: jellyfin-cache
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 20Gi
       advancedMounts:
         main:
           main:
@@ -126,17 +120,14 @@ meilisearch:
     MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE: true
   auth:
     existingMasterKeySecret: jellyfin-meilisearch-master-key-secret
-  service:
-    type: ClusterIP
-    port: 7700
   persistence:
     enabled: true
-    storageClass: local-path
+    storageClass: ceph-block
     size: 5Gi
   resources:
     requests:
       cpu: 10m
-      memory: 128Mi
+      memory: 1Gi
   serviceMonitor:
     enabled: true
 volsync-target-config:

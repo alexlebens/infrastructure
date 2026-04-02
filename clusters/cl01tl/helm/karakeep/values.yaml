@@ -4,13 +4,11 @@ karakeep:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/karakeep-app/karakeep
-            tag: 0.31.0
-            pullPolicy: IfNotPresent
+            tag: 0.31.0@sha256:20754dbdafb11dfe288bbb1c2342a7855081b08ea069e86fcf2d4a2d945d3653
           env:
             - name: DATA_DIR
               value: /data
@@ -91,12 +89,11 @@ karakeep:
           resources:
             requests:
               cpu: 10m
-              memory: 256Mi
+              memory: 500Mi
         chrome:
           image:
             repository: gcr.io/zenika-hub/alpine-chrome
-            tag: 124
-            pullPolicy: IfNotPresent
+            tag: 124@sha256:1a0046448e0bb6c275c88f86e01faf0de62b02ec8572901256ada0a8c08be23f
           args:
             - --no-sandbox
             - --disable-gpu
@@ -104,10 +101,6 @@ karakeep:
             - --remote-debugging-address=0.0.0.0
             - --remote-debugging-port=9222
             - --hide-scrollbars
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
   service:
     main:
       controller: main
@@ -115,11 +108,9 @@ karakeep:
         http:
           port: 3000
           targetPort: 3000
-          protocol: HTTP
         chrome:
           port: 9222
           targetPort: 9222
-          protocol: HTTP
   serviceMonitor:
     main:
       selector:
@@ -142,7 +133,6 @@ karakeep:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 10Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -155,9 +145,6 @@ meilisearch:
     MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE: true
   auth:
     existingMasterKeySecret: karakeep-meilisearch-master-key-secret
-  service:
-    type: ClusterIP
-    port: 7700
   persistence:
     enabled: true
     storageClass: ceph-block
@@ -165,7 +152,7 @@ meilisearch:
   resources:
     requests:
       cpu: 10m
-      memory: 128Mi
+      memory: 50Mi
   serviceMonitor:
     enabled: true
 volsync-target-data:
