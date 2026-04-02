@@ -43,18 +43,16 @@ spec:
                 secretKeyRef:
                   key: token
                   name: jellyfin-exporter-secret
-          image: rebelcore/jellyfin-exporter:v1.4.0
-          imagePullPolicy: IfNotPresent
+          image: rebelcore/jellyfin-exporter:v1.4.0@sha256:dd35d901df663141025670b4b44a62a178b331e9fa084b17016f6fba46343ce9
           name: exporter
         - env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: JELLYFIN_hostwebclient
               value: "true"
             - name: JELLYFIN_PublishedServerUrl
               value: https://jellyfin.alexlebens.net/
-          image: ghcr.io/jellyfin/jellyfin:10.11.7
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/jellyfin/jellyfin:10.11.7@sha256:2b93aa3830dcd0aab7185c635e20edef1f8dc5d2e999768baf1724e88c078004
           name: main
           resources:
             limits:
@@ -62,7 +60,7 @@ spec:
             requests:
               cpu: 1
               gpu.intel.com/i915: 1
-              memory: 2Gi
+              memory: 1Gi
           volumeMounts:
             - mountPath: /cache
               name: cache
@@ -74,8 +72,9 @@ spec:
               name: youtube
               readOnly: true
       volumes:
-        - emptyDir: {}
-          name: cache
+        - name: cache
+          persistentVolumeClaim:
+            claimName: jellyfin-cache
         - name: config
           persistentVolumeClaim:
             claimName: jellyfin-config
