@@ -4,10 +4,10 @@ metadata:
   name: loki-alloy
   namespace: loki
   labels:
-    helm.sh/chart: alloy-1.6.2
+    helm.sh/chart: alloy-1.7.0
     app.kubernetes.io/name: alloy
     app.kubernetes.io/instance: loki
-    app.kubernetes.io/version: "v1.14.0"
+    app.kubernetes.io/version: "v1.15.0"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/part-of: alloy
 spec:
@@ -27,7 +27,7 @@ spec:
       serviceAccountName: loki-alloy
       containers:
         - name: alloy
-          image: docker.io/grafana/alloy:v1.14.0
+          image: docker.io/grafana/alloy:v1.15.0
           imagePullPolicy: IfNotPresent
           args:
             - run
@@ -40,6 +40,10 @@ spec:
             - name: ALLOY_DEPLOY_MODE
               value: "helm"
             - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: K8S_NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
@@ -58,6 +62,7 @@ spec:
               mountPath: /etc/alloy
         - name: config-reloader
           image: quay.io/prometheus-operator/prometheus-config-reloader:v0.81.0
+          imagePullPolicy: IfNotPresent
           args:
             - --watched-dir=/etc/alloy
             - --reload-url=http://localhost:12345/-/reload
