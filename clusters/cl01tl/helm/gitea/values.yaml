@@ -145,11 +145,52 @@ gitea-actions:
   statefulset:
     replicas: 6
     timezone: America/Chicago
+    resources:
+      limits:
+        ephemeral-storage: 15Gi
+      requests:
+        ephemeral-storage: 2Gi
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                    - gitea-actions-act-runner
+              topologyKey: "kubernetes.io/hostname"
+    extraVolumes:
+      - name: workspace-vol
+        ephemeral:
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              storageClassName: ceph-block
+              resources:
+                requests:
+                  storage: 20Gi
+      - name: docker-vol
+        ephemeral:
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              storageClassName: ceph-block
+              resources:
+                requests:
+                  storage: 50Gi
     actRunner:
       registry: docker.io
       repository: gitea/act_runner
       # renovate: datasource=docker depName=gitea/act_runner
       tag: 0.3.1@sha256:c2a169c5e99864c25e32527cef3d82203225e09558773022bf3dc164a2e6d762
+      extraVolumeMounts:
+        - name: workspace-vol
+          mountPath: /workspace
       config: |
         log:
           level: debug
@@ -166,6 +207,9 @@ gitea-actions:
       repository: docker
       # renovate: datasource=docker depName=docker
       tag: 29.3.1-dind@sha256:4d90f1f6c400315c2dba96d3ec93c01e64198395cbba04f79d12adce4f737029
+      extraVolumeMounts:
+        - name: data
+          mountPath: /var/lib/docker
     persistence:
       storageClass: ceph-block
       size: 10Gi
