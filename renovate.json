@@ -67,11 +67,21 @@
   ],
   "packageRules": [
     {
-      "description": "Disable updates to digests",
-      "matchUpdateTypes": [
-        "digest"
+      "description": "Group app packages",
+      "matchPackageNames": [
+        "*"
       ],
-      "enabled": false
+      "groupName": "{{#if packageName}}{{{replace '^.*/([^/]+)$' '$1' packageName}}}{{else}}{{{replace '^.*/([^/]+)$' '$1' depName}}}{{/if}}",
+      "groupSlug": "unified-{{{groupName}}}"
+    },
+    {
+      "description": "Specific app grouping overrides",
+      "matchPackageNames": [
+        "/(^|/)(argo-cd|bazarr|cilium|code-server|dawarich|element-web|home-assistant|immich|komodo|postiz|rook-ceph|roundcube|rybbit|tdarr|traefik)/",
+        "/^rook(-ceph|/rook|/ceph)/"
+      ],
+      "groupName": "{{{replace '^.*(argo-cd|bazarr|cilium|code-server|dawarich|element-web|home-assistant|immich|komodo|postiz|rook-ceph|roundcube|rybbit|tdarr|traefik).*$' '$1' depName}}}",
+      "groupSlug": "unified-{{{groupName}}}"
     },
     {
       "description": "Label Helm updates",
@@ -101,46 +111,11 @@
       ]
     },
     {
-      "description": "Group packages together by stripping all registry/namespace prefixes",
-      "groupName": "{{#if packageName}}{{{replace '^.*/([^/]+)$' '$1' packageName}}}{{else}}{{{replace '^.*/([^/]+)$' '$1' depName}}}{{/if}}",
-      "groupSlug": "unified-{{{groupName}}}",
-      "matchPackageNames": [
-        "*"
-      ]
-    },
-    {
-      "description": "Group for specific apps, these have different package and repo names",
-      "groupName": "{{{replace '^.*(argo-cd|bazarr|cilium|code-server|dawarich|element-web|home-assistant|immich|komodo|postiz|rook-ceph|roundcube|rybbit|tdarr|traefik).*$' '$1' depName}}}",
-      "groupSlug": "unified-{{{groupName}}}",
-      "matchPackageNames": [
-        "/(^|/)(argo-cd|bazarr|cilium|code-server|dawarich|element-web|home-assistant|immich|komodo|postiz|rook-ceph|roundcube|rybbit|tdarr|traefik)/",
-        "/^rook(-ceph|/rook|/ceph)/"
-      ]
-    },
-    {
-      "description": "Automerge helm chart lock files",
-      "matchManagers": [
-        "helm"
-      ],
-      "lockFileMaintenance": {
-        "enabled": true
-      },
-      "addLabels": [
-        "{{{datasource}}}",
-        "automerge"
-      ],
-      "automerge": true,
-      "automergeType": "branch"
-    },
-    {
-      "description": "Open for digest updates, specific packages",
+      "description": "Disable updates to digests by default",
       "matchUpdateTypes": [
         "digest"
       ],
-      "matchPackageNames": [
-        "excalidraw/excalidraw"
-      ],
-      "enabled": true
+      "enabled": false
     },
     {
       "description": "Automerge digest updates, specific packages",
@@ -148,10 +123,10 @@
         "digest"
       ],
       "matchPackageNames": [
+        "excalidraw/excalidraw",
         "searxng/searxng"
       ],
       "addLabels": [
-        "{{{datasource}}}",
         "automerge"
       ],
       "enabled": true,
@@ -160,8 +135,7 @@
     {
       "description": "Automerge patches",
       "matchUpdateTypes": [
-        "patch",
-        "pinDigest"
+        "patch"
       ],
       "addLabels": [
         "{{{datasource}}}",
@@ -173,9 +147,7 @@
     {
       "description": "Automerge images, specific packages",
       "matchUpdateTypes": [
-        "minor",
-        "patch",
-        "pinDigest"
+        "minor"
       ],
       "matchPackageNames": [
         "ghcr.io/renovatebot/renovate",
