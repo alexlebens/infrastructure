@@ -9,10 +9,8 @@ kube-prometheus-stack:
       kubeSchedulerRecording: false
   global:
     rbac:
-      create: true
       createAggregateClusterRoles: true
   alertmanager:
-    enabled: true
     config:
       route:
         group_by: ["namespace", "alertname"]
@@ -36,8 +34,6 @@ kube-prometheus-stack:
     route:
       main:
         enabled: true
-        apiVersion: gateway.networking.k8s.io/v1
-        kind: HTTPRoute
         hostnames:
           - alertmanager.alexlebens.net
         parentRefs:
@@ -45,14 +41,9 @@ kube-prometheus-stack:
             kind: Gateway
             name: traefik-gateway
             namespace: traefik
-        matches:
-          - path:
-              type: PathPrefix
-              value: /
     alertmanagerSpec:
       secrets:
         - alertmanager-config-secret
-      replicas: 1
   grafana:
     enabled: false
   kubeApiServer:
@@ -61,11 +52,13 @@ kube-prometheus-stack:
   kubeControllerManager:
     enabled: false
   kubeEtcd:
-    enabled: true
     service:
       selector:
         k8s-app: kube-controller-manager
     serviceMonitor:
+      metricRelabelings:
+        - action: labeldrop
+          regex: pod
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_node_name]
           separator: ;
@@ -73,22 +66,12 @@ kube-prometheus-stack:
           targetLabel: nodename
           replacement: $1
           action: replace
-      metricRelabelings:
-        - action: labeldrop
-          regex: pod
   kubeScheduler:
     enabled: false
   kubeProxy:
     enabled: false
-  kubeStateMetrics:
-    enabled: true
-  nodeExporter:
-    operatingSystems:
-      darwin:
-        enabled: false
   prometheusOperator:
     admissionWebhooks:
-      enabled: true
       annotations:
         argocd.argoproj.io/hook: PreSync
         argocd.argoproj.io/hook-delete-policy: HookSucceeded
@@ -106,8 +89,6 @@ kube-prometheus-stack:
     route:
       main:
         enabled: true
-        apiVersion: gateway.networking.k8s.io/v1
-        kind: HTTPRoute
         hostnames:
           - prometheus.alexlebens.net
         parentRefs:
@@ -115,13 +96,10 @@ kube-prometheus-stack:
             kind: Gateway
             name: traefik-gateway
             namespace: traefik
-        matches:
-          - path:
-              type: PathPrefix
-              value: /
     prometheusSpec:
       scrapeInterval: 30s
-      retention: 30d
+      retention: 45d
+      retentionSize: 240GiB
       externalUrl: https://prometheus.alexlebens.net
       ruleSelectorNilUsesHelmValues: false
       serviceMonitorSelectorNilUsesHelmValues: false
@@ -142,14 +120,11 @@ ntfy-alertmanager:
     main:
       type: deployment
       replicas: 1
-      strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: xenrox/ntfy-alertmanager
-            tag: 1.0.0
-            pullPolicy: IfNotPresent
+            tag: 1.0.0@sha256:81788c7905774b7b0b2ed6833b2bc4826a90a42e4b738706edcedd5f489e7a73
   service:
     main:
       controller: main
@@ -157,7 +132,6 @@ ntfy-alertmanager:
         http:
           port: 80
           targetPort: 8080
-          protocol: HTTP
   persistence:
     config:
       enabled: true
