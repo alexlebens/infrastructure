@@ -1,4 +1,7 @@
 matrix-synapse:
+  image:
+    repository: ghcr.io/element-hq/synapse
+    tag: v1.150.0@sha256:cba0969087ca70a3ec72ebcd1491a6c8391a7da2c0b92738231dd9c7ad55df4d
   serverName: alexlebens.dev
   publicServerName: matrix.alexlebens.dev
   argoCD: true
@@ -77,7 +80,7 @@ matrix-synapse:
     resources:
       requests:
         cpu: 10m
-        memory: 128Mi
+        memory: 130Mi
   workers:
     default:
       replicaCount: 0
@@ -100,6 +103,9 @@ matrix-synapse:
     client:
       m.homeserver:
         base_url: https://matrix.alexlebens.dev
+    image:
+      repository: ghcr.io/rtsp/docker-lighttpd
+      tag: 1.4.76@sha256:b4b58d217a35dbd6cade82927677de404a46fb3d2b1d5fcb42042b6a6f17b2fb
   postgresql:
     enabled: false
   externalPostgresql:
@@ -125,6 +131,9 @@ matrix-synapse:
     enabled: true
     uid: 666
     gid: 666
+    image:
+      repository: alpine
+      tag: 3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
   ingress:
     enabled: false
   gateway:
@@ -138,17 +147,15 @@ matrix-hookshot:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: halfshot/matrix-hookshot
-            tag: 7.3.2
-            pullPolicy: IfNotPresent
+            tag: 7.3.2@sha256:44283e5131a1a5818bbbf6d9d1e07dccdc29ac5bb6002fcf159af6ac09cf8085
           resources:
             requests:
-              cpu: 10m
-              memory: 128Mi
+              cpu: 5m
+              memory: 90Mi
   service:
     main:
       controller: main
@@ -156,19 +163,15 @@ matrix-hookshot:
         webhook:
           port: 9000
           targetPort: 9000
-          protocol: HTTP
         metrics:
           port: 9001
           targetPort: 9001
-          protocol: HTTP
         widgets:
           port: 9002
           targetPort: 9002
-          protocol: HTTP
         appservice:
           port: 9993
           targetPort: 9993
-          protocol: HTTP
   serviceMonitor:
     main:
       selector:
@@ -220,7 +223,6 @@ matrix-hookshot:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 500Mi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -235,13 +237,11 @@ mautrix-discord:
       type: statefulset
       replicas: 1
       strategy: RollingUpdate
-      revisionHistoryLimit: 3
       # initContainers:
       #   init-copy-config:
       #     image:
       #       repository: busybox
       #       tag: 1.37.0
-      #       pullPolicy: IfNotPresent
       #     resources:
       #       requests:
       #         cpu: 10m
@@ -260,12 +260,11 @@ mautrix-discord:
         main:
           image:
             repository: dock.mau.dev/mautrix/discord
-            tag: v0.7.6
-            pullPolicy: IfNotPresent
+            tag: v0.7.6@sha256:e4946b0df6a2786c88ed490e0d2692e352f1b79b9ff0e821a33764bd8bd1fffd
           resources:
             requests:
-              cpu: 10m
-              memory: 128Mi
+              cpu: 1m
+              memory: 40Mi
   service:
     main:
       controller: main
@@ -273,7 +272,6 @@ mautrix-discord:
         http:
           port: 29334
           targetPort: 29334
-          protocol: HTTP
   persistence:
     config:
       enabled: true
@@ -302,7 +300,6 @@ mautrix-discord:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 500Mi
-      retain: true
       advancedMounts:
         main:
           init-copy-config:
@@ -320,13 +317,11 @@ mautrix-whatsapp:
       type: statefulset
       replicas: 0
       strategy: RollingUpdate
-      revisionHistoryLimit: 3
       # initContainers:
       #   init-copy-config:
       #     image:
       #       repository: busybox
       #       tag: 1.37.0
-      #       pullPolicy: IfNotPresent
       #     resources:
       #       requests:
       #         cpu: 10m
@@ -345,12 +340,11 @@ mautrix-whatsapp:
         main:
           image:
             repository: dock.mau.dev/mautrix/whatsapp
-            tag: v0.2602.0
-            pullPolicy: IfNotPresent
+            tag: v0.2602.0@sha256:07fca07f8746c09e6d5f486d002e638da014d0a134e053e2ed7af9875053104d
           resources:
             requests:
-              cpu: 10m
-              memory: 64Mi
+              cpu: 1m
+              memory: 40Mi
   service:
     main:
       controller: main
@@ -358,7 +352,6 @@ mautrix-whatsapp:
         http:
           port: 29318
           targetPort: 29318
-          protocol: HTTP
   persistence:
     config:
       enabled: true
@@ -387,7 +380,6 @@ mautrix-whatsapp:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 500Mi
-      retain: true
       advancedMounts:
         main:
           init-copy-config:
@@ -402,10 +394,6 @@ cloudflared-hookshot:
   name: hookshot
 postgres-18-cluster:
   mode: recovery
-  cluster:
-    resources:
-      requests:
-        cpu: 200m
   recovery:
     method: objectStore
     objectStore:
@@ -417,42 +405,19 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 0 15 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
   databases:
     - name: mautrix-discord
       ensure: present
       owner: app
-    - name: mautrix-whatsapp
-      ensure: present
-      owner: app
+    # - name: mautrix-whatsapp
+    #   ensure: present
+    #   owner: app
 valkey-matrix-synapse:
   valkey:
     auth:
@@ -461,6 +426,8 @@ valkey-matrix-synapse:
       aclUsers:
         default:
           permissions: "~* &* +@all"
+    # No option to configure metrics when auth is enabled
+    # https://github.com/valkey-io/valkey-helm/issues/135
     metrics:
       enabled: false
 valkey-hookshot:
