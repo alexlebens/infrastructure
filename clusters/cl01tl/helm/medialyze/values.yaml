@@ -4,13 +4,15 @@ medialyze:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
       containers:
         main:
           image:
             repository: ghcr.io/frederikemmer/medialyze
-            tag: 0.4.1
-            pullPolicy: IfNotPresent
+            tag: 0.4.1@sha256:d4f2e04d3759f308bea605c9b7242ab6da98813adc0b276dc3cbe9c283071eb8
           env:
             - name: HOST_PORT
               value: 8080
@@ -22,8 +24,8 @@ medialyze:
               value: /media
           resources:
             requests:
-              cpu: 10m
-              memory: 128Mi
+              cpu: 5m
+              memory: 400Mi
   service:
     main:
       controller: main
@@ -31,7 +33,6 @@ medialyze:
         http:
           port: 80
           targetPort: 8080
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -44,11 +45,8 @@ medialyze:
         - medialyze.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: medialyze
+            - name: medialyze
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -59,7 +57,6 @@ medialyze:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 1Gi
-      retain: true
       advancedMounts:
         main:
           main:
