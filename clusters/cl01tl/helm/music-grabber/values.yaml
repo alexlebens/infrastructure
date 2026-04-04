@@ -4,13 +4,15 @@ music-grabber:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
       containers:
         main:
           image:
             repository: g33kphr33k/musicgrabber
-            tag: 2.5.5
-            pullPolicy: IfNotPresent
+            tag: 2.5.5@sha256:756ce91653b2f5f17f8f47e5c91f07df5af82162608acdf507e6209a16725373
           env:
             - name: MUSIC_DIR
               value: /mnt/store/Music Grabber/
@@ -49,73 +51,7 @@ music-grabber:
               cpu: 100m
             requests:
               cpu: 10m
-              memory: 512Mi
-        # gluetun:
-        #   image:
-        #     repository: ghcr.io/qdm12/gluetun
-        #     tag: v3.41.1@sha256:1a5bf4b4820a879cdf8d93d7ef0d2d963af56670c9ebff8981860b6804ebc8ab
-        #     pullPolicy: IfNotPresent
-        #   lifecycle:
-        #     postStart:
-        #       exec:
-        #         command: ["/bin/sh", "-c", "(ip rule del table 51820; ip -6 rule del table 51820) || true"]
-        #   env:
-        #     - name: VPN_SERVICE_PROVIDER
-        #       value: airvpn
-        #     - name: VPN_TYPE
-        #       value: wireguard
-        #     - name: WIREGUARD_PRIVATE_KEY
-        #       valueFrom:
-        #         secretKeyRef:
-        #           name: music-grabber-wireguard-conf
-        #           key: private-key
-        #     - name: WIREGUARD_PRESHARED_KEY
-        #       valueFrom:
-        #         secretKeyRef:
-        #           name: music-grabber-wireguard-conf
-        #           key: preshared-key
-        #     - name: WIREGUARD_ADDRESSES
-        #       valueFrom:
-        #         secretKeyRef:
-        #           name: music-grabber-wireguard-conf
-        #           key: addresses
-        #     - name: FIREWALL_OUTBOUND_SUBNETS
-        #       value: 10.0.0.0/8
-        #     - name: FIREWALL_INPUT_PORTS
-        #       value: 8080
-        #     - name: DNS_UPSTREAM_RESOLVER_TYPE
-        #       value: dot
-        #     - name: HTTPPROXY
-        #       value: "off"
-        #     - name: SHADOWSOCKS
-        #       value: "off"
-        #   securityContext:
-        #     privileged: True
-        #     capabilities:
-        #       add:
-        #         - NET_ADMIN
-        #         - SYS_MODULE
-        #   probes:
-        #     liveness:
-        #       enabled: true
-        #       custom: true
-        #       spec:
-        #         exec:
-        #           command:
-        #             - /gluetun-entrypoint
-        #             - healthcheck
-        #         failureThreshold: 5
-        #         initialDelaySeconds: 30
-        #         periodSeconds: 30
-        #         successThreshold: 1
-        #         timeoutSeconds: 15
-        #   resources:
-        #     limits:
-        #       devic.es/tun: "1"
-        #     requests:
-        #       devic.es/tun: "1"
-        #       cpu: 10m
-        #       memory: 128Mi
+              memory: 50Mi
   service:
     main:
       controller: main
@@ -123,7 +59,6 @@ music-grabber:
         http:
           port: 80
           targetPort: 8080
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -136,21 +71,18 @@ music-grabber:
         - music-grabber.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: music-grabber
+            - name: music-grabber
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
                 value: /
   persistence:
-    cache:
+    data:
+      forceRename: music-grabber-data
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 1Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -163,3 +95,14 @@ music-grabber:
           main:
             - path: /mnt/store/
               readOnly: false
+volsync-target-data:
+  pvcTarget: music-grabber-data
+  local:
+    enabled: true
+    schedule: 46 8 * * *
+  remote:
+    enabled: true
+    schedule: 46 9 * * *
+  external:
+    enabled: true
+    schedule: 46 10 * * *
