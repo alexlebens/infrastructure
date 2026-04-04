@@ -4,13 +4,15 @@ navidrome:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
       containers:
         main:
           image:
-            repository: deluan/navidrome
+            repository: ghcr.io/navidrome/navidrome
             tag: 0.61.0@sha256:b14a6acb5cd5ee73f3a13d63d8d68ede82dedb796aa522fbada94769d990cf0b
-            pullPolicy: IfNotPresent
           env:
             - name: ND_MUSICFOLDER
               value: /music
@@ -32,18 +34,16 @@ navidrome:
             requests:
               gpu.intel.com/i915: 1
               cpu: 10m
-              memory: 128Mi
+              memory: 50Mi
     feishin:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/jeffvli/feishin
-            tag: 1.0.1-beta.1@sha256:61239641f23a33f99c2858419b14afb66683f3cd82010363fba92be3993fd894
-            pullPolicy: IfNotPresent
+            tag: 1.9.0@sha256:5e6959afd27dabadd8f68fed8b0485d851593c61ca558194295bf8950262cc07
           env:
             - name: SERVER_NAME
               value: talos
@@ -53,6 +53,10 @@ navidrome:
               value: navidrome
             - name: SERVER_URL
               value: https://navidrome.alexlebens.net
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
   service:
     main:
       controller: main
@@ -60,14 +64,12 @@ navidrome:
         http:
           port: 80
           targetPort: 4533
-          protocol: HTTP
     feishin:
       controller: feishin
       ports:
         http:
           port: 80
           targetPort: 9180
-          protocol: HTTP
   serviceMonitor:
     main:
       selector:
@@ -94,11 +96,8 @@ navidrome:
         - navidrome.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: navidrome-main
+            - name: navidrome-main
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -114,11 +113,8 @@ navidrome:
         - feishin.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: navidrome-feishin
+            - name: navidrome-feishin
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
