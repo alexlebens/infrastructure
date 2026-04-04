@@ -4,13 +4,11 @@ languagetool:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: erikvl87/languagetool
-            tag: 6.7
-            pullPolicy: IfNotPresent
+            tag: 6.7@sha256:454acc9b3d232bdf37a0eddb1c8d0e93513ce41b914a8a374e3c44a884122364
           env:
             - name: langtool_languageModel
               value: /ngrams
@@ -20,8 +18,8 @@ languagetool:
               value: 1g
           resources:
             requests:
-              cpu: 10m
-              memory: 128Mi
+              cpu: 1m
+              memory: 800Mi
   service:
     main:
       controller: main
@@ -29,7 +27,6 @@ languagetool:
         http:
           port: 80
           targetPort: 8010
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -42,11 +39,8 @@ languagetool:
         - languagetool.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: languagetool
+            - name: languagetool
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -57,7 +51,6 @@ languagetool:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 1Gi
-      retain: true
       advancedMounts:
         main:
           main:
