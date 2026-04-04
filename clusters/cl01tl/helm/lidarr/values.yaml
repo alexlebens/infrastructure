@@ -4,7 +4,6 @@ lidarr:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
         securityContext:
           runAsUser: 1000
@@ -16,10 +15,9 @@ lidarr:
           image:
             repository: ghcr.io/linuxserver/lidarr
             tag: 3.1.2-nightly@sha256:034055feee43b11eb2f7a8438a9af1c99ab564dd2b43e5df2fe5b3c9b3b8b1ac
-            pullPolicy: IfNotPresent
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: PUID
               value: 1000
             - name: PGID
@@ -27,12 +25,11 @@ lidarr:
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 300Mi
         metrics:
           image:
             repository: ghcr.io/onedr0p/exportarr
-            tag: v2.3.0
-            pullPolicy: IfNotPresent
+            tag: v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
           args: ["lidarr"]
           env:
             - name: URL
@@ -45,10 +42,6 @@ lidarr:
               value: false
             - name: ENABLE_UNKNOWN_QUEUE_ITEMS
               value: false
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
   service:
     main:
       controller: main
@@ -56,11 +49,9 @@ lidarr:
         http:
           port: 80
           targetPort: 8686
-          protocol: HTTP
         metrics:
           port: 9792
           targetPort: 9792
-          protocol: TCP
   serviceMonitor:
     main:
       selector:
@@ -95,11 +86,8 @@ lidarr:
                 type: PathPrefix
                 value: /outpost.goauthentik.io
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: lidarr
+            - name: lidarr
               port: 80
-              weight: 100
           filters:
             - type: ExtensionRef
               extensionRef:
@@ -116,7 +104,6 @@ lidarr:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 10Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -150,35 +137,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 55 14 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-config:
   pvcTarget: lidarr-config
   moverSecurityContext:
