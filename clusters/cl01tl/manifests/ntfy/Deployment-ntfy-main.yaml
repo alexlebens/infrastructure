@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ntfy
+  name: ntfy-main
   labels:
     app.kubernetes.io/controller: main
     app.kubernetes.io/instance: ntfy
@@ -11,7 +11,7 @@ metadata:
   namespace: ntfy
 spec:
   revisionHistoryLimit: 3
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate
   selector:
@@ -43,17 +43,8 @@ spec:
               value: https://ntfy.alexlebens.net
             - name: NTFY_LISTEN_HTTP
               value: :80
-            - name: NTFY_CACHE_FILE
-              value: /var/cache/ntfy/cache.db
             - name: NTFY_CACHE_DURATION
               value: 36h
-            - name: NTFY_CACHE_STARTUP_QUERIES
-              value: |
-                pragma journal_mode = WAL;
-                pragma synchronous = normal;
-                pragma temp_store = memory;
-                pragma busy_timeout = 15000;
-                vacuum;
             - name: NTFY_BEHIND_PROXY
               value: "true"
             - name: NTFY_ATTACHMENT_CACHE_DIR
@@ -73,8 +64,6 @@ spec:
               value: "true"
             - name: NTFY_ENABLE_RESERVATIONS
               value: "false"
-            - name: NTFY_AUTH_FILE
-              value: /var/cache/ntfy/user.db
             - name: NTFY_AUTH_DEFAULT_ACCESS
               value: deny-all
             - name: NTFY_METRICS_LISTEN_HTTP
@@ -82,6 +71,14 @@ spec:
             - name: NTFY_LOG_LEVEL
               value: info
           image: binwiederhier/ntfy:v2.21.0@sha256:2b9e12d56a538f4402da51328eeca02696c4b207ab7fbe031c27e51a22ca9b86
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: 80
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            successThreshold: 1
+            timeoutSeconds: 30
           name: main
           resources:
             requests:
