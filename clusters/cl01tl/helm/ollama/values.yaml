@@ -4,7 +4,6 @@ ollama:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
         labels:
           ollama-type: server
@@ -22,8 +21,7 @@ ollama:
         main:
           image:
             repository: ollama/ollama
-            tag: 0.20.0
-            pullPolicy: IfNotPresent
+            tag: 0.20.0@sha256:6eb118589b440c05b62e7e5e73a0bdf7240f6c79d968e60e6fd49f919eee5733
           env:
             - name: OLLAMA_KEEP_ALIVE
               value: 24h
@@ -33,14 +31,13 @@ ollama:
             limits:
               gpu.intel.com/i915: 1
             requests:
-              cpu: 100m
-              memory: 1Gi
+              cpu: 10m
+              memory: 20Mi
               gpu.intel.com/i915: 1
     server-2:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
         labels:
           ollama-type: server
@@ -58,8 +55,7 @@ ollama:
         main:
           image:
             repository: ollama/ollama
-            tag: 0.20.0
-            pullPolicy: IfNotPresent
+            tag: 0.20.0@sha256:6eb118589b440c05b62e7e5e73a0bdf7240f6c79d968e60e6fd49f919eee5733
           env:
             - name: OLLAMA_KEEP_ALIVE
               value: 24h
@@ -69,14 +65,13 @@ ollama:
             limits:
               gpu.intel.com/i915: 1
             requests:
-              cpu: 100m
-              memory: 1Gi
+              cpu: 10m
+              memory: 20Mi
               gpu.intel.com/i915: 1
     server-3:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
         labels:
           ollama-type: server
@@ -94,8 +89,7 @@ ollama:
         main:
           image:
             repository: ollama/ollama
-            tag: 0.20.0
-            pullPolicy: IfNotPresent
+            tag: 0.20.0@sha256:6eb118589b440c05b62e7e5e73a0bdf7240f6c79d968e60e6fd49f919eee5733
           env:
             - name: OLLAMA_KEEP_ALIVE
               value: 24h
@@ -105,20 +99,18 @@ ollama:
             limits:
               gpu.intel.com/i915: 1
             requests:
-              cpu: 100m
-              memory: 1Gi
+              cpu: 10m
+              memory: 20Mi
               gpu.intel.com/i915: 1
     web:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/open-webui/open-webui
             tag: v0.8.12
-            pullPolicy: IfNotPresent
           env:
             - name: ENV
               value: prod
@@ -165,7 +157,7 @@ ollama:
           resources:
             requests:
               cpu: 10m
-              memory: 1Gi
+              memory: 650i
   service:
     server-1:
       controller: server-1
@@ -173,28 +165,24 @@ ollama:
         http:
           port: 11434
           targetPort: 11434
-          protocol: HTTP
     server-2:
       controller: server-2
       ports:
         http:
           port: 11434
           targetPort: 11434
-          protocol: HTTP
     server-3:
       controller: server-3
       ports:
         http:
           port: 11434
           targetPort: 11434
-          protocol: HTTP
     web:
       controller: web
       ports:
         http:
           port: 80
           targetPort: 8080
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -207,11 +195,8 @@ ollama:
         - ollama.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: ollama-web
+            - name: ollama-web
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -221,7 +206,6 @@ ollama:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 40Gi
-      retain: true
       advancedMounts:
         server-1:
           main:
@@ -231,7 +215,6 @@ ollama:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 40Gi
-      retain: true
       advancedMounts:
         server-2:
           main:
@@ -241,7 +224,6 @@ ollama:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 40Gi
-      retain: true
       advancedMounts:
         server-3:
           main:
@@ -252,7 +234,6 @@ ollama:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 5Gi
-      retain: true
       advancedMounts:
         web:
           main:
@@ -272,35 +253,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 5 15 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-data:
   pvcTarget: ollama-web-data
   moverSecurityContext:
