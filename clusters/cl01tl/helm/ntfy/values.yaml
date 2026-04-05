@@ -2,7 +2,7 @@ ntfy:
   controllers:
     main:
       type: deployment
-      replicas: 1
+      replicas: 0
       strategy: Recreate
       containers:
         main:
@@ -17,17 +17,8 @@ ntfy:
               value: https://ntfy.alexlebens.net
             - name: NTFY_LISTEN_HTTP
               value: :80
-            - name: NTFY_CACHE_FILE
-              value: /var/cache/ntfy/cache.db
             - name: NTFY_CACHE_DURATION
               value: 36h
-            - name: NTFY_CACHE_STARTUP_QUERIES
-              value: |
-                pragma journal_mode = WAL;
-                pragma synchronous = normal;
-                pragma temp_store = memory;
-                pragma busy_timeout = 15000;
-                vacuum;
             - name: NTFY_BEHIND_PROXY
               value: true
             # - name: NTFY_DATABASE_URL
@@ -52,8 +43,6 @@ ntfy:
               value: true
             - name: NTFY_ENABLE_RESERVATIONS
               value: false
-            - name: NTFY_AUTH_FILE
-              value: /var/cache/ntfy/user.db
             - name: NTFY_AUTH_DEFAULT_ACCESS
               value: deny-all
             - name: NTFY_METRICS_LISTEN_HTTP
@@ -62,7 +51,7 @@ ntfy:
               value: info
           probes:
             liveness:
-              enabled: false
+              enabled: true
               custom: true
               spec:
                 httpGet:
@@ -76,6 +65,22 @@ ntfy:
             requests:
               cpu: 10m
               memory: 40Mi
+    debug:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ubuntu/go
+            tag: 1.22-24.04_stable
+          command:
+            - "sleep"
+            - "infinity"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
   service:
     main:
       controller: main
@@ -126,8 +131,12 @@ ntfy:
           main:
             - path: /var/cache/ntfy
               readOnly: false
+        debug:
+          main:
+            - path: /var/cache/ntfy
+              readOnly: true
 postgres-18-cluster:
-  mode: standalone
+  mode: recovery
   recovery:
     method: objectStore
     objectStore:
