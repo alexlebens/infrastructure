@@ -4,8 +4,10 @@ plex:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
         affinity:
           podAntiAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
@@ -20,11 +22,10 @@ plex:
         main:
           image:
             repository: ghcr.io/linuxserver/plex
-            tag: 1.43.0@sha256:a27f1ce1e1d14cd3627ed217f042bf8de0f796ed274fb27b2dc971ae22a64b95
-            pullPolicy: IfNotPresent
+            tag: 1.43.0.10492-121068a07-ls298@sha256:cbd631f9a972a1c453953a9192c1781dd7d2084db075a1bee78a3cc6387fb103
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: VERSION
               value: docker
           resources:
@@ -32,8 +33,8 @@ plex:
               gpu.intel.com/i915: 1
             requests:
               gpu.intel.com/i915: 1
-              cpu: 10m
-              memory: 512Mi
+              cpu: 100m
+              memory: 250Mi
   service:
     main:
       controller: main
@@ -42,7 +43,6 @@ plex:
         http:
           port: 32400
           targetPort: 32400
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -55,11 +55,8 @@ plex:
         - plex.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: plex
+            - name: plex
               port: 32400
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
