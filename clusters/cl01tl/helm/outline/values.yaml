@@ -4,7 +4,6 @@ outline:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
         securityContext:
           fsGroup: 1001
@@ -12,13 +11,12 @@ outline:
         main:
           image:
             repository: outlinewiki/outline
-            tag: 1.6.1
-            pullPolicy: IfNotPresent
+            tag: 1.6.1@sha256:a750f764080ce28d4a7393176011c8e2e4170b41689a8f6d91327dadf4904eb6
           env:
             - name: NODE_ENV
               value: production
             - name: URL
-              value: https://wiki.alexlebens.dev
+              value: https://outline.alexlebens.dev
             - name: PORT
               value: 3000
             - name: SECRET_KEY
@@ -113,7 +111,7 @@ outline:
           resources:
             requests:
               cpu: 10m
-              memory: 512Mi
+              memory: 500Mi
   service:
     main:
       controller: main
@@ -121,14 +119,12 @@ outline:
         http:
           port: 3000
           targetPort: 3000
-          protocol: HTTP
   persistence:
     data:
       forceRename: outline-data
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 5Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -147,35 +143,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 10 15 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-data:
   pvcTarget: outline-data
   moverSecurityContext:
