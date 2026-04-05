@@ -1,0 +1,106 @@
+dependency-track:
+  common:
+    secretKey:
+      createSecret: false
+      existingSecretName: dependency-track-key-secret
+  apiServer:
+    image:
+      repository: dependencytrack/apiserver
+      tag: 4.14.1@sha256:2d8813e1ba4ada4aa23087d908c1b5a3ffce39261ead5555c397a1d67c7cbe9d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 100Mi
+      limits:
+        memory: null
+    persistentVolume:
+      enabled: true
+      className: ceph-block
+      size: 5Gi
+    extraEnv:
+      - name: ALPINE_DATABASE_MODE
+        value: external
+      - name: ALPINE_DATABASE_MODE
+        value: org.postgresql.Driver
+      - name: ALPINE_DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: dependency-track-postgresql-18-cluster-app
+            key: jdbc-uri
+      - name: ALPINE_DATABASE_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: dependency-track-postgresql-18-cluster-app
+            key: user
+      - name: ALPINE_DATABASE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: dependency-track-postgresql-18-cluster-app
+            key: password
+      - name: ALPINE_OIDC_ENABLED
+        value: "true"
+      - name: ALPINE_OIDC_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: dependency-track-oidc-secret
+            key: client
+      - name: ALPINE_OIDC_ISSUER
+        value: https://authentik.alexlebens.net/application/o/dependency-track/
+      - name: ALPINE_OIDC_USERNAME_CLAIM
+        value: preferred_username
+      - name: ALPINE_OIDC_TEAMS_CLAIM
+        value: groups
+      - name: ALPINE_OIDC_USER_PROVISIONING
+        value: "true"
+      - name: ALPINE_OIDC_TEAM_SYNCHRONIZATION
+        value: "true"
+      - name: ALPINE_CORS_ENABLED
+        value: "true"
+      - name: ALPINE_CORS_ALLOW_ORIGIN
+        value: dependency-track.alexlebens.net, dependency-track.dependency-track
+    serviceMonitor:
+      enabled: true
+      namespace: dependency-track
+  frontend:
+    image:
+      repository: dependencytrack/frontend
+      tag: 4.14.1@sha256:8217737050b26ea69a6ddd6fe2cb419531a0bae0b903a87a04077a2415fc9f35
+    resources:
+      requests:
+        cpu: 10m
+        memory: 60Mi
+      limits:
+        memory: null
+    apiBaseUrl: dependency-track.alexlebens.net
+  httpRoute:
+    enabled: true
+    hostnames:
+      - dependency-track.alexlebens.net
+    parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: traefik-gateway
+        namespace: traefik
+postgres-18-cluster:
+  mode: standalone
+  cluster:
+    initdb:
+      postInitSQL:
+        - ALTER DATABASE app SET READ_COMMITTED_SNAPSHOT ON;
+  recovery:
+    method: objectStore
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      - name: garage-local
+        index: 1
+        destinationBucket: postgres-backups
+        externalSecretCredentialPath: /garage/home-infra/postgres-backups
+        isWALArchiver: true
+    scheduledBackups:
+      - name: live-backup
+        suspend: false
+        immediate: true
+        schedule: "0 10 14 * * *"
+        backupName: garage-local
