@@ -4,17 +4,15 @@ ntfy:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: binwiederhier/ntfy
-            tag: v2.21.0
-            pullPolicy: IfNotPresent
+            tag: v2.21.0@sha256:2b9e12d56a538f4402da51328eeca02696c4b207ab7fbe031c27e51a22ca9b86
           args: ["serve"]
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: NTFY_BASE_URL
               value: https://ntfy.alexlebens.net
             - name: NTFY_LISTEN_HTTP
@@ -32,36 +30,32 @@ ntfy:
                 vacuum;
             - name: NTFY_BEHIND_PROXY
               value: true
+            # - name: NTFY_DATABASE_URL
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: ntfy-postgresql-18-cluster-app
+            #       key: uri
             - name: NTFY_ATTACHMENT_CACHE_DIR
-              value: /var/cache/ntfy/attachments
+              valueFrom:
+                secretKeyRef:
+                  name: ntfy-config-secret
+                  key: attachment-cache-dir
             - name: NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT
-              value: 4G
+              value: 10G
             - name: NTFY_ATTACHMENT_FILE_SIZE_LIMIT
-              value: 15M
+              value: 150M
             - name: NTFY_ATTACHMENT_EXPIRY_DURATION
-              value: 36h
+              value: 72h
             - name: NTFY_ENABLE_SIGNUP
               value: false
             - name: NTFY_ENABLE_LOGIN
               value: true
             - name: NTFY_ENABLE_RESERVATIONS
               value: false
-            # - name: NTFY_UPSTREAM_BASE_URL
-            #   value: https://ntfy.sh
             - name: NTFY_AUTH_FILE
               value: /var/cache/ntfy/user.db
             - name: NTFY_AUTH_DEFAULT_ACCESS
               value: deny-all
-            # - name: NTFY_UPSTREAM_ACCESS_TOKEN
-            #   value: ""
-            # - name: NTFY_WEB_PUSH_PUBLIC_KEY
-            #   value: ""
-            # - name: NTFY_WEB_PUSH_PRIVATE_KEY
-            #   value: ""
-            # - name: NTFY_WEB_PUSH_FILE
-            #   value: /var/lib/ntfy/webpush.db
-            # - name: NTFY_WEB_PUSH_EMAIL_ADDRESS
-            #   value: ""
             - name: NTFY_METRICS_LISTEN_HTTP
               value: :9090
             - name: NTFY_LOG_LEVEL
@@ -71,13 +65,9 @@ ntfy:
               enabled: false
               custom: true
               spec:
-                exec:
-                  command:
-                  - /usr/bin/env
-                  - sh
-                  - -c
-                  - wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1
-                failureThreshold: 10
+                httpGet:
+                  path: /v1/health
+                  port: 80
                 initialDelaySeconds: 60
                 periodSeconds: 60
                 successThreshold: 1
@@ -85,7 +75,7 @@ ntfy:
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 40Mi
   service:
     main:
       controller: main
@@ -93,11 +83,9 @@ ntfy:
         http:
           port: 80
           targetPort: 80
-          protocol: HTTP
         metrics:
           port: 9090
           targetPort: 9090
-          protocol: HTTP
   serviceMonitor:
     main:
       selector:
@@ -122,11 +110,8 @@ ntfy:
         - ntfy.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: ntfy
+            - name: ntfy
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -141,3 +126,22 @@ ntfy:
           main:
             - path: /var/cache/ntfy
               readOnly: false
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    method: objectStore
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      - name: garage-local
+        index: 1
+        destinationBucket: postgres-backups
+        externalSecretCredentialPath: /garage/home-infra/postgres-backups
+        isWALArchiver: true
+    scheduledBackups:
+      - name: live-backup
+        suspend: false
+        immediate: true
+        schedule: "0 15 14 * * *"
+        backupName: garage-local
