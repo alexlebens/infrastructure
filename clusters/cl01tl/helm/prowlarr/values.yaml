@@ -4,31 +4,22 @@ prowlarr:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
         securityContext:
           runAsUser: 568
           runAsGroup: 568
-          fsGroup: 568
-          fsGroupChangePolicy: OnRootMismatch
-          supplementalGroups:
-            - 44
-            - 100
-            - 109
-            - 65539
       containers:
         main:
           image:
             repository: ghcr.io/linuxserver/prowlarr
-            tag: 2.3.0@sha256:9ef5d8bf832edcacb6082f9262cb36087854e78eb7b1c3e1d4375056055b2d82
-            pullPolicy: IfNotPresent
+            tag: 2.3.5.5327-ls141@sha256:35f48abb3e976fcf077fae756866c582e4a90f8b24810ae4067b3558f7cdbbdf
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
           resources:
             requests:
               cpu: 10m
-              memory: 256Mi
+              memory: 200Mi
   service:
     main:
       controller: main
@@ -36,7 +27,6 @@ prowlarr:
         http:
           port: 80
           targetPort: 9696
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -49,11 +39,8 @@ prowlarr:
         - prowlarr.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: prowlarr
+            - name: prowlarr
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -64,7 +51,6 @@ prowlarr:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 5Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -75,13 +61,6 @@ volsync-target-config:
   moverSecurityContext:
     runAsUser: 568
     runAsGroup: 568
-    fsGroup: 568
-    fsGroupChangePolicy: OnRootMismatch
-    supplementalGroups:
-      - 44
-      - 100
-      - 109
-      - 65539
   local:
     enabled: true
     schedule: 56 8 * * *
