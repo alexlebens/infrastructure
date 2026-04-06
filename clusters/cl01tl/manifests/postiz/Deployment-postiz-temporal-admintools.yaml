@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postiz-temporal-admintools
+  annotations:
+  labels:
+    app.kubernetes.io/component: admintools
+    app.kubernetes.io/name: temporal
+    helm.sh/chart: temporal-1.0.0-rc.3
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: postiz
+    app.kubernetes.io/version: "1.30.2"
+    app.kubernetes.io/part-of: temporal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: temporal
+      app.kubernetes.io/instance: postiz
+      app.kubernetes.io/component: admintools
+  template:
+    metadata:
+      annotations:
+      labels:
+        app.kubernetes.io/component: admintools
+        app.kubernetes.io/name: temporal
+        helm.sh/chart: temporal-1.0.0-rc.3
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/instance: postiz
+        app.kubernetes.io/version: "1.30.2"
+        app.kubernetes.io/part-of: temporal
+    spec:
+      serviceAccountName: default
+      containers:
+        - name: admin-tools
+          image: "temporalio/admin-tools:1.30.2@sha256:024c6473df113e4b220b3caf6056d30964582ffcae6f6e46a1074aa6c67968d3"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TEMPORAL_CLI_ADDRESS
+              value: postiz-temporal-frontend:7233
+            - name: TEMPORAL_ADDRESS
+              value: postiz-temporal-frontend:7233
+          livenessProbe:
+            exec:
+              command:
+                - ls
+                - /
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 60Mi

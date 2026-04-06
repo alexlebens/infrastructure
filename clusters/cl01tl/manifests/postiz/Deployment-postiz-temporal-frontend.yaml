@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postiz-temporal-frontend
+  annotations:
+  labels:
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/name: temporal
+    helm.sh/chart: temporal-1.0.0-rc.3
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: postiz
+    app.kubernetes.io/version: "1.30.2"
+    app.kubernetes.io/part-of: temporal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: temporal
+      app.kubernetes.io/instance: postiz
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      annotations:
+        checksum/config: 288754e56c18963836a8e876b785b5effee831e52b33f00bfa9903e3ee20d827
+        prometheus.io/job: temporal-frontend
+        prometheus.io/scrape: 'true'
+        prometheus.io/scheme: http
+        prometheus.io/port: '9090'
+      labels:
+        app.kubernetes.io/component: frontend
+        app.kubernetes.io/name: temporal
+        helm.sh/chart: temporal-1.0.0-rc.3
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/instance: postiz
+        app.kubernetes.io/version: "1.30.2"
+        app.kubernetes.io/part-of: temporal
+    spec:
+      serviceAccountName: default
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+      containers:
+        - name: temporal-frontend
+          image: "temporalio/server:1.30.2@sha256:d5334ee3ddce1617efbe280a10afc85916cf8d81798415c98988dbda2b46773e"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: SERVICES
+              value: frontend
+            - name: TEMPORAL_SERVICES
+              value: frontend
+            - name: TEMPORAL_SERVER_CONFIG_FILE_PATH
+              value: /etc/temporal/config/config_template.yaml
+            - name: TEMPORAL_DEFAULT_STORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-postgresql-18-cluster-app
+                  key: password
+            - name: TEMPORAL_VISIBILITY_STORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-temporal-visibility-store
+                  key: password
+          ports:
+            - name: rpc
+              containerPort: 7233
+              protocol: TCP
+            - name: membership
+              containerPort: 6933
+              protocol: TCP
+            - name: http
+              containerPort: 7243
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          livenessProbe:
+            initialDelaySeconds: 150
+            tcpSocket:
+              port: rpc
+          readinessProbe:
+            grpc:
+              port: 7233
+              service: temporal.api.workflowservice.v1.WorkflowService
+          volumeMounts:
+            - name: config
+              mountPath: /etc/temporal/config/config_template.yaml
+              subPath: config_template.yaml
+            - name: dynamic-config
+              mountPath: /etc/temporal/dynamic_config
+            - name: shims
+              mountPath: /usr/local/bin/dockerize
+              subPath: dockerize
+          resources:
+            requests:
+              cpu: 10m
+              memory: 60Mi
+      volumes:
+        - name: shims
+          configMap:
+            name: "postiz-temporal-shims"
+            defaultMode: 0555
+        - name: config
+          configMap:
+            name: "postiz-temporal-config"
+        - name: dynamic-config
+          configMap:
+            name: "postiz-temporal-dynamic-config"
+            items:
+              - key: dynamic_config.yaml
+                path: dynamic_config.yaml
+      terminationGracePeriodSeconds:

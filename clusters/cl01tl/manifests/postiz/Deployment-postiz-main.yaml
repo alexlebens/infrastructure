@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: postiz
+  name: postiz-main
   labels:
     app.kubernetes.io/controller: main
     app.kubernetes.io/instance: postiz
@@ -35,17 +35,21 @@ spec:
       dnsPolicy: ClusterFirst
       containers:
         - env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: JWT_SECRET
+                  name: postiz-config-secret
             - name: MAIN_URL
               value: https://postiz.alexlebens.dev
             - name: FRONTEND_URL
               value: https://postiz.alexlebens.dev
             - name: NEXT_PUBLIC_BACKEND_URL
               value: https://postiz.alexlebens.dev/api
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  key: JWT_SECRET
-                  name: postiz-config-secret
+            - name: BACKEND_INTERNAL_URL
+              value: http://temporal:3000
+            - name: TEMPORAL_ADDRESS
+              value: http://temporal:3000
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -56,9 +60,11 @@ spec:
                 secretKeyRef:
                   key: REDIS_URL
                   name: postiz-valkey-config
-            - name: BACKEND_INTERNAL_URL
-              value: http://localhost:3000
             - name: IS_GENERAL
+              value: "true"
+            - name: DISABLE_REGISTRATION
+              value: "false"
+            - name: RUN_CRON
               value: "true"
             - name: STORAGE_PROVIDER
               value: local
@@ -92,6 +98,10 @@ spec:
                   name: postiz-oidc-secret
             - name: POSTIZ_OAUTH_SCOPE
               value: openid profile email
+            - name: NEXT_PUBLIC_SENTRY_DSN
+              value: http://spotlight:8969/stream
+            - name: SENTRY_SPOTLIGHT
+              value: "1"
           image: ghcr.io/gitroomhq/postiz-app:v2.21.4@sha256:a339e9ee256537526d0eda19e5919e01fa7649a40596ebec5d9e1389850836bc
           name: main
           resources:
