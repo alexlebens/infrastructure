@@ -4,13 +4,11 @@ roundcube:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: roundcube/roundcubemail
-            tag: 1.6.15-fpm-alpine
-            pullPolicy: IfNotPresent
+            tag: 1.6.15-fpm-alpine@sha256:0e07c1c66d5a1392f0c47cc79e85e0c60095108f715037d7d0aa3fd8cbe2e780
           env:
             - name: ROUNDCUBEMAIL_DB_TYPE
               value: pgsql
@@ -53,40 +51,32 @@ roundcube:
               value: archive,zipdownload,newmail_notifier
           resources:
             requests:
-              cpu: 10m
-              memory: 256Mi
+              cpu: 1m
+              memory: 40Mi
         nginx:
           image:
             repository: nginx
-            tag: 1.29.7-alpine-slim
-            pullPolicy: IfNotPresent
+            tag: 1.29.7-alpine-slim@sha256:0848ca84c476868cbeb6a5c2c009a98821b8540f96c44b1ba06820db50262e35
           env:
             - name: NGINX_HOST
               value: mail.alexlebens.net
             - name: NGINX_PHP_CGI
               value: roundcube.roundcube:9000
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
     cleandb:
       type: cronjob
       cronjob:
         suspend: false
-        concurrencyPolicy: Forbid
-        timeZone: US/Central
+        timeZone: America/Chicago
         schedule: 30 4 * * *
-        startingDeadlineSeconds: 90
-        successfulJobsHistory: 1
-        failedJobsHistory: 1
         backoffLimit: 3
         parallelism: 1
       containers:
         backup:
           image:
             repository: roundcube/roundcubemail
-            tag: 1.6.15-fpm-alpine
-            pullPolicy: IfNotPresent
+            tag: 1.6.15-fpm-alpine@sha256:0e07c1c66d5a1392f0c47cc79e85e0c60095108f715037d7d0aa3fd8cbe2e780
+          args:
+            - bin/cleandb.sh
           env:
             - name: ROUNDCUBEMAIL_DB_TYPE
               value: pgsql
@@ -123,12 +113,6 @@ roundcube:
               value: elastic
             - name: ROUNDCUBEMAIL_PLUGINS
               value: archive,zipdownload,newmail_notifier
-          args:
-            - bin/cleandb.sh
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
   configMaps:
     config:
       enabled: true
@@ -167,11 +151,9 @@ roundcube:
         mail:
           port: 9000
           targetPort: 9000
-          protocol: HTTP
         web:
           port: 80
           targetPort: 80
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -184,11 +166,8 @@ roundcube:
         - mail.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: roundcube
+            - name: roundcube
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -210,7 +189,6 @@ roundcube:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 5Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -239,35 +217,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 40 15 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-data:
   pvcTarget: roundcube-data
   local:
