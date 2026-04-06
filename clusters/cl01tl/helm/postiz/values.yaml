@@ -74,9 +74,9 @@ postiz:
             - name: POSTIZ_OAUTH_SCOPE
               value: openid profile email
             - name: NEXT_PUBLIC_SENTRY_DSN
-              value: http://postiz-spotlight:8969/stream
+              value: http://key@postiz-spotlight.postiz:8969/1
             - name: SENTRY_SPOTLIGHT
-              value: "1"
+              value: http://postiz-spotlight.postiz:8969/stream
           resources:
             requests:
               cpu: 10m
@@ -107,6 +107,24 @@ postiz:
         http:
           port: 8969
           targetPort: 8969
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - postiz-spotlight.alexlebens.net
+      rules:
+        - backendRefs:
+            - name: postiz-spotlight
+              port: 8969
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
   persistence:
     config:
       forceRename: postiz-config
@@ -168,6 +186,11 @@ temporal:
               secretKey: password
               tls:
                 enabled: false
+      namespaces:
+        create: true
+        namespace:
+          - name: default
+            retention: 30d
     frontend:
       ingress:
         enabled: false
