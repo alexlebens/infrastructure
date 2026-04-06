@@ -1,20 +1,30 @@
 rook-ceph:
   crds:
     enabled: true
+  resources:
+    limits:
+      memory: null
+    requests:
+      cpu: 100m
+      memory: 100Mi
   csi:
-    rookUseCsiOperator: true
     cephFSKernelMountOptions: "ms_mode=secure"
     enableMetadata: true
-    provisionerReplicas: 3
     serviceMonitor:
       enabled: true
   enableDiscoveryDaemon: true
   monitoring:
     enabled: true
-
 rook-ceph-cluster:
   toolbox:
     enabled: true
+    image: quay.io/ceph/ceph:v20.2.1@sha256:0bae386bc859cd9a05b804d1ca16cca8853a64f90809044e2bf43095419dc337
+    resources:
+      limits:
+        memory: null
+      requests:
+        cpu: 1m
+        memory: 10Mi
   monitoring:
     enabled: true
     createPrometheusRules: true
@@ -22,17 +32,17 @@ rook-ceph-cluster:
       CephNodeDiskspaceWarning:
         disabled: true
   cephImage:
-    # https://quay.io/repository/ceph/ceph?tab=tags
     repository: quay.io/ceph/ceph
-    tag: v19.2.3-20250717
-    imagePullPolicy: IfNotPresent
+    tag: v20.2.1@sha256:0bae386bc859cd9a05b804d1ca16cca8853a64f90809044e2bf43095419dc337
   cephClusterSpec:
     cephConfig:
       osd:
         bluestore_slow_ops_warn_lifetime: "60"
         bluestore_slow_ops_warn_threshold: "10"
+    csi:
+      readAffinity:
+        enabled: true
     mgr:
-      count: 2
       modules:
         - name: pg_autoscaler
           enabled: true
@@ -41,7 +51,6 @@ rook-ceph-cluster:
         - name: volumes
           enabled: true
     dashboard:
-      enabled: true
       ssl: false
     network:
       connections:
@@ -74,29 +83,62 @@ rook-ceph-cluster:
             operator: Exists
     resources:
       mgr:
+        limits:
+          memory: null
         requests:
           cpu: 100m
-          memory: 512Mi
+          memory: 500Mi
       mon:
+        limits:
+          memory: null
         requests:
-          cpu: 200m
-          memory: 256Mi
+          cpu: 100m
+          memory: 750Mi
       osd:
+        limits:
+          memory: null
         requests:
           cpu: 100m
           memory: 2Gi
       prepareosd:
         requests:
           cpu: 100m
-          memory: 128Mi
+          memory: 200Mi
+      mgr-sidecar:
+        limits:
+          memory: null
+        requests:
+          cpu: 100m
+          memory: "40Mi"
+      crashcollector:
+        limits:
+          memory: null
+        requests:
+          cpu: 10m
+          memory: 20Mi
+      logcollector:
+        limits:
+          memory: null
+        requests:
+          cpu: 10m
+          memory: 100Mi
+      cleanup:
+        limits:
+          memory: null
+        requests:
+          cpu: 10m
+          memory: 100Mi
+      exporter:
+        limits:
+          memory: null
+        requests:
+          cpu: 10m
+          memory: 20Mi
     storage:
       useAllDevices: false
-      devicePathFilter: "/dev/disk/by-partlabel/r-csi-disk"
+      devicePathFilter: /dev/disk/by-partlabel/r-csi-disk"
       config:
         osdsPerDevice: "1"
-    csi:
-      readAffinity:
-        enabled: true
   route:
     dashboard:
       host:
@@ -147,9 +189,11 @@ rook-ceph-cluster:
           activeCount: 1
           activeStandby: true
           resources:
+            limits:
+              memory: 4Gi
             requests:
-              cpu: "1000m"
-              memory: "4Gi"
+              cpu: 100m
+              memory: 400Mi
           priorityClassName: system-cluster-critical
       storageClass:
         enabled: true
