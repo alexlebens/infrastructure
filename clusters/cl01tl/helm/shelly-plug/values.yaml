@@ -4,15 +4,13 @@ shelly-plug:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       initContainers:
         init-fetch-repo:
           securityContext:
             runAsUser: 0
           image:
             repository: alpine/git
-            tag: latest
-            pullPolicy: IfNotPresent
+            tag: 2.52.0@sha256:d453f54c83320412aa89c391b076930bd8569bc1012285e8c68ce2d4435826a3
           command:
             - /bin/sh
             - -ec
@@ -28,16 +26,11 @@ shelly-plug:
                 git fetch origin
                 git checkout origin/master -ft
               fi
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
       containers:
         main:
           image:
             repository: php
-            tag: 8.5.4-apache-bookworm
-            pullPolicy: IfNotPresent
+            tag: 8.5.4-apache@sha256:e55a9f8e4caa09c6a31ec752b307675d847bb8546d975f379128cb2a99842b96
           env:
             - name: SHELLY_HOSTNAME
               value: it05sp.alexlebens.net
@@ -48,8 +41,8 @@ shelly-plug:
                 name: shelly-plug-config-secret
           resources:
             requests:
-              cpu: 10m
-              memory: 64Mi
+              cpu: 1m
+              memory: 20Mi
   service:
     main:
       controller: main
@@ -57,7 +50,6 @@ shelly-plug:
         metrics:
           port: 80
           targetPort: 80
-          protocol: TCP
   serviceMonitor:
     main:
       selector:
@@ -75,7 +67,6 @@ shelly-plug:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 1Gi
-      retain: true
       advancedMounts:
         main:
           init-fetch-repo:
