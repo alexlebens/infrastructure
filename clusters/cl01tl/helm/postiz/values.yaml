@@ -4,13 +4,11 @@ postiz:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/gitroomhq/postiz-app
-            tag: v2.21.4
-            pullPolicy: IfNotPresent
+            tag: v2.21.4@sha256:a339e9ee256537526d0eda19e5919e01fa7649a40596ebec5d9e1389850836bc
           env:
             - name: MAIN_URL
               value: https://postiz.alexlebens.dev
@@ -72,7 +70,7 @@ postiz:
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 1Gi
   service:
     main:
       controller: main
@@ -80,7 +78,6 @@ postiz:
         http:
           port: 80
           targetPort: 5000
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -93,11 +90,8 @@ postiz:
         - postiz.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: postiz
+            - name: postiz
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -108,7 +102,6 @@ postiz:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 2Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -119,7 +112,6 @@ postiz:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 10Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -138,35 +130,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 20 15 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 valkey:
   valkey:
     auth:
@@ -175,6 +144,8 @@ valkey:
       aclUsers:
         default:
           permissions: "~* &* +@all"
+    # No option to configure metrics when auth is enabled
+    # https://github.com/valkey-io/valkey-helm/issues/135
     metrics:
       enabled: false
 volsync-target-config:
