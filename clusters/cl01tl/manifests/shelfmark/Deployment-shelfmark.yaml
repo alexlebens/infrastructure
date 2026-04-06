@@ -29,6 +29,9 @@ spec:
       enableServiceLinks: false
       serviceAccountName: default
       automountServiceAccountToken: true
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -106,24 +109,21 @@ spec:
               value: "true"
             - name: USE_CF_BYPASS
               value: "true"
-          image: ghcr.io/calibrain/shelfmark:v1.2.1
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/calibrain/shelfmark:v1.2.1@sha256:5e00d47cccaa3b67234855d950d016c50691b78197a68adf15a624f6c08acee2
           livenessProbe:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - curl -sf http://localhost:8084/api/health
             failureThreshold: 5
-            initialDelaySeconds: 60
+            httpGet:
+              path: /api/health
+              port: 8084
+            initialDelaySeconds: 30
             periodSeconds: 30
             successThreshold: 1
-            timeoutSeconds: 30
+            timeoutSeconds: 5
           name: main
           resources:
             requests:
               cpu: 10m
-              memory: 256Mi
+              memory: 140Mi
           volumeMounts:
             - mountPath: /audiobooks
               name: audiobooks
