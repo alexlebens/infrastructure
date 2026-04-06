@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postiz-spotlight
+  labels:
+    app.kubernetes.io/controller: spotlight
+    app.kubernetes.io/instance: postiz
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postiz
+    helm.sh/chart: postiz-4.6.2
+  namespace: postiz
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: spotlight
+      app.kubernetes.io/name: postiz
+      app.kubernetes.io/instance: postiz
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: spotlight
+        app.kubernetes.io/instance: postiz
+        app.kubernetes.io/name: postiz
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - image: ghcr.io/getsentry/spotlight:4.11.3@sha256:be6eb5b5d0df882025dcef138c217d493e6dcb684aebc235bc1b2832eb347c7f
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 40Mi
