@@ -4,13 +4,11 @@ rybbit:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/rybbit-io/rybbit-backend
-            tag: v2.5.0
-            pullPolicy: IfNotPresent
+            tag: v2.5.0@sha256:fd00f61abe592f872a0e4ac13f8c7b190ab2810e72f898faea4809d7ced46eef
           env:
             - name: NODE_ENV
               value: production
@@ -71,17 +69,12 @@ rybbit:
                   key: mapbox-token
           probes:
             liveness:
-              enabled: false
+              enabled: true
               custom: true
               spec:
-                exec:
-                  command:
-                  - CMD
-                  - wget
-                  - --no-verbose
-                  - --tries=1
-                  - --spider
-                  - http://127.0.0.1:3001/api/health
+                httpGet:
+                  path: /api/health
+                  port: 3001
                 failureThreshold: 5
                 initialDelaySeconds: 10
                 periodSeconds: 30
@@ -90,18 +83,16 @@ rybbit:
           resources:
             requests:
               cpu: 10m
-              memory: 256Mi
+              memory: 200Mi
     client:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
-            repository: harbor.alexlebens.net/images/rybbit-client
-            tag: v2.4.0
-            pullPolicy: IfNotPresent
+            repository: ghcr.io/rybbit-io/rybbit-client
+            tag: v2.5.0@sha256:741908be311a23ee4e58c5f82c6740bf75bbe4f7430ff2aec420f6189b1378b8
           env:
             - name: NODE_ENV
               value: production
@@ -112,18 +103,16 @@ rybbit:
           resources:
             requests:
               cpu: 10m
-              memory: 256Mi
+              memory: 100Mi
     clickhouse:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: clickhouse/clickhouse-server
-            tag: 26.3.3
-            pullPolicy: IfNotPresent
+            tag: 26.3.3@sha256:5cfbc0598ee3bd850ac1b2ab150e6c9ec7b9207f1a97617e015325fb5df053d0
           env:
             - name: CLICKHOUSE_DB
               value: analytics
@@ -139,17 +128,12 @@ rybbit:
                   key: clickhouse-password
           probes:
             liveness:
-              enabled: false
+              enabled: true
               custom: true
               spec:
-                exec:
-                  command:
-                  - CMD
-                  - wget
-                  - --no-verbose
-                  - --tries=1
-                  - --spider
-                  - http://localhost:8123/ping
+                httpGet:
+                  path: /ping
+                  port: 8123
                 failureThreshold: 5
                 initialDelaySeconds: 10
                 periodSeconds: 30
@@ -157,8 +141,8 @@ rybbit:
                 timeoutSeconds: 5
           resources:
             requests:
-              cpu: 10m
-              memory: 256Mi
+              cpu: 40m
+              memory: 300Mi
   configMaps:
     config:
       enabled: true
@@ -208,28 +192,24 @@ rybbit:
         http:
           port: 3001
           targetPort: 3001
-          protocol: HTTP
     client:
       controller: client
       ports:
         http:
           port: 3002
           targetPort: 3002
-          protocol: TCP
     clickhouse:
       controller: clickhouse
       ports:
         http:
           port: 8123
           targetPort: 8123
-          protocol: TCP
   persistence:
     clickhouse:
       forceRename: clickhouse-data
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 10Gi
-      retain: true
       advancedMounts:
         clickhouse:
           main:
@@ -271,35 +251,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 45 15 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-clickhouse-data:
   pvcTarget: clickhouse-data
   moverSecurityContext:
