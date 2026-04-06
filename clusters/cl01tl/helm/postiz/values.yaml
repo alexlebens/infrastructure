@@ -74,9 +74,9 @@ postiz:
             - name: POSTIZ_OAUTH_SCOPE
               value: openid profile email
             - name: NEXT_PUBLIC_SENTRY_DSN
-              value: http://postiz-spotlight:8969/stream
+              value: http://key@postiz-spotlight.postiz:8969/1
             - name: SENTRY_SPOTLIGHT
-              value: "1"
+              value: http://postiz-spotlight.postiz:8969/stream
           resources:
             requests:
               cpu: 10m
@@ -92,8 +92,8 @@ postiz:
             tag: 4.11.3@sha256:be6eb5b5d0df882025dcef138c217d493e6dcb684aebc235bc1b2832eb347c7f
           resources:
             requests:
-              cpu: 10m
-              memory: 40Mi
+              cpu: 1m
+              memory: 100Mi
   service:
     main:
       controller: main
@@ -107,6 +107,24 @@ postiz:
         http:
           port: 8969
           targetPort: 8969
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - postiz-spotlight.alexlebens.net
+      rules:
+        - backendRefs:
+            - name: postiz-spotlight
+              port: 8969
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
   persistence:
     config:
       forceRename: postiz-config
@@ -136,10 +154,6 @@ temporal:
     metrics:
       serviceMonitor:
         enabled: true
-    resources:
-      requests:
-        cpu: 10m
-        memory: 60Mi
     config:
       logLevel: "debug,info"
       persistence:
@@ -168,6 +182,11 @@ temporal:
               secretKey: password
               tls:
                 enabled: false
+      namespaces:
+        create: true
+        namespace:
+          - name: default
+            retention: 30d
     frontend:
       ingress:
         enabled: false
@@ -177,7 +196,7 @@ temporal:
       resources:
         requests:
           cpu: 10m
-          memory: 60Mi
+          memory: 50Mi
     history:
       metrics:
         serviceMonitor:
@@ -185,7 +204,7 @@ temporal:
       resources:
         requests:
           cpu: 10m
-          memory: 60Mi
+          memory: 200Mi
     matching:
       metrics:
         serviceMonitor:
@@ -201,7 +220,7 @@ temporal:
       resources:
         requests:
           cpu: 10m
-          memory: 60Mi
+          memory: 50Mi
   admintools:
     image:
       repository: temporalio/admin-tools
@@ -209,7 +228,7 @@ temporal:
     resources:
       requests:
         cpu: 10m
-        memory: 60Mi
+        memory: 10Mi
   web:
     image:
       repository: temporalio/ui
@@ -217,7 +236,7 @@ temporal:
     resources:
       requests:
         cpu: 10m
-        memory: 60Mi
+        memory: 50Mi
 postgres-18-cluster:
   mode: standalone
   cluster:
