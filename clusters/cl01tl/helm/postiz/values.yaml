@@ -10,17 +10,21 @@ postiz:
             repository: ghcr.io/gitroomhq/postiz-app
             tag: v2.21.4@sha256:a339e9ee256537526d0eda19e5919e01fa7649a40596ebec5d9e1389850836bc
           env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-config-secret
+                  key: JWT_SECRET
             - name: MAIN_URL
               value: https://postiz.alexlebens.dev
             - name: FRONTEND_URL
               value: https://postiz.alexlebens.dev
             - name: NEXT_PUBLIC_BACKEND_URL
               value: https://postiz.alexlebens.dev/api
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: postiz-config-secret
-                  key: JWT_SECRET
+            - name: BACKEND_INTERNAL_URL
+              value: http://temporal:3000
+            - name: TEMPORAL_ADDRESS
+              value: http://temporal:3000
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -31,9 +35,11 @@ postiz:
                 secretKeyRef:
                   name: postiz-valkey-config
                   key: REDIS_URL
-            - name: BACKEND_INTERNAL_URL
-              value: http://localhost:3000
             - name: IS_GENERAL
+              value: "true"
+            - name: DISABLE_REGISTRATION
+              value: "false"
+            - name: RUN_CRON
               value: "true"
             - name: STORAGE_PROVIDER
               value: local
@@ -67,10 +73,27 @@ postiz:
                   key: secret
             - name: POSTIZ_OAUTH_SCOPE
               value: openid profile email
+            - name: NEXT_PUBLIC_SENTRY_DSN
+              value: http://spotlight:8969/stream
+            - name: SENTRY_SPOTLIGHT
+              value: "1"
           resources:
             requests:
               cpu: 10m
               memory: 1Gi
+    spotlight:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/getsentry/spotlight
+            tag: 4.11.3@sha256:be6eb5b5d0df882025dcef138c217d493e6dcb684aebc235bc1b2832eb347c7f
+          resources:
+            requests:
+              cpu: 10m
+              memory: 40Mi
   service:
     main:
       controller: main
@@ -78,24 +101,12 @@ postiz:
         http:
           port: 80
           targetPort: 5000
-  route:
-    main:
-      kind: HTTPRoute
-      parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
-      hostnames:
-        - postiz.alexlebens.net
-      rules:
-        - backendRefs:
-            - name: postiz
-              port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
+    spotlight:
+      controller: spotlight
+      ports:
+        http:
+          port: 8969
+          targetPort: 8969
   persistence:
     config:
       forceRename: postiz-config
@@ -117,6 +128,94 @@ postiz:
           main:
             - path: /uploads
               readOnly: false
+temporal:
+  server:
+    image:
+      repository: temporalio/server
+      tag: 1.30.2@sha256:d5334ee3ddce1617efbe280a10afc85916cf8d81798415c98988dbda2b46773e
+    metrics:
+      serviceMonitor:
+        enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 60Mi
+    config:
+      logLevel: "debug,info"
+      persistence:
+        datastores:
+          default:
+            sql:
+              pluginName: postgres12
+              driverName: postgres12
+              databaseName: app
+              connectAddr: postiz-postgresql-18-cluster-rw.postiz:5432
+              user: app
+              existingSecret: postiz-postgresql-18-cluster-app
+              secretKey: password
+              tls:
+                enabled: false
+          visibility:
+            elasticsearch:
+              version: v8
+              url:
+                scheme: http
+                host: elasticsearch-postiz-es-http.postiz:9200
+              logLevel: error
+              indices:
+                visibility: temporal_visibility_v1
+              tls:
+                enabled: false
+    frontend:
+      ingress:
+        enabled: false
+      metrics:
+        serviceMonitor:
+          enabled: true
+      resources:
+        requests:
+          cpu: 10m
+          memory: 60Mi
+    history:
+      metrics:
+        serviceMonitor:
+          enabled: true
+      resources:
+        requests:
+          cpu: 10m
+          memory: 60Mi
+    matching:
+      metrics:
+        serviceMonitor:
+          enabled: true
+      resources:
+        requests:
+          cpu: 10m
+          memory: 60Mi
+    worker:
+      metrics:
+        serviceMonitor:
+          enabled: true
+      resources:
+        requests:
+          cpu: 10m
+          memory: 60Mi
+  admintools:
+    image:
+      repository: temporalio/admin-tools
+      tag: 1.30.2@sha256:024c6473df113e4b220b3caf6056d30964582ffcae6f6e46a1074aa6c67968d3
+    resources:
+      requests:
+        cpu: 10m
+        memory: 60Mi
+  web:
+    image:
+      repository: temporalio/ui
+      tag: 2.48.1@sha256:edb5dd1b3e0ddb35611939dde9b573533afd6fbafbbf077b73c7131a30ca91ff
+    resources:
+      requests:
+        cpu: 10m
+        memory: 60Mi
 postgres-18-cluster:
   mode: recovery
   recovery:
@@ -136,6 +235,10 @@ postgres-18-cluster:
         immediate: true
         schedule: "0 20 15 * * *"
         backupName: garage-local
+  databases:
+    - name: temporal
+      ensure: present
+      owner: app
 valkey:
   valkey:
     auth:
