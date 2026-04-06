@@ -4,8 +4,10 @@ slskd:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
         affinity:
           podAntiAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
@@ -20,14 +22,9 @@ slskd:
         init-sysctl:
           image:
             repository: busybox
-            tag: 1.37.0
-            pullPolicy: IfNotPresent
+            tag: 1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
           securityContext:
             privileged: True
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
           command:
             - /bin/sh
           args:
@@ -39,11 +36,10 @@ slskd:
         main:
           image:
             repository: slskd/slskd
-            tag: 0.24.5
-            pullPolicy: IfNotPresent
+            tag: 0.24.5@sha256:17ef977563be206f3b5932080b1e23883b2cb39dc9010640f6f39b4eaec887e3
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: PUID
               value: 1000
             - name: PGID
@@ -53,12 +49,11 @@ slskd:
           resources:
             requests:
               cpu: 100m
-              memory: 512Mi
+              memory: 330Mi
         gluetun:
           image:
             repository: ghcr.io/qdm12/gluetun
             tag: v3.41.1@sha256:1a5bf4b4820a879cdf8d93d7ef0d2d963af56670c9ebff8981860b6804ebc8ab
-            pullPolicy: IfNotPresent
           lifecycle:
             postStart:
               exec:
@@ -125,36 +120,6 @@ slskd:
               devic.es/tun: "1"
             requests:
               devic.es/tun: "1"
-              cpu: 10m
-              memory: 128Mi
-    soularr:
-      type: deployment
-      replicas: 0
-      strategy: Recreate
-      revisionHistoryLimit: 3
-      pod:
-        securityContext:
-          fsGroup: 1000
-          fsGroupChangePolicy: OnRootMismatch
-      containers:
-        main:
-          image:
-            repository: mrusse08/soularr
-            tag: latest@sha256:69bc29f2072d6256c30f94fb1a0bfe8034c197791a2103d87f15ef1761347ce9
-            pullPolicy: IfNotPresent
-          env:
-            - name: TZ
-              value: US/Central
-            - name: PUID
-              value: 1000
-            - name: PGID
-              value: 1000
-            - name: SCRIPT_INTERVAL
-              value: 300
-          resources:
-            requests:
-              cpu: 10m
-              memory: 256Mi
   service:
     main:
       controller: main
@@ -162,7 +127,6 @@ slskd:
         http:
           port: 5030
           targetPort: 5030
-          protocol: HTTP
   serviceMonitor:
     main:
       selector:
@@ -187,11 +151,8 @@ slskd:
         - slskd.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: slskd
+            - name: slskd
               port: 5030
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -208,17 +169,6 @@ slskd:
               readOnly: true
               mountPropagation: None
               subPath: slskd.yml
-    soularr-config:
-      enabled: true
-      type: secret
-      name: soularr-config-secret
-      advancedMounts:
-        soularr:
-          main:
-            - path: /data/config.ini
-              readOnly: true
-              mountPropagation: None
-              subPath: config.ini
     data:
       existingClaim: slskd-nfs-storage
       advancedMounts:
