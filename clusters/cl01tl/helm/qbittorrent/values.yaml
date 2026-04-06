@@ -4,8 +4,12 @@ qbittorrent:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
         affinity:
           podAntiAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
@@ -20,14 +24,9 @@ qbittorrent:
         init-sysctl:
           image:
             repository: busybox
-            tag: 1.37.0
-            pullPolicy: IfNotPresent
+            tag: 1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
           securityContext:
             privileged: True
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
           command:
             - /bin/sh
           args:
@@ -39,15 +38,14 @@ qbittorrent:
         qbittorrent:
           image:
             repository: ghcr.io/linuxserver/qbittorrent
-            tag: 5.1.4@sha256:855e5f4805ac218f406a5ae989a62a77e03f7e5f70128335b7970550a58c96e1
-            pullPolicy: IfNotPresent
+            tag: 5.1.4-r2-ls448@sha256:a89108b1bf43de072a35a59a3ee41b97b564538faae5cbb3f6c803aa7f5fd9f7
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: PUID
-              value: "1000"
+              value: 1000
             - name: PGID
-              value: "1000"
+              value: 1000
             - name: UMASK_SET
               value: "002"
             - name: WEBUI_PORT
@@ -60,7 +58,6 @@ qbittorrent:
           image:
             repository: ghcr.io/qdm12/gluetun
             tag: v3.41.1@sha256:1a5bf4b4820a879cdf8d93d7ef0d2d963af56670c9ebff8981860b6804ebc8ab
-            pullPolicy: IfNotPresent
           lifecycle:
             postStart:
               exec:
@@ -127,13 +124,10 @@ qbittorrent:
               devic.es/tun: "1"
             requests:
               devic.es/tun: "1"
-              cpu: 10m
-              memory: 64Mi
         exporter:
           image:
             repository: esanchezm/prometheus-qbittorrent-exporter
-            tag: v1.6.0
-            pullPolicy: IfNotPresent
+            tag: v1.6.0@sha256:482df65e7f39f2c0a65f32693e6d5f930edf7b244589a60e446ccc5ee6d17211
           env:
             - name: QBITTORRENT_HOST
               value: localhost
@@ -143,27 +137,17 @@ qbittorrent:
               value: "9022"
             - name: EXPORTER_LOG_LEVEL
               value: INFO
-          resources:
-            requests:
-              cpu: 10m
-              memory: 64Mi
     qbit-manage:
       type: deployment
       annotations:
         reloader.stakater.com/auto: "true"
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       initContainers:
         init-copy-config:
           image:
             repository: busybox
-            tag: 1.37.0
-            pullPolicy: IfNotPresent
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
+            tag: 1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
           command:
             - /bin/sh
             - -ec
@@ -173,11 +157,11 @@ qbittorrent:
         qbit-manage:
           image:
             repository: ghcr.io/stuffanthings/qbit_manage
-            tag: v4.7.0
+            tag: v4.7.0@sha256:8786f2efc6fb8e26281f09bf6c5d0004e2d2420fd4781af0aed123ae01558e21
             pullPolicy: IfNotPresent
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: QBT_SCHEDULE
               value: 0 * * * *
             - name: QBT_STARTUP_DELAY
@@ -191,19 +175,18 @@ qbittorrent:
           resources:
             requests:
               cpu: 10m
-              memory: 64Mi
+              memory: 280Mi
         apprise-api:
           image:
-            repository: caronc/apprise
-            tag: v1.3.3
-            pullPolicy: IfNotPresent
+            repository: ghcr.io/caronc/apprise
+            tag: v1.3.3@sha256:4bfeac268ba87b8e08e308c9aa0182fe99e9501ec464027afc333d1634e65977
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: PGID
-              value: "1000"
+              value: 1000
             - name: PUID
-              value: "1000"
+              value: 1000
             - name: APPRISE_STORAGE_MODE
               value: memory
             - name: APPRISE_STATEFUL_MODE
@@ -215,21 +198,19 @@ qbittorrent:
                 secretKeyRef:
                   name: qbittorrent-qbit-manage-config
                   key: ntfy-url
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
     qui:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
       containers:
         qui:
           image:
             repository: ghcr.io/autobrr/qui
-            tag: v1.15.0
-            pullPolicy: IfNotPresent
+            tag: v1.15.0@sha256:da33f8c850f7d6f1bfaee26b9553b21411e872639d54193906fa2cec51af1d0f
           env:
             - name: QUI__METRICS_ENABLED
               value: true
@@ -258,7 +239,7 @@ qbittorrent:
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 70Mi
   service:
     main:
       controller: main
@@ -267,33 +248,27 @@ qbittorrent:
         http:
           port: 8080
           targetPort: 8080
-          protocol: HTTP
         health:
           port: 9999
           targetPort: 9999
-          protocol: HTTP
         metrics:
           port: 9022
           targetPort: 9022
-          protocol: HTTP
     qbit-manage:
       controller: qbit-manage
       ports:
         apprise:
           port: 80
           targetPort: 8181
-          protocol: HTTP
     qui:
       controller: qui
       ports:
         http:
           port: 80
           targetPort: 7476
-          protocol: HTTP
         metrics:
           port: 9074
           targetPort: 9074
-          protocol: HTTP
   serviceMonitor:
     main:
       selector:
@@ -340,11 +315,8 @@ qbittorrent:
         - qbittorrent.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: qbittorrent
+            - name: qbittorrent
               port: 8080
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -360,11 +332,8 @@ qbittorrent:
         - qui.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: qbittorrent-qui
+            - name: qbittorrent-qui
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -401,7 +370,6 @@ qbittorrent:
       storageClass: ceph-filesystem
       accessMode: ReadWriteMany
       size: 1Gi
-      retain: true
       advancedMounts:
         main:
           qbittorrent:
@@ -416,7 +384,6 @@ qbittorrent:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 1Gi
-      retain: true
       advancedMounts:
         qbit-manage:
           init-copy-config:
@@ -430,7 +397,6 @@ qbittorrent:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 1Gi
-      retain: true
       advancedMounts:
         qui:
           qui:
