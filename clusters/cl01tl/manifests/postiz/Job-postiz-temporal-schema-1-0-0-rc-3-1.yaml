@@ -78,33 +78,51 @@ spec:
             - name: shims
               mountPath: /usr/local/sbin/temporal-elasticsearch-tool
               subPath: temporal-elasticsearch-tool
+        - name: create-visibility-store
+          image: "temporalio/admin-tools:1.30.3@sha256:2c2272b008f1af295b3719963e6feeef64f838d1105d895cf6acfcf96dd31741"
+          imagePullPolicy: IfNotPresent
+          command: ['temporal-sql-tool', 'create-database']
+          env:
+            - name: SQL_PLUGIN
+              value: postgres12
+            - name: SQL_HOST
+              value: postiz-postgresql-18-cluster-rw.postiz
+            - name: SQL_PORT
+              value: "5432"
+            - name: SQL_DATABASE
+              value: temporal_visibility
+            - name: SQL_USER
+              value: "postgres"
+            - name: SQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postiz-postgresql-18-cluster-superuser
+                  key: password
+            - name: SQL_TLS
+              value: "false"
         - name: manage-schema-visibility-store
           image: "temporalio/admin-tools:1.30.3@sha256:2c2272b008f1af295b3719963e6feeef64f838d1105d895cf6acfcf96dd31741"
           imagePullPolicy: IfNotPresent
           command: ['sh', '-c']
           args:
-            - temporal-elasticsearch-tool setup-schema && temporal-elasticsearch-tool create-index && temporal-elasticsearch-tool update-schema --index "$ES_VISIBILITY_INDEX"
+            - temporal-sql-tool setup-schema -v 0.0 && temporal-sql-tool update-schema --schema-dir /etc/temporal/schema/postgresql/v12/visibility/versioned
           env:
-            - name: ES_SCHEME
-              value: https
-            - name: ES_HOST
-              value: elasticsearch-postiz-es-http.postiz
-            - name: ES_PORT
-              value: "9200"
-            - name: ES_SERVER
-              value: https://elasticsearch-postiz-es-http.postiz:9200
-            - name: ES_USER
-              value:
-            - name: ES_PWD
+            - name: SQL_PLUGIN
+              value: postgres12
+            - name: SQL_HOST
+              value: postiz-postgresql-18-cluster-rw.postiz
+            - name: SQL_PORT
+              value: "5432"
+            - name: SQL_DATABASE
+              value: temporal_visibility
+            - name: SQL_USER
+              value: "postgres"
+            - name: SQL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postiz-temporal-visibility-store
+                  name: postiz-postgresql-18-cluster-superuser
                   key: password
-            - name: ES_VERSION
-              value: v8
-            - name: ES_VISIBILITY_INDEX
-              value: temporal_visibility_v1
-            - name: ES_TLS
+            - name: SQL_TLS
               value: "false"
           volumeMounts:
             - name: shims
