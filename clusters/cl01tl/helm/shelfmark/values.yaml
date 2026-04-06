@@ -4,13 +4,15 @@ shelfmark:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
       containers:
         main:
           image:
             repository: ghcr.io/calibrain/shelfmark
-            tag: v1.2.1
-            pullPolicy: IfNotPresent
+            tag: v1.2.1@sha256:5e00d47cccaa3b67234855d950d016c50691b78197a68adf15a624f6c08acee2
           env:
             - name: FLASK_PORT
               value: 8084
@@ -88,27 +90,24 @@ shelfmark:
               enabled: true
               custom: true
               spec:
-                exec:
-                  command:
-                    - /bin/sh
-                    - -c
-                    - "curl -sf http://localhost:8084/api/health"
+                httpGet:
+                  path: /api/health
+                  port: 8084
                 failureThreshold: 5
-                initialDelaySeconds: 60
+                initialDelaySeconds: 30
                 periodSeconds: 30
                 successThreshold: 1
-                timeoutSeconds: 30
+                timeoutSeconds: 5
           resources:
             requests:
               cpu: 10m
-              memory: 256Mi
+              memory: 140Mi
   service:
     main:
       ports:
         http:
           port: 80
           targetPort: 8084
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -121,11 +120,8 @@ shelfmark:
         - shelfmark.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: shelfmark
+            - name: shelfmark
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -136,7 +132,6 @@ shelfmark:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 1Gi
-      retain: true
       advancedMounts:
         main:
           main:
