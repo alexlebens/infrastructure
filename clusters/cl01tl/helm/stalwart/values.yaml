@@ -4,17 +4,15 @@ stalwart:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
-            repository: stalwartlabs/stalwart
-            tag: v0.15.5
-            pullPolicy: IfNotPresent
+            repository: ghcr.io/stalwartlabs/stalwart
+            tag: v0.15.5@sha256:dcf575db2d53d9ef86d6ced8abe4ba491984659a0f8862cc6079ee7b41c3c568
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 100Mi
   service:
     main:
       controller: main
@@ -22,23 +20,18 @@ stalwart:
         http:
           port: 80
           targetPort: 8080
-          protocol: HTTP
         smtp:
           port: 25
           targetPort: 25
-          protocol: TCP
         smtps:
           port: 465
           targetPort: 465
-          protocol: TCP
         imap:
           port: 143
           targetPort: 143
-          protocol: TCP
         imaps:
           port: 993
           targetPort: 993
-          protocol: TCP
   route:
     main:
       kind: HTTPRoute
@@ -51,11 +44,8 @@ stalwart:
         - stalwart.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: stalwart
+            - name: stalwart
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -66,7 +56,6 @@ stalwart:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 10Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -85,35 +74,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 5 16 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-config:
   pvcTarget: stalwart-config
   local:
