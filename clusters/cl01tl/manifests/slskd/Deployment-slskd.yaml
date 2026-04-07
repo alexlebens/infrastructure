@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: slskd-main
+  name: slskd
   labels:
     app.kubernetes.io/controller: main
     app.kubernetes.io/instance: slskd
@@ -29,6 +29,9 @@ spec:
       enableServiceLinks: false
       serviceAccountName: default
       automountServiceAccountToken: true
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -51,13 +54,8 @@ spec:
               sysctl -w net.ipv6.conf.all.disable_ipv6=1
           command:
             - /bin/sh
-          image: busybox:1.37.0
-          imagePullPolicy: IfNotPresent
+          image: busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
           name: init-sysctl
-          resources:
-            requests:
-              cpu: 10m
-              memory: 128Mi
           securityContext:
             privileged: true
       containers:
@@ -99,7 +97,6 @@ spec:
             - name: SHADOWSOCKS
               value: "off"
           image: ghcr.io/qdm12/gluetun:v3.41.1@sha256:1a5bf4b4820a879cdf8d93d7ef0d2d963af56670c9ebff8981860b6804ebc8ab
-          imagePullPolicy: IfNotPresent
           lifecycle:
             postStart:
               exec:
@@ -122,9 +119,7 @@ spec:
             limits:
               devic.es/tun: "1"
             requests:
-              cpu: 10m
               devic.es/tun: "1"
-              memory: 128Mi
           securityContext:
             capabilities:
               add:
@@ -133,20 +128,19 @@ spec:
             privileged: true
         - env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: PUID
               value: "1000"
             - name: PGID
               value: "1000"
             - name: SLSKD_UMASK
               value: "0"
-          image: slskd/slskd:0.24.5
-          imagePullPolicy: IfNotPresent
+          image: slskd/slskd:0.24.5@sha256:17ef977563be206f3b5932080b1e23883b2cb39dc9010640f6f39b4eaec887e3
           name: main
           resources:
             requests:
               cpu: 100m
-              memory: 512Mi
+              memory: 330Mi
           volumeMounts:
             - mountPath: /mnt/store
               name: data
