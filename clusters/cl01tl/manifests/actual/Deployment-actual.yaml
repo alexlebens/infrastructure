@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: actual
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: actual
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: actual
+    helm.sh/chart: actual-4.6.2
+  namespace: actual
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: actual
+      app.kubernetes.io/instance: actual
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: actual
+        app.kubernetes.io/name: actual
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: ACTUAL_PORT
+              value: "5006"
+          image: ghcr.io/actualbudget/actual:26.4.0@sha256:b0e732e2c41b3dc468a71548e88ef76d3f0c157fc43d15fa05d14ec1c5747e1e
+          livenessProbe:
+            exec:
+              command:
+                - /usr/bin/env
+                - bash
+                - -c
+                - node src/scripts/health-check.js
+            failureThreshold: 5
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 10
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+          volumeMounts:
+            - mountPath: /data
+              name: data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: actual-data

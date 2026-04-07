@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: harbor-exporter
+  namespace: "harbor"
+  labels:
+    heritage: Helm
+    release: harbor
+    chart: harbor
+    app: "harbor"
+    app.kubernetes.io/instance: harbor
+    app.kubernetes.io/name: harbor
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: harbor
+    app.kubernetes.io/version: "2.14.3"
+    component: exporter
+    app.kubernetes.io/component: exporter
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      release: harbor
+      app: "harbor"
+      component: exporter
+  template:
+    metadata:
+      labels:
+        heritage: Helm
+        release: harbor
+        chart: harbor
+        app: "harbor"
+        app.kubernetes.io/instance: harbor
+        app.kubernetes.io/name: harbor
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: harbor
+        app.kubernetes.io/version: "2.14.3"
+        component: exporter
+        app.kubernetes.io/component: exporter
+      annotations:
+        checksum/configmap: 5293f455659091cb2f6ed1113095a6dbb04f8364748670cb5d4630ca689d73d8
+        checksum/secret: bb03df1fde79526e9aaa86ec987c17ba77e4b5cbeb4ff140100971d53b061347
+    spec:
+      securityContext:
+        runAsUser: 10000
+        fsGroup: 10000
+      automountServiceAccountToken: false
+      containers:
+        - name: exporter
+          image: ghcr.io/goharbor/harbor-exporter:v2.15.0@sha256:ad065e4e1a0ee900a0bb1a03d57028ed4b51dc04933f5c1cb5c4aee301a72ddb
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8001
+            initialDelaySeconds: 300
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          args: ["-log-level", "info"]
+          envFrom:
+            - configMapRef:
+                name: "harbor-exporter-env"
+            - secretRef:
+                name: "harbor-exporter"
+          env:
+            - name: HARBOR_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: harbor-postgresql-18-cluster-app
+                  key: password
+            - name: HARBOR_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: harbor-secret
+                  key: HARBOR_ADMIN_PASSWORD
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - containerPort: 8001
+          volumeMounts:
+      volumes:
+        - name: config
+          secret:
+            secretName: "harbor-exporter"

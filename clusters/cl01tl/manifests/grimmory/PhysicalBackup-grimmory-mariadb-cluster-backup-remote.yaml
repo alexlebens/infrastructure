@@ -1,0 +1,36 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: PhysicalBackup
+metadata:
+  name: grimmory-mariadb-cluster-backup-remote
+  namespace: grimmory
+  labels:
+    helm.sh/chart: mariadb-cluster-26.3.0
+    app.kubernetes.io/name: mariadb-cluster
+    app.kubernetes.io/instance: grimmory
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  mariaDbRef:
+    name: grimmory-mariadb-cluster
+    namespace: grimmory
+  compression: gzip
+  maxRetention: 2160h
+  schedule:
+    cron: 0 0 * * 0
+    immediate: true
+    suspend: false
+  storage:
+    s3:
+      accessKeyIdSecretKeyRef:
+        key: access
+        name: grimmory-mariadb-cluster-backup-secret-garage
+      bucket: mariadb-backups
+      endpoint: garage-ps10rp.boreal-beaufort.ts.net:3900
+      prefix: cl01tl/grimmory
+      region: us-east-1
+      secretAccessKeySecretKeyRef:
+        key: secret
+        name: grimmory-mariadb-cluster-backup-secret-garage
+      tls:
+        enabled: true
+  successfulJobsHistoryLimit: 1

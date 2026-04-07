@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audiobookshelf
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: audiobookshelf
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: audiobookshelf
+    helm.sh/chart: audiobookshelf-4.6.2
+  namespace: audiobookshelf
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: audiobookshelf
+      app.kubernetes.io/instance: audiobookshelf
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: audiobookshelf
+        app.kubernetes.io/name: audiobookshelf
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: PGID
+              value: "1000"
+            - name: PUID
+              value: "1000"
+            - name: APPRISE_STORAGE_MODE
+              value: memory
+            - name: APPRISE_STATEFUL_MODE
+              value: disabled
+            - name: APPRISE_WORKER_COUNT
+              value: "1"
+            - name: APPRISE_STATELESS_URLS
+              valueFrom:
+                secretKeyRef:
+                  key: ntfy-url
+                  name: audiobookshelf-apprise-config
+          image: ghcr.io/caronc/apprise:v1.3.3@sha256:4bfeac268ba87b8e08e308c9aa0182fe99e9501ec464027afc333d1634e65977
+          name: apprise-api
+        - env:
+            - name: TZ
+              value: America/Chicago
+          image: ghcr.io/advplyr/audiobookshelf:2.33.1@sha256:a4a5841bba093d81e5f4ad1eaedb4da3fda6dbb2528c552349da50ad1f7ae708
+          name: main
+          resources:
+            requests:
+              cpu: 1m
+              memory: 200Mi
+          volumeMounts:
+            - mountPath: /mnt/store/Audiobooks
+              name: audiobooks
+            - mountPath: /mnt/store/Books
+              name: books
+            - mountPath: /config
+              name: config
+            - mountPath: /metadata
+              name: metadata
+            - mountPath: /mnt/store/Podcasts
+              name: podcasts
+      volumes:
+        - name: audiobooks
+          persistentVolumeClaim:
+            claimName: audiobookshelf-audiobooks-nfs-storage
+        - name: books
+          persistentVolumeClaim:
+            claimName: audiobookshelf-books-nfs-storage
+        - name: config
+          persistentVolumeClaim:
+            claimName: audiobookshelf-config
+        - name: metadata
+          persistentVolumeClaim:
+            claimName: audiobookshelf-metadata
+        - name: podcasts
+          persistentVolumeClaim:
+            claimName: audiobookshelf-podcasts-nfs-storage

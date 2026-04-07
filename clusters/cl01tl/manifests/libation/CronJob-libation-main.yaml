@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: libation-main
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: libation
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: libation
+    helm.sh/chart: libation-4.6.2
+  namespace: libation
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 30
+  timeZone: America/Chicago
+  schedule: "0 0 1 1 *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/controller: main
+            app.kubernetes.io/instance: libation
+            app.kubernetes.io/name: libation
+        spec:
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          containers:
+            - env:
+                - name: SLEEP_TIME
+                  value: "-1"
+                - name: LIBATION_BOOKS_DIR
+                  value: /data
+              image: rmcrackan/libation:13.3.2@sha256:d1c45260f3ba34b0fb1432c2b51763e00c5174864961856c1c31e7f2b0c3a39e
+              name: main
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              volumeMounts:
+                - mountPath: /data
+                  name: audiobooks
+                - mountPath: /config
+                  name: config
+          volumes:
+            - name: audiobooks
+              persistentVolumeClaim:
+                claimName: libation-nfs-storage
+            - name: config
+              persistentVolumeClaim:
+                claimName: libation

@@ -1,0 +1,36 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: MariaDB
+metadata:
+  name: grimmory-mariadb-cluster
+  namespace: grimmory
+  labels:
+    helm.sh/chart: mariadb-cluster-26.3.0
+    app.kubernetes.io/name: mariadb-cluster
+    app.kubernetes.io/instance: grimmory
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  bootstrapFrom:
+    backupContentType: Physical
+    s3:
+      accessKeyIdSecretKeyRef:
+        key: access
+        name: grimmory-mariadb-cluster-backup-secret-external
+      bucket: mariadb-backups-b230a2f5aecf080a4b372c08
+      endpoint: nyc3.digitaloceanspaces.com
+      prefix: cl01tl/grimmory
+      region: us-east-1
+      secretAccessKeySecretKeyRef:
+        key: secret
+        name: grimmory-mariadb-cluster-backup-secret-external
+      tls:
+        enabled: true
+  galera:
+    enabled: true
+  replicas: 3
+  rootPasswordSecretKeyRef:
+    generate: false
+    key: password
+    name: grimmory-database-secret
+  storage:
+    size: 5Gi
