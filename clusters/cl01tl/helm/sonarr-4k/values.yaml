@@ -13,11 +13,10 @@ sonarr-4k:
         main:
           image:
             repository: ghcr.io/linuxserver/sonarr
-            tag: 4.0.17@sha256:76414c033f290d3c9f1f9dfad71150abe71d92592369a3377a5903d579e6e2b2
-            pullPolicy: IfNotPresent
+            tag: 4.0.17.2952-ls306@sha256:b5670a3adb0f8a8b0f277feeaa69a5fbe3869ba4bb9fa7c0f0764c3b3f0e698f
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: PUID
               value: 1000
             - name: PGID
@@ -25,12 +24,11 @@ sonarr-4k:
           resources:
             requests:
               cpu: 10m
-              memory: 256Mi
+              memory: 200Mi
         metrics:
           image:
             repository: ghcr.io/onedr0p/exportarr
-            tag: v2.3.0
-            pullPolicy: IfNotPresent
+            tag: v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
           args: ["sonarr"]
           env:
             - name: URL
@@ -43,10 +41,6 @@ sonarr-4k:
               value: false
             - name: ENABLE_UNKNOWN_QUEUE_ITEMS
               value: false
-          resources:
-            requests:
-              cpu: 10m
-              memory: 256Mi
   service:
     main:
       controller: main
@@ -54,11 +48,9 @@ sonarr-4k:
         http:
           port: 80
           targetPort: 8989
-          protocol: HTTP
         metrics:
           port: 9794
           targetPort: 9794
-          protocol: TCP
   serviceMonitor:
     main:
       selector:
@@ -93,11 +85,8 @@ sonarr-4k:
                 type: PathPrefix
                 value: /outpost.goauthentik.io
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: sonarr-4k
+            - name: sonarr-4k
               port: 80
-              weight: 100
           filters:
             - type: ExtensionRef
               extensionRef:
@@ -114,7 +103,6 @@ sonarr-4k:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 20Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -148,35 +136,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 55 15 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-config:
   pvcTarget: sonarr-4k-config
   moverSecurityContext:
