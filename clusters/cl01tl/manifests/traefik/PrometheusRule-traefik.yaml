@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: traefik
+  namespace: traefik
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/instance: traefik-traefik
+    helm.sh/chart: traefik-39.0.7
+    app.kubernetes.io/managed-by: Helm
+spec:
+  groups:
+    - name: traefik
+      rules:
+        - alert: TraefikDown
+          annotations:
+            description: '{{ $labels.pod }} on {{ $labels.nodename }} is down'
+            summary: Traefik Down
+          expr: up{job="traefik"} == 0
+          for: 5m
+          labels:
+            context: traefik
+            severity: warning

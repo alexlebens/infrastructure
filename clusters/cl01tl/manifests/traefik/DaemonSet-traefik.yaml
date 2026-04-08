@@ -17,7 +17,7 @@ spec:
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: 0
+      maxUnavailable: 1
       maxSurge: 1
   minReadySeconds: 0
   template:
@@ -32,6 +32,7 @@ spec:
       automountServiceAccountToken: true
       containers:
         - args:
+            - --global.checkNewVersion=false
             - --entryPoints.metrics.address=:9100/tcp
             - --entryPoints.ssh.address=:22/tcp
             - --entryPoints.traefik.address=:8080/tcp
@@ -78,7 +79,7 @@ spec:
                   fieldPath: metadata.namespace
             - name: USER
               value: traefik
-          image: docker.io/traefik:v3.6.12
+          image: docker.io/traefik:v3.6.12@sha256:171c9c3565b29f6c133f1c1b43c5d4e5853415198e9e1078c001f8702ff66aec
           imagePullPolicy: IfNotPresent
           lifecycle: null
           livenessProbe:
@@ -118,7 +119,10 @@ spec:
             periodSeconds: 10
             successThreshold: 1
             timeoutSeconds: 2
-          resources: null
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
