@@ -4,13 +4,15 @@ tubearchivist:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
       containers:
         main:
           image:
             repository: bbilly1/tubearchivist
-            tag: v0.5.10
-            pullPolicy: IfNotPresent
+            tag: v0.5.10@sha256:dfe723cf008520e1758ecc3e59e6ea8761dd10d5bb099cd87289e80f5bd66567
           env:
             - name: TZ
               value: America/Chicago
@@ -40,13 +42,11 @@ tubearchivist:
         bgutil:
           image:
             repository: brainicism/bgutil-ytdlp-pot-provider
-            tag: 1.3.1
-            pullPolicy: IfNotPresent
+            tag: 1.3.1@sha256:1aaa43a0ca72dfca6a6d2129a0fb4a23465c25adb1b043f8aff829a20825646b
         gluetun:
           image:
             repository: ghcr.io/qdm12/gluetun
             tag: v3.41.1@sha256:1a5bf4b4820a879cdf8d93d7ef0d2d963af56670c9ebff8981860b6804ebc8ab
-            pullPolicy: IfNotPresent
           lifecycle:
             postStart:
               exec:
@@ -106,8 +106,6 @@ tubearchivist:
               devic.es/tun: "1"
             requests:
               devic.es/tun: "1"
-              cpu: 10m
-              memory: 128Mi
   service:
     main:
       controller: main
@@ -115,7 +113,6 @@ tubearchivist:
         http:
           port: 80
           targetPort: 24000
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -128,11 +125,8 @@ tubearchivist:
         - tubearchivist.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: tubearchivist
+            - name: tubearchivist
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -142,7 +136,6 @@ tubearchivist:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 40Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -157,10 +150,6 @@ tubearchivist:
               readOnly: false
 valkey:
   valkey:
-    resources:
-      requests:
-        cpu: 100m
-        memory: 1Gi
     dataStorage:
       requestedSize: 10Gi
     replica:
