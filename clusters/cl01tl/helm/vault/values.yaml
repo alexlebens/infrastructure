@@ -1,9 +1,5 @@
 vault:
   global:
-    enabled: true
-    tlsDisable: true
-    psp:
-      enable: false
     serverTelemetry:
       prometheusOperator: true
   injector:
@@ -12,23 +8,14 @@ vault:
     enabled: true
     image:
       repository: hashicorp/vault
-      tag: 1.21.4
-    updateStrategyType: "RollingUpdate"
-    logLevel: debug
-    logFormat: standard
+      tag: 1.21.4@sha256:4e33b126a59c0c333b76fb4e894722462659a6bec7c48c9ee8cea56fccfd2569
+    updateStrategyType: RollingUpdate
     resources:
       requests:
         cpu: 50m
-        memory: 512Mi
-    ingress:
-      enabled: false
-    route:
-      enabled: false
+        memory: 90Mi
     authDelegator:
       enabled: false
-    readinessProbe:
-      enabled: true
-      port: 8200
     livenessProbe:
       enabled: false
     volumes:
@@ -39,43 +26,17 @@ vault:
       - mountPath: /opt/backups/
         name: vault-storage-backup
         readOnly: false
-    affinity: |
-      podAntiAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchLabels:
-                app.kubernetes.io/name: {{ template "vault.name" . }}
-                app.kubernetes.io/instance: "{{ .Release.Name }}"
-                component: server
-            topologyKey: kubernetes.io/hostname
-    networkPolicy:
-      enabled: false
-    service:
-      enabled: true
-      active:
-        enabled: true
-      standby:
-        enabled: false
-      type: ClusterIP
-      port: 8200
-      targetPort: 8200
     dataStorage:
-      enabled: true
       size: 1Gi
-      mountPath: "/vault/data"
-      accessMode: ReadWriteOnce
+      storageClass: ceph-block
     auditStorage:
-      enabled: false
+      enabled: true
       size: 5Gi
-      mountPath: "/vault/audit"
-      accessMode: ReadWriteOnce
-    dev:
-      enabled: false
+      storageClass: ceph-block
     standalone:
       enabled: false
     ha:
       enabled: true
-      replicas: 3
       raft:
         enabled: true
         config: |
@@ -109,30 +70,12 @@ vault:
             prometheus_retention_time = "30s"
             disable_hostname = true
           }
-
       disruptionBudget:
         enabled: true
-        maxUnavailable: null
-    serviceAccount:
-      create: true
-      serviceDiscovery:
-        enabled: true
-    hostNetwork: false
-  ui:
-    enabled: true
-    publishNotReadyAddresses: true
-    activeVaultPodOnly: false
-    serviceType: "ClusterIP"
-    serviceNodePort: null
-    externalPort: 8200
-    targetPort: 8200
-  csi:
-    enabled: false
+        maxUnavailable: 1
   serverTelemetry:
     serviceMonitor:
       enabled: true
-      interval: 30s
-      scrapeTimeout: 10s
     prometheusRules:
       enabled: true
       rules:
@@ -158,20 +101,15 @@ snapshot:
       type: cronjob
       cronjob:
         suspend: false
-        concurrencyPolicy: Forbid
-        timeZone: US/Central
+        timeZone: America/Chicago
         schedule: 0 4 * * *
-        startingDeadlineSeconds: 90
-        successfulJobsHistory: 1
-        failedJobsHistory: 3
         backoffLimit: 3
         parallelism: 1
       initContainers:
         snapshot:
           image:
             repository: hashicorp/vault
-            tag: 1.21.4
-            pullPolicy: IfNotPresent
+            tag: 1.21.4@sha256:4e33b126a59c0c333b76fb4e894722462659a6bec7c48c9ee8cea56fccfd2569
           command:
             - /bin/ash
           args:
@@ -328,53 +266,47 @@ unseal:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/lrstanley/vault-unseal
-            tag: 0.7.2
-            pullPolicy: IfNotPresent
+            tag: 0.7.2@sha256:b25d0c2f6a73d1b9a3907befa473f08fe9fac828d248d7e9702517c5b967733c
           envFrom:
             - secretRef:
                 name: vault-unseal-config-1
           resources:
             requests:
-              cpu: 10m
-              memory: 24Mi
+              cpu: 1m
+              memory: 10Mi
     unseal-2:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/lrstanley/vault-unseal
-            tag: 0.7.2
-            pullPolicy: IfNotPresent
+            tag: 0.7.2@sha256:b25d0c2f6a73d1b9a3907befa473f08fe9fac828d248d7e9702517c5b967733c
           envFrom:
             - secretRef:
                 name: vault-unseal-config-2
           resources:
             requests:
-              cpu: 10m
-              memory: 24Mi
+              cpu: 1m
+              memory: 10Mi
     unseal-3:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/lrstanley/vault-unseal
-            tag: 0.7.2
-            pullPolicy: IfNotPresent
+            tag: 0.7.2@sha256:b25d0c2f6a73d1b9a3907befa473f08fe9fac828d248d7e9702517c5b967733c
           envFrom:
             - secretRef:
                 name: vault-unseal-config-3
           resources:
             requests:
-              cpu: 10m
-              memory: 24Mi
+              cpu: 1m
+              memory: 10Mi
