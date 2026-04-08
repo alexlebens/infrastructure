@@ -1,6 +1,13 @@
 traefik:
+  image:
+    registry: docker.io
+    repository: traefik
+    tag: v3.6.12@sha256:171c9c3565b29f6c133f1c1b43c5d4e5853415198e9e1078c001f8702ff66aec
   deployment:
     kind: DaemonSet
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
   ingressClass:
     enabled: false
   gateway:
@@ -39,6 +46,11 @@ traefik:
       enabled: true
       matchRule: (Host(`traefik-cl01tl.alexlebens.net`) && (PathPrefix(`/api/`) || PathPrefix(`/dashboard/`)))
       entryPoints: ["websecure"]
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   providers:
     kubernetesCRD:
       allowCrossNamespace: true
@@ -58,8 +70,23 @@ traefik:
       serviceMonitor:
         enabled: true
       prometheusRule:
-        enabled: false
+        enabled: true
+        rules:
+          - alert: TraefikDown
+            expr: up{job="traefik"} == 0
+            for: 5m
+            labels:
+              context: traefik
+              severity: warning
+            annotations:
+              summary: "Traefik Down"
+              description: "{{ $labels.pod }} on {{ $labels.nodename }} is down"
+  global:
+    checkNewVersion: false
   ports:
+    traefik:
+      expose:
+        default: false
     web:
       port: 8000
       expose:
@@ -77,14 +104,12 @@ traefik:
           - 172.16.0.0/16
           - 192.168.0.0/16
           - fc00::/7
-        insecure: false
       proxyProtocol:
         trustedIPs:
           - 10.0.0.0/8
           - 172.16.0.0/16
           - 192.168.0.0/16
           - fc00::/7
-        insecure: false
     websecure:
       port: 8443
       expose:
@@ -102,22 +127,18 @@ traefik:
           allowEncodedPercent: true
           allowEncodedQuestionMark: true
           allowEncodedHash: true
-        tls:
-          enabled: true
       forwardedHeaders:
         trustedIPs:
           - 10.0.0.0/8
           - 172.16.0.0/16
           - 192.168.0.0/16
           - fc00::/7
-        insecure: false
       proxyProtocol:
         trustedIPs:
           - 10.0.0.0/8
           - 172.16.0.0/16
           - 192.168.0.0/16
           - fc00::/7
-        insecure: false
     ssh:
       port: 22
       expose:
@@ -129,14 +150,12 @@ traefik:
           - 172.16.0.0/16
           - 192.168.0.0/16
           - fc00::/7
-        insecure: false
       proxyProtocol:
         trustedIPs:
           - 10.0.0.0/8
           - 172.16.0.0/16
           - 192.168.0.0/16
           - fc00::/7
-        insecure: false
     metrics:
       expose:
         default: false
@@ -145,6 +164,10 @@ traefik:
     type: LoadBalancer
     externalIPs:
       - 10.232.1.21
+  resources:
+    requests:
+      cpu: 10m
+      memory: 100Mi
 traefik-crds:
   enabled: true
   traefik: true
