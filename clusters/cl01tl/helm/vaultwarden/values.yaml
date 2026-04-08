@@ -4,13 +4,11 @@ vaultwarden:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
-            repository: vaultwarden/server
-            tag: 1.35.4
-            pullPolicy: IfNotPresent
+            repository: ghcr.io/vaultwarden/server
+            tag: 1.35.4@sha256:43498a94b22f9563f2a94b53760ab3e710eefc0d0cac2efda4b12b9eb8690664
           env:
             - name: DOMAIN
               value: https://passwords.alexlebens.dev
@@ -44,7 +42,7 @@ vaultwarden:
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 30Mi
   service:
     main:
       controller: main
@@ -52,14 +50,12 @@ vaultwarden:
         http:
           port: 80
           targetPort: 80
-          protocol: HTTP
   persistence:
     config:
       forceRename: vaultwarden-data
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 5Gi
-      retain: true
       advancedMounts:
         main:
           main:
@@ -78,35 +74,12 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 0 0 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external
 volsync-target-data:
   pvcTarget: vaultwarden-data
   local:
