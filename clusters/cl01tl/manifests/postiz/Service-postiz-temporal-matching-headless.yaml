@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postiz-temporal-matching-headless
+  labels:
+    app.kubernetes.io/component: matching
+    app.kubernetes.io/name: temporal
+    helm.sh/chart: temporal-1.0.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: postiz
+    app.kubernetes.io/version: "1.30.3"
+    app.kubernetes.io/part-of: temporal
+    app.kubernetes.io/headless: 'true'
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+    prometheus.io/job: temporal-matching
+    prometheus.io/scrape: 'true'
+    prometheus.io/scheme: http
+    prometheus.io/port: "9090"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - port: 7235
+      targetPort: rpc
+      appProtocol: tcp
+      protocol: TCP
+      name: grpc-rpc
+    - port: 6935
+      targetPort: membership
+      appProtocol: tcp
+      protocol: TCP
+      name: grpc-membership
+    - port: 9090
+      targetPort: metrics
+      appProtocol: http
+      protocol: TCP
+      name: metrics
+  selector:
+    app.kubernetes.io/name: temporal
+    app.kubernetes.io/instance: postiz
+    app.kubernetes.io/component: matching
