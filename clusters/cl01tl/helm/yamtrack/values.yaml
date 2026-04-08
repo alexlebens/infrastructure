@@ -4,16 +4,14 @@ yamtrack:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       containers:
         main:
           image:
             repository: ghcr.io/fuzzygrim/yamtrack
-            tag: 0.25.0
-            pullPolicy: IfNotPresent
+            tag: 0.25.0@sha256:df76008258452a6cda73d971dc4ffbcbca96c5220154a02c9b70bf0bb0e24931
           env:
             - name: TZ
-              value: US/Central
+              value: America/Chicago
             - name: URLS
               value: https://yamtrack.alexlebens.net
             - name: REGISTRATION
@@ -60,7 +58,7 @@ yamtrack:
           resources:
             requests:
               cpu: 10m
-              memory: 256Mi
+              memory: 380Mi
   service:
     main:
       controller: main
@@ -68,7 +66,6 @@ yamtrack:
         http:
           port: 80
           targetPort: 8000
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -81,11 +78,8 @@ yamtrack:
         - yamtrack.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: yamtrack
+            - name: yamtrack
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -103,32 +97,9 @@ postgres-18-cluster:
         destinationBucket: postgres-backups
         externalSecretCredentialPath: /garage/home-infra/postgres-backups
         isWALArchiver: true
-      # - name: garage-remote
-      #   index: 1
-      #   destinationBucket: postgres-backups
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   retentionPolicy: "90d"
-      #   data:
-      #     compression: bzip2
-      # - name: external
-      #   index: 1
-      #   endpointURL: https://nyc3.digitaloceanspaces.com
-      #   destinationBucket: postgres-backups-ce540ddf106d186bbddca68a
-      #   externalSecretCredentialPath: /garage/home-infra/postgres-backups
-      #   isWALArchiver: false
     scheduledBackups:
       - name: live-backup
         suspend: false
         immediate: true
         schedule: "0 10 16 * * *"
         backupName: garage-local
-      # - name: weekly-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 4 * * SAT"
-      #   backupName: garage-remote
-      # - name: daily-backup
-      #   suspend: true
-      #   immediate: true
-      #   schedule: "0 0 0 * * *"
-      #   backupName: external

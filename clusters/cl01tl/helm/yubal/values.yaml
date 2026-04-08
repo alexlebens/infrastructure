@@ -4,18 +4,17 @@ yubal:
       type: deployment
       replicas: 1
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
         securityContext:
           runAsUser: 1000
           runAsGroup: 1000
           fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
       containers:
         main:
           image:
             repository: ghcr.io/guillevc/yubal
             tag: 0.7.2@sha256:906b7c90b738e77ad140178f6a5145f98c12af36e8321d427148c092836c37be
-            pullPolicy: IfNotPresent
           env:
             - name: YUBAL_TZ
               value: America/Chicago
@@ -28,7 +27,7 @@ yubal:
           resources:
             requests:
               cpu: 10m
-              memory: 128Mi
+              memory: 200Mi
   service:
     main:
       controller: main
@@ -36,7 +35,6 @@ yubal:
         http:
           port: 80
           targetPort: 8000
-          protocol: HTTP
   route:
     main:
       kind: HTTPRoute
@@ -49,11 +47,8 @@ yubal:
         - yubal.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: yubal
+            - name: yubal
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
@@ -64,7 +59,6 @@ yubal:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
       size: 1Gi
-      retain: true
       advancedMounts:
         main:
           main:

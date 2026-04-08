@@ -3,13 +3,11 @@ whodb:
     main:
       type: deployment
       replicas: 1
-      strategy: Recreate
       containers:
         main:
           image:
             repository: clidey/whodb
-            tag: 0.104.0
-            pullPolicy: IfNotPresent
+            tag: 0.104.0@sha256:ab485c021b862aac50bb88658f3342ca01d3eba33e933353692bc9989b2912c4
           env:
             - name: WHODB_OLLAMA_HOST
               value: ollama-server-2.ollama
@@ -17,8 +15,8 @@ whodb:
               value: 11434
           resources:
             requests:
-              cpu: 10m
-              memory: 256Mi
+              cpu: 1m
+              memory: 20Mi
   service:
     main:
       controller: main
@@ -26,7 +24,6 @@ whodb:
         http:
           port: 80
           targetPort: 8080
-          protocol: TCP
   route:
     main:
       kind: HTTPRoute
@@ -39,11 +36,8 @@ whodb:
         - whodb.alexlebens.net
       rules:
         - backendRefs:
-            - group: ''
-              kind: Service
-              name: whodb
+            - name: whodb
               port: 80
-              weight: 100
           matches:
             - path:
                 type: PathPrefix
