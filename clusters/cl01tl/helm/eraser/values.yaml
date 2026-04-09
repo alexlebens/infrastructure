@@ -35,3 +35,88 @@ eraser:
       requests:
         cpu: 1m
         memory: 20Mi
+eraser-metrics:
+  global:
+    nameOverride: eraser-metrics
+    fullnameOverride: eraser-metrics
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector
+            tag: 0.149.0@sha256:dd56aed607fd02f8ac01dddb27a859c0c2cc750539abce927803778fafc736ae
+          command:
+            - /otelcol
+            - --config=/conf/otel-collector-config.yaml
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+  configMaps:
+    config:
+      enabled: true
+      forceRename: eraser-config
+      data:
+        otel-collector-config.yaml: |
+          receivers:
+            otlp:
+              protocols:
+                http:
+
+          exporters:
+            logging:
+              loglevel: debug
+            prometheus:
+              endpoint: "0.0.0.0:8889"
+              send_timestamps: true
+              metric_expiration: 180m
+
+          service:
+            telemetry:
+              logs:
+                encoding: json
+            pipelines:
+              metrics:
+                receivers:
+                  - otlp
+                exporters:
+                  - logging
+                  - prometheus
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 4318
+          targetPort: 4318
+        metrics:
+          port: 8889
+          targetPort: 8889
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: eraser-metrics
+          app.kubernetes.io/instance: eraser-metrics
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          interval: 30s
+          scrapeTimeout: 15s
+          path: /metrics
+  persistence:
+    config:
+      enabled: true
+      type: configMap
+      name: eraser-config
+      advancedMounts:
+        main:
+          main:
+            - path: /conf/otel-collector-config.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: otel-collector-config.yaml
