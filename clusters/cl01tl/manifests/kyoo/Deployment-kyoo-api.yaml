@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kyoo-api
+  namespace: kyoo
+  labels:
+    helm.sh/chart: kyoo-5.0.0
+    app.kubernetes.io/name: kyoo-api
+    app.kubernetes.io/instance: kyoo
+    app.kubernetes.io/component: api
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: kyoo
+    app.kubernetes.io/version: "5.0.0"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyoo-api
+      app.kubernetes.io/instance: kyoo
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: kyoo-5.0.0
+        app.kubernetes.io/name: kyoo-api
+        app.kubernetes.io/instance: kyoo
+        app.kubernetes.io/component: api
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: kyoo
+        app.kubernetes.io/version: "5.0.0"
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      serviceAccountName: kyoo-api
+      initContainers:
+      containers:
+        - name: main
+          image: ghcr.io/zoriya/kyoo_api:5.0.0@sha256:dc0210f235e23ae616b0f5952af7867dcbc52e0354c2683ec3c4190fdcd17744
+          imagePullPolicy: IfNotPresent
+          args:
+          env:
+            - name: JWT_ISSUER
+              value: "https://kyoo.alexlebens.net"
+            - name: AUTH_SERVER
+              value: "http://kyoo-auth:4568"
+            - name: TRANSCODER_SERVER
+              value: "http://kyoo-transcoder:7666"
+            - name: IMAGES_PATH
+              value: "/images"
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: kyoo-postgresql-18-cluster-app
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: kyoo-postgresql-18-cluster-app
+            - name: PGDATABASE
+              value: "kyoo_api"
+            - name: PGHOST
+              value: "kyoo-postgresql-18-cluster-rw"
+            - name: PGPORT
+              value: "5432"
+            - name: PGSSLMODE
+              value: "disable"
+          ports:
+            - name: main
+              containerPort: 3567
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: main
+          readinessProbe:
+            httpGet:
+              path: /api/ready
+              port: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
+          volumeMounts:
+            - name: apiimagedata
+              mountPath: /images
+      volumes:
+        - name: apiimagedata
+          persistentVolumeClaim:
+            claimName: kyoo-apimetadata
