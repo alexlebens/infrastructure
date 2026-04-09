@@ -1,0 +1,37 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argocd-application-controller
+  namespace: "argocd"
+  labels:
+    helm.sh/chart: argo-cd-9.5.0
+    app.kubernetes.io/name: argocd-application-controller
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/component: application-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: argocd
+    app.kubernetes.io/version: "v3.3.6"
+spec:
+  groups:
+    - name: argocd
+      rules:
+        - alert: ArgoAppMissing
+          annotations:
+            description: |
+              Argo CD has not reported any applications data for the past 15 minutes which means that it must be down or not functioning properly.  This needs to be resolved for this cloud to continue to maintain state.
+            summary: '[Argo CD] No reported applications'
+          expr: |
+            absent(argocd_app_info) == 1
+          for: 15m
+          labels:
+            severity: critical
+        - alert: ArgoAppNotSynced
+          annotations:
+            description: |
+              The application [{{`{{$labels.name}}`}} has not been synchronized for over 12 hours which means that the state of this cloud has drifted away from the state inside Git.
+            summary: '[{{`{{$labels.name}}`}}] Application not synchronized'
+          expr: |
+            argocd_app_info{sync_status!="Synced"} == 1
+          for: 12h
+          labels:
+            severity: warning
