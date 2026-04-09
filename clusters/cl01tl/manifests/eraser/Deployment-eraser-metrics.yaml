@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eraser-metrics
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: eraser
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: eraser-metrics
+    helm.sh/chart: eraser-metrics-4.6.2
+  namespace: eraser
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: eraser-metrics
+      app.kubernetes.io/instance: eraser
+  template:
+    metadata:
+      annotations:
+        checksum/configMaps: 1c81fdd4fe1ce9a53657f705990e37acb80dc225b6dbe64ade6479c75607c463
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: eraser
+        app.kubernetes.io/name: eraser-metrics
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - command:
+            - /otelcol
+            - --config=/conf/otel-collector-config.yaml
+          image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector:0.149.0@sha256:dd56aed607fd02f8ac01dddb27a859c0c2cc750539abce927803778fafc736ae
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          volumeMounts:
+            - mountPath: /conf/otel-collector-config.yaml
+              mountPropagation: None
+              name: config
+              readOnly: true
+              subPath: otel-collector-config.yaml
+      volumes:
+        - configMap:
+            name: eraser-config
+          name: config
