@@ -4,28 +4,14 @@ kyoo:
       fsGroup: 1000
       fsGroupChangePolicy: OnRootMismatch
     postgres:
-      shared:
-        host: kyoo-postgresql-18-cluster-rw
-        port: 5432
-        existingSecret: kyoo-postgresql-18-cluster-app
-        userKey: user
+      infra:
+        user: kyoo_all
         passwordKey: password
-      kyoo_api:
-        database: kyoo_api
-        sslmode: disable
-        kyoo_api:
-          userKey: user
-          passwordKey: password
-          existingSecret: kyoo-postgresql-18-cluster-superuser
-      kyoo_auth:
-        database: kyoo_auth
-        sslmode: disable
-      kyoo_scanner:
-        database: kyoo_scanner
-        sslmode: disable
-      kyoo_transcoder:
-        database: kyoo_transcoder
-        sslmode: disable
+        existingSecret: kyoo-db-secret
+      shared:
+        existingSecret: kyoo-db-secret
+        userKey: postgres_user
+        passwordKey: postgres_password
   kyoo:
     address: https://kyoo.alexlebens.net
     auth:
@@ -175,41 +161,21 @@ kyoo:
   traefikproxy:
     enabled: false
   postgres:
-    enabled: false
-postgres-18-cluster:
-  mode: recovery
-  cluster:
-    enableSuperuserAccess: true
-  recovery:
-    method: objectStore
-    objectStore:
-      index: 1
-  backup:
-    objectStore:
-      - name: garage-local
-        index: 1
-        destinationBucket: postgres-backups
-        externalSecretCredentialPath: /garage/home-infra/postgres-backups
-        isWALArchiver: true
-    scheduledBackups:
-      - name: live-backup
-        suspend: false
-        immediate: true
-        schedule: "0 5 14 * * *"
-        backupName: garage-local
-  databases:
-    - name: kyoo_api
-      ensure: present
-      owner: app
-    - name: kyoo_auth
-      ensure: present
-      owner: app
-    - name: kyoo_scanner
-      ensure: present
-      owner: app
-    - name: kyoo_transcoder
-      ensure: present
-      owner: app
+    enabled: true
+    persistence:
+      enabled: true
+      size: 5Gi
+volsync-target-db:
+  pvcTarget: kyoo-db
+  local:
+    enabled: true
+    schedule: 26 8 * * *
+  remote:
+    enabled: true
+    schedule: 26 9 * * *
+  external:
+    enabled: true
+    schedule: 26 10 * * *
 volsync-target-metadata:
   pvcTarget: kyoo-apimetadata
   local:
