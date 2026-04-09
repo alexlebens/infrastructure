@@ -1,0 +1,88 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: kyoo
+  namespace: kyoo
+  labels:
+    app.kubernetes.io/name: kyoo
+    app.kubernetes.io/instance: kyoo
+    app.kubernetes.io/part-of: kyoo
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - kyoo.alexlebens.net
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: front
+          port: 8901
+          weight: 100
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /video
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: transcoder
+          port: 7666
+          weight: 100
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /auth/
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: auth
+          port: 4568
+          weight: 100
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /.well-known/
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: auth
+          port: 4568
+          weight: 100
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: api
+          port: 3567
+          weight: 100
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /swagger
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: api
+          port: 3567
+          weight: 100
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /scanner/
+      backendRefs:
+        - group: ''
+          kind: Service
+          name: scanner
+          port: 4389
+          weight: 100
