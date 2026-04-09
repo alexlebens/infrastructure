@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eraser-config
+  labels:
+    app.kubernetes.io/instance: eraser
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: eraser-metrics
+    helm.sh/chart: eraser-metrics-4.6.2
+  namespace: eraser
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+
+    exporters:
+      logging:
+        loglevel: debug
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+        send_timestamps: true
+        metric_expiration: 180m
+
+    service:
+      telemetry:
+        logs:
+          encoding: json
+      pipelines:
+        metrics:
+          receivers:
+            - otlp
+          exporters:
+            - logging
+            - prometheus
