@@ -57,6 +57,25 @@ unpackerr:
             requests:
               cpu: 10m
               memory: 10Mi
+  service:
+    main:
+      controller: main
+      ports:
+        metrics:
+          port: 5656
+          targetPort: 5656
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: unpackerr
+          app.kubernetes.io/instance: unpackerr
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          interval: 1m
+          scrapeTimeout: 30s
+          path: /metrics
   persistence:
     storage:
       existingClaim: unpackerr-nfs-storage

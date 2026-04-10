@@ -20,6 +20,27 @@ prowlarr:
             requests:
               cpu: 10m
               memory: 200Mi
+        metrics:
+          image:
+            repository: ghcr.io/onedr0p/exportarr
+            tag: v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
+          args: ["prowlarr"]
+          env:
+            - name: URL
+              value: http://localhost
+            - name: PORT
+              value: 9792
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: prowlarr-key-secret
+                  key: key
+            - name: ENABLE_ADDITIONAL_METRICS
+              value: false
+            - name: ENABLE_UNKNOWN_QUEUE_ITEMS
+              value: false
+            - name: PROWLARR__BACKFILL
+              value: true
   service:
     main:
       controller: main
@@ -27,6 +48,21 @@ prowlarr:
         http:
           port: 80
           targetPort: 9696
+        metrics:
+          port: 9792
+          targetPort: 9792
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: prowlarr
+          app.kubernetes.io/instance: prowlarr
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          interval: 1m
+          scrapeTimeout: 30s
+          path: /metrics
   route:
     main:
       kind: HTTPRoute
