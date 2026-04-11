@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: foldergram-cloudflared
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: foldergram
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/version: 2026.3.0
+    helm.sh/chart: cloudflared-2.5.0
+  namespace: foldergram
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: cloudflared
+      app.kubernetes.io/instance: foldergram
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: foldergram
+        app.kubernetes.io/name: cloudflared
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - args:
+            - tunnel
+            - --protocol
+            - http2
+            - --no-autoupdate
+            - run
+            - --token
+            - $(CF_MANAGED_TUNNEL_TOKEN)
+          env:
+            - name: CF_MANAGED_TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: cf-tunnel-token
+                  name: foldergram-cloudflared-secret
+          image: cloudflare/cloudflared:2026.3.0@sha256:6b599ca3e974349ead3286d178da61d291961182ec3fe9c505e1dd02c8ac31b0
+          imagePullPolicy: IfNotPresent
+          name: main
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
