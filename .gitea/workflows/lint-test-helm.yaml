@@ -274,6 +274,12 @@ jobs:
           version: v4.1.3
           cache: true
 
+      - name: Configure Kubeconfig
+        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
       - name: Cache Helm Dependencies
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
@@ -334,7 +340,7 @@ jobs:
 
             helm dependency build "${CHART_PATH}" --skip-refresh
 
-            if ! helm template "${DIR}" "${CHART_PATH}" --include-crds --namespace default --api-versions "gateway.networking.k8s.io/v1/HTTPRoute" | \
+            if ! helm template "${DIR}" "${CHART_PATH}" --include-crds --namespace default  --dry-run=server --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor" | \
               kubeconform \
                 ${SCHEMA_LOCATIONS} \
                 -ignore-missing-schemas \
@@ -417,6 +423,100 @@ jobs:
 
           echo ""
           echo "----"
+
+      - name: Set Up Helm
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
+        with:
+          token: ${{ secrets.GITEA_TOKEN }}
+          # renovate: datasource=github-releases depName=helm/helm
+          version: v4.1.3
+          cache: true
+
+      - name: Configure Kubeconfig
+        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Cache Helm Dependencies
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: |
+            ~/.cache/helm
+            ~/.config/helm
+          key: helm-cache-${{ runner.os }}-${{ hashFiles('infrastructure/clusters/cl01tl/helm/**/Chart.yaml', 'infrastructure/clusters/cl01tl/helm/**/Chart.lock') }}
+          restore-keys: |
+            helm-cache-${{ runner.os }}-
+
+      - name: Add Repositories
+        env:
+          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+        run: |
+          echo ">> Adding repositories for chart dependencies ..."
+          echo ""
+
+          for DIR in ${CHANGED_CHARTS}; do
+            helm dependency list --max-col-width 120 clusters/${CLUSTER}/helm/${DIR} 2> /dev/null \
+              | tail -n +2 \
+              | awk 'NF > 0 { print $1, $3 }' \
+              | while read -r REPO_NAME REPO_URL; do
+                if [[ "${REPO_URL}" == oci://* ]]; then
+                  echo ">> Ignoring OCI repo: ${REPO_URL}"
+
+                elif [[ -n "${REPO_NAME}" && -n "${REPO_URL}" ]]; then
+                  helm repo add "${REPO_NAME}" "${REPO_URL}"
+
+                fi
+
+              done || true
+          done
+
+          if helm repo list > /dev/null 2>&1; then
+            echo ""
+            echo ">> Update repository cache ..."
+            helm repo update
+
+          fi
+
+          echo ""
+          echo "----"
+
+      - name: Render Templates
+        id: render
+        env:
+          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+        run: |
+          for APP_NAME in ${CHANGED_CHARTS}; do
+            echo ">> Render templates for ${APP_NAME} ..."
+            CHART_PATH="clusters/${CLUSTER}/helm/${APP_NAME}"
+            OUTPUT_FOLDER="clusters/${CLUSTER}/manifests/${APP_NAME}/"
+
+            helm dependency build "${CHART_PATH}" --skip-refresh
+
+            local NAMESPACE="${APP_NAME}"
+            case "${APP_NAME}" in
+              "stack")
+                NAMESPACE="argocd"
+                echo ">> Special Rendering into 'argocd' namespace ..."
+                ;;
+              "cilium" | "coredns" | "metrics-server")
+                NAMESPACE="kube-system"
+                echo ">> Special Rendering for ${APP_NAME} into 'kube-system' namespace ..."
+                ;;
+              *)
+                echo ">> Standard Rendering ..."
+            esac
+
+            TEMPLATE=$(helm template "${APP_NAME}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --include-crds --dry-run=server --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor")
+
+            # Format and split rendered template
+            echo "${TEMPLATE}" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${OUTPUT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
+
+            # Strip comments again to ensure formatting correctness
+            for file in "$OUTPUT_FOLDER"/*; do
+              yq -i '... comments=""' $file
+
+            done
 
       - name: Run App Diff
         id: diff
