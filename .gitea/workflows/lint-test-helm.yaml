@@ -18,6 +18,8 @@ env:
   BASE_BRANCH: "origin/${{ github.base_ref }}"
   # renovate: datasource=github-releases depName=yannh/kubeconform
   KUBECONFORM_VERSION: "v0.6.7"
+  # renovate: datasource=github-releases depName=argoproj/argo-cd
+  ARGOCD_VERSION: "v3.3.6"
 
 jobs:
   lint-helm:
@@ -369,8 +371,6 @@ jobs:
   argo-diff:
     needs: lint-helm
     runs-on: ubuntu-js
-    container:
-      image: quay.io/argoproj/argocd:v3.3.6
     if: |
       needs.lint-helm.result == 'success' &&
       needs.lint-helm.outputs.changes-detected == 'true' &&
@@ -380,6 +380,22 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+
+      - name: Install ArgoCD CLI
+        run: |
+          echo ">> Downloading ArgoCD CLI, version: ${{ env.ARGOCD_VERSION }} ..."
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/download/${{ env.ARGOCD_VERSION }}/argocd-linux-amd64
+
+          echo ""
+          echo ">> Installing ArgoCD CLI ..."
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+
+          echo ""
+          echo ">> Verifying installation ..."
+          argocd version --client
+
+          echo ""
+          echo "----"
 
       - name: Run App Diff
         id: diff
