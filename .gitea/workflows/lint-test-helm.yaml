@@ -236,7 +236,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache Kubeconform
+        id: cache-kubeconform
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: /usr/local/bin/kubeconform
+          key: ${{ runner.os }}-kubeconform-${{ env.KUBECONFORM_VERSION }}
+
       - name: Install Kubeconform
+        if: steps.cache-kubeconform.outputs.cache-hit != 'true'
         run: |
           echo ">> Downloading Kubeconform ${{ env.KUBECONFORM_VERSION }} ..."
           wget -q https://github.com/yannh/kubeconform/releases/download/${{ env.KUBECONFORM_VERSION }}/kubeconform-linux-amd64.tar.gz
@@ -249,6 +257,8 @@ jobs:
           echo ">> Installing Kubeconform ..."
           sudo mv kubeconform /usr/local/bin/
 
+      - name: Verify installation
+        run: |
           echo ""
           echo ">> Verifying installation ..."
           kubeconform -v
@@ -379,7 +389,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache ArgoCD CLI
+        id: cache-argocd
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: /usr/local/bin/argocd
+          key: ${{ runner.os }}-argocd-${{ env.ARGOCD_VERSION }}
+
       - name: Install ArgoCD CLI
+        if: steps.cache-argocd.outputs.cache-hit != 'true'
         run: |
           echo ">> Downloading ArgoCD CLI, version: ${{ env.ARGOCD_VERSION }} ..."
           curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/download/${{ env.ARGOCD_VERSION }}/argocd-linux-amd64
@@ -388,6 +406,11 @@ jobs:
           echo ">> Installing ArgoCD CLI ..."
           sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
 
+          echo ""
+          echo "----"
+
+      - name: Verify installation
+        run: |
           echo ""
           echo ">> Verifying installation ..."
           argocd version --client
