@@ -274,12 +274,6 @@ jobs:
           version: v4.1.3
           cache: true
 
-      - name: Configure Kubeconfig
-        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBECONFIG }}
-
       - name: Cache Helm Dependencies
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
@@ -340,7 +334,7 @@ jobs:
 
             helm dependency build "${CHART_PATH}" --skip-refresh
 
-            if ! helm template "${DIR}" "${CHART_PATH}" --include-crds --namespace default  --dry-run=server --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor" | \
+            if ! helm template "${DIR}" "${CHART_PATH}" --include-crds --namespace default --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor" | \
               kubeconform \
                 ${SCHEMA_LOCATIONS} \
                 -ignore-missing-schemas \
@@ -432,12 +426,6 @@ jobs:
           version: v4.1.3
           cache: true
 
-      - name: Configure Kubeconfig
-        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBECONFIG }}
-
       - name: Cache Helm Dependencies
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
@@ -507,7 +495,7 @@ jobs:
                 echo ">> Standard Rendering ..."
             esac
 
-            TEMPLATE=$(helm template "${APP_NAME}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --include-crds --dry-run=server --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor")
+            TEMPLATE=$(helm template "${APP_NAME}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --include-crds --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor")
 
             # Format and split rendered template
             echo "${TEMPLATE}" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${OUTPUT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
@@ -517,6 +505,9 @@ jobs:
               yq -i '... comments=""' $file
 
             done
+          done
+
+          echo "----"
 
       - name: Run App Diff
         id: diff
