@@ -102,7 +102,7 @@ jobs:
             echo ""
             echo "${CHANGED_CHARTS}"
 
-            CHANGED_CHARTS_CSV=$(echo "$CHANGED_CHARTS" | paste -sd ',' -)
+            CHANGED_CHARTS_CSV=$(echo "${CHANGED_CHARTS}" | paste -sd ',' -)
 
             echo ""
             echo "----"
@@ -362,6 +362,117 @@ jobs:
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
           details: "Kubeconform for cluster '${{ env.CLUSTER }}' failed on charts: ${{ steps.validate.outputs.failed-charts }}"
+          icon: 'https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png'
+          actions: '[{"action": "view", "label": "View Run", "url": "${{ vars.USER_URL }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+          image: true
+
+  argo-diff:
+    needs: lint-helm
+    runs-on: ubuntu-js
+    container:
+      image: argoproj/argocd:v3.3.6
+    if: |
+      needs.lint-helm.result == 'success' &&
+      needs.lint-helm.outputs.changes-detected == 'true' &&
+      github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Run App Diff
+        id: diff
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+        run: |
+          # argo diff outputs 1 on any diff, but this is expected, only error on output 2+
+          set +e
+          OVERALL_EXIT_CODE=0
+          FAILED_CHARTS=""
+
+          for APP_NAME in ${CHANGED_CHARTS}; do
+            echo ">> Running argocd app diff for ${APP_NAME} ..."
+            argocd app diff "${APP_NAME}" \
+              --server "${ARGOCD_SERVER}" \
+              --revision ${{ gitea.sha }} \
+              --refresh \
+              --grpc-web \
+              --insecure > diff_output_${APP_NAME}.txt
+
+            EXIT_CODE=$?
+
+            echo ">> Argo diff:"
+            echo ""
+            cat diff_output_${APP_NAME}.txt
+            echo ""
+
+            if [ $EXIT_CODE -eq 2 ]; then
+              echo ">> ArgoCD diff failed for ${APP_NAME} due to a manifest error"
+
+              OVERALL_EXIT_CODE=1
+
+              if [ -z "${FAILED_CHARTS}" ]; then
+                FAILED_CHARTS="${APP_NAME}"
+
+              else
+                FAILED_CHARTS="${FAILED_CHARTS}, ${APP_NAME}"
+
+              fi
+
+            fi
+          done
+
+          echo "----"
+          echo "failed-charts=${FAILED_CHARTS}" >> "$GITHUB_OUTPUT"
+
+          exit $OVERALL_EXIT_CODE
+
+      - name: Post Diff
+        if: always() && gitea.event.pull_request.number != null
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          COMMENT_BODY="### ArgoCD Diff Results
+          "
+
+          for f in diff_output_*.txt; do
+            APP_NAME=$(echo $f | sed 's/diff_output_//;s/.txt//')
+            DIFF_CONTENT=$(cat "$f")
+
+            COMMENT_BODY="${COMMENT_BODY}
+          #### App: ${APP_NAME}
+          "
+
+            if [ -z "$DIFF_CONTENT" ]; then
+              COMMENT_BODY="${COMMENT_BODY} No changes detected."
+            else
+              COMMENT_BODY="${COMMENT_BODY}
+          \`\`\`diff
+          ${DIFF_CONTENT}
+          \`\`\`"
+            fi
+          done
+
+          curl -X 'POST' \
+            "${{ gitea.server_url }}/api/v1/repos/${{ gitea.repository }}/issues/${{ gitea.event.pull_request.number }}/comments" \
+            -H "Authorization: token ${GITEA_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')"
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: '${{ secrets.NTFY_URL }}'
+          topic: '${{ secrets.NTFY_TOPIC }}'
+          title: 'ArgoCD Diff Failure'
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "ArgoCD diff for cluster '${{ env.CLUSTER }}' failed on charts: ${{ steps.diff.outputs.failed-charts }}"
           icon: 'https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png'
           actions: '[{"action": "view", "label": "View Run", "url": "${{ vars.USER_URL }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "clear": true}]'
           image: true
