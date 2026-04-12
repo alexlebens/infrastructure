@@ -408,22 +408,31 @@ jobs:
           set +e
           OVERALL_EXIT_CODE=0
           FAILED_CHARTS=""
+          DIFF_FOUND="false"
 
           for APP_NAME in ${CHANGED_CHARTS}; do
             echo ">> Running argocd app diff for ${APP_NAME} ..."
+
             argocd app diff "${APP_NAME}" \
               --server "${ARGOCD_SERVER}" \
               --revision ${{ gitea.sha }} \
-              --refresh \
-              --grpc-web \
-              --insecure > diff_output_${APP_NAME}.txt
+              --grpc-web > diff_output_${APP_NAME}.txt
 
             EXIT_CODE=$?
 
-            echo ">> Argo diff:"
-            echo ""
-            cat diff_output_${APP_NAME}.txt
-            echo ""
+            if [ -s "diff_output_${APP_NAME}.txt" ]; then
+              echo ">> Argo diff:"
+              echo ""
+              cat diff_output_${APP_NAME}.txt
+              echo ""
+
+              DIFF_FOUND="true"
+
+            else
+              echo ">> No Argo diff found for ${APP_NAME}"
+              rm "diff_output_${APP_NAME}.txt"
+
+            fi
 
             if [ $EXIT_CODE -eq 2 ]; then
               echo ">> ArgoCD diff failed for ${APP_NAME} due to a manifest error"
@@ -437,17 +446,20 @@ jobs:
                 FAILED_CHARTS="${FAILED_CHARTS}, ${APP_NAME}"
 
               fi
-
             fi
           done
 
           echo "----"
+          echo "diff-detected=${DIFF_FOUND}" >> "$GITHUB_OUTPUT"
           echo "failed-charts=${FAILED_CHARTS}" >> "$GITHUB_OUTPUT"
 
           exit $OVERALL_EXIT_CODE
 
       - name: Post Diff
-        if: always() && gitea.event.pull_request.number != null
+        if: |
+          always() &&
+          steps.diff.outputs.diff-detected == 'true' &&
+          gitea.event.pull_request.number != null
         env:
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
         run: |
