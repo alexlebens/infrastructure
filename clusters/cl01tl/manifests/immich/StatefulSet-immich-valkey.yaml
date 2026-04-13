@@ -3,7 +3,7 @@ kind: StatefulSet
 metadata:
   name: immich-valkey
   labels:
-    helm.sh/chart: valkey-0.9.3
+    helm.sh/chart: valkey-0.9.4
     app.kubernetes.io/name: valkey
     app.kubernetes.io/instance: immich
     app.kubernetes.io/version: "9.0.3"
@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/name: valkey
         app.kubernetes.io/instance: immich
       annotations:
-        checksum/initconfig: "56fd0449d1eea259ddd955cd82dc8344"
+        checksum/initconfig: "2d8432be19db9efa32b993becf4e58d4"
     spec:
       automountServiceAccountToken: false
       serviceAccountName: immich-valkey
@@ -40,11 +40,14 @@ spec:
         fsGroup: 1000
         runAsGroup: 1000
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: immich-valkey-init
           image: docker.io/valkey/valkey:9.0.3@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9
           imagePullPolicy: IfNotPresent
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
@@ -69,6 +72,7 @@ spec:
           command: ["valkey-server"]
           args: ["/data/conf/valkey.conf"]
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL

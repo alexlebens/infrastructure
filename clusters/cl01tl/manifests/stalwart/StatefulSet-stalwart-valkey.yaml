@@ -3,7 +3,7 @@ kind: StatefulSet
 metadata:
   name: stalwart-valkey
   labels:
-    helm.sh/chart: valkey-0.9.3
+    helm.sh/chart: valkey-0.9.4
     app.kubernetes.io/name: valkey
     app.kubernetes.io/instance: stalwart
     app.kubernetes.io/version: "9.0.3"
@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/name: valkey
         app.kubernetes.io/instance: stalwart
       annotations:
-        checksum/initconfig: "0b239a281121e840428928da1c5cc8f7"
+        checksum/initconfig: "4c6b93b8a76c270b0b7536ec44133194"
     spec:
       automountServiceAccountToken: false
       serviceAccountName: stalwart-valkey
@@ -40,11 +40,14 @@ spec:
         fsGroup: 1000
         runAsGroup: 1000
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: stalwart-valkey-init
           image: docker.io/valkey/valkey:9.0.3@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9
           imagePullPolicy: IfNotPresent
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
@@ -69,6 +72,7 @@ spec:
           command: ["valkey-server"]
           args: ["/data/conf/valkey.conf"]
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
