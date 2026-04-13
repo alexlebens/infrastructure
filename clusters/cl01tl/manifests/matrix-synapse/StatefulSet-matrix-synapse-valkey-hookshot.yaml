@@ -3,7 +3,7 @@ kind: StatefulSet
 metadata:
   name: matrix-synapse-valkey-hookshot
   labels:
-    helm.sh/chart: valkey-0.9.3
+    helm.sh/chart: valkey-0.9.4
     app.kubernetes.io/name: valkey-hookshot
     app.kubernetes.io/instance: matrix-synapse
     app.kubernetes.io/version: "9.0.3"
@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/name: valkey-hookshot
         app.kubernetes.io/instance: matrix-synapse
       annotations:
-        checksum/initconfig: "be330f0cfd3ac6b10c6beb9aa42e308a"
+        checksum/initconfig: "aae826beaee4a88b18f654c578fef5d8"
     spec:
       automountServiceAccountToken: false
       serviceAccountName: matrix-synapse-valkey-hookshot
@@ -40,11 +40,14 @@ spec:
         fsGroup: 1000
         runAsGroup: 1000
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: matrix-synapse-valkey-hookshot-init
           image: docker.io/valkey/valkey:9.0.3@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9
           imagePullPolicy: IfNotPresent
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
@@ -69,6 +72,7 @@ spec:
           command: ["valkey-server"]
           args: ["/data/conf/valkey.conf"]
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL

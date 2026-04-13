@@ -3,7 +3,7 @@ kind: StatefulSet
 metadata:
   name: authentik-valkey
   labels:
-    helm.sh/chart: valkey-0.9.3
+    helm.sh/chart: valkey-0.9.4
     app.kubernetes.io/name: valkey
     app.kubernetes.io/instance: authentik
     app.kubernetes.io/version: "9.0.3"
@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/name: valkey
         app.kubernetes.io/instance: authentik
       annotations:
-        checksum/initconfig: "07891dc8f81b4fb3516e2993c6e827b1"
+        checksum/initconfig: "5891897632e2eabc8b0c61cc49fea0f6"
     spec:
       automountServiceAccountToken: false
       serviceAccountName: authentik-valkey
@@ -40,11 +40,14 @@ spec:
         fsGroup: 1000
         runAsGroup: 1000
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: authentik-valkey-init
           image: docker.io/valkey/valkey:9.0.3@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9
           imagePullPolicy: IfNotPresent
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
@@ -69,6 +72,7 @@ spec:
           command: ["valkey-server"]
           args: ["/data/conf/valkey.conf"]
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL

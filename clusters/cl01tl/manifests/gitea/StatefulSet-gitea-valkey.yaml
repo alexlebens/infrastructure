@@ -3,7 +3,7 @@ kind: StatefulSet
 metadata:
   name: gitea-valkey
   labels:
-    helm.sh/chart: valkey-0.9.3
+    helm.sh/chart: valkey-0.9.4
     app.kubernetes.io/name: valkey
     app.kubernetes.io/instance: gitea
     app.kubernetes.io/version: "9.0.3"
@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/name: valkey
         app.kubernetes.io/instance: gitea
       annotations:
-        checksum/initconfig: "b82939dee80151a39606083af0d5422a"
+        checksum/initconfig: "9bf6424ee2956d21b52e5c3831aecefa"
     spec:
       automountServiceAccountToken: false
       serviceAccountName: gitea-valkey
@@ -40,11 +40,14 @@ spec:
         fsGroup: 1000
         runAsGroup: 1000
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: gitea-valkey-init
           image: docker.io/valkey/valkey:9.0.3@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9
           imagePullPolicy: IfNotPresent
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
@@ -69,6 +72,7 @@ spec:
           command: ["valkey-server"]
           args: ["/data/conf/valkey.conf"]
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL

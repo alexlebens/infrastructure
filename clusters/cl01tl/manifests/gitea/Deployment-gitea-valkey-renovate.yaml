@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: gitea-valkey-renovate
   labels:
-    helm.sh/chart: valkey-0.9.3
+    helm.sh/chart: valkey-0.9.4
     app.kubernetes.io/name: valkey-renovate
     app.kubernetes.io/instance: gitea
     app.kubernetes.io/version: "9.0.3"
@@ -22,7 +22,7 @@ spec:
         app.kubernetes.io/name: valkey-renovate
         app.kubernetes.io/instance: gitea
       annotations:
-        checksum/initconfig: f77fc408ed818f9e2bd789f0e95a4172
+        checksum/initconfig: 94157ae544275da50867d4d0da0722fc
     spec:
       automountServiceAccountToken: false
       serviceAccountName: gitea-valkey-renovate
@@ -30,11 +30,14 @@ spec:
         fsGroup: 1000
         runAsGroup: 1000
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: gitea-valkey-renovate-init
           image: docker.io/valkey/valkey:9.0.3@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9
           imagePullPolicy: IfNotPresent
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
@@ -54,6 +57,7 @@ spec:
           command: ["valkey-server"]
           args: ["/data/conf/valkey.conf"]
           securityContext:
+            allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
