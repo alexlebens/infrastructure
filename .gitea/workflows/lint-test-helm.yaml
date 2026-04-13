@@ -378,232 +378,232 @@ jobs:
           actions: '[{"action": "view", "label": "View Run", "url": "${{ vars.USER_URL }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "clear": true}]'
           image: true
 
-  argo-diff:
-    needs: lint-helm
-    runs-on: ubuntu-js
-    if: |
-      needs.lint-helm.result == 'success' &&
-      needs.lint-helm.outputs.changes-detected == 'true' &&
-      github.event_name == 'pull_request'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          fetch-depth: 0
+  # argo-diff:
+  #   needs: lint-helm
+  #   runs-on: ubuntu-js
+  #   if: |
+  #     needs.lint-helm.result == 'success' &&
+  #     needs.lint-helm.outputs.changes-detected == 'true' &&
+  #     github.event_name == 'pull_request'
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+  #       with:
+  #         fetch-depth: 0
 
-      - name: Cache ArgoCD CLI
-        id: cache-argocd
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
-        with:
-          path: /usr/local/bin/argocd
-          key: ${{ runner.os }}-argocd-${{ env.ARGOCD_VERSION }}
-          restore-keys: |
-            ${{ runner.os }}-argocd-
+  #     - name: Cache ArgoCD CLI
+  #       id: cache-argocd
+  #       uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+  #       with:
+  #         path: /usr/local/bin/argocd
+  #         key: ${{ runner.os }}-argocd-${{ env.ARGOCD_VERSION }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-argocd-
 
-      - name: Install ArgoCD CLI
-        if: steps.cache-argocd.outputs.cache-hit != 'true'
-        run: |
-          echo ">> Downloading ArgoCD CLI, version: ${{ env.ARGOCD_VERSION }} ..."
-          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/download/${{ env.ARGOCD_VERSION }}/argocd-linux-amd64
+  #     - name: Install ArgoCD CLI
+  #       if: steps.cache-argocd.outputs.cache-hit != 'true'
+  #       run: |
+  #         echo ">> Downloading ArgoCD CLI, version: ${{ env.ARGOCD_VERSION }} ..."
+  #         curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/download/${{ env.ARGOCD_VERSION }}/argocd-linux-amd64
 
-          echo ""
-          echo ">> Installing ArgoCD CLI ..."
-          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+  #         echo ""
+  #         echo ">> Installing ArgoCD CLI ..."
+  #         sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
 
-          echo ""
-          echo "----"
+  #         echo ""
+  #         echo "----"
 
-      - name: Verify installation
-        run: |
-          echo ""
-          echo ">> Verifying installation ..."
-          argocd version --client
+  #     - name: Verify installation
+  #       run: |
+  #         echo ""
+  #         echo ">> Verifying installation ..."
+  #         argocd version --client
 
-          echo ""
-          echo "----"
+  #         echo ""
+  #         echo "----"
 
-      - name: Set Up Helm
-        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
-        with:
-          token: ${{ secrets.GITEA_TOKEN }}
-          # renovate: datasource=github-releases depName=helm/helm
-          version: v4.1.3
-          cache: true
+  #     - name: Set Up Helm
+  #       uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
+  #       with:
+  #         token: ${{ secrets.GITEA_TOKEN }}
+  #         # renovate: datasource=github-releases depName=helm/helm
+  #         version: v4.1.3
+  #         cache: true
 
-      - name: Cache Helm Dependencies
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
-        with:
-          path: |
-            ~/.cache/helm
-            ~/.config/helm
-          key: helm-cache-${{ runner.os }}-${{ hashFiles('infrastructure/clusters/cl01tl/helm/**/Chart.yaml', 'infrastructure/clusters/cl01tl/helm/**/Chart.lock') }}
-          restore-keys: |
-            helm-cache-${{ runner.os }}-
+  #     - name: Cache Helm Dependencies
+  #       uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+  #       with:
+  #         path: |
+  #           ~/.cache/helm
+  #           ~/.config/helm
+  #         key: helm-cache-${{ runner.os }}-${{ hashFiles('infrastructure/clusters/cl01tl/helm/**/Chart.yaml', 'infrastructure/clusters/cl01tl/helm/**/Chart.lock') }}
+  #         restore-keys: |
+  #           helm-cache-${{ runner.os }}-
 
-      - name: Add Repositories
-        env:
-          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
-        run: |
-          echo ">> Adding repositories for chart dependencies ..."
-          echo ""
+  #     - name: Add Repositories
+  #       env:
+  #         CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+  #       run: |
+  #         echo ">> Adding repositories for chart dependencies ..."
+  #         echo ""
 
-          for DIR in ${CHANGED_CHARTS}; do
-            helm dependency list --max-col-width 120 clusters/${CLUSTER}/helm/${DIR} 2> /dev/null \
-              | tail -n +2 \
-              | awk 'NF > 0 { print $1, $3 }' \
-              | while read -r REPO_NAME REPO_URL; do
-                if [[ "${REPO_URL}" == oci://* ]]; then
-                  echo ">> Ignoring OCI repo: ${REPO_URL}"
+  #         for DIR in ${CHANGED_CHARTS}; do
+  #           helm dependency list --max-col-width 120 clusters/${CLUSTER}/helm/${DIR} 2> /dev/null \
+  #             | tail -n +2 \
+  #             | awk 'NF > 0 { print $1, $3 }' \
+  #             | while read -r REPO_NAME REPO_URL; do
+  #               if [[ "${REPO_URL}" == oci://* ]]; then
+  #                 echo ">> Ignoring OCI repo: ${REPO_URL}"
 
-                elif [[ -n "${REPO_NAME}" && -n "${REPO_URL}" ]]; then
-                  helm repo add "${REPO_NAME}" "${REPO_URL}"
+  #               elif [[ -n "${REPO_NAME}" && -n "${REPO_URL}" ]]; then
+  #                 helm repo add "${REPO_NAME}" "${REPO_URL}"
 
-                fi
+  #               fi
 
-              done || true
-          done
+  #             done || true
+  #         done
 
-          if helm repo list > /dev/null 2>&1; then
-            echo ""
-            echo ">> Update repository cache ..."
-            helm repo update
+  #         if helm repo list > /dev/null 2>&1; then
+  #           echo ""
+  #           echo ">> Update repository cache ..."
+  #           helm repo update
 
-          fi
+  #         fi
 
-          echo ""
-          echo "----"
+  #         echo ""
+  #         echo "----"
 
-      - name: Render Templates
-        id: render
-        env:
-          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
-        run: |
-          for APP_NAME in ${CHANGED_CHARTS}; do
-            echo ">> Render templates for ${APP_NAME} ..."
-            CHART_PATH="clusters/${CLUSTER}/helm/${APP_NAME}"
-            OUTPUT_FOLDER="clusters/${CLUSTER}/manifests/${APP_NAME}/"
+  #     - name: Render Templates
+  #       id: render
+  #       env:
+  #         CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+  #       run: |
+  #         for APP_NAME in ${CHANGED_CHARTS}; do
+  #           echo ">> Render templates for ${APP_NAME} ..."
+  #           CHART_PATH="clusters/${CLUSTER}/helm/${APP_NAME}"
+  #           OUTPUT_FOLDER="clusters/${CLUSTER}/manifests/${APP_NAME}/"
 
-            helm dependency build "${CHART_PATH}" --skip-refresh
+  #           helm dependency build "${CHART_PATH}" --skip-refresh
 
-            NAMESPACE="${APP_NAME}"
-            case "${APP_NAME}" in
-              "stack")
-                NAMESPACE="argocd"
-                echo ">> Special Rendering into 'argocd' namespace ..."
-                ;;
-              "cilium" | "coredns" | "metrics-server")
-                NAMESPACE="kube-system"
-                echo ">> Special Rendering for ${APP_NAME} into 'kube-system' namespace ..."
-                ;;
-              *)
-                echo ">> Standard Rendering ..."
-            esac
+  #           NAMESPACE="${APP_NAME}"
+  #           case "${APP_NAME}" in
+  #             "stack")
+  #               NAMESPACE="argocd"
+  #               echo ">> Special Rendering into 'argocd' namespace ..."
+  #               ;;
+  #             "cilium" | "coredns" | "metrics-server")
+  #               NAMESPACE="kube-system"
+  #               echo ">> Special Rendering for ${APP_NAME} into 'kube-system' namespace ..."
+  #               ;;
+  #             *)
+  #               echo ">> Standard Rendering ..."
+  #           esac
 
-            TEMPLATE=$(helm template "${APP_NAME}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --include-crds --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor")
+  #           TEMPLATE=$(helm template "${APP_NAME}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --include-crds --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor")
 
-            # Format and split rendered template
-            echo "${TEMPLATE}" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${OUTPUT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
+  #           # Format and split rendered template
+  #           echo "${TEMPLATE}" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${OUTPUT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
 
-            # Strip comments again to ensure formatting correctness
-            for file in "$OUTPUT_FOLDER"/*; do
-              yq -i '... comments=""' $file
+  #           # Strip comments again to ensure formatting correctness
+  #           for file in "$OUTPUT_FOLDER"/*; do
+  #             yq -i '... comments=""' $file
 
-            done
+  #           done
 
-            echo ""
-            echo ">> Templates in output folder: ${OUTPUT_FOLDER}"
-            ls ${OUTPUT_FOLDER}
-          done
+  #           echo ""
+  #           echo ">> Templates in output folder: ${OUTPUT_FOLDER}"
+  #           ls ${OUTPUT_FOLDER}
+  #         done
 
-          echo "----"
+  #         echo "----"
 
-      - name: Run App Diff
-        id: diff
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
-        run: |
-          FAILED_CHARTS=""
-          DIFF_FOUND="false"
+  #     - name: Run App Diff
+  #       id: diff
+  #       env:
+  #         ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+  #         ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+  #         CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+  #       run: |
+  #         FAILED_CHARTS=""
+  #         DIFF_FOUND="false"
 
-          for APP_NAME in ${CHANGED_CHARTS}; do
-            echo ">> Running argocd app diff for ${APP_NAME} ..."
-            argocd app diff "${APP_NAME}" \
-              --server "${ARGOCD_SERVER}" \
-              --revision ${{ gitea.sha }} \
-              --diff-exit-code 0 \
-              --local "clusters/${CLUSTER}/manifests/${APP_NAME}" \
-              --local-repo-root "." \
-              --grpc-web > "diff_output_${APP_NAME}.txt"
+  #         for APP_NAME in ${CHANGED_CHARTS}; do
+  #           echo ">> Running argocd app diff for ${APP_NAME} ..."
+  #           argocd app diff "${APP_NAME}" \
+  #             --server "${ARGOCD_SERVER}" \
+  #             --revision ${{ gitea.sha }} \
+  #             --diff-exit-code 0 \
+  #             --local "clusters/${CLUSTER}/manifests/${APP_NAME}" \
+  #             --local-repo-root "." \
+  #             --grpc-web > "diff_output_${APP_NAME}.txt"
 
-            if [ -s "diff_output_${APP_NAME}.txt" ]; then
-              echo ">> Argo diff:"
-              echo ""
-              cat diff_output_${APP_NAME}.txt
-              echo ""
+  #           if [ -s "diff_output_${APP_NAME}.txt" ]; then
+  #             echo ">> Argo diff:"
+  #             echo ""
+  #             cat diff_output_${APP_NAME}.txt
+  #             echo ""
 
-              DIFF_FOUND="true"
+  #             DIFF_FOUND="true"
 
-            else
-              echo ">> No Argo diff found for ${APP_NAME}"
-              rm "diff_output_${APP_NAME}.txt"
+  #           else
+  #             echo ">> No Argo diff found for ${APP_NAME}"
+  #             rm "diff_output_${APP_NAME}.txt"
 
-            fi
-          done
+  #           fi
+  #         done
 
-          echo "----"
-          echo "diff-detected=${DIFF_FOUND}" >> "$GITHUB_OUTPUT"
-          echo "failed-charts=${FAILED_CHARTS}" >> "$GITHUB_OUTPUT"
+  #         echo "----"
+  #         echo "diff-detected=${DIFF_FOUND}" >> "$GITHUB_OUTPUT"
+  #         echo "failed-charts=${FAILED_CHARTS}" >> "$GITHUB_OUTPUT"
 
-          exit $OVERALL_EXIT_CODE
+  #         exit $OVERALL_EXIT_CODE
 
-      - name: Post Diff
-        if: |
-          always() &&
-          steps.diff.outputs.diff-detected == 'true' &&
-          gitea.event.pull_request.number != null
-        env:
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
-        run: |
-          COMMENT_BODY="### ArgoCD Diff Results
-          "
+  #     - name: Post Diff
+  #       if: |
+  #         always() &&
+  #         steps.diff.outputs.diff-detected == 'true' &&
+  #         gitea.event.pull_request.number != null
+  #       env:
+  #         GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+  #       run: |
+  #         COMMENT_BODY="### ArgoCD Diff Results
+  #         "
 
-          for f in diff_output_*.txt; do
-            APP_NAME=$(echo $f | sed 's/diff_output_//;s/.txt//')
-            DIFF_CONTENT=$(cat "$f")
+  #         for f in diff_output_*.txt; do
+  #           APP_NAME=$(echo $f | sed 's/diff_output_//;s/.txt//')
+  #           DIFF_CONTENT=$(cat "$f")
 
-            COMMENT_BODY="${COMMENT_BODY}
-          #### App: ${APP_NAME}
-          "
+  #           COMMENT_BODY="${COMMENT_BODY}
+  #         #### App: ${APP_NAME}
+  #         "
 
-            if [ -z "$DIFF_CONTENT" ]; then
-              COMMENT_BODY="${COMMENT_BODY} No changes detected."
-            else
-              COMMENT_BODY="${COMMENT_BODY}
-          \`\`\`diff
-          ${DIFF_CONTENT}
-          \`\`\`"
-            fi
-          done
+  #           if [ -z "$DIFF_CONTENT" ]; then
+  #             COMMENT_BODY="${COMMENT_BODY} No changes detected."
+  #           else
+  #             COMMENT_BODY="${COMMENT_BODY}
+  #         \`\`\`diff
+  #         ${DIFF_CONTENT}
+  #         \`\`\`"
+  #           fi
+  #         done
 
-          curl -X 'POST' \
-            "${{ gitea.server_url }}/api/v1/repos/${{ gitea.repository }}/issues/${{ gitea.event.pull_request.number }}/comments" \
-            -H "Authorization: token ${GITEA_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')"
+  #         curl -X 'POST' \
+  #           "${{ gitea.server_url }}/api/v1/repos/${{ gitea.repository }}/issues/${{ gitea.event.pull_request.number }}/comments" \
+  #           -H "Authorization: token ${GITEA_TOKEN}" \
+  #           -H "Content-Type: application/json" \
+  #           -d "$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')"
 
-      - name: ntfy Failed
-        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
-        if: failure()
-        with:
-          url: '${{ secrets.NTFY_URL }}'
-          topic: '${{ secrets.NTFY_TOPIC }}'
-          title: 'ArgoCD Diff Failure'
-          priority: 3
-          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
-          tags: action,failed
-          details: "ArgoCD diff for cluster '${{ env.CLUSTER }}' failed on charts: ${{ steps.diff.outputs.failed-charts }}"
-          icon: 'https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png'
-          actions: '[{"action": "view", "label": "View Run", "url": "${{ vars.USER_URL }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "clear": true}]'
-          image: true
+  #     - name: ntfy Failed
+  #       uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+  #       if: failure()
+  #       with:
+  #         url: '${{ secrets.NTFY_URL }}'
+  #         topic: '${{ secrets.NTFY_TOPIC }}'
+  #         title: 'ArgoCD Diff Failure'
+  #         priority: 3
+  #         headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+  #         tags: action,failed
+  #         details: "ArgoCD diff for cluster '${{ env.CLUSTER }}' failed on charts: ${{ steps.diff.outputs.failed-charts }}"
+  #         icon: 'https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png'
+  #         actions: '[{"action": "view", "label": "View Run", "url": "${{ vars.USER_URL }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+  #         image: true
