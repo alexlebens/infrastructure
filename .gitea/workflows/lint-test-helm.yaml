@@ -524,9 +524,6 @@ jobs:
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
           CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
         run: |
-          # argo diff outputs 1 on any diff, but this is expected, only error on output 2+
-          set +e
-          OVERALL_EXIT_CODE=0
           FAILED_CHARTS=""
           DIFF_FOUND="false"
 
@@ -536,9 +533,9 @@ jobs:
             argocd app diff "${APP_NAME}" \
               --server "${ARGOCD_SERVER}" \
               --revision ${{ gitea.sha }} \
+              --diff-exit-code 0 \
+              --local clusters/${CLUSTER}/manifests/${APP_NAME}/ \
               --grpc-web > diff_output_${APP_NAME}.txt
-
-            EXIT_CODE=$?
 
             if [ -s "diff_output_${APP_NAME}.txt" ]; then
               echo ">> Argo diff:"
@@ -552,20 +549,6 @@ jobs:
               echo ">> No Argo diff found for ${APP_NAME}"
               rm "diff_output_${APP_NAME}.txt"
 
-            fi
-
-            if [ $EXIT_CODE -eq 2 ]; then
-              echo ">> ArgoCD diff failed for ${APP_NAME} due to a manifest error"
-
-              OVERALL_EXIT_CODE=1
-
-              if [ -z "${FAILED_CHARTS}" ]; then
-                FAILED_CHARTS="${APP_NAME}"
-
-              else
-                FAILED_CHARTS="${FAILED_CHARTS}, ${APP_NAME}"
-
-              fi
             fi
           done
 
