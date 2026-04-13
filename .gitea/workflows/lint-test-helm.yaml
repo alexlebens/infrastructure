@@ -530,16 +530,12 @@ jobs:
           for APP_NAME in ${CHANGED_CHARTS}; do
             APP_PATH=${GITHUB_WORKSPACE}/clusters/${CLUSTER}/manifests/${APP_NAME}/
 
-            echo ">> Comparing against manifests in: ${APP_PATH}"
-            ls -ld "${APP_PATH}"
-            ls -la "${APP_PATH}"
-
             echo ">> Running argocd app diff for ${APP_NAME} ..."
             argocd app diff "${APP_NAME}" \
               --server "${ARGOCD_SERVER}" \
               --revision ${{ gitea.sha }} \
               --diff-exit-code 0 \
-              # --local "${APP_PATH}" \
+              --local-repo-root "${GITHUB_WORKSPACE}" \
               --grpc-web > diff_output_${APP_NAME}.txt
 
             if [ -s "diff_output_${APP_NAME}.txt" ]; then
