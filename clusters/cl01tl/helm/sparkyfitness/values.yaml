@@ -1,0 +1,93 @@
+sparkyfitness:
+  config:
+    timezone: America/Chicago
+    allowPrivateNetworkCors: true
+    extraTrustedOrigins: https://sparkyfitness.alexlebens.net
+    oidc:
+      enabled: true
+      providerSlug: sparky-fitness
+      providerName: Authentik
+      issuerUrl: https://authentik.alexlebens.net
+      logoUrl: https://cdn.jsdelivr.net/gh/selfhst/icons@main/webp/authentik.webp
+      secrets:
+        existingSecret: sparkyfitness-oidc-secret
+  httpRoute:
+    enabled: true
+    hostname: https://sparkyfitness.alexlebens.net
+    parentRef:
+      name: traefik-gateway
+      namespace: traefik
+  server:
+    image:
+      repository: ghcr.io/codewithcj/sparkyfitness-server
+      tag: v0.16.5.7@sha256:7cdb8cb3ae7f90c7590dac3b92cea3a8e24d51b28eb836a1f6d5201cd45bc080
+    resources:
+      requests:
+        cpu: 100m
+        memory: 200Mi
+      limits:
+        cpu: null
+        memory: null
+    secrets:
+      generate: false
+      existingSecret: sparkyfitness-key-secret
+    appDatabase:
+      existingSecret: sparkyfitness-postgresql-18-cluster-app
+    persistence:
+      backup:
+        size: 5Gi
+        accessMode: ReadWriteOnce
+        storageClass: ceph-block
+      uploads:
+        size: 10Gi
+        accessMode: ReadWriteOnce
+        storageClass: ceph-block
+  frontend:
+    image:
+      repository: ghcr.io/codewithcj/sparkyfitness-server
+      tag: v0.16.5.7@sha256:c57a0a07b3470bd0c280d63d02b45adfe7360441b396e9bd445d7b0d22823356
+    resources:
+      requests:
+        cpu: 10m
+        memory: 40Mi
+      limits:
+        cpu: null
+        memory: null
+  postgresql:
+    enabled: false
+  externalDatabase:
+    host: sparkyfitness-postgresql-18-cluster-rw
+    port: 5432
+    database: app
+    auth:
+      existingSecret: sparkyfitness-postgresql-18-cluster-app
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    method: objectStore
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      - name: garage-local
+        index: 1
+        destinationBucket: postgres-backups
+        externalSecretCredentialPath: /garage/home-infra/postgres-backups
+        isWALArchiver: true
+    scheduledBackups:
+      - name: live-backup
+        suspend: false
+        immediate: true
+        schedule: "0 0 16 * * *"
+        backupName: garage-local
+volsync-target-backup:
+  pvcTarget: sparkyfitness-server-backup
+  local:
+    enabled: true
+    schedule: 26 11 * * *
+  remote:
+    enabled: true
+    schedule: 26 12 * * *
+  external:
+    enabled: true
+    schedule: 26 13 * * *
