@@ -52,15 +52,11 @@ spec:
         barmanObjectName: "sparkyfitness-postgresql-18-backup-garage-local"
         serverName: "sparkyfitness-postgresql-18-backup-1"
   bootstrap:
-    recovery:
+    initdb:
       database: app
-      source: sparkyfitness-postgresql-18-backup-1
-  externalClusters:
-    - name: sparkyfitness-postgresql-18-backup-1
-      plugin:
-        name: barman-cloud.cloudnative-pg.io
-        enabled: true
-        isWALArchiver: false
-        parameters:
-          barmanObjectName: "sparkyfitness-postgresql-18-recovery"
-          serverName: sparkyfitness-postgresql-18-backup-1
+      postInitTemplateSQL:
+        - CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+        - CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+        - CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+        - GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO "app" WITH GRANT OPTION;
+      owner: app
