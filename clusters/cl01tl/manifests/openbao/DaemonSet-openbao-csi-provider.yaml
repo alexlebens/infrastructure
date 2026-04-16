@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: openbao-csi-provider
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao-csi-provider
+    app.kubernetes.io/instance: openbao
+    app.kubernetes.io/managed-by: Helm
+spec:
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openbao-csi-provider
+      app.kubernetes.io/instance: openbao
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openbao-csi-provider
+        app.kubernetes.io/instance: openbao
+    spec:
+      serviceAccountName: openbao-csi-provider
+      containers:
+        - name: openbao-csi-provider
+          resources:
+            requests:
+              cpu: 50m
+              memory: 100Mi
+          image: "quay.io/openbao/openbao-csi-provider:2.0.1@sha256:a3bd5e8183da778b5dc79ee1a3d7313ac77dc599b623b4106a91b19362674f27"
+          imagePullPolicy: IfNotPresent
+          args:
+            - --endpoint=/provider/openbao.sock
+            - --debug=false
+            - --hmac-secret-name=openbao-csi-provider-hmac-key
+          env:
+            - name: VAULT_ADDR
+              value: "unix:///var/run/vault/agent.sock"
+          volumeMounts:
+            - name: providervol
+              mountPath: "/provider"
+            - name: agent-unix-socket
+              mountPath: /var/run/vault
+          livenessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            failureThreshold: 2
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            failureThreshold: 2
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 3
+        - name: openbao-agent
+          image: "quay.io/openbao/openbao:2.5.2@sha256:6c75c97223873807260352f269640935a07db0c26b3dbf12a98a36ec43ad9878"
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
+          command:
+            - bao
+          args:
+            - agent
+            - -config=/etc/vault/config.hcl
+          ports:
+            - containerPort: 8200
+          env:
+            - name: BAO_LOG_LEVEL
+              value: "info"
+            - name: BAO_LOG_FORMAT
+              value: "standard"
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 100
+            runAsGroup: 1000
+          volumeMounts:
+            - name: agent-config
+              mountPath: /etc/vault/config.hcl
+              subPath: config.hcl
+              readOnly: true
+            - name: agent-unix-socket
+              mountPath: /var/run/vault
+      volumes:
+        - name: providervol
+          hostPath:
+            path: /etc/kubernetes/secrets-store-csi-providers
+        - name: agent-config
+          configMap:
+            name: openbao-csi-provider-agent-config
+        - name: agent-unix-socket
+          emptyDir:
+            medium: Memory

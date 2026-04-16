@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openbao-tailscale
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao-tailscale
+    app.kubernetes.io/instance: openbao
+    app.kubernetes.io/part-of: openbao
+    tailscale.com/proxy-class: no-metrics
+  annotations:
+    tailscale.com/experimental-forward-cluster-traffic-via-ingress: "true"
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - openbao-cl01tl
+      secretName: openbao-cl01tl
+  rules:
+    - host: openbao-cl01tl
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: openbao-active
+                port:
+                  number: 8200
