@@ -1,0 +1,182 @@
+openbao:
+  global:
+    serverTelemetry:
+      prometheusOperator: true
+  injector:
+    enabled: false
+  server:
+    updateStrategyType: RollingUpdate
+    image:
+      registry: quay.io
+      repository: openbao/openbao
+      tag: 2.5.2@sha256:6c75c97223873807260352f269640935a07db0c26b3dbf12a98a36ec43ad9878
+    resources:
+      requests:
+        cpu: 50m
+        memory: 500Mi
+    gateway:
+      tlsRoute:
+        enabled: true
+        hosts:
+          - vault.alexlebens.net
+        apiVersion: gateway.networking.k8s.io/v1
+        parentRefs:
+          - group: gateway.networking.k8s.io
+            kind: Gateway
+            name: traefik-gateway
+            namespace: traefik
+    authDelegator:
+      enabled: true
+    livenessProbe:
+      enabled: true
+    dataStorage:
+      size: 1Gi
+      storageClass: ceph-block
+    auditStorage:
+      enabled: true
+      size: 10Gi
+      storageClass: ceph-block
+    standalone:
+      enabled: false
+    ha:
+      enabled: true
+      replicas: 3
+      raft:
+        enabled: true
+        config: |
+          ui = true
+
+          listener "tcp" {
+            tls_disable = 1
+            address = "[::]:8200"
+            cluster_address = "[::]:8201"
+            telemetry {
+              unauthenticated_metrics_access = "true"
+            }
+          }
+
+          storage "raft" {
+            path = "/openbao/data"
+            retry_join {
+              leader_api_addr = "http://openbao-0.openbao-internal:8201"
+            }
+            retry_join {
+              leader_api_addr = "http://openbao-1.openbao-internal:8201"
+            }
+            retry_join {
+              leader_api_addr = "http://openbao-2.openbao-internal:8201"
+            }
+          }
+
+          service_registration "kubernetes" {}
+
+          telemetry {
+            prometheus_retention_time = "30s"
+            disable_hostname = true
+          }
+  csi:
+    enabled: true
+    image:
+      registry: quay.io
+      repository: openbao/openbao-csi-provider
+      tag: 2.0.1@sha256:a3bd5e8183da778b5dc79ee1a3d7313ac77dc599b623b4106a91b19362674f27
+    resources:
+      requests:
+        cpu: 50m
+        memory: 100Mi
+    agent:
+      image:
+        registry: quay.io
+        repository: openbao/openbao
+        tag: 2.5.2@sha256:6c75c97223873807260352f269640935a07db0c26b3dbf12a98a36ec43ad9878
+      resources:
+        requests:
+          cpu: 10m
+          memory: 100Mi
+  serverTelemetry:
+    serviceMonitor:
+      enabled: true
+    prometheusRules:
+      enabled: true
+      rules:
+        - alert: vault-HighResponseTime
+          annotations:
+            message: The response time of Vault is over 500ms on average over the last 5 minutes.
+          expr: vault_core_handle_request{quantile="0.5", namespace="mynamespace"} > 500
+          for: 5m
+          labels:
+            severity: warning
+        - alert: vault-HighResponseTime
+          annotations:
+            message: The response time of Vault is over 1s on average over the last 5 minutes.
+          expr: vault_core_handle_request{quantile="0.5", namespace="mynamespace"} > 1000
+          for: 5m
+          labels:
+            severity: critical
+  snapshotAgent:
+    enabled: true
+    schedule: 0 4 * * *
+    image:
+      repository: ghcr.io/openbao/openbao-snapshot-agent
+      tag: 0.3.0@sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c
+    s3CredentialsSecret: openbao-snapshot-secret
+    config:
+      s3Host: garage-main.garage:3900
+      s3Bucket: openbao-backups
+      s3Uri: s3://openbao-backups
+      s3ExpireDays: "30"
+      s3cmdExtraFlag: "-v"
+      baoAuthPath: kubernetes
+      baoRole: bao-snapshot
+unseal:
+  global:
+    fullnameOverride: openbao-unseal
+  controllers:
+    unseal-1:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/lrstanley/vault-unseal
+            tag: 1.0.0@sha256:24ca9bceccdb0a22ae57574346dee4bec107c9b849f836811972b8f7f1baa4ef
+          envFrom:
+            - secretRef:
+                name: openbao-unseal-config-1
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+    unseal-2:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/lrstanley/vault-unseal
+            tag: 1.0.0@sha256:24ca9bceccdb0a22ae57574346dee4bec107c9b849f836811972b8f7f1baa4ef
+          envFrom:
+            - secretRef:
+                name: openbao-unseal-config-2
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+    unseal-3:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/lrstanley/vault-unseal
+            tag: 1.0.0@sha256:24ca9bceccdb0a22ae57574346dee4bec107c9b849f836811972b8f7f1baa4ef
+          envFrom:
+            - secretRef:
+                name: openbao-unseal-config-3
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
