@@ -1,0 +1,162 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openbao
+  namespace: openbao
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/instance: openbao
+    app.kubernetes.io/managed-by: Helm
+spec:
+  serviceName: openbao-internal
+  podManagementPolicy: OrderedReady
+  replicas: 3
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openbao
+      app.kubernetes.io/instance: openbao
+      component: server
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: openbao-0.27.1
+        app.kubernetes.io/name: openbao
+        app.kubernetes.io/instance: openbao
+        component: server
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: openbao
+                  app.kubernetes.io/instance: "openbao"
+                  component: server
+              topologyKey: kubernetes.io/hostname
+      terminationGracePeriodSeconds: 10
+      serviceAccountName: openbao
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        runAsNonRoot: true
+        runAsGroup: 1000
+        runAsUser: 100
+        fsGroup: 1000
+      hostNetwork: false
+      volumes:
+        - name: config
+          configMap:
+            name: openbao-config
+        - name: home
+          emptyDir: {}
+      containers:
+        - name: openbao
+          resources:
+            requests:
+              cpu: 50m
+              memory: 500Mi
+          image: "quay.io/openbao/openbao:2.5.2@sha256:6c75c97223873807260352f269640935a07db0c26b3dbf12a98a36ec43ad9878"
+          imagePullPolicy: IfNotPresent
+          command:
+            - "/bin/sh"
+            - "-ec"
+          args:
+            - "cp /openbao/config/extraconfig-from-values.hcl /tmp/storageconfig.hcl;\n[ -n \"${HOST_IP}\" ] && sed -Ei \"s|HOST_IP|${HOST_IP?}|g\" /tmp/storageconfig.hcl;\n[ -n \"${POD_IP}\" ] && sed -Ei \"s|POD_IP|${POD_IP?}|g\" /tmp/storageconfig.hcl;\n[ -n \"${HOSTNAME}\" ] && sed -Ei \"s|HOSTNAME|${HOSTNAME?}|g\" /tmp/storageconfig.hcl;\n[ -n \"${API_ADDR}\" ] && sed -Ei \"s|API_ADDR|${API_ADDR?}|g\" /tmp/storageconfig.hcl;\n[ -n \"${TRANSIT_ADDR}\" ] && sed -Ei \"s|TRANSIT_ADDR|${TRANSIT_ADDR?}|g\" /tmp/storageconfig.hcl;\n[ -n \"${RAFT_ADDR}\" ] && sed -Ei \"s|RAFT_ADDR|${RAFT_ADDR?}|g\" /tmp/storageconfig.hcl;\n/usr/local/bin/docker-entrypoint.sh bao server -config=/tmp/storageconfig.hcl \n"
+          securityContext:
+            allowPrivilegeEscalation: false
+          env:
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: BAO_K8S_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: BAO_K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: BAO_ADDR
+              value: "http://127.0.0.1:8200"
+            - name: BAO_API_ADDR
+              value: "http://$(POD_IP):8200"
+            - name: SKIP_CHOWN
+              value: "true"
+            - name: SKIP_SETCAP
+              value: "true"
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: BAO_CLUSTER_ADDR
+              value: "https://$(HOSTNAME).openbao-internal:8201"
+            - name: HOME
+              value: "/home/openbao"
+          volumeMounts:
+            - name: audit
+              mountPath: /openbao/audit
+            - name: data
+              mountPath: /openbao/data
+            - name: config
+              mountPath: /openbao/config
+            - name: home
+              mountPath: /home/openbao
+          ports:
+            - containerPort: 8200
+              name: http
+            - containerPort: 8201
+              name: https-internal
+            - containerPort: 8202
+              name: http-rep
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-ec", "bao status -tls-skip-verify"]
+            failureThreshold: 2
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: "/v1/sys/health?standbyok=true"
+              port: 8200
+              scheme: HTTP
+            failureThreshold: 2
+            initialDelaySeconds: 60
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5 && kill -SIGTERM $(pidof bao)"]
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: ceph-block
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: audit
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: ceph-block

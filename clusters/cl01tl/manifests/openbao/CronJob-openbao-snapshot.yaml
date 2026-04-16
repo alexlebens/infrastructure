@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/name: openbao
+    app.kubernetes.io/instance: openbao
+    app.kubernetes.io/managed-by: Helm
+  name: openbao-snapshot
+  namespace: openbao
+spec:
+  schedule: "0 4 * * *"
+  jobTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openbao
+        app.kubernetes.io/instance: openbao
+        component: snapshot-agent
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: openbao
+            app.kubernetes.io/instance: openbao
+            component: snapshot-agent
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: openbao-snapshot
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            runAsNonRoot: true
+            runAsGroup: 1000
+            runAsUser: 100
+            fsGroup: 1000
+          containers:
+            - name: bao-snapshot
+              envFrom:
+                - configMapRef:
+                    name: openbao-snapshot
+              env:
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: AWS_SECRET_ACCESS_KEY
+                      name: openbao-snapshot-secret
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      key: AWS_ACCESS_KEY_ID
+                      name: openbao-snapshot-secret
+              image: ghcr.io/openbao/openbao-snapshot-agent:0.3.0@sha256:d7a8ca9d26b12cf226ce093b9051f243c53aefbb8a419b3dc0b554e7575c931c
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: snapshot-dir
+                  mountPath: /bao-snapshots
+              imagePullPolicy: IfNotPresent
+          volumes:
+            - name: snapshot-dir
+              emptyDir: {}
