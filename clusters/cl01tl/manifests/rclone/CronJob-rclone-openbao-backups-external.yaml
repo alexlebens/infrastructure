@@ -1,0 +1,141 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rclone-openbao-backups-external
+  labels:
+    app.kubernetes.io/controller: openbao-backups-external
+    app.kubernetes.io/instance: rclone
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: rclone
+    helm.sh/chart: rclone-4.6.2
+  namespace: rclone
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 30
+  timeZone: America/Chicago
+  schedule: "10 1 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/controller: openbao-backups-external
+            app.kubernetes.io/instance: rclone
+            app.kubernetes.io/name: rclone
+        spec:
+          enableServiceLinks: false
+          serviceAccountName: default
+          automountServiceAccountToken: true
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          containers:
+            - args:
+                - delete
+                - dest:openbao-backups-6e088aad5fad110b
+                - --min-age
+                - 90d
+                - --verbose
+              env:
+                - name: RCLONE_CONFIG_DEST_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_DEST_PROVIDER
+                  value: DigitalOcean
+                - name: RCLONE_CONFIG_DEST_ENV_AUTH
+                  value: "false"
+                - name: RCLONE_CONFIG_DEST_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_KEY_ID
+                      name: external-openbao-backups-secret
+                - name: RCLONE_CONFIG_DEST_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_SECRET_KEY
+                      name: external-openbao-backups-secret
+                - name: RCLONE_CONFIG_DEST_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_REGION
+                      name: external-openbao-backups-secret
+                - name: RCLONE_CONFIG_DEST_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      key: ENDPOINT
+                      name: external-openbao-backups-secret
+              image: rclone/rclone:1.73.4@sha256:654f6517c7aaec7e377690b2caf7c272dbe5f3b8200afbc14a00df6b4a9aa6ef
+              name: prune
+            - args:
+                - sync
+                - src:openbao-backups
+                - dest:openbao-backups-6e088aad5fad110b
+                - --s3-no-check-bucket
+                - --max-age
+                - 90d
+                - --verbose
+              env:
+                - name: RCLONE_S3_PROVIDER
+                  value: Other
+                - name: RCLONE_CONFIG_SRC_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_SRC_PROVIDER
+                  value: Other
+                - name: RCLONE_CONFIG_SRC_ENV_AUTH
+                  value: "false"
+                - name: RCLONE_CONFIG_SRC_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_KEY_ID
+                      name: garage-openbao-backups-secret
+                - name: RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_SECRET_KEY
+                      name: garage-openbao-backups-secret
+                - name: RCLONE_CONFIG_SRC_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_REGION
+                      name: garage-openbao-backups-secret
+                - name: RCLONE_CONFIG_SRC_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      key: ENDPOINT_LOCAL
+                      name: garage-openbao-backups-secret
+                - name: RCLONE_CONFIG_SRC_S3_FORCE_PATH_STYLE
+                  value: "true"
+                - name: RCLONE_CONFIG_DEST_TYPE
+                  value: s3
+                - name: RCLONE_CONFIG_DEST_PROVIDER
+                  value: DigitalOcean
+                - name: RCLONE_CONFIG_DEST_ENV_AUTH
+                  value: "false"
+                - name: RCLONE_CONFIG_DEST_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_KEY_ID
+                      name: external-openbao-backups-secret
+                - name: RCLONE_CONFIG_DEST_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_SECRET_KEY
+                      name: external-openbao-backups-secret
+                - name: RCLONE_CONFIG_DEST_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      key: ACCESS_REGION
+                      name: external-openbao-backups-secret
+                - name: RCLONE_CONFIG_DEST_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      key: ENDPOINT
+                      name: external-openbao-backups-secret
+              image: rclone/rclone:1.73.4@sha256:654f6517c7aaec7e377690b2caf7c272dbe5f3b8200afbc14a00df6b4a9aa6ef
+              name: sync
