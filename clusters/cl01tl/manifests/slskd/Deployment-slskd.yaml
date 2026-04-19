@@ -61,29 +61,14 @@ spec:
       containers:
         - env:
             - name: VPN_SERVICE_PROVIDER
-              value: airvpn
+              value: protonvpn
             - name: VPN_TYPE
               value: wireguard
             - name: WIREGUARD_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
                   key: private-key
-                  name: slskd-wireguard-conf
-            - name: WIREGUARD_PRESHARED_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: preshared-key
-                  name: slskd-wireguard-conf
-            - name: WIREGUARD_ADDRESSES
-              valueFrom:
-                secretKeyRef:
-                  key: addresses
-                  name: slskd-wireguard-conf
-            - name: FIREWALL_VPN_INPUT_PORTS
-              valueFrom:
-                secretKeyRef:
-                  key: input-ports
-                  name: slskd-wireguard-conf
+                  name: protonvpn-wireguard-conf
             - name: FIREWALL_OUTBOUND_SUBNETS
               value: 192.168.1.0/24,10.244.0.0/16
             - name: FIREWALL_INPUT_PORTS
@@ -153,6 +138,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: slskd-nfs-storage
-        - name: slskd-config
-          secret:
-            secretName: slskd-config-secret
+        - csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: slskd-config-secret
+          name: slskd-config
