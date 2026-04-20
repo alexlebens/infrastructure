@@ -1,14 +1,14 @@
 {{/*
 Common labels
 */}}
-{{- define "cert-manager.labels" -}}
-{{ include "cert-manager.selectorLabels" $ }}
+{{- define "custom.labels" -}}
+{{ include "custom.selectorLabels" $ }}
 {{- end }}
 
 {{/*
 Selector labels
 */}}
-{{- define "cert-manager.selectorLabels" -}}
+{{- define "custom.selectorLabels" -}}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/part-of: {{ .Release.Name }}
 {{- end }}
@@ -16,9 +16,9 @@ app.kubernetes.io/part-of: {{ .Release.Name }}
 {{/*
 NFS names
 */}}
-{{- define "cert-manager.cloudflareSecretName" -}}
+{{- define "custom.cloudflareSecretName" -}}
 cert-manager-cloudflare-api-token
 {{- end -}}
-{{- define "cert-manager.cloudflareSecretKey" -}}
+{{- define "custom.cloudflareSecretKey" -}}
 api-token
 {{- end -}}

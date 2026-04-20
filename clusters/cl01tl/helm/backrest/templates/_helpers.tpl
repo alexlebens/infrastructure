@@ -1,14 +1,14 @@
 {{/*
 Common labels
 */}}
-{{- define "backrest.labels" -}}
-{{ include "backrest.selectorLabels" $ }}
+{{- define "custom.labels" -}}
+{{ include "custom.selectorLabels" $ }}
 {{- end }}
 
 {{/*
 Selector labels
 */}}
-{{- define "backrest.selectorLabels" -}}
+{{- define "custom.selectorLabels" -}}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/part-of: {{ .Release.Name }}
 {{- end }}
@@ -16,9 +16,9 @@ app.kubernetes.io/part-of: {{ .Release.Name }}
 {{/*
 NFS names
 */}}
-{{- define "backrest.storageNfsName" -}}
+{{- define "custom.storageNfsName" -}}
 backrest-nfs-storage
 {{- end -}}
-{{- define "backrest.shareNfsName" -}}
+{{- define "custom.shareNfsName" -}}
 backrest-nfs-share
 {{- end -}}

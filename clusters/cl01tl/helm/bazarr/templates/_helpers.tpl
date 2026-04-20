@@ -1,14 +1,14 @@
 {{/*
 Common labels
 */}}
-{{- define "bazarr.labels" -}}
-{{ include "bazarr.selectorLabels" $ }}
+{{- define "custom.labels" -}}
+{{ include "custom.selectorLabels" $ }}
 {{- end }}
 
 {{/*
 Selector labels
 */}}
-{{- define "bazarr.selectorLabels" -}}
+{{- define "custom.selectorLabels" -}}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/part-of: {{ .Release.Name }}
 {{- end }}
@@ -16,6 +16,6 @@ app.kubernetes.io/part-of: {{ .Release.Name }}
 {{/*
 NFS names
 */}}
-{{- define "bazarr.storageNfsName" -}}
+{{- define "custom.storageNfsName" -}}
 bazarr-nfs-storage
 {{- end -}}

@@ -1,14 +1,14 @@
 {{/*
 Common labels
 */}}
-{{- define "audiobookshelf.labels" -}}
-{{ include "audiobookshelf.selectorLabels" $ }}
+{{- define "custom.labels" -}}
+{{ include "custom.selectorLabels" $ }}
 {{- end }}
 
 {{/*
 Selector labels
 */}}
-{{- define "audiobookshelf.selectorLabels" -}}
+{{- define "custom.selectorLabels" -}}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/part-of: {{ .Release.Name }}
 {{- end }}
@@ -16,12 +16,12 @@ app.kubernetes.io/part-of: {{ .Release.Name }}
 {{/*
 NFS names
 */}}
-{{- define "audiobookshelf.booksNfsName" -}}
+{{- define "custom.booksNfsName" -}}
 audiobookshelf-books-nfs-storage
 {{- end -}}
-{{- define "audiobookshelf.audiobooksNfsName" -}}
+{{- define "custom.audiobooksNfsName" -}}
 audiobookshelf-audiobooks-nfs-storage
 {{- end -}}
-{{- define "audiobookshelf.podcastsNfsName" -}}
+{{- define "custom.podcastsNfsName" -}}
 audiobookshelf-podcasts-nfs-storage
 {{- end -}}
