@@ -482,6 +482,7 @@ jobs:
   #           echo ">> Render templates for ${APP_NAME} ..."
   #           CHART_PATH="clusters/${CLUSTER}/helm/${APP_NAME}"
   #           OUTPUT_FOLDER="clusters/${CLUSTER}/manifests/${APP_NAME}/"
+  #           mkdir -p "${OUTPUT_FOLDER}"
 
   #           helm dependency build "${CHART_PATH}" --skip-refresh
 
@@ -499,7 +500,7 @@ jobs:
   #               echo ">> Standard Rendering ..."
   #           esac
 
-  #           TEMPLATE=$(helm template "${APP_NAME}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --include-crds --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor")
+  #           TEMPLATE=$(helm template "${APP_NAME}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor")
 
   #           # Format and split rendered template
   #           echo "${TEMPLATE}" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${OUTPUT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
@@ -526,29 +527,38 @@ jobs:
   #       run: |
   #         FAILED_CHARTS=""
   #         DIFF_FOUND="false"
+  #         EXIT_CODE=0
 
   #         for APP_NAME in ${CHANGED_CHARTS}; do
   #           echo ">> Running argocd app diff for ${APP_NAME} ..."
-  #           argocd app diff "${APP_NAME}" \
+  #           if ! argocd app diff "${APP_NAME}" \
   #             --server "${ARGOCD_SERVER}" \
-  #             --revision ${{ gitea.sha }} \
-  #             --diff-exit-code 0 \
+  #             --auth-token "${ARGOCD_AUTH_TOKEN}" \
+  #             --revision ${{ github.sha }} \
   #             --local "clusters/${CLUSTER}/manifests/${APP_NAME}" \
   #             --local-repo-root "." \
-  #             --grpc-web > "diff_output_${APP_NAME}.txt"
+  #             --grpc-web > "diff_output_${APP_NAME}.txt" 2>&1; then
+
+  #             # ArgoCD diff returns non-zero on diff or error.
+  #             # Let's capture if it actually generated a diff output to post.
+  #             DIFF_FOUND="true"
+
+  #             # Check if the output contains validation/connection errors
+  #             if grep -iE 'error|failed|connection refused|timeout' "diff_output_${APP_NAME}.txt"; then
+  #                echo ">> ArgoCD encountered an error validating ${APP_NAME}!"
+  #                EXIT_CODE=1
+  #                FAILED_CHARTS="${FAILED_CHARTS} ${APP_NAME}"
+  #             fi
+  #           fi
 
   #           if [ -s "diff_output_${APP_NAME}.txt" ]; then
-  #             echo ">> Argo diff:"
+  #             echo ">> Argo diff or errors:"
   #             echo ""
   #             cat diff_output_${APP_NAME}.txt
   #             echo ""
-
-  #             DIFF_FOUND="true"
-
   #           else
   #             echo ">> No Argo diff found for ${APP_NAME}"
   #             rm "diff_output_${APP_NAME}.txt"
-
   #           fi
   #         done
 
@@ -556,13 +566,13 @@ jobs:
   #         echo "diff-detected=${DIFF_FOUND}" >> "$GITHUB_OUTPUT"
   #         echo "failed-charts=${FAILED_CHARTS}" >> "$GITHUB_OUTPUT"
 
-  #         exit $OVERALL_EXIT_CODE
+  #         exit $EXIT_CODE
 
   #     - name: Post Diff
   #       if: |
   #         always() &&
   #         steps.diff.outputs.diff-detected == 'true' &&
-  #         gitea.event.pull_request.number != null
+  #         github.event.pull_request.number != null
   #       env:
   #         GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
   #       run: |
@@ -588,7 +598,7 @@ jobs:
   #         done
 
   #         curl -X 'POST' \
-  #           "${{ gitea.server_url }}/api/v1/repos/${{ gitea.repository }}/issues/${{ gitea.event.pull_request.number }}/comments" \
+  #           "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
   #           -H "Authorization: token ${GITEA_TOKEN}" \
   #           -H "Content-Type: application/json" \
   #           -d "$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')"
