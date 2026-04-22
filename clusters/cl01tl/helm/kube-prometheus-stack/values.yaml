@@ -43,7 +43,7 @@ kube-prometheus-stack:
             namespace: traefik
     alertmanagerSpec:
       secrets:
-        - alertmanager-config-secret
+        - alertmanager-ntfy-config
   grafana:
     enabled: false
   kubeApiServer:
@@ -120,11 +120,18 @@ ntfy-alertmanager:
     main:
       type: deployment
       replicas: 1
+      strategy: Recreate
+      serviceAccount:
+        name: ntfy-alertmanager
       containers:
         main:
           image:
             repository: xenrox/ntfy-alertmanager
             tag: 1.0.0@sha256:81788c7905774b7b0b2ed6833b2bc4826a90a42e4b738706edcedd5f489e7a73
+  serviceAccount:
+    ntfy-alertmanager:
+      enabled: true
+      staticToken: true
   service:
     main:
       controller: main
@@ -134,9 +141,13 @@ ntfy-alertmanager:
           targetPort: 8080
   persistence:
     config:
-      enabled: true
-      type: secret
-      name: ntfy-alertmanager-config-secret
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: ntfy-alertmanager-config
       advancedMounts:
         main:
           main:
