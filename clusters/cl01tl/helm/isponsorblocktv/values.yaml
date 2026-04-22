@@ -1,0 +1,37 @@
+isponsorblocktv:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      serviceAccount:
+        name: isponsorblocktv
+      containers:
+        main:
+          image:
+            repository: ghcr.io/dmunozv04/isponsorblocktv
+            tag: v2.7.0@sha256:ff292ed53c9208ebfa7da3be7084bd863339d545a799bfefed5092396f5e8b4b
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+  serviceAccount:
+    isponsorblocktv:
+      enabled: true
+      staticToken: true
+persistence:
+  web-config:
+    type: custom
+    volumeSpec:
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: isponsorblocktv-config
+    advancedMounts:
+      main:
+        main:
+          - path: /app/data/config.json
+            readOnly: true
+            mountPropagation: None
+            subPath: config.json
