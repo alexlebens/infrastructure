@@ -19,22 +19,28 @@ karakeep:
             - name: NEXTAUTH_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-key-secret
+                  name: karakeep-key
                   key: key
             - name: PROMETHEUS_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-key-secret
+                  name: karakeep-metric-token
                   key: prometheus-token
             - name: ASSET_STORE_S3_ENDPOINT
-              value: http://garage-main.garage:3900
+              valueFrom:
+                secretKeyRef:
+                  name: karakeep-bucket-garage
+                  key: ENDPOINT
             - name: ASSET_STORE_S3_REGION
               valueFrom:
                 secretKeyRef:
                   name: karakeep-bucket-garage
                   key: ACCESS_REGION
             - name: ASSET_STORE_S3_BUCKET
-              value: karakeep-assets
+              valueFrom:
+                secretKeyRef:
+                  name: karakeep-bucket-garage
+                  key: BUCKET
             - name: ASSET_STORE_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
@@ -52,7 +58,7 @@ karakeep:
             - name: MEILI_MASTER_KEY
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-meilisearch-master-key-secret
+                  name: karakeep-meilisearch-key
                   key: MEILI_MASTER_KEY
             - name: BROWSER_WEB_URL
               value: http://karakeep.karakeep:9222
@@ -67,12 +73,12 @@ karakeep:
             - name: OAUTH_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-oidc-secret
+                  name: karakeep-oidc-authentik
                   key: AUTHENTIK_CLIENT_ID
             - name: OAUTH_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-oidc-secret
+                  name: karakeep-oidc-authentik
                   key: AUTHENTIK_CLIENT_SECRET
             - name: OLLAMA_BASE_URL
               value: http://ollama-server-3.ollama:11434
@@ -126,7 +132,7 @@ karakeep:
           authorization:
             credentials:
               key: prometheus-token
-              name: karakeep-key-secret
+              name: karakeep-metric-token
   persistence:
     data:
       forceRename: karakeep
@@ -144,7 +150,7 @@ meilisearch:
     MEILI_ENV: production
     MEILI_EXPERIMENTAL_DUMPLESS_UPGRADE: true
   auth:
-    existingMasterKeySecret: karakeep-meilisearch-master-key-secret
+    existingMasterKeySecret: karakeep-meilisearch-key
   persistence:
     enabled: true
     storageClass: ceph-block
