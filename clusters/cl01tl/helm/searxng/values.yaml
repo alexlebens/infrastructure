@@ -4,6 +4,8 @@ searxng:
       type: deployment
       replicas: 1
       strategy: Recreate
+      serviceAccount:
+        name: searxng
       containers:
         main:
           image:
@@ -58,6 +60,9 @@ searxng:
           image:
             repository: valkey/valkey
             tag: 9.0.3-alpine@sha256:e1095c6c76ee982cb2d1e07edbb7fb2a53606630a1d810d5a47c9f646b708bf5
+  serviceAccount:
+    searxng:
+      enabled: true
   service:
     api:
       controller: api
@@ -85,10 +90,10 @@ searxng:
           path: /metrics
           basicAuth:
             password:
-              name: searxng-browser-metrics-auth
+              name: searxng-browser-metrics-credentials
               key: metrics-password
             username:
-              name: searxng-browser-metrics-auth
+              name: searxng-browser-metrics-credentials
               key: metrics-username
   route:
     main:
@@ -110,20 +115,19 @@ searxng:
                 value: /
   persistence:
     config:
-      enabled: true
-      type: secret
-      name: searxng-api-config-secret
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: searxng-api-config
       advancedMounts:
         api:
           main:
-            - path: /etc/searxng/settings.yml
+            - path: /etc/searxng/
               readOnly: true
               mountPropagation: None
-              subPath: settings.yml
-            - path: /etc/searxng/limiter.toml
-              readOnly: true
-              mountPropagation: None
-              subPath: limiter.toml
     api-data:
       forceRename: searxng-api-data
       storageClass: ceph-block
