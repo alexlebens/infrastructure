@@ -169,9 +169,10 @@ jobs:
 
           echo ">> Running linting on changed charts ..."
 
-          for DIR in ${CHANGED_CHARTS}; do
-            CHART_PATH="clusters/${CLUSTER}/helm/${DIR}"
-            CHART_NAME=$(basename "${CHART_PATH}")
+          lint_chart() {
+            local DIR="$1"
+            local CHART_PATH="clusters/${CLUSTER}/helm/${DIR}"
+            local CHART_NAME=$(basename "${CHART_PATH}")
 
             if [ -f "${CHART_PATH}/Chart.yaml" ]; then
               echo ""
@@ -182,15 +183,8 @@ jobs:
               echo ">> Linting helm chart ${CHART_NAME} ..."
 
               if ! helm lint "${CHART_PATH}" --namespace "default"; then
-                EXIT_CODE=1
-
-                if [ -z "${FAILED_CHARTS}" ]; then
-                  FAILED_CHARTS="${DIR}"
-
-                else
-                  FAILED_CHARTS="${FAILED_CHARTS}, ${DIR}"
-
-                fi
+                echo "${DIR}" > ".failed_chart_${CHART_NAME}"
+                return 1
               fi
 
             else
@@ -198,8 +192,20 @@ jobs:
               echo ">> Directory ${CHART_PATH} does not contain a Chart.yaml. Skipping ..."
 
             fi
+          }
 
-          done
+          export -f lint_chart
+          export CLUSTER
+
+          for DIR in ${CHANGED_CHARTS}; do
+            echo "${DIR}"
+          done | xargs -P 4 -I {} bash -c 'OUT=$(lint_chart "$@" 2>&1); printf "%s\n" "$OUT"' _ {}
+
+          if ls .failed_chart_* 1> /dev/null 2>&1; then
+            EXIT_CODE=1
+            FAILED_CHARTS=$(cat .failed_chart_* | paste -sd ',' - | sed 's/,/, /g')
+            rm -f .failed_chart_*
+          fi
 
           echo ""
           echo "----"
@@ -329,8 +335,9 @@ jobs:
           EXIT_CODE=0
           FAILED_CHARTS=""
 
-          for DIR in ${CHANGED_CHARTS}; do
-            CHART_PATH="clusters/${CLUSTER}/helm/${DIR}"
+          validate_chart() {
+            local DIR="$1"
+            local CHART_PATH="clusters/${CLUSTER}/helm/${DIR}"
             echo ""
             echo ">> Validating: ${DIR}"
 
@@ -343,18 +350,23 @@ jobs:
                 -strict \
                 -summary; then
 
-              EXIT_CODE=1
-
-              if [ -z "${FAILED_CHARTS}" ]; then
-                FAILED_CHARTS="${DIR}"
-
-              else
-                FAILED_CHARTS="${FAILED_CHARTS}, ${DIR}"
-
-              fi
+              echo "${DIR}" > ".failed_chart_${DIR}"
+              return 1
             fi
+          }
 
-          done
+          export -f validate_chart
+          export CLUSTER SCHEMA_LOCATIONS
+
+          for DIR in ${CHANGED_CHARTS}; do
+            echo "${DIR}"
+          done | xargs -P 4 -I {} bash -c 'OUT=$(validate_chart "$@" 2>&1); printf "%s\n" "$OUT"' _ {}
+
+          if ls .failed_chart_* 1> /dev/null 2>&1; then
+            EXIT_CODE=1
+            FAILED_CHARTS=$(cat .failed_chart_* | paste -sd ',' - | sed 's/,/, /g')
+            rm -f .failed_chart_*
+          fi
 
           echo ""
           echo "----"
