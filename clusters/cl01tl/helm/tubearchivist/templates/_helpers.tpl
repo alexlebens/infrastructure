@@ -12,3 +12,13 @@ Selector labels
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/part-of: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+NFS names
+*/}}
+{{- define "custom.storageNfsName" -}}
+tubearchivist-nfs-storage
+{{- end -}}
+{{- define "custom.storageSnapshotNfsName" -}}
+tubearchivist-snapshot-nfs-storage
+{{- end -}}
