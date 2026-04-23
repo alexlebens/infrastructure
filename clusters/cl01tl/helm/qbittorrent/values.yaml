@@ -62,33 +62,22 @@ qbittorrent:
                 command: ["/bin/sh", "-c", "(ip rule del table 51820; ip -6 rule del table 51820) || true"]
           env:
             - name: VPN_SERVICE_PROVIDER
-              value: airvpn
+              value: protonvpn
             - name: VPN_TYPE
               value: wireguard
             - name: WIREGUARD_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: qbittorrent-wireguard-conf
+                  name: protonvpn-wireguard-conf
                   key: private-key
-            - name: WIREGUARD_PRESHARED_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: qbittorrent-wireguard-conf
-                  key: preshared-key
-            - name: WIREGUARD_ADDRESSES
-              valueFrom:
-                secretKeyRef:
-                  name: qbittorrent-wireguard-conf
-                  key: addresses
-            - name: FIREWALL_VPN_INPUT_PORTS
-              valueFrom:
-                secretKeyRef:
-                  name: qbittorrent-wireguard-conf
-                  key: input-ports
             - name: FIREWALL_OUTBOUND_SUBNETS
               value: 192.168.1.0/24,10.244.0.0/16
             - name: FIREWALL_INPUT_PORTS
-              value: 8080,9022
+              value: 5030,50300
+            - name: VPN_PORT_FORWARDING
+              value: 'on'
+            - name: VPN_PORT_FORWARDING_UP_COMMAND
+              value: '/bin/sh -c "/gluetun/update.sh {{ printf "{{PORTS}}" }}"'
             - name: DNS_UPSTREAM_RESOLVER_TYPE
               value: dot
             - name: BLOCK_MALICIOUS
@@ -141,6 +130,8 @@ qbittorrent:
         reloader.stakater.com/auto: "true"
       replicas: 1
       strategy: Recreate
+      serviceAccount:
+        name: qbittorrent
       initContainers:
         init-copy-config:
           image:
@@ -150,7 +141,7 @@ qbittorrent:
             - /bin/sh
             - -ec
             - |
-              cp /config/config.yml /app/config/config.yml
+              cp /tmp/config.yml /app/config/config.yml
       containers:
         qbit-manage:
           image:
@@ -194,7 +185,7 @@ qbittorrent:
             - name: APPRISE_STATELESS_URLS
               valueFrom:
                 secretKeyRef:
-                  name: qbittorrent-qbit-manage-config
+                  name: qbit-manage-config
                   key: ntfy-url
     qui:
       type: deployment
@@ -223,12 +214,12 @@ qbittorrent:
             - name: QUI__OIDC_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: qui-oidc-secret
+                  name: qui-oidc-authentik
                   key: client
             - name: QUI__OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: qui-oidc-secret
+                  name: qui-oidc-authentik
                   key: secret
             - name: QUI__OIDC_REDIRECT_URL
               value: https://qui.alexlebens.net/api/auth/oidc/callback
@@ -238,6 +229,10 @@ qbittorrent:
             requests:
               cpu: 10m
               memory: 70Mi
+  serviceAccount:
+    qbittorrent:
+      enabled: true
+      staticToken: true
   service:
     main:
       controller: main
@@ -347,22 +342,6 @@ qbittorrent:
           gluetun:
             - path: /gluetun/update.sh
               subPath: update.sh
-    qbit-manage-config:
-      enabled: true
-      type: secret
-      name: qbittorrent-qbit-manage-config
-      advancedMounts:
-        qbit-manage:
-          init-copy-config:
-            - path: /config/config.yml
-              readOnly: true
-              mountPropagation: None
-              subPath: config.yml
-          qbit-manage:
-            - path: /config/config.yml
-              readOnly: true
-              mountPropagation: None
-              subPath: config.yml
     config-data:
       forceRename: qbittorrent-config-data
       storageClass: ceph-filesystem
@@ -377,6 +356,27 @@ qbittorrent:
           qbit-manage:
             - path: /qbittorrent/qBittorrent
               readOnly: false
+    qbit-manage-config:
+      enabled: true
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: qbit-manage-config
+      advancedMounts:
+        qbit-manage:
+          init-copy-config:
+            - path: /tmp/config.yml
+              readOnly: true
+              mountPropagation: None
+              subPath: config.yml
+          qbit-manage:
+            - path: /tmp/config.yml
+              readOnly: true
+              mountPropagation: None
+              subPath: config.yml
     qbit-manage-config-data:
       forceRename: qbittorrent-qbit-manage-config-data
       storageClass: ceph-block
@@ -390,6 +390,15 @@ qbittorrent:
           qbit-manage:
             - path: /app/config
               readOnly: false
+    qbit-manage-config-var:
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 500Mi
+      advancedMounts:
+        qbit-manage:
+          qbit-manage:
+            - path: /app/var
+              readOnly: false
     qui-config-data:
       forceRename: qbittorrent-qui-config-data
       storageClass: ceph-block
@@ -399,13 +408,6 @@ qbittorrent:
         qui:
           qui:
             - path: /config
-              readOnly: false
-    qbit-manage-config-var:
-      type: emptyDir
-      advancedMounts:
-        qbit-manage:
-          qbit-manage:
-            - path: /app/var
               readOnly: false
     storage:
       type: persistentVolumeClaim
