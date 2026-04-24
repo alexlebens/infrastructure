@@ -21,13 +21,15 @@ spec:
       app.kubernetes.io/instance: kube-prometheus-stack
   template:
     metadata:
+      annotations:
+        checksum/secrets: 3c0d4bd47e7d4f71ba55611ddc7b74c5f3ec1cedcc474b15ac0a00daab9b791a
       labels:
         app.kubernetes.io/controller: main
         app.kubernetes.io/instance: kube-prometheus-stack
         app.kubernetes.io/name: kube-prometheus-stack
     spec:
       enableServiceLinks: false
-      serviceAccountName: default
+      serviceAccountName: ntfy-alertmanager
       automountServiceAccountToken: true
       hostIPC: false
       hostNetwork: false
@@ -43,6 +45,9 @@ spec:
               readOnly: true
               subPath: config
       volumes:
-        - name: config
-          secret:
-            secretName: ntfy-alertmanager-config-secret
+        - csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: ntfy-alertmanager-config
+          name: config
