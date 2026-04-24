@@ -17,5 +17,8 @@ app.kubernetes.io/part-of: {{ .Release.Name }}
 ServiceAccount names
 */}}
 {{- define "custom.serviceAccountName" -}}
+talos-backup
+{{- end -}}
+{{- define "custom.serviceAccountSecretsName" -}}
 talos-backup-secrets
 {{- end -}}
