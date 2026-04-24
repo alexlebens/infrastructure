@@ -14,7 +14,7 @@ app.kubernetes.io/part-of: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-NFS names
+ServiceAccount names
 */}}
 {{- define "custom.serviceAccountName" -}}
 matrix-synapse
