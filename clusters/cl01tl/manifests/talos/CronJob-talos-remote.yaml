@@ -50,12 +50,12 @@ spec:
                   valueFrom:
                     secretKeyRef:
                       key: AWS_ACCESS_KEY_ID
-                      name: talos-etcd-backup-remote-secret
+                      name: talos-etcd-backup-remote-config
                 - name: AWS_SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
                       key: AWS_SECRET_ACCESS_KEY
-                      name: talos-etcd-backup-remote-secret
+                      name: talos-etcd-backup-remote-config
                 - name: AWS_REGION
                   value: us-east-1
                 - name: CUSTOM_S3_ENDPOINT
@@ -70,7 +70,7 @@ spec:
                   valueFrom:
                     secretKeyRef:
                       key: AGE_X25519_PUBLIC_KEY
-                      name: talos-etcd-backup-remote-secret
+                      name: talos-etcd-backup-remote-config
                 - name: USE_PATH_STYLE
                   value: "false"
               image: ghcr.io/siderolabs/talos-backup:v0.1.0-beta.3-7-ge8e193c@sha256:d6f98bf2817bb0bd46be49e41251e24d713945a6af6e893529cc17d524187953
@@ -91,9 +91,9 @@ spec:
                   name: secret
                   readOnly: true
                 - mountPath: /.talos
-                  name: talos-remote
+                  name: talos
                 - mountPath: /tmp
-                  name: tmp-remote
+                  name: tmp
               workingDir: /tmp
             - args:
                 - -ec
@@ -107,34 +107,37 @@ spec:
                   value: "2419200"
               envFrom:
                 - secretRef:
-                    name: talos-etcd-backup-remote-secret
+                    name: talos-etcd-backup-remote-config
                 - secretRef:
-                    name: talos-backup-ntfy-secret
+                    name: talos-ntfy-config
               image: d3fk/s3cmd:latest@sha256:d66cc5677b30b31a7981f9fde0af064a9072e8b8a57d5e9b4cc02f44f02acbf2
               name: s3-prune
               volumeMounts:
+                - mountPath: /root/.s3cfg
+                  mountPropagation: None
+                  name: etcd-backup-remote-config
+                  readOnly: true
+                  subPath: .s3cfg
                 - mountPath: /scripts/prune.sh
                   name: prune-script
                   subPath: prune.sh
-                - mountPath: /root/.s3cfg
-                  mountPropagation: None
-                  name: s3cmd-config-remote
-                  readOnly: true
-                  subPath: .s3cfg
           volumes:
+            - csi:
+                driver: secrets-store.csi.k8s.io
+                readOnly: true
+                volumeAttributes:
+                  secretProviderClass: talos-etcd-backup-remote-config
+              name: etcd-backup-remote-config
             - configMap:
                 defaultMode: 493
                 name: talos-prune-script
               name: prune-script
-            - name: s3cmd-config-remote
-              secret:
-                secretName: talos-etcd-backup-remote-secret
             - name: secret
               secret:
                 secretName: talos-backup-secrets
             - emptyDir:
                 medium: Memory
-              name: talos-remote
+              name: talos
             - emptyDir:
                 medium: Memory
-              name: tmp-remote
+              name: tmp

@@ -27,7 +27,7 @@ spec:
         app.kubernetes.io/name: searxng
     spec:
       enableServiceLinks: false
-      serviceAccountName: default
+      serviceAccountName: searxng
       automountServiceAccountToken: true
       hostIPC: false
       hostNetwork: false
@@ -58,20 +58,17 @@ spec:
           volumeMounts:
             - mountPath: /etc/searxng
               name: api-data
-            - mountPath: /etc/searxng/settings.yml
+            - mountPath: /etc/searxng/
               mountPropagation: None
               name: config
               readOnly: true
-              subPath: settings.yml
-            - mountPath: /etc/searxng/limiter.toml
-              mountPropagation: None
-              name: config
-              readOnly: true
-              subPath: limiter.toml
       volumes:
         - name: api-data
           persistentVolumeClaim:
             claimName: searxng-api-data
-        - name: config
-          secret:
-            secretName: searxng-api-config-secret
+        - csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: searxng-api-config
+          name: config

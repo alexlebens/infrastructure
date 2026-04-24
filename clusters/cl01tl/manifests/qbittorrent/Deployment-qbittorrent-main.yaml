@@ -21,13 +21,15 @@ spec:
       app.kubernetes.io/instance: qbittorrent
   template:
     metadata:
+      annotations:
+        checksum/secrets: 545cc0ac43a8c257917ff35f6fed45976eaefcbaed5d63bbd60d3b932dc71794
       labels:
         app.kubernetes.io/controller: main
         app.kubernetes.io/instance: qbittorrent
         app.kubernetes.io/name: qbittorrent
     spec:
       enableServiceLinks: false
-      serviceAccountName: default
+      serviceAccountName: qbittorrent
       automountServiceAccountToken: true
       securityContext:
         fsGroup: 1000
@@ -72,33 +74,22 @@ spec:
           name: exporter
         - env:
             - name: VPN_SERVICE_PROVIDER
-              value: airvpn
+              value: protonvpn
             - name: VPN_TYPE
               value: wireguard
             - name: WIREGUARD_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
                   key: private-key
-                  name: qbittorrent-wireguard-conf
-            - name: WIREGUARD_PRESHARED_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: preshared-key
-                  name: qbittorrent-wireguard-conf
-            - name: WIREGUARD_ADDRESSES
-              valueFrom:
-                secretKeyRef:
-                  key: addresses
-                  name: qbittorrent-wireguard-conf
-            - name: FIREWALL_VPN_INPUT_PORTS
-              valueFrom:
-                secretKeyRef:
-                  key: input-ports
-                  name: qbittorrent-wireguard-conf
+                  name: protonvpn-wireguard-conf
             - name: FIREWALL_OUTBOUND_SUBNETS
               value: 192.168.1.0/24,10.244.0.0/16
             - name: FIREWALL_INPUT_PORTS
-              value: 8080,9022
+              value: 5030,50300
+            - name: VPN_PORT_FORWARDING
+              value: "on"
+            - name: VPN_PORT_FORWARDING_UP_COMMAND
+              value: /bin/sh -c "/gluetun/update.sh {{PORTS}}"
             - name: DNS_UPSTREAM_RESOLVER_TYPE
               value: dot
             - name: BLOCK_MALICIOUS

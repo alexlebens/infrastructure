@@ -21,13 +21,15 @@ spec:
       app.kubernetes.io/instance: immich
   template:
     metadata:
+      annotations:
+        checksum/secrets: 46a3f57ca394cccffc419e0c17f5d5f366374b0651c02c507636c53c0b5f33e6
       labels:
         app.kubernetes.io/controller: main
         app.kubernetes.io/instance: immich
         app.kubernetes.io/name: immich
     spec:
       enableServiceLinks: false
-      serviceAccountName: default
+      serviceAccountName: immich
       automountServiceAccountToken: true
       hostIPC: false
       hostNetwork: false
@@ -112,9 +114,12 @@ spec:
             - mountPath: /usr/src/app/upload
               name: data
       volumes:
-        - name: config
-          secret:
-            secretName: immich-config-secret
+        - csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: immich-config
+          name: config
         - name: data
           persistentVolumeClaim:
             claimName: immich

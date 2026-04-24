@@ -23,13 +23,15 @@ spec:
       app.kubernetes.io/instance: qbittorrent
   template:
     metadata:
+      annotations:
+        checksum/secrets: 545cc0ac43a8c257917ff35f6fed45976eaefcbaed5d63bbd60d3b932dc71794
       labels:
         app.kubernetes.io/controller: qbit-manage
         app.kubernetes.io/instance: qbittorrent
         app.kubernetes.io/name: qbittorrent
     spec:
       enableServiceLinks: false
-      serviceAccountName: default
+      serviceAccountName: qbittorrent
       automountServiceAccountToken: true
       hostIPC: false
       hostNetwork: false
@@ -40,11 +42,11 @@ spec:
             - /bin/sh
             - -ec
             - |
-              cp /config/config.yml /app/config/config.yml
+              cp /tmp/config.yml /app/config/config.yml
           image: busybox:1.37.0@sha256:1487d0af5f52b4ba31c7e465126ee2123fe3f2305d638e7827681e7cf6c83d5e
           name: init-copy-config
           volumeMounts:
-            - mountPath: /config/config.yml
+            - mountPath: /tmp/config.yml
               mountPropagation: None
               name: qbit-manage-config
               readOnly: true
@@ -69,7 +71,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   key: ntfy-url
-                  name: qbittorrent-qbit-manage-config
+                  name: qbit-manage-config
           image: ghcr.io/caronc/apprise:v1.3.3@sha256:4bfeac268ba87b8e08e308c9aa0182fe99e9501ec464027afc333d1634e65977
           name: apprise-api
         - env:
@@ -95,7 +97,7 @@ spec:
           volumeMounts:
             - mountPath: /qbittorrent/qBittorrent
               name: config-data
-            - mountPath: /config/config.yml
+            - mountPath: /tmp/config.yml
               mountPropagation: None
               name: qbit-manage-config
               readOnly: true
@@ -110,14 +112,18 @@ spec:
         - name: config-data
           persistentVolumeClaim:
             claimName: qbittorrent-config-data
-        - name: qbit-manage-config
-          secret:
-            secretName: qbittorrent-qbit-manage-config
+        - csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: qbit-manage-config
+          name: qbit-manage-config
         - name: qbit-manage-config-data
           persistentVolumeClaim:
             claimName: qbittorrent-qbit-manage-config-data
-        - emptyDir: {}
-          name: qbit-manage-config-var
+        - name: qbit-manage-config-var
+          persistentVolumeClaim:
+            claimName: qbittorrent-qbit-manage-config-var
         - name: storage
           persistentVolumeClaim:
             claimName: qbittorrent-nfs-storage
