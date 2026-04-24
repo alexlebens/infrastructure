@@ -4,6 +4,8 @@ immich:
       type: deployment
       replicas: 1
       strategy: Recreate
+      serviceAccount:
+        name: immich
       containers:
         main:
           image:
@@ -86,6 +88,10 @@ immich:
               gpu.intel.com/i915: 1
               cpu: 10m
               memory: 500Mi
+  serviceAccount:
+    immich:
+      enabled: true
+      staticToken: true
   service:
     main:
       controller: main
@@ -135,9 +141,13 @@ immich:
                 value: /
   persistence:
     config:
-      enabled: true
-      type: secret
-      name: immich-config-secret
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: immich-config
       advancedMounts:
         main:
           main:

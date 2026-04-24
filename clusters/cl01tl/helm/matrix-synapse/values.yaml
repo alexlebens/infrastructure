@@ -8,7 +8,7 @@ matrix-synapse:
   signingkey:
     job:
       enabled: false
-    existingSecret: matrix-synapse-signingkey
+    existingSecret: matrix-synapse-signing-key
     existingSecretKey: signing.key
   config:
     reportStats: false
@@ -37,45 +37,16 @@ matrix-synapse:
     strategy:
       type: Recreate
     extraVolumes:
-      - name: matrix-synapse-config-secret
-        secret:
-          secretName: matrix-synapse-config-secret
-      - name: matrix-hookshot-config-secret
-        secret:
-          secretName: matrix-hookshot-config-secret
-      - name: mautrix-discord-config-secret
-        secret:
-          secretName: mautrix-discord-config-secret
-      - name: mautrix-whatsapp-config-secret
-        secret:
-          secretName: mautrix-whatsapp-config-secret
-      - name: double-puppet-registration-secret
-        secret:
-          secretName: double-puppet-registration-secret
+      - name: config
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: matrix-synapse-config
     extraVolumeMounts:
-      - name: matrix-synapse-config-secret
-        mountPath: /synapse/config/conf.d/oidc.yaml
-        subPath: oidc.yaml
-        readOnly: true
-      - name: matrix-synapse-config-secret
-        mountPath: /synapse/config/conf.d/config.yaml
-        subPath: config.yaml
-        readOnly: true
-      - name: matrix-hookshot-config-secret
-        mountPath: /synapse/config/conf.d/hookshot-registration.yaml
-        subPath: hookshot-registration.yaml
-        readOnly: true
-      - name: mautrix-discord-config-secret
-        mountPath: /synapse/config/conf.d/mautrix-discord-registration.yaml
-        subPath: mautrix-discord-registration.yaml
-        readOnly: true
-      - name: mautrix-whatsapp-config-secret
-        mountPath: /synapse/config/conf.d/mautrix-whatsapp-registration.yaml
-        subPath: mautrix-whatsapp-registration.yaml
-        readOnly: true
-      - name: double-puppet-registration-secret
-        mountPath: /synapse/config/conf.d/double-puppet-registration.yaml
-        subPath: double-puppet-registration.yaml
+      - name: config
+        mountPath: /synapse/config/conf.d
+        mountPropagation: None
         readOnly: true
     resources:
       requests:
@@ -120,7 +91,7 @@ matrix-synapse:
   externalRedis:
     host: matrix-synapse-valkey
     port: 6379
-    existingSecret: matrix-synapse-valkey-secret
+    existingSecret: matrix-synapse-valkey-config
     existingSecretPasswordKey: password
   persistence:
     enabled: true
@@ -186,9 +157,13 @@ matrix-hookshot:
           path: /metrics
   persistence:
     config:
-      enabled: true
-      type: secret
-      name: matrix-hookshot-config-secret
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: matrix-hookshot-config
       advancedMounts:
         main:
           main:
@@ -197,9 +172,13 @@ matrix-hookshot:
               mountPropagation: None
               subPath: config.yml
     registration:
-      enabled: true
-      type: secret
-      name: matrix-hookshot-config-secret
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: matrix-hookshot-config
       advancedMounts:
         main:
           main:
@@ -208,9 +187,13 @@ matrix-hookshot:
               mountPropagation: None
               subPath: registration.yml
     passkey:
-      enabled: true
-      type: secret
-      name: matrix-hookshot-config-secret
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: matrix-hookshot-config
       advancedMounts:
         main:
           main:
@@ -270,27 +253,19 @@ mautrix-discord:
           targetPort: 29334
   persistence:
     config:
-      enabled: true
-      type: secret
-      name: mautrix-discord-config-secret
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: mautrix-discord-config
       advancedMounts:
         main:
           init-copy-config:
-            - path: /tmp/config.yaml
+            - path: /tmp
               readOnly: true
               mountPropagation: None
-              subPath: config.yaml
-    registration:
-      enabled: true
-      type: secret
-      name: mautrix-discord-config-secret
-      advancedMounts:
-        main:
-          init-copy-config:
-            - path: /tmp/mautrix-discord-registration.yaml
-              readOnly: true
-              mountPropagation: None
-              subPath: mautrix-discord-registration.yaml
     data:
       forceRename: mautrix-discord
       storageClass: ceph-block
@@ -346,27 +321,19 @@ mautrix-whatsapp:
           targetPort: 29318
   persistence:
     config:
-      enabled: true
-      type: secret
-      name: mautrix-whatsapp-config-secret
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: mautrix-whatsapp-config
       advancedMounts:
         main:
           init-copy-config:
-            - path: /tmp/config.yaml
+            - path: /tmp
               readOnly: true
               mountPropagation: None
-              subPath: config.yaml
-    registration:
-      enabled: true
-      type: secret
-      name: mautrix-whatsapp-config-secret
-      advancedMounts:
-        main:
-          init-copy-config:
-            - path: /tmp/mautrix-whatsapp-registration.yaml
-              readOnly: true
-              mountPropagation: None
-              subPath: mautrix-whatsapp-registration.yaml
     data:
       forceRename: mautrix-whatsapp
       storageClass: ceph-block
@@ -414,7 +381,7 @@ valkey-matrix-synapse:
   valkey:
     auth:
       enabled: true
-      usersExistingSecret: matrix-synapse-valkey-secret
+      usersExistingSecret: matrix-synapse-valkey-config
       aclUsers:
         default:
           permissions: "~* &* +@all"

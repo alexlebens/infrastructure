@@ -37,12 +37,12 @@ etcd-backup:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-local-secret
+                  name: talos-etcd-backup-local-config
                   key: AWS_ACCESS_KEY_ID
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-local-secret
+                  name: talos-etcd-backup-local-config
                   key: AWS_SECRET_ACCESS_KEY
             - name: AWS_REGION
               value: us-east-1
@@ -57,7 +57,7 @@ etcd-backup:
             - name: AGE_X25519_PUBLIC_KEY
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-local-secret
+                  name: talos-etcd-backup-local-config
                   key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
               value: "false"
@@ -72,9 +72,9 @@ etcd-backup:
             - /scripts/prune.sh
           envFrom:
             - secretRef:
-                name: talos-etcd-backup-local-secret
+                name: talos-etcd-backup-local-config
             - secretRef:
-                name: talos-backup-ntfy-secret
+                name: talos-ntfy-config
           env:
             - name: TARGET
               value: Local
@@ -117,12 +117,12 @@ etcd-backup:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-remote-secret
+                  name: talos-etcd-backup-remote-config
                   key: AWS_ACCESS_KEY_ID
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-remote-secret
+                  name: talos-etcd-backup-remote-config
                   key: AWS_SECRET_ACCESS_KEY
             - name: AWS_REGION
               value: us-east-1
@@ -137,7 +137,7 @@ etcd-backup:
             - name: AGE_X25519_PUBLIC_KEY
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-remote-secret
+                  name: talos-etcd-backup-remote-config
                   key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
               value: "false"
@@ -152,9 +152,9 @@ etcd-backup:
             - /scripts/prune.sh
           envFrom:
             - secretRef:
-                name: talos-etcd-backup-remote-secret
+                name: talos-etcd-backup-remote-config
             - secretRef:
-                name: talos-backup-ntfy-secret
+                name: talos-ntfy-config
           env:
             - name: TARGET
               value: Remote
@@ -197,12 +197,12 @@ etcd-backup:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-external-secret
+                  name: talos-etcd-backup-external-config
                   key: AWS_ACCESS_KEY_ID
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-external-secret
+                  name: talos-etcd-backup-external-config
                   key: AWS_SECRET_ACCESS_KEY
             - name: AWS_REGION
               value: nyc3
@@ -217,7 +217,7 @@ etcd-backup:
             - name: AGE_X25519_PUBLIC_KEY
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-external-secret
+                  name: talos-etcd-backup-external-config
                   key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
               value: "false"
@@ -232,9 +232,9 @@ etcd-backup:
             - /scripts/prune.sh
           envFrom:
             - secretRef:
-                name: talos-etcd-backup-external-secret
+                name: talos-etcd-backup-external-config
             - secretRef:
-                name: talos-backup-ntfy-secret
+                name: talos-ntfy-config
           env:
             - name: TARGET
               value: External
@@ -279,10 +279,14 @@ etcd-backup:
           s3-prune:
             - path: /scripts/prune.sh
               subPath: prune.sh
-    s3cmd-config-local:
-      enabled: true
-      type: secret
-      name: talos-etcd-backup-local-secret
+    etcd-backup-local-config:
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: talos-etcd-backup-local-config
       advancedMounts:
         local:
           s3-prune:
@@ -290,10 +294,14 @@ etcd-backup:
               readOnly: true
               mountPropagation: None
               subPath: .s3cfg
-    s3cmd-config-remote:
-      enabled: true
-      type: secret
-      name: talos-etcd-backup-remote-secret
+    etcd-backup-remote-config:
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: talos-etcd-backup-remote-config
       advancedMounts:
         remote:
           s3-prune:
@@ -301,10 +309,14 @@ etcd-backup:
               readOnly: true
               mountPropagation: None
               subPath: .s3cfg
-    s3cmd-config-external:
-      enabled: true
-      type: secret
-      name: talos-etcd-backup-external-secret
+    etcd-backup-external-config:
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: talos-etcd-backup-external-config
       advancedMounts:
         external:
           s3-prune:
@@ -312,7 +324,7 @@ etcd-backup:
               readOnly: true
               mountPropagation: None
               subPath: .s3cfg
-    tmp-local:
+    tmp:
       type: emptyDir
       medium: Memory
       advancedMounts:
@@ -320,23 +332,15 @@ etcd-backup:
           backup:
             - path: /tmp
               readOnly: false
-    tmp-remote:
-      type: emptyDir
-      medium: Memory
-      advancedMounts:
         remote:
           backup:
             - path: /tmp
               readOnly: false
-    tmp-external:
-      type: emptyDir
-      medium: Memory
-      advancedMounts:
         external:
           backup:
             - path: /tmp
               readOnly: false
-    talos-local:
+    talos:
       type: emptyDir
       medium: Memory
       advancedMounts:
@@ -344,18 +348,10 @@ etcd-backup:
           backup:
             - path: /.talos
               readOnly: false
-    talos-remote:
-      type: emptyDir
-      medium: Memory
-      advancedMounts:
         remote:
           backup:
             - path: /.talos
               readOnly: false
-    talos-external:
-      type: emptyDir
-      medium: Memory
-      advancedMounts:
         external:
           backup:
             - path: /.talos
@@ -449,36 +445,24 @@ etcd-defrag:
             - name: TALOSCONFIG
               value: /tmp/.talos/config
   persistence:
-    talos-config-1:
-      enabled: true
-      type: secret
-      name: talos-etcd-defrag-secret
+    config:
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: talos-etcd-defrag-config
       advancedMounts:
         defrag-1:
           main:
-            - path: /tmp/.talos/config
+            - path: /tmp/.talos/
               readOnly: true
-              mountPropagation: None
-              subPath: config
-    talos-config-2:
-      enabled: true
-      type: secret
-      name: talos-etcd-defrag-secret
-      advancedMounts:
         defrag-2:
           main:
-            - path: /tmp/.talos/config
+            - path: /tmp/.talos/
               readOnly: true
-              mountPropagation: None
-              subPath: config
-    talos-config-3:
-      enabled: true
-      type: secret
-      name: talos-etcd-defrag-secret
-      advancedMounts:
         defrag-3:
           main:
-            - path: /tmp/.talos/config
+            - path: /tmp/.talos/
               readOnly: true
-              mountPropagation: None
-              subPath: config

@@ -119,7 +119,7 @@ snapshot:
             - /scripts/snapshot.sh
           envFrom:
             - secretRef:
-                name: vault-snapshot-agent-token
+                name: vault-snapshot-agent-role
           env:
             - name: VAULT_ADDR
               value: http://vault-active.vault.svc.cluster.local:8200
@@ -135,12 +135,12 @@ snapshot:
             - /scripts/backup.sh
           envFrom:
             - secretRef:
-                name: vault-backup-ntfy-secret
+                name: vault-ntfy-config
           env:
             - name: BUCKET
               valueFrom:
                 secretKeyRef:
-                  name: vault-s3cmd-local-config
+                  name: vault-backup-local-config
                   key: BUCKET
             - name: TARGET
               value: Local
@@ -155,12 +155,12 @@ snapshot:
             - /scripts/backup.sh
           envFrom:
             - secretRef:
-                name: vault-backup-ntfy-secret
+                name: vault-ntfy-config
           env:
             - name: BUCKET
               valueFrom:
                 secretKeyRef:
-                  name: vault-s3cmd-remote-config
+                  name: vault-backup-remote-config
                   key: BUCKET
             - name: TARGET
               value: Remote
@@ -175,12 +175,12 @@ snapshot:
             - /scripts/backup.sh
           envFrom:
             - secretRef:
-                name: vault-backup-ntfy-secret
+                name: vault-ntfy-config
           env:
             - name: BUCKET
               valueFrom:
                 secretKeyRef:
-                  name: vault-s3cmd-external-config
+                  name: vault-backup-external-config
                   key: BUCKET
             - name: TARGET
               value: External
@@ -211,10 +211,14 @@ snapshot:
           s3-backup-external:
             - path: /scripts/backup.sh
               subPath: backup.sh
-    s3cmd-local-config:
-      enabled: true
-      type: secret
-      name: vault-s3cmd-local-config
+    backup-local-config:
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: vault-backup-local-config
       advancedMounts:
         snapshot:
           s3-backup-local:
@@ -222,10 +226,14 @@ snapshot:
               readOnly: true
               mountPropagation: None
               subPath: .s3cfg
-    s3cmd-remote-config:
-      enabled: true
-      type: secret
-      name: vault-s3cmd-remote-config
+    backup-remote-config:
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: vault-backup-remote-config
       advancedMounts:
         snapshot:
           s3-backup-remote:
@@ -233,10 +241,14 @@ snapshot:
               readOnly: true
               mountPropagation: None
               subPath: .s3cfg
-    s3cmd-external-config:
-      enabled: true
-      type: secret
-      name: vault-s3cmd-external-config
+    backup-external-config:
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: vault-backup-external-config
       advancedMounts:
         snapshot:
           s3-backup-external:
@@ -276,6 +288,8 @@ unseal:
           envFrom:
             - secretRef:
                 name: vault-unseal-config-1
+            - secretRef:
+                name: vault-ntfy-unseal-config
           resources:
             requests:
               cpu: 1m
@@ -292,6 +306,8 @@ unseal:
           envFrom:
             - secretRef:
                 name: vault-unseal-config-2
+            - secretRef:
+                name: vault-ntfy-unseal-config
           resources:
             requests:
               cpu: 1m
@@ -308,6 +324,8 @@ unseal:
           envFrom:
             - secretRef:
                 name: vault-unseal-config-3
+            - secretRef:
+                name: vault-ntfy-unseal-config
           resources:
             requests:
               cpu: 1m
