@@ -16,6 +16,6 @@ app.kubernetes.io/part-of: {{ .Release.Name }}
 {{/*
 NFS names
 */}}
-{{- define "custom.storageNfsName" -}}
-foldergram-pictures-collections-nfs-storage
+{{- define "custom.storageMiaNfsName" -}}
+foldergram-pictures-collection-mia-nfs-storage
 {{- end -}}
