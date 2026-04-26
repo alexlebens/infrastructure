@@ -1,20 +1,21 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: rclone-web-assets
+  name: karakeep-karakeep-assets-rclone
   labels:
-    app.kubernetes.io/controller: web-assets
-    app.kubernetes.io/instance: rclone
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: karakeep
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: rclone
-    helm.sh/chart: rclone-4.6.2
-  namespace: rclone
+    app.kubernetes.io/name: karakeep-assets-rclone
+    app.kubernetes.io/version: v1.73.5
+    helm.sh/chart: rclone-karakeep-assets-remote-0.2.0
+  namespace: karakeep
 spec:
   suspend: false
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 30
   timeZone: America/Chicago
-  schedule: "30 0 * * *"
+  schedule: "10 0 * * *"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
@@ -24,9 +25,9 @@ spec:
       template:
         metadata:
           labels:
-            app.kubernetes.io/controller: web-assets
-            app.kubernetes.io/instance: rclone
-            app.kubernetes.io/name: rclone
+            app.kubernetes.io/controller: main
+            app.kubernetes.io/instance: karakeep
+            app.kubernetes.io/name: karakeep-assets-rclone
         spec:
           enableServiceLinks: false
           serviceAccountName: default
@@ -39,8 +40,8 @@ spec:
           containers:
             - args:
                 - sync
-                - src:web-assets
-                - dest:web-assets
+                - src:karakeep-assets
+                - dest:karakeep-assets
                 - --s3-no-check-bucket
                 - --verbose
               env:
@@ -56,22 +57,22 @@ spec:
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_KEY_ID
-                      name: garage-web-assets-secret
+                      name: karakeep-assets-rclone-source-config
                 - name: RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_SECRET_KEY
-                      name: garage-web-assets-secret
+                      name: karakeep-assets-rclone-source-config
                 - name: RCLONE_CONFIG_SRC_REGION
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_REGION
-                      name: garage-web-assets-secret
+                      name: karakeep-assets-rclone-source-config
                 - name: RCLONE_CONFIG_SRC_ENDPOINT
                   valueFrom:
                     secretKeyRef:
                       key: SRC_ENDPOINT
-                      name: garage-web-assets-secret
+                      name: karakeep-assets-rclone-source-config
                 - name: RCLONE_CONFIG_SRC_S3_FORCE_PATH_STYLE
                   value: "true"
                 - name: RCLONE_CONFIG_DEST_TYPE
@@ -84,23 +85,24 @@ spec:
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_KEY_ID
-                      name: garage-web-assets-secret
+                      name: karakeep-assets-rclone-destination-config
                 - name: RCLONE_CONFIG_DEST_SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_SECRET_KEY
-                      name: garage-web-assets-secret
+                      name: karakeep-assets-rclone-destination-config
                 - name: RCLONE_CONFIG_DEST_REGION
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_REGION
-                      name: garage-web-assets-secret
+                      name: karakeep-assets-rclone-destination-config
                 - name: RCLONE_CONFIG_DEST_ENDPOINT
                   valueFrom:
                     secretKeyRef:
                       key: DEST_ENDPOINT
-                      name: garage-web-assets-secret
-                - name: RCLONE_CONFIG_DEST_S3_FORCE_PATH_STYLE
+                      name: karakeep-assets-rclone-destination-config
+                - name: RCLONE_CONFIG_SRC_DEST_FORCE_PATH_STYLE
                   value: "true"
               image: rclone/rclone:1.73.5@sha256:1619a625f845e169c34b952cf40c483c0392965b821c5155cde8cbfd35254a96
+              imagePullPolicy: IfNotPresent
               name: sync
