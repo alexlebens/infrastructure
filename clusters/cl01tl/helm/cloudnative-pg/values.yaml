@@ -14,3 +14,60 @@ plugin-barman-cloud:
     requests:
       cpu: 1m
       memory: 20Mi
+rclone-postgres-backups-remote:
+  cronJob:
+    suspend: false
+    schedule: 0 1 * * *
+  rclone:
+    source:
+      bucketName: postgres-backups
+    destination:
+      bucketName: postgres-backups
+  prune:
+    enabled: true
+    ageToPrune: 45d
+    include: "/cl01tl/*/*/*/base/**"
+    exclude: "**/walls/**"
+  secret:
+    externalSecret:
+      source:
+        credentials:
+          path: /garage/home-infra/postgres-backups
+        config:
+          path: /garage/config
+      destination:
+        credentials:
+          path: /garage/home-infra/postgres-backups
+        config:
+          path: /garage/config
+rclone-postgres-backups-external:
+  cronJob:
+    suspend: true
+    schedule: 20 1 * * *
+  rclone:
+    source:
+      bucketName: openbao-backups
+    destination:
+      bucketName: postgres-backups-ecc1010276b61716
+      providerType: DigitalOcean
+  prune:
+    enabled: true
+    ageToPrune: 45d
+    include: "/cl01tl/*/*/*/base/**"
+    exclude: "**/walls/**"
+  secret:
+    externalSecret:
+      source:
+        credentials:
+          path: /garage/home-infra/postgres-backups
+        config:
+          path: /garage/config
+      destination:
+        credentials:
+          path: /digital-ocean/home-infra/postgres-backups
+          keyIdProperty: AWS_ACCESS_KEY_ID
+          secretKeyProperty: AWS_SECRET_ACCESS_KEY
+          regionProperty: AWS_REGION
+        config:
+          path: /digital-ocean/config
+          endpointProperty: ENDPOINT
