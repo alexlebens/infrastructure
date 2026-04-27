@@ -120,20 +120,52 @@ openbao:
     prometheusRules:
       enabled: true
       rules:
-        - alert: vault-HighResponseTime
+        - alert: openBao-HighResponseTime
           annotations:
-            message: The response time of Vault is over 500ms on average over the last 5 minutes.
+            message: The response time of OpenBao is over 500ms on average over the last 5 minutes.
           expr: vault_core_handle_request{quantile="0.5", namespace="mynamespace"} > 500
           for: 5m
           labels:
             severity: warning
-        - alert: vault-HighResponseTime
+        - alert: openBao-HighResponseTime
           annotations:
-            message: The response time of Vault is over 1s on average over the last 5 minutes.
+            message: The response time of OpenBao is over 1s on average over the last 5 minutes.
           expr: vault_core_handle_request{quantile="0.5", namespace="mynamespace"} > 1000
           for: 5m
           labels:
             severity: critical
+        - alert: openBao-Sealed
+          expr: vault_core_unsealed == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: OpenBao sealed (instance {{ $labels.instance }})
+            description: "OpenBao instance is sealed on {{ $labels.instance }}\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+        - alert: OpenBao-TooManyPendingTokens
+          expr: avg(vault_token_create_count - vault_token_store_count) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: OpenBao too many pending tokens (instance {{ $labels.instance }})
+            description: "Too many pending tokens on {{ $labels.instance }}: {{ $value }} tokens created but not yet stored.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+        - alert: OpenBao-TooManyInfinityTokens
+          expr: vault_token_count_by_ttl{creation_ttl="+Inf"} > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: OpenBao too many infinity tokens (instance {{ $labels.instance }})
+            description: "Too many non-expiring tokens on {{ $labels.instance }}: {{ $value }} tokens with infinite TTL.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+        - alert: OpenBao-ClusterHealth
+          expr: sum(vault_core_active) / count(vault_core_active) <= 0.5 and count(vault_core_active) > 0
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: OpenBao cluster health (instance {{ $labels.instance }})
+            description: "OpenBao cluster is not healthy: only {{ $value | humanizePercentage }} of nodes are active.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
   snapshotAgent:
     enabled: true
     schedule: 0 4 * * *
