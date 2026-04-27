@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tubearchivist-metrics
+  labels:
+    app.kubernetes.io/controller: metrics
+    app.kubernetes.io/instance: tubearchivist
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: tubearchivist
+    helm.sh/chart: tubearchivist-4.6.2
+  namespace: tubearchivist
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: metrics
+      app.kubernetes.io/name: tubearchivist
+      app.kubernetes.io/instance: tubearchivist
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: metrics
+        app.kubernetes.io/instance: tubearchivist
+        app.kubernetes.io/name: tubearchivist
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: default
+      automountServiceAccountToken: true
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - args:
+            - --es.uri=https://elasticsearch-tubearchivist-es-http.tubearchivist:9200
+          image: quay.io/prometheuscommunity/elasticsearch-exporter:v1.10.0@sha256:a6a4d4403f670faf6a94b8c7f9adbca3ead91f26dd64e5ccf95fa69025dc6e58
+          name: main
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10mi
