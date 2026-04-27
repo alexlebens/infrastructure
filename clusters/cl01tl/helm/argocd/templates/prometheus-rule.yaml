@@ -82,14 +82,6 @@ spec:
           annotations:
             summary: HAProxy pending requests (instance {{ `{{ $labels.instance }}` }})
             description: "Some HAProxy requests are pending on {{ `{{ $labels.proxy }}` }} - {{ `{{ $value | printf \"%.2f\"}}` }}\n  VALUE = {{ `{{ $value }}` }}\n  LABELS = {{ `{{ $labels }}` }}"
-        - alert: HAProxyHTTPSlowingDown
-          expr: avg by (instance, proxy) (haproxy_backend_max_total_time_seconds) > 1
-          for: 1m
-          labels:
-            severity: warning
-          annotations:
-            summary: HAProxy HTTP slowing down (instance {{ `{{ $labels.instance }}` }})
-            description: "HAProxy backend max total time is above 1s on {{ `{{ $labels.proxy }}` }} - {{ `{{ $value | printf \"%.2f\"}}` }}s\n  VALUE = {{ `{{ $value }}` }}\n  LABELS = {{ `{{ $labels }}` }}"
         - alert: HAProxyRetryHigh
           expr: sum by (proxy) (rate(haproxy_backend_retry_warnings_total[1m])) > 10
           for: 2m
@@ -98,14 +90,6 @@ spec:
           annotations:
             summary: HAProxy retry high (instance {{ `{{ $labels.instance }}` }})
             description: "High rate of retry on {{ `{{ $labels.proxy }}` }} - {{ `{{ $value | printf \"%.2f\"}}` }}\n  VALUE = {{ `{{ $value }}` }}\n  LABELS = {{ `{{ $labels }}` }}"
-        - alert: HAproxyHasNoAliveBackends
-          expr: haproxy_backend_active_servers + haproxy_backend_backup_servers == 0
-          for: 0m
-          labels:
-            severity: critical
-          annotations:
-            summary: HAproxy has no alive backends (instance {{ `{{ $labels.instance }}` }})
-            description: "HAProxy has no alive active or backup backends for {{ `{{ $labels.proxy }}` }}\n  VALUE = {{ `{{ $value }}` }}\n  LABELS = {{ `{{ $labels }}` }}"
         - alert: HAProxyFrontendSecurityBlockedRequests
           expr: sum by (proxy) (rate(haproxy_frontend_denied_connections_total[2m])) > 10
           for: 2m
