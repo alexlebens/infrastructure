@@ -150,19 +150,20 @@ rybbit:
       data:
         network.xml: |
           <clickhouse>
-              <listen_host>0.0.0.0</listen_host>
+            <listen_host>0.0.0.0</listen_host>
+            <http_port>8123</http_port>
           </clickhouse>
         enable_json.xml: |
           <clickhouse>
-              <settings>
-                  <enable_json_type>1</enable_json_type>
-              </settings>
+            <settings>
+              <enable_json_type>1</enable_json_type>
+            </settings>
           </clickhouse>
         logging_rules.xml: |
           <clickhouse>
             <logger>
-                <level>warning</level>
-                <console>true</console>
+              <level>warning</level>
+              <console>true</console>
             </logger>
             <query_thread_log remove="remove"/>
             <query_log remove="remove"/>
@@ -185,6 +186,17 @@ rybbit:
               </default>
             </profiles>
           </clickhouse>
+        metrics.xml: |
+          <clickhouse>
+            <prometheus>
+              <endpoint>/metrics</endpoint>
+              <port>9363</port>
+              <metrics>true</metrics>
+              <events>true</events>
+              <asynchronous_metrics>true</asynchronous_metrics>
+              <errors>true</errors>
+            </prometheus>
+          </clickhouse>
   service:
     backend:
       controller: backend
@@ -204,6 +216,21 @@ rybbit:
         http:
           port: 8123
           targetPort: 8123
+        metrics:
+          port: 9363
+          targetPort: 9363
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: rybbit-clickhouse
+          app.kubernetes.io/instance: rybbit-clickhouse
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          interval: 30s
+          scrapeTimeout: 10s
+          path: /metrics
   persistence:
     clickhouse:
       forceRename: clickhouse-data
@@ -238,6 +265,10 @@ rybbit:
               readOnly: true
               mountPropagation: None
               subPath: user_logging.xml
+            - path: /etc/clickhouse-server/config.d/metrics.xml
+              readOnly: true
+              mountPropagation: None
+              subPath: metrics.xml
 postgres-18-cluster:
   mode: recovery
   recovery:

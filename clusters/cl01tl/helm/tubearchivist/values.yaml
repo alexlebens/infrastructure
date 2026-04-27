@@ -96,13 +96,47 @@ tubearchivist:
               devic.es/tun: "1"
             requests:
               devic.es/tun: "1"
+    metrics:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: quay.io/prometheuscommunity/elasticsearch-exporter
+            tag: v1.10.0@sha256:a6a4d4403f670faf6a94b8c7f9adbca3ead91f26dd64e5ccf95fa69025dc6e58
+          args:
+            - '--es.uri=https://elasticsearch-tubearchivist-es-http.tubearchivist:9200'
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10mi
   service:
     main:
       controller: main
+      forceRename: tubearchivist
       ports:
         http:
           port: 80
           targetPort: 24000
+    metrics:
+      controller: metrics
+      ports:
+        metrics:
+          port: 9114
+          targetPort: 9114
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: tubearchivist-metrics
+          app.kubernetes.io/instance: tubearchivist-metrics
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          interval: 30s
+          scrapeTimeout: 10s
+          path: /metrics
   route:
     main:
       kind: HTTPRoute
