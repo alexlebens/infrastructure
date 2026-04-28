@@ -4,10 +4,10 @@ metadata:
   name: radarr-standup-config-backup-source-local
   namespace: radarr-standup
   labels:
-    helm.sh/chart: volsync-target-config-1.1.0
+    helm.sh/chart: volsync-target-config-1.1.1
     app.kubernetes.io/instance: radarr-standup
     app.kubernetes.io/part-of: radarr-standup
-    app.kubernetes.io/version: "1.1.0"
+    app.kubernetes.io/version: "1.1.1"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: radarr-standup-config-backup-source-local
 spec:
@@ -16,12 +16,9 @@ spec:
       rules:
         - alert: VolSyncBackupPodFailed
           expr: |
-            kube_pod_container_status_last_terminated_exit_code > 0
+            (kube_pod_container_status_last_terminated_exitcode > 0)
             * on(pod, namespace) group_left(owner_name)
-            label_replace(
-              kube_pod_owner{owner_kind="Job"},
-              "owner_name", "$1", "owner_name", "(.*)"
-            )
+            kube_pod_owner{owner_kind="Job", owner_name=~"volsync-.*"}
           for: 1m
           labels:
             severity: critical
