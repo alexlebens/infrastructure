@@ -110,6 +110,34 @@ spec:
               mountPath: /data
             - name: valkey-acl
               mountPath: /etc/valkey
+        - name: metrics
+          image: ghcr.io/oliver006/redis_exporter:v1.82.0@sha256:6a97d4dd743b533e1f950c677b87d880e44df363c61af3f406fc9e53ed65ee03
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - name: metrics
+              containerPort: 9121
+          startupProbe:
+            tcpSocket:
+              port: metrics
+          livenessProbe:
+            tcpSocket:
+              port: metrics
+          readinessProbe:
+            httpGet:
+              path: /
+              port: metrics
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10M
+          env:
+            - name: REDIS_ALIAS
+              value: directus-valkey
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: directus-valkey-config
+                  key: default
       volumes:
         - name: scripts
           configMap:
