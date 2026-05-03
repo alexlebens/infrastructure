@@ -1,5 +1,5 @@
 loki:
-  deploymentMode: SingleBinary
+  deploymentMode: Monolithic
   loki:
     auth_enabled: false
     limits_config:
@@ -31,8 +31,6 @@ loki:
       pool_config:
         remote_timeout: 10s
       remote_timeout: 10s
-  enterprise:
-    enabled: false
   gateway:
     enabled: true
     resources:
@@ -41,6 +39,18 @@ loki:
         memory: 20Mi
     basicAuth:
       enabled: false
+    route:
+      main:
+        enabled: true
+        apiVersion: gateway.networking.k8s.io/v1
+        kind: HTTPRoute
+        hostnames:
+          - loki.alexlebens.net
+        parentRefs:
+          - group: gateway.networking.k8s.io
+            kind: Gateway
+            name: traefik-gateway
+            namespace: traefik
   singleBinary:
     replicas: 1
     resources:
@@ -48,14 +58,16 @@ loki:
         cpu: 100m
         memory: 800Mi
     persistence:
-      enabled: true
       size: 150Gi
       storageClass: synology-iscsi-delete
   write:
+    enabled: false
     replicas: 0
   read:
+    enabled: false
     replicas: 0
   backend:
+    enabled: false
     replicas: 0
 alloy:
   crds:
