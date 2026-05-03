@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: immich-valkey
+  labels:
+    helm.sh/chart: valkey-0.9.4
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: immich
+    app.kubernetes.io/version: "9.0.3"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  serviceName: immich-valkey-headless
+  replicas: 3
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+      app.kubernetes.io/instance: immich
+  volumeClaimTemplates:
+    - metadata:
+        name: valkey-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "ceph-block"
+        resources:
+          requests:
+            storage: "1Gi"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey
+        app.kubernetes.io/instance: immich
+      annotations:
+        checksum/initconfig: "2d8432be19db9efa32b993becf4e58d4"
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: immich-valkey
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: immich-valkey-init
+          image: docker.io/valkey/valkey:9.0.3@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          command: ["/scripts/init.sh"]
+          env:
+            - name: POD_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+          volumeMounts:
+            - name: valkey-data
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+      containers:
+        - name: immich-valkey
+          image: docker.io/valkey/valkey:9.0.3@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9
+          imagePullPolicy: IfNotPresent
+          command: ["valkey-server"]
+          args: ["/data/conf/valkey.conf"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          env:
+            - name: POD_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+            - name: VALKEY_LOGLEVEL
+              value: "notice"
+          ports:
+            - name: tcp
+              containerPort: 6379
+              protocol: TCP
+          startupProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli ping"]
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli ping"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          volumeMounts:
+            - name: valkey-data
+              mountPath: /data
+        - name: metrics
+          image: ghcr.io/oliver006/redis_exporter:v1.83.0@sha256:e8c209894d4c0cc55b1259ddd47e0b769ad1ff864b356736ee885462a3b0e48c
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - name: metrics
+              containerPort: 9121
+          startupProbe:
+            tcpSocket:
+              port: metrics
+          livenessProbe:
+            tcpSocket:
+              port: metrics
+          readinessProbe:
+            httpGet:
+              path: /
+              port: metrics
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10M
+          env:
+            - name: REDIS_ALIAS
+              value: immich-valkey
+      volumes:
+        - name: scripts
+          configMap:
+            name: immich-valkey-init-scripts
+            defaultMode: 0555
