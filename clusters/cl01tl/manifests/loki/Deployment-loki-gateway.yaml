@@ -4,10 +4,10 @@ metadata:
   name: loki-gateway
   namespace: loki
   labels:
-    helm.sh/chart: loki-6.55.0
+    helm.sh/chart: loki-13.5.0
     app.kubernetes.io/name: loki
     app.kubernetes.io/instance: loki
-    app.kubernetes.io/version: "3.6.7"
+    app.kubernetes.io/version: "3.7.1"
     app.kubernetes.io/component: gateway
 spec:
   replicas: 1
@@ -22,32 +22,35 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: d76bd0b627b1549dddc6ce5304d9322ebdeb13e5b813234d8067357925630015
+        checksum/config: 7f59b16a0121fadc14a504ba3bc07ec5d397a0093def094ae56ba0c10f467dbb
       labels:
         app.kubernetes.io/name: loki
         app.kubernetes.io/instance: loki
         app.kubernetes.io/component: gateway
     spec:
-      serviceAccountName: loki
+      serviceAccountName: loki-gateway
+      automountServiceAccountToken: false
       enableServiceLinks: true
       securityContext:
         fsGroup: 101
         runAsGroup: 101
         runAsNonRoot: true
         runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
       terminationGracePeriodSeconds: 30
       containers:
         - name: nginx
-          image: docker.io/nginxinc/nginx-unprivileged:1.29-alpine
+          image: docker.io/nginxinc/nginx-unprivileged:1.30-alpine
           imagePullPolicy: IfNotPresent
           ports:
-            - name: http-metrics
+            - name: http
               containerPort: 8080
               protocol: TCP
           readinessProbe:
             httpGet:
               path: /
-              port: http-metrics
+              port: http
             initialDelaySeconds: 15
             timeoutSeconds: 1
           securityContext:
@@ -56,6 +59,8 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: config
               mountPath: /etc/nginx
@@ -67,6 +72,54 @@ spec:
             requests:
               cpu: 10m
               memory: 20Mi
+        - name: exporter
+          image: ghcr.io/jkroepke/access-log-exporter:0.3.11
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4040
+              name: http-metrics
+            - containerPort: 8514
+              name: syslog
+          args:
+            - --nginx.scrape-url
+            - http://127.0.0.1:8080/stub_status
+            - --preset
+            - loki
+          resources:
+            limits: {}
+            requests: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: http-metrics
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: http-metrics
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /config.yaml
+              subPath: access-log-exporter.yaml
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

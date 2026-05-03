@@ -4,10 +4,10 @@ metadata:
   name: loki
   namespace: loki
   labels:
-    helm.sh/chart: loki-6.55.0
+    helm.sh/chart: loki-13.5.0
     app.kubernetes.io/name: loki
     app.kubernetes.io/instance: loki
-    app.kubernetes.io/version: "3.6.7"
+    app.kubernetes.io/version: "3.7.1"
     app.kubernetes.io/component: single-binary
     app.kubernetes.io/part-of: memberlist
 spec:
@@ -29,31 +29,61 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: 9cded33d7ba292eb76711b451f5ecd9bade13c7fb5ffb5622229f5706f8f90dd
-        storage/size: "150Gi"
+        checksum/config: 19e0049d8578b5fadd19fbcef19075cf8df1c30f6a3e6fc48aeeeaae41e30e27
+        storage/size: 150Gi
         kubectl.kubernetes.io/default-container: "loki"
       labels:
+        helm.sh/chart: loki-13.5.0
         app.kubernetes.io/name: loki
         app.kubernetes.io/instance: loki
+        app.kubernetes.io/version: "3.7.1"
         app.kubernetes.io/component: single-binary
         app.kubernetes.io/part-of: memberlist
     spec:
       serviceAccountName: loki
-      automountServiceAccountToken: true
       enableServiceLinks: true
+      automountServiceAccountToken: true
       securityContext:
         fsGroup: 10001
         fsGroupChangePolicy: OnRootMismatch
         runAsGroup: 10001
         runAsNonRoot: true
         runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
       terminationGracePeriodSeconds: 30
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/component: single-binary
+                  app.kubernetes.io/instance: 'loki'
+                  app.kubernetes.io/name: 'loki'
+              topologyKey: kubernetes.io/hostname
+      volumes:
+        - name: temp
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: loki
+            items:
+              - key: "config.yaml"
+                path: "config.yaml"
+        - name: runtime-config
+          configMap:
+            name: loki-runtime
+        - name: sc-rules-volume
+          emptyDir: {}
+        - name: sc-rules-temp
+          emptyDir: {}
       containers:
         - name: loki
-          image: docker.io/grafana/loki:3.6.7
+          image: docker.io/grafana/loki:3.7.1
           imagePullPolicy: IfNotPresent
           args:
             - -config.file=/etc/loki/config/config.yaml
+            - -config.expand-env=true
             - -target=all
           ports:
             - name: http-metrics
@@ -65,12 +95,29 @@ spec:
             - name: http-memberlist
               containerPort: 7946
               protocol: TCP
+          env:
+            - name: GOGC
+              value: "80"
+            - name: HASH_RING_INSTANCE_ADDR
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          livenessProbe:
+            failureThreshold: 10
+            httpGet:
+              path: /loki/api/v1/status/buildinfo
+              port: http-metrics
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 1
           readinessProbe:
             failureThreshold: 3
             httpGet:
@@ -81,14 +128,14 @@ spec:
             successThreshold: 1
             timeoutSeconds: 1
           volumeMounts:
-            - name: tmp
-              mountPath: /tmp
             - name: config
               mountPath: /etc/loki/config
             - name: runtime-config
               mountPath: /etc/loki/runtime-config
             - name: storage
               mountPath: /var/loki
+            - name: temp
+              mountPath: /tmp
             - name: sc-rules-volume
               mountPath: "/rules"
           resources:
@@ -96,8 +143,38 @@ spec:
               cpu: 100m
               memory: 800Mi
         - name: loki-sc-rules
-          image: docker.io/kiwigrid/k8s-sidecar:2.5.0
+          image: docker.io/kiwigrid/k8s-sidecar:2.7.1
           imagePullPolicy: IfNotPresent
+          ports:
+            - name: http-sidecar
+              containerPort: 8080
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: http-sidecar
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 1
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: http-sidecar
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
           env:
             - name: METHOD
               value: WATCH
@@ -113,40 +190,13 @@ spec:
               value: "60"
             - name: LOG_LEVEL
               value: "INFO"
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            readOnlyRootFilesystem: true
+            - name: HEALTH_PORT
+              value: "8080"
           volumeMounts:
-            - name: tmp
+            - name: sc-rules-temp
               mountPath: /tmp
             - name: sc-rules-volume
               mountPath: "/rules"
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  app.kubernetes.io/component: single-binary
-                  app.kubernetes.io/instance: 'loki'
-                  app.kubernetes.io/name: 'loki'
-              topologyKey: kubernetes.io/hostname
-      volumes:
-        - name: tmp
-          emptyDir: {}
-        - name: config
-          configMap:
-            name: loki
-            items:
-              - key: "config.yaml"
-                path: "config.yaml"
-        - name: runtime-config
-          configMap:
-            name: loki-runtime
-        - name: sc-rules-volume
-          emptyDir: {}
   volumeClaimTemplates:
     - apiVersion: v1
       kind: PersistentVolumeClaim
