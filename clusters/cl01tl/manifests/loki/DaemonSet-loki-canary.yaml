@@ -4,10 +4,10 @@ metadata:
   name: loki-canary
   namespace: loki
   labels:
-    helm.sh/chart: loki-6.55.0
+    helm.sh/chart: loki-13.5.0
     app.kubernetes.io/name: loki
     app.kubernetes.io/instance: loki
-    app.kubernetes.io/version: "3.6.7"
+    app.kubernetes.io/version: "3.7.1"
     app.kubernetes.io/component: canary
 spec:
   selector:
@@ -21,34 +21,39 @@ spec:
     type: RollingUpdate
   template:
     metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: "canary"
       labels:
+        helm.sh/chart: loki-13.5.0
         app.kubernetes.io/name: loki
         app.kubernetes.io/instance: loki
+        app.kubernetes.io/version: "3.7.1"
         app.kubernetes.io/component: canary
     spec:
       serviceAccountName: loki-canary
+      enableServiceLinks: true
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 10001
         fsGroupChangePolicy: OnRootMismatch
         runAsGroup: 10001
         runAsNonRoot: true
         runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: temp
+          emptyDir: {}
       containers:
-        - name: loki-canary
-          image: docker.io/grafana/loki-canary:3.6.7
+        - name: canary
+          image: docker.io/grafana/loki-canary:3.7.1
           imagePullPolicy: IfNotPresent
           args:
             - -addr=loki-gateway.loki.svc.cluster.local.:80
             - -labelname=pod
             - -labelvalue=$(POD_NAME)
             - -push=true
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            readOnlyRootFilesystem: true
-          volumeMounts:
           ports:
             - name: http-metrics
               containerPort: 3500
@@ -58,10 +63,32 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: GOGC
+              value: "80"
+            - name: HASH_RING_INSTANCE_ADDR
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: http-metrics
+            initialDelaySeconds: 15
+            timeoutSeconds: 1
           readinessProbe:
             httpGet:
               path: /metrics
               port: http-metrics
             initialDelaySeconds: 15
             timeoutSeconds: 1
-      volumes:
+          volumeMounts:
+            - name: temp
+              mountPath: /tmp

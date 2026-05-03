@@ -3,10 +3,10 @@ kind: StatefulSet
 metadata:
   name: loki-chunks-cache
   labels:
-    helm.sh/chart: loki-6.55.0
+    helm.sh/chart: loki-13.5.0
     app.kubernetes.io/name: loki
     app.kubernetes.io/instance: loki
-    app.kubernetes.io/version: "3.6.7"
+    app.kubernetes.io/version: "3.7.1"
     app.kubernetes.io/component: "memcached-chunks-cache"
     name: "memcached-chunks-cache"
   annotations: {}
@@ -32,12 +32,14 @@ spec:
         name: "memcached-chunks-cache"
       annotations:
     spec:
-      serviceAccountName: loki
+      serviceAccountName: loki-memcached
       securityContext:
         fsGroup: 11211
         runAsGroup: 11211
         runAsNonRoot: true
         runAsUser: 11211
+        seccompProfile:
+          type: RuntimeDefault
       initContainers: []
       nodeSelector: {}
       affinity: {}
@@ -46,7 +48,7 @@ spec:
       terminationGracePeriodSeconds: 60
       containers:
         - name: memcached
-          image: memcached:1.6.39-alpine
+          image: memcached:1.6.41-alpine
           imagePullPolicy: IfNotPresent
           resources:
             limits:
@@ -72,6 +74,9 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           readinessProbe:
             failureThreshold: 6
             initialDelaySeconds: 5
@@ -87,7 +92,7 @@ spec:
               port: client
             timeoutSeconds: 5
         - name: exporter
-          image: prom/memcached-exporter:v0.15.4
+          image: prom/memcached-exporter:v0.16.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9150
@@ -104,6 +109,9 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           readinessProbe:
             failureThreshold: 3
             httpGet:
