@@ -37,6 +37,46 @@ s3-exporter:
             requests:
               cpu: 1m
               memory: 40Mi
+    backblaze:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: molu8bits/s3bucket_exporter
+            tag: 1.0.2@sha256:75fc839c5f12cdbf20babab534959c96356b4483743e730409132bbda6944505
+          env:
+            - name: S3_NAME
+              value: backblaze
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: backblaze-s3-exporter-credentials
+                  key: ENDPOINT
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: backblaze-s3-exporter-credentials
+                  key: AWS_ACCESS_KEY_ID
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: backblaze-s3-exporter-credentials
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: backblaze-s3-exporter-credentials
+                  key: AWS_REGION
+            - name: LOG_LEVEL
+              value: info
+            - name: S3_FORCE_PATH_STYLE
+              value: false
+          resources:
+            requests:
+              cpu: 1m
+              memory: 40Mi
     garage-local:
       type: deployment
       replicas: 1
@@ -118,6 +158,12 @@ s3-exporter:
         metrics:
           port: 9655
           targetPort: 9655
+    backblaze:
+      controller: backblaze
+      ports:
+        metrics:
+          port: 9655
+          targetPort: 9655
     garage-local:
       controller: garage-local
       ports:
@@ -142,6 +188,18 @@ s3-exporter:
         - port: metrics
           interval: 5m
           scrapeTimeout: 2m
+          path: /metrics
+    backblaze:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: s3-exporter
+          app.kubernetes.io/instance: s3-exporter
+          app.kubernetes.io/service: s3-exporter-backblaze
+      serviceName: s3-exporter-backblaze
+      endpoints:
+        - port: metrics
+          interval: 12h
+          scrapeTimeout: 5m
           path: /metrics
     garage-local:
       selector:
