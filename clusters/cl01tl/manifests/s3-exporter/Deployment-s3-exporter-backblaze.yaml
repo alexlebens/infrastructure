@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s3-exporter-backblaze
+  labels:
+    app.kubernetes.io/controller: backblaze
+    app.kubernetes.io/instance: s3-exporter
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: s3-exporter
+    helm.sh/chart: s3-exporter-5.0.0
+  namespace: s3-exporter
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: backblaze
+      app.kubernetes.io/name: s3-exporter
+      app.kubernetes.io/instance: s3-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: backblaze
+        app.kubernetes.io/instance: s3-exporter
+        app.kubernetes.io/name: s3-exporter
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: s3-exporter
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: S3_NAME
+              value: backblaze
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  key: ENDPOINT
+                  name: backblaze-s3-exporter-credentials
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_ACCESS_KEY_ID
+                  name: backblaze-s3-exporter-credentials
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_SECRET_ACCESS_KEY
+                  name: backblaze-s3-exporter-credentials
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_REGION
+                  name: backblaze-s3-exporter-credentials
+            - name: LOG_LEVEL
+              value: info
+            - name: S3_FORCE_PATH_STYLE
+              value: "false"
+          image: molu8bits/s3bucket_exporter:1.0.2@sha256:75fc839c5f12cdbf20babab534959c96356b4483743e730409132bbda6944505
+          name: main
+          resources:
+            requests:
+              cpu: 1m
+              memory: 40Mi
