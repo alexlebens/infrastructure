@@ -1,21 +1,21 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: rclone-web-assets-rclone
+  name: directus-directus-assets-remote-rclone
   labels:
     app.kubernetes.io/controller: main
-    app.kubernetes.io/instance: rclone
+    app.kubernetes.io/instance: directus
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: web-assets-rclone
+    app.kubernetes.io/name: directus-assets-remote-rclone
     app.kubernetes.io/version: v1.74.0
-    helm.sh/chart: rclone-web-assets-remote-0.7.0
-  namespace: rclone
+    helm.sh/chart: rclone-directus-assets-remote-0.7.0
+  namespace: directus
 spec:
   suspend: false
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 30
   timeZone: America/Chicago
-  schedule: "30 0 * * *"
+  schedule: "30 6 * * 2"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
@@ -26,11 +26,11 @@ spec:
         metadata:
           labels:
             app.kubernetes.io/controller: main
-            app.kubernetes.io/instance: rclone
-            app.kubernetes.io/name: web-assets-rclone
+            app.kubernetes.io/instance: directus
+            app.kubernetes.io/name: directus-assets-remote-rclone
         spec:
           enableServiceLinks: false
-          serviceAccountName: default
+          serviceAccountName: directus
           automountServiceAccountToken: true
           hostIPC: false
           hostNetwork: false
@@ -40,8 +40,8 @@ spec:
           containers:
             - args:
                 - sync
-                - src:web-assets
-                - dest:web-assets
+                - src:directus-assets
+                - dest:directus-assets
                 - --s3-no-check-bucket
                 - --verbose
               env:
@@ -57,22 +57,22 @@ spec:
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_KEY_ID
-                      name: web-assets-rclone-source-config
+                      name: directus-assets-rclone-source-config
                 - name: RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_SECRET_KEY
-                      name: web-assets-rclone-source-config
+                      name: directus-assets-rclone-source-config
                 - name: RCLONE_CONFIG_SRC_REGION
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_REGION
-                      name: web-assets-rclone-source-config
+                      name: directus-assets-rclone-source-config
                 - name: RCLONE_CONFIG_SRC_ENDPOINT
                   valueFrom:
                     secretKeyRef:
                       key: SRC_ENDPOINT
-                      name: web-assets-rclone-source-config
+                      name: directus-assets-rclone-source-config
                 - name: RCLONE_CONFIG_SRC_FORCE_PATH_STYLE
                   value: "true"
                 - name: RCLONE_CONFIG_DEST_TYPE
@@ -85,22 +85,22 @@ spec:
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_KEY_ID
-                      name: web-assets-rclone-destination-config
+                      name: directus-assets-rclone-destination-config
                 - name: RCLONE_CONFIG_DEST_SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_SECRET_KEY
-                      name: web-assets-rclone-destination-config
+                      name: directus-assets-rclone-destination-config
                 - name: RCLONE_CONFIG_DEST_REGION
                   valueFrom:
                     secretKeyRef:
                       key: ACCESS_REGION
-                      name: web-assets-rclone-destination-config
+                      name: directus-assets-rclone-destination-config
                 - name: RCLONE_CONFIG_DEST_ENDPOINT
                   valueFrom:
                     secretKeyRef:
                       key: DEST_ENDPOINT
-                      name: web-assets-rclone-destination-config
+                      name: directus-assets-rclone-destination-config
                 - name: RCLONE_CONFIG_DEST_FORCE_PATH_STYLE
                   value: "true"
               image: rclone/rclone:1.74.0@sha256:d2e0e88359d0b2e67cfcd2c43d5405185eb8adfc207079df27c42da82c5207bc
