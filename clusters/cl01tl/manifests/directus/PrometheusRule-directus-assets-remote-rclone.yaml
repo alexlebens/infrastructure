@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: directus-assets-remote-rclone
+  namespace: directus
+  labels:
+    helm.sh/chart: rclone-directus-assets-remote-0.11.0
+    app.kubernetes.io/instance: directus
+    app.kubernetes.io/part-of: directus
+    app.kubernetes.io/version: "0.11.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: directus-assets-remote-rclone
+spec:
+  groups:
+    - name: rclone.alerts
+      rules:
+        - alert: RclonePodFailed
+          expr: |
+            (kube_pod_container_status_last_terminated_exitcode > 0)
+            * on(pod, namespace) group_left(owner_name)
+            kube_pod_owner{owner_kind="Job", owner_name=~"rclone-.*"}
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Rclone Pod failed in {{ $labels.namespace }}"
+            description: |
+              A pod for the Rclone sync of s3 bucket 'directus-assets' failed with exit code {{ $value }}.
+              Job: {{ $labels.owner_name }}
+              Namespace: {{ $labels.namespace }}
