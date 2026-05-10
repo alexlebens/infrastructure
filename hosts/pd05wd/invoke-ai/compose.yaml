@@ -1,29 +1,31 @@
----
 services:
-    tailscale-ollama:
+    tailscale-invoke-ai:
         image: ghcr.io/tailscale/tailscale:latest
-        container_name: tailscale-ollama
+        container_name: tailscale-invoke-ai
         cap_add:
             - net_admin
             - sys_module
         environment:
             - TS_STATE_DIR=/var/lib/tailscale
             - TS_ENABLE_METRICS=true
-            - TS_HOSTNAME=ollama-pd05wd
+            - TS_HOSTNAME=invoke-ai-pd05wd
+            - TS_SERVE_CONFIG=/config/serve.json
         env_file:
             - .ts-env
-        network_mode: service:ollama
+        network_mode: service:invoke-ai
         restart: always
         volumes:
             - tailscale:/var/lib/tailscale
+            - ./serve.json:/config/serve.json
         devices:
             - /dev/net/tun:/dev/net/tun
 
-    ollama:
-        image: ollama/ollama:latest
-        container_name: ollama
+    invoke-ai:
+        image: ghcr.io/invoke-ai/invokeai:main-cuda
+        container_name: stable-diffusion
         environment:
-            - OLLAMA_KEEP_ALIVE=24h
+            - INVOKEAI_ROOT=~/invokeai
+            - INVOKEAI_DEVICE=cuda
         restart: always
         deploy:
             resources:
@@ -33,8 +35,7 @@ services:
                           capabilities: ["gpu"]
                           count: all
         volumes:
-            - ollama:/root/.ollama
+            - ./invokeai:/invokeai
 
 volumes:
     tailscale:
-    ollama:
