@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radarr-4k
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: radarr-4k
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: radarr-4k
+    helm.sh/chart: radarr-4k-5.0.0
+  namespace: radarr-4k
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: radarr-4k
+      app.kubernetes.io/instance: radarr-4k
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: radarr-4k
+        app.kubernetes.io/name: radarr-4k
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: radarr-4k
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsUser: 1000
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+          image: ghcr.io/linuxserver/radarr:6.1.1.10360-ls302@sha256:15417a594ebda4c660a9fa9748e7199d33e2d17b31bbc5ad7ba2e86f0b414763
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 220Mi
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /mnt/store
+              name: media
+        - args:
+            - radarr
+          env:
+            - name: URL
+              value: http://localhost
+            - name: CONFIG
+              value: /config/config.xml
+            - name: PORT
+              value: "9793"
+            - name: ENABLE_ADDITIONAL_METRICS
+              value: "false"
+            - name: ENABLE_UNKNOWN_QUEUE_ITEMS
+              value: "false"
+          image: ghcr.io/onedr0p/exportarr:v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
+          name: metrics
+          volumeMounts:
+            - mountPath: /config
+              name: config
+              readOnly: true
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: radarr-4k-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: radarr-4k-nfs-storage
