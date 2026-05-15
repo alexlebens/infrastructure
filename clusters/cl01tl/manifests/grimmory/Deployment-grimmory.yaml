@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/instance: grimmory
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: grimmory
-    helm.sh/chart: grimmory-5.0.0
+    helm.sh/chart: grimmory-5.0.1
   namespace: grimmory
 spec:
   revisionHistoryLimit: 3
@@ -57,12 +57,33 @@ spec:
               value: "6060"
             - name: SWAGGER_ENABLED
               value: "false"
-          image: ghcr.io/grimmory-tools/grimmory:v3.0.3@sha256:a903a2b44c308bd1738b6f7cdb5a2e5a2a1ae23a092f30eb68581e2be1af50cd
+          image: ghcr.io/grimmory-tools/grimmory:v3.1.0@sha256:c83dcb59975c9a680ecdf84d60e7e5c9b05200818bab8794f4d84a7e008a549a
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /api/v1/healthcheck
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
           name: main
+          readinessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /api/v1/healthcheck
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 10m
               memory: 1Gi
+          startupProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /api/v1/healthcheck
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
           volumeMounts:
             - mountPath: /bookdrop
               name: books-import
