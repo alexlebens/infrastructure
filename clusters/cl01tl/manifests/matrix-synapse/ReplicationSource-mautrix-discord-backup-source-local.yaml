@@ -1,0 +1,32 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: mautrix-discord-backup-source-local
+  namespace: matrix-synapse
+  labels:
+    helm.sh/chart: volsync-target-discord-2.0.0
+    app.kubernetes.io/instance: matrix-synapse
+    app.kubernetes.io/part-of: matrix-synapse
+    app.kubernetes.io/version: "2.0.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mautrix-discord-backup-source-local
+spec:
+  sourcePVC: mautrix-discord
+  trigger:
+    schedule: 40 8 * * *
+  restic:
+    pruneIntervalDays: 7
+    repository: mautrix-discord-backup-secret-local
+    retain:
+      daily: 7
+      hourly: 0
+      monthly: 0
+      weekly: 4
+      yearly: 0
+    moverSecurityContext:
+      runAsGroup: 1337
+      runAsUser: 1337
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
+    cacheCapacity: 1Gi
