@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mautrix-discord
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: matrix-synapse
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mautrix-discord
+    helm.sh/chart: mautrix-discord-5.0.1
+  namespace: matrix-synapse
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: mautrix-discord
+      app.kubernetes.io/instance: matrix-synapse
+  serviceName: mautrix-discord
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: matrix-synapse
+        app.kubernetes.io/name: mautrix-discord
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: matrix-synapse
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - image: dock.mau.dev/mautrix/discord:v0.7.6@sha256:e4946b0df6a2786c88ed490e0d2692e352f1b79b9ff0e821a33764bd8bd1fffd
+          name: main
+          resources:
+            requests:
+              cpu: 1m
+              memory: 40Mi
+          volumeMounts:
+            - mountPath: /data
+              name: data
+      volumes:
+        - csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: mautrix-discord-config
+          name: config
+        - name: data
+          persistentVolumeClaim:
+            claimName: mautrix-discord
