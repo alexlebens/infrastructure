@@ -47,6 +47,63 @@ spec:
                       - slskd
               topologyKey: kubernetes.io/hostname
       initContainers:
+        - env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: private-key
+                  name: protonvpn-wireguard-conf
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 127.0.0.0/8,192.168.1.0/24,10.244.0.0/16,10.96.0.0/12
+            - name: FIREWALL_INPUT_PORTS
+              value: 8080,9022
+            - name: VPN_PORT_FORWARDING
+              value: "on"
+            - name: VPN_PORT_FORWARDING_UP_COMMAND
+              value: /bin/sh -c "/gluetun/update.sh {{PORT}}"
+            - name: PORT_FORWARD_ONLY
+              value: "on"
+            - name: BLOCK_MALICIOUS
+              value: "off"
+          image: ghcr.io/qdm12/gluetun:latest@sha256:725d3e51091dde4ca43e3e3f26e2e6d3d0ccc66821e92d505c3da04958f7d472
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - (ip rule del table 51820; ip -6 rule del table 51820) || true
+          name: gluetun
+          readinessProbe:
+            exec:
+              command:
+                - /gluetun-entrypoint
+                - healthcheck
+            failureThreshold: 5
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 15
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              devic.es/tun: "1"
+          restartPolicy: Always
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+            privileged: true
+          volumeMounts:
+            - mountPath: /gluetun/update.sh
+              name: update-script
+              subPath: update.sh
         - args:
             - -ec
             - |
@@ -70,62 +127,6 @@ spec:
               value: INFO
           image: esanchezm/prometheus-qbittorrent-exporter:v1.6.0@sha256:482df65e7f39f2c0a65f32693e6d5f930edf7b244589a60e446ccc5ee6d17211
           name: exporter
-        - env:
-            - name: VPN_SERVICE_PROVIDER
-              value: protonvpn
-            - name: VPN_TYPE
-              value: wireguard
-            - name: WIREGUARD_PRIVATE_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: private-key
-                  name: protonvpn-wireguard-conf
-            - name: FIREWALL_OUTBOUND_SUBNETS
-              value: 192.168.1.0/24,10.244.0.0/16,10.96.0.0/12
-            - name: FIREWALL_INPUT_PORTS
-              value: 8080,9022
-            - name: VPN_PORT_FORWARDING
-              value: "on"
-            - name: VPN_PORT_FORWARDING_UP_COMMAND
-              value: /bin/sh -c "/gluetun/update.sh {{PORT}}"
-            - name: PORT_FORWARD_ONLY
-              value: "on"
-            - name: BLOCK_MALICIOUS
-              value: "off"
-          image: ghcr.io/qdm12/gluetun:latest@sha256:725d3e51091dde4ca43e3e3f26e2e6d3d0ccc66821e92d505c3da04958f7d472
-          lifecycle:
-            postStart:
-              exec:
-                command:
-                  - /bin/sh
-                  - -c
-                  - (ip rule del table 51820; ip -6 rule del table 51820) || true
-          livenessProbe:
-            exec:
-              command:
-                - /gluetun-entrypoint
-                - healthcheck
-            failureThreshold: 5
-            initialDelaySeconds: 30
-            periodSeconds: 30
-            successThreshold: 1
-            timeoutSeconds: 15
-          name: gluetun
-          resources:
-            limits:
-              devic.es/tun: "1"
-            requests:
-              devic.es/tun: "1"
-          securityContext:
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_MODULE
-            privileged: true
-          volumeMounts:
-            - mountPath: /gluetun/update.sh
-              name: update-script
-              subPath: update.sh
         - env:
             - name: TZ
               value: America/Chicago
