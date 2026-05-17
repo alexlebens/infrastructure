@@ -9,6 +9,57 @@ tubearchivist:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        gluetun:
+          restartPolicy: Always
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.41.1@sha256:1a5bf4b4820a879cdf8d93d7ef0d2d963af56670c9ebff8981860b6804ebc8ab
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "(ip rule del table 51820; ip -6 rule del table 51820) || true"]
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: protonvpn-wireguard-conf
+                  key: private-key
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 127.0.0.0/8,192.168.1.0/24,10.244.0.0/16,10.96.0.0/12
+            - name: FIREWALL_INPUT_PORTS
+              value: "24000"
+            - name: DNS_CACHING
+              value: "off"
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
+          probes:
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /gluetun-entrypoint
+                    - healthcheck
+                failureThreshold: 5
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 5
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              devic.es/tun: "1"
       containers:
         main:
           image:
@@ -41,10 +92,11 @@ tubearchivist:
               enabled: true
               custom: true
               spec:
-                httpGet:
-                  path: /api/health/
-                  port: 24000
-                  scheme: HTTPS
+                exec:
+                  command:
+                    - curl
+                    - -f
+                    - http://localhost:24000/api/health/
                 failureThreshold: 5
                 initialDelaySeconds: 30
                 periodSeconds: 30
@@ -58,55 +110,6 @@ tubearchivist:
           image:
             repository: brainicism/bgutil-ytdlp-pot-provider
             tag: 1.3.1@sha256:1aaa43a0ca72dfca6a6d2129a0fb4a23465c25adb1b043f8aff829a20825646b
-        gluetun:
-          image:
-            repository: ghcr.io/qdm12/gluetun
-            tag: v3.41.1@sha256:1a5bf4b4820a879cdf8d93d7ef0d2d963af56670c9ebff8981860b6804ebc8ab
-          lifecycle:
-            postStart:
-              exec:
-                command: ["/bin/sh", "-c", "(ip rule del table 51820; ip -6 rule del table 51820) || true"]
-          env:
-            - name: VPN_SERVICE_PROVIDER
-              value: protonvpn
-            - name: VPN_TYPE
-              value: wireguard
-            - name: WIREGUARD_PRIVATE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: protonvpn-wireguard-conf
-                  key: private-key
-            - name: FIREWALL_OUTBOUND_SUBNETS
-              value: 192.168.1.0/24,10.244.0.0/16,10.96.0.0/12
-            - name: FIREWALL_INPUT_PORTS
-              value: 24000
-            - name: DNS_CACHING
-              value: off
-          securityContext:
-            privileged: True
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_MODULE
-          probes:
-            liveness:
-              enabled: true
-              custom: true
-              spec:
-                exec:
-                  command:
-                    - /gluetun-entrypoint
-                    - healthcheck
-                failureThreshold: 5
-                initialDelaySeconds: 30
-                periodSeconds: 30
-                successThreshold: 1
-                timeoutSeconds: 15
-          resources:
-            limits:
-              devic.es/tun: "1"
-            requests:
-              devic.es/tun: "1"
     metrics:
       type: deployment
       replicas: 1
