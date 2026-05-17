@@ -26,7 +26,7 @@ tubearchivist:
             - name: ES_DISABLE_VERIFY_SSL
               value: true
             - name: REDIS_CON
-              value: redis://tubearchivist-valkey.tubearchivist:6379
+              value: redis://tubearchivist-valkey.tubearchivist.svc.cluster.local:6379
             - name: TA_HOST
               value: https://tubearchivist.alexlebens.net http://tubearchivist.tubearchivist:80/
             - name: TA_PORT
@@ -36,6 +36,19 @@ tubearchivist:
           envFrom:
             - secretRef:
                 name: tubearchivist-config
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health/
+                  port: 24000
+                failureThreshold: 5
+                initialDelaySeconds: 30
+                periodSeconds: 30
+                successThreshold: 1
+                timeoutSeconds: 15
           resources:
             requests:
               cpu: 10m
@@ -63,15 +76,11 @@ tubearchivist:
                   name: protonvpn-wireguard-conf
                   key: private-key
             - name: FIREWALL_OUTBOUND_SUBNETS
-              value: 192.168.1.0/24,10.0.0.0/8
+              value: 192.168.1.0/24,10.244.0.0/16,10.96.0.0/12
             - name: FIREWALL_INPUT_PORTS
-              value: 80,8000,24000
-            - name: DNS_UPSTREAM_RESOLVER_TYPE
-              value: dot
-            - name: HTTPPROXY
-              value: "off"
-            - name: SHADOWSOCKS
-              value: "off"
+              value: 24000
+            - name: DNS_CACHING
+              value: off
           securityContext:
             privileged: True
             capabilities:
