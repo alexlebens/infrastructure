@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea-valkey-renovate
+  labels:
+    helm.sh/chart: valkey-0.9.4
+    app.kubernetes.io/name: valkey-renovate
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "9.0.4"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey-renovate
+      app.kubernetes.io/instance: gitea
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey-renovate
+        app.kubernetes.io/instance: gitea
+      annotations:
+        checksum/initconfig: ec5d1c08a6657961bb2582aeddf9f127
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: gitea-valkey-renovate
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: gitea-valkey-renovate-init
+          image: docker.io/valkey/valkey:9.0.4@sha256:8436e10bc65c94886a91d4415b6a6dfa9cb5a306fb3b996e5bb67cd2b4854193
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          command: ["/scripts/init.sh"]
+          volumeMounts:
+            - name: valkey-data
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+      containers:
+        - name: gitea-valkey-renovate
+          image: docker.io/valkey/valkey:9.0.4@sha256:8436e10bc65c94886a91d4415b6a6dfa9cb5a306fb3b996e5bb67cd2b4854193
+          imagePullPolicy: IfNotPresent
+          command: ["valkey-server"]
+          args: ["/data/conf/valkey.conf"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          env:
+            - name: VALKEY_LOGLEVEL
+              value: "notice"
+          ports:
+            - name: tcp
+              containerPort: 6379
+              protocol: TCP
+          startupProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli ping"]
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "valkey-cli ping"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          volumeMounts:
+            - name: valkey-data
+              mountPath: /data
+        - name: metrics
+          image: ghcr.io/oliver006/redis_exporter:v1.83.0@sha256:e8c209894d4c0cc55b1259ddd47e0b769ad1ff864b356736ee885462a3b0e48c
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - name: metrics
+              containerPort: 9121
+          startupProbe:
+            tcpSocket:
+              port: metrics
+          livenessProbe:
+            tcpSocket:
+              port: metrics
+          readinessProbe:
+            httpGet:
+              path: /
+              port: metrics
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10M
+          env:
+            - name: REDIS_ALIAS
+              value: gitea-valkey-renovate
+      volumes:
+        - name: scripts
+          configMap:
+            name: gitea-valkey-renovate-init-scripts
+            defaultMode: 0555
+        - name: valkey-data
+          persistentVolumeClaim:
+            claimName: gitea-valkey-renovate
