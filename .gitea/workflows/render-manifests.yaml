@@ -250,6 +250,8 @@ jobs:
 
           echo ">> Rendering Manifests ..."
 
+          EXIT_CODE=0
+
           render_chart() {
             local DIR="$1"
             local CHART_PATH="${MAIN_DIR}/clusters/${CLUSTER}/helm/${DIR}"
@@ -283,10 +285,17 @@ jobs:
 
               echo ">> Formating rendered template ..."
               local TEMPLATE
-              TEMPLATE=$(helm template "${CHART_NAME}" ./ --namespace "${NAMESPACE}" --include-crds --dry-run=server --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor")
+              if ! TEMPLATE=$(helm template "${CHART_NAME}" ./ --namespace "${NAMESPACE}" --include-crds --dry-run=server --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor"); then
+                echo "${DIR}" > "${MAIN_DIR}/.failed_chart_${DIR}"
+                return 1
+              fi
 
               # Format and split rendered template
-              echo "${TEMPLATE}" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${OUTPUT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
+              set -o pipefail
+              if ! echo "${TEMPLATE}" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${OUTPUT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'; then
+                echo "${DIR}" > "${MAIN_DIR}/.failed_chart_${DIR}"
+                return 1
+              fi
 
               # Strip comments again to ensure formatting correctness
               for file in "$OUTPUT_FOLDER"/*; do
@@ -316,8 +325,15 @@ jobs:
 
           done | xargs -P 5 -I {} bash -c 'OUT=$(render_chart "$@" 2>&1); printf "%s\n" "$OUT"' _ {}
 
+          if ls .failed_chart_* 1> /dev/null 2>&1; then
+            EXIT_CODE=1
+            rm -f .failed_chart_*
+          fi
+
           echo ""
           echo "----"
+
+          exit $EXIT_CODE
 
       - name: Check for Changes
         id: check-changes
