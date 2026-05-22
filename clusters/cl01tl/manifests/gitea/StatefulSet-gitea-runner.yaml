@@ -2,30 +2,30 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   labels:
-    helm.sh/chart: gitea-actions-0.1.0
-    app: gitea-actions-act-runner
-    app.kubernetes.io/name: gitea-actions-act-runner
+    helm.sh/chart: gitea-actions-0.1.1
+    app: gitea-actions-runner
+    app.kubernetes.io/name: gitea-actions-runner
     app.kubernetes.io/instance: gitea
     app.kubernetes.io/version: "0.261.3"
     version: "0.261.3"
     app.kubernetes.io/managed-by: Helm
   annotations:
-  name: gitea-gitea-actions-act-runner
+  name: gitea-runner
   namespace: gitea
 spec:
   replicas: 6
   selector:
     matchLabels:
-      app.kubernetes.io/name: gitea-actions-act-runner
+      app.kubernetes.io/name: gitea-actions-runner
       app.kubernetes.io/instance: gitea
   template:
     metadata:
       annotations:
-        checksum/config: 6a9d82ad20f62c2e827a0639a2122bcb195c331a21688599f9fa9bbfd96be37a
+        checksum/config: c48ffba9541a7a3af955e8677993bd31a869aac881190616a4015a18b225af39
       labels:
-        helm.sh/chart: gitea-actions-0.1.0
-        app: gitea-actions-act-runner
-        app.kubernetes.io/name: gitea-actions-act-runner
+        helm.sh/chart: gitea-actions-0.1.1
+        app: gitea-actions-runner
+        app.kubernetes.io/name: gitea-actions-runner
         app.kubernetes.io/instance: gitea
         app.kubernetes.io/version: "0.261.3"
         version: "0.261.3"
@@ -74,8 +74,8 @@ spec:
             - mountPath: /var/lib/docker
               name: docker-vol
       containers:
-        - name: act-runner
-          image: "docker.io/gitea/act_runner:0.6.1@sha256:b5c35d6bdbb9bb25e531230bfc7cc663cb751406cbec90a2a891b85fea54de86"
+        - name: runner
+          image: "docker.gitea.com/runner:1.0.4"
           imagePullPolicy: IfNotPresent
           workingDir: /data
           env:
@@ -87,7 +87,7 @@ spec:
             - name: GITEA_INSTANCE_URL
               value: http://gitea-http.gitea:3000
             - name: CONFIG_FILE
-              value: /actrunner/config.yaml
+              value: /runner/config.yaml
             - name: TZ
               value: America/Chicago
           resources:
@@ -96,16 +96,14 @@ spec:
             requests:
               ephemeral-storage: 2Gi
           volumeMounts:
-            - mountPath: /actrunner/config.yaml
-              name: act-runner-config
+            - mountPath: /runner/config.yaml
+              name: runner-config
               subPath: config.yaml
             - mountPath: /var/run/docker.sock
               name: docker-socket
               subPath: docker.sock
             - mountPath: /data
-              name: data-act-runner
-            - mountPath: /workspace
-              name: workspace-vol
+              name: data-runner
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -119,9 +117,9 @@ spec:
                 topologyKey: kubernetes.io/hostname
               weight: 100
       volumes:
-        - name: act-runner-config
+        - name: runner-config
           configMap:
-            name: gitea-gitea-actions-act-runner-config
+            name: gitea-runner-configmap
         - name: docker-socket
           emptyDir: {}
         - ephemeral:
@@ -146,7 +144,7 @@ spec:
           name: docker-vol
   volumeClaimTemplates:
     - metadata:
-        name: data-act-runner
+        name: data-runner
       spec:
         accessModes: ["ReadWriteOnce"]
         resources:
