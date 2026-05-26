@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kube-prometheus-stack-prometheus-blackbox-exporter
+  labels:
+    helm.sh/chart: prometheus-blackbox-exporter-11.10.0
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/version: "v0.28.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  groups:
+    - name: prometheus-blackbox-exporter
+      rules:
+        - alert: EndpointDown
+          annotations:
+            description: Failed to probe {{ $labels.instance }} for more than 30 seconds.
+            summary: Endpoint {{ $labels.instance }} is down
+          expr: probe_success == 0
+          for: 60s
+          labels:
+            severity: critical

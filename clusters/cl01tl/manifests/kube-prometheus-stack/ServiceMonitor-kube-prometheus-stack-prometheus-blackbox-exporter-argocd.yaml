@@ -1,0 +1,43 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-prometheus-stack-prometheus-blackbox-exporter-argocd
+  namespace: kube-prometheus-stack
+  labels:
+    helm.sh/chart: prometheus-blackbox-exporter-11.10.0
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/version: "v0.28.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  endpoints:
+    - port: http
+      scheme: http
+      path: /probe
+      interval: 30s
+      scrapeTimeout: 10s
+      honorTimestamps: true
+      params:
+        module:
+          - http_2xx
+        target:
+          - http://argocd.alexlebens.net/
+        hostname:
+          - argocd.alexlebens.net
+      metricRelabelings:
+        - sourceLabels: [instance]
+          targetLabel: instance
+          replacement: http://argocd.alexlebens.net/
+          action: replace
+        - sourceLabels: [target]
+          targetLabel: target
+          replacement: argocd
+          action: replace
+  jobLabel: "kube-prometheus-stack"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-blackbox-exporter
+      app.kubernetes.io/instance: kube-prometheus-stack
+  namespaceSelector:
+    matchNames:
+      - kube-prometheus-stack

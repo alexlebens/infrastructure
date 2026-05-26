@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-prometheus-stack-prometheus-blackbox-exporter
+  namespace: kube-prometheus-stack
+  labels:
+    helm.sh/chart: prometheus-blackbox-exporter-11.10.0
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/version: "v0.28.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-blackbox-exporter
+      app.kubernetes.io/instance: kube-prometheus-stack
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: prometheus-blackbox-exporter-11.10.0
+        app.kubernetes.io/name: prometheus-blackbox-exporter
+        app.kubernetes.io/instance: kube-prometheus-stack
+        app.kubernetes.io/version: "v0.28.0"
+        app.kubernetes.io/managed-by: Helm
+      annotations:
+        checksum/config: f43e733459690a84886aec93596a01748c2f936776a534eeaeb9f084e62ebb91
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: kube-prometheus-stack-prometheus-blackbox-exporter
+      restartPolicy: Always
+      containers:
+        - name: blackbox-exporter
+          image: quay.io/prometheus/blackbox-exporter:v0.28.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          args:
+            - "--config.file=/config/blackbox.yaml"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 50Mi
+          ports:
+            - containerPort: 9115
+              name: http
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /-/healthy
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+          volumeMounts:
+            - mountPath: /config
+              name: config
+      hostNetwork: false
+      volumes:
+        - name: config
+          secret:
+            secretName: blackbox-exporter-config
