@@ -228,6 +228,78 @@ gitea-actions:
   existingSecret: gitea-runner-secret
   existingSecretKey: token
   giteaRootURL: http://gitea-http.gitea:3000
+anubis:
+  global:
+    nameOverride: anubis
+    fullnameOverride: anubis
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          image:
+            repository: ghcr.io/techarohq/anubis
+            tag: v1.25.0@sha256:5cf4c0d6c7ea01a356c6685a779971bdd28d6a5a4a6719201f73a9c4ae108db0
+          env:
+            - name: BIND
+              value: :8080
+            - name: DIFFICULTY
+              value: 4
+            - name: ED25519_PRIVATE_KEY_HEX
+              valueFrom:
+                secretKeyRef:
+                  name: anubis-private-key
+                  key: ED25519_PRIVATE_KEY_HEX
+            - name: METRICS_BIND
+              value: :9090
+            - name: SERVE_ROBOTS_TXT
+              value: true
+            - name: TARGET
+              value: http://gitea-http.gitea:3000
+            - name: OG_PASSTHROUGH
+              value: true
+            - name: OG_EXPIRY_TIME
+              value: 24h
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 8080
+        metrics:
+          port: 9090
+          targetPort: 9090
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: anubis
+          app.kubernetes.io/instance: anubis
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          interval: 30s
+          scrapeTimeout: 15s
+          path: /metrics
 meilisearch:
   environment:
     MEILI_NO_ANALYTICS: true
