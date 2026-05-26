@@ -113,6 +113,40 @@ kube-prometheus-stack:
             resources:
               requests:
                 storage: 500Gi
+prometheus-blackbox-exporter:
+  revisionHistoryLimit: 3
+  image:
+    registry: quay.io
+    repository: prometheus/blackbox-exporter
+    tag: v0.28.0
+  resources:
+    requests:
+      cpu: 1m
+      memory: 50Mi
+  replicas: 3
+  configExistingSecretName: blackbox-exporter-config
+  serviceMonitor:
+    selfMonitor:
+      enabled: true
+    enabled: true
+    targets:
+      - name: argocd
+        url: http://argocd.alexlebens.net/
+        hostname: argocd.alexlebens.net
+        interval: 30s
+        scrapeTimeout: 10s
+        module: http_2xx
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: EndpointDown
+        expr: probe_success == 0
+        for: 60s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Endpoint {{ $labels.instance }} is down"
+          description: "Failed to probe {{ $labels.instance }} for more than 30 seconds."
 ntfy-alertmanager:
   global:
     fullnameOverride: ntfy-alertmanager
