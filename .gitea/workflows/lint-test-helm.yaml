@@ -76,6 +76,12 @@ jobs:
           restore-keys: |
             helm-cache-${{ runner.os }}-
 
+      - name: Configure Kubeconfig
+        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
       - name: Check Directories for Changes
         id: check-dir-changes
         if: steps.branch-exists.outputs.exists == 'true'
@@ -333,7 +339,7 @@ jobs:
           SCHEMA_LOCATIONS="-schema-location default -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
 
           echo ">> Fetching cluster API versions using helm ..."
-          CLUSTER_CRDS=$(helm api-versions 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+          CLUSTER_CRDS=$(kubectl api-versions | tr '\n' ',')
 
           if [ -n "$CLUSTER_CRDS" ]; then
             API_VERSIONS="${CLUSTER_CRDS},gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor,snapshot.storage.k8s.io/v1/VolumeSnapshotClass"
