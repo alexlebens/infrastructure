@@ -332,6 +332,9 @@ jobs:
         run: |
           SCHEMA_LOCATIONS="-schema-location default -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
 
+          echo ">> Fetching cluster CRDs ..."
+          API_VERSIONS=$(kubectl get crds -o jsonpath='{range .items[*]}{.spec.group}/{.spec.versions[0].name}/{.spec.names.kind}{","}{.spec.group}/{.spec.versions[0].name}{","}{end}' 2>/dev/null | sed 's/,$//')
+
           EXIT_CODE=0
           FAILED_CHARTS=""
 
@@ -344,7 +347,7 @@ jobs:
             helm dependency build "${CHART_PATH}" --skip-refresh
 
             set -o pipefail
-            if ! helm template "${DIR}" "${CHART_PATH}" --include-crds --namespace default --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor" | \
+            if ! helm template "${DIR}" "${CHART_PATH}" --include-crds --namespace default --api-versions "${API_VERSIONS}" | \
               kubeconform \
                 ${SCHEMA_LOCATIONS} \
                 -ignore-missing-schemas \
@@ -357,7 +360,7 @@ jobs:
           }
 
           export -f validate_chart
-          export CLUSTER SCHEMA_LOCATIONS
+          export CLUSTER SCHEMA_LOCATIONS API_VERSIONS
 
           for DIR in ${CHANGED_CHARTS}; do
             echo "${DIR}"

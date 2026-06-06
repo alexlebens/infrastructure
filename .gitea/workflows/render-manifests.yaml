@@ -250,6 +250,9 @@ jobs:
 
           echo ">> Rendering Manifests ..."
 
+          echo ">> Fetching cluster CRDs ..."
+          API_VERSIONS=$(kubectl get crds -o jsonpath='{range .items[*]}{.spec.group}/{.spec.versions[0].name}/{.spec.names.kind}{","}{.spec.group}/{.spec.versions[0].name}{","}{end}' 2>/dev/null | sed 's/,$//')
+
           EXIT_CODE=0
 
           render_chart() {
@@ -285,7 +288,7 @@ jobs:
 
               echo ">> Formating rendered template ..."
               local TEMPLATE
-              if ! TEMPLATE=$(helm template "${CHART_NAME}" ./ --namespace "${NAMESPACE}" --include-crds --dry-run=server --api-versions "gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor"); then
+              if ! TEMPLATE=$(helm template "${CHART_NAME}" ./ --namespace "${NAMESPACE}" --include-crds --dry-run=server --api-versions "${API_VERSIONS}"); then
                 echo "${DIR}" > "${MAIN_DIR}/.failed_chart_${DIR}"
                 return 1
               fi
@@ -317,7 +320,7 @@ jobs:
           }
 
           export -f render_chart
-          export MAIN_DIR CLUSTER MANIFEST_DIR
+          export MAIN_DIR CLUSTER MANIFEST_DIR API_VERSIONS
 
           # Run rendering in parallel
           for DIR in ${RENDER_DIR}; do
