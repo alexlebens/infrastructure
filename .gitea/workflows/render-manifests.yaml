@@ -70,6 +70,23 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBECONFIG }}
 
+      - name: Get Cluster API Versions
+        id: get-api-versions
+        run: |
+          echo ">> Fetching cluster API versions using kubectl ..."
+          CLUSTER_CRDS=$(kubectl api-versions | tr '\n' ',')
+
+          if [ -n "$CLUSTER_CRDS" ]; then
+            API_VERSIONS="${CLUSTER_CRDS},gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor,snapshot.storage.k8s.io/v1/VolumeSnapshotClass"
+          else
+            API_VERSIONS="gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor,snapshot.storage.k8s.io/v1/VolumeSnapshotClass"
+          fi
+
+          echo ""
+          echo "----"
+
+          echo "api-versions=${API_VERSIONS}" >> "$GITHUB_OUTPUT"
+
       - name: Determine Workflow Mode
         id: mode
         run: |
@@ -249,20 +266,12 @@ jobs:
         id: render-manifests
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
         env:
+          API_VERSIONS: ${{ steps.get-api-versions.outputs.api-versions }}
           RENDER_DIR: ${{ steps.check-dir-changes.outputs.render-dir }}
         run: |
           cd "${MAIN_DIR}"
 
           echo ">> Rendering Manifests ..."
-
-          echo ">> Fetching cluster API versions using helm ..."
-          CLUSTER_CRDS=$(kubectl api-versions | tr '\n' ',')
-
-          if [ -n "$CLUSTER_CRDS" ]; then
-            API_VERSIONS="${CLUSTER_CRDS},gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor,snapshot.storage.k8s.io/v1/VolumeSnapshotClass"
-          else
-            API_VERSIONS="gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor,snapshot.storage.k8s.io/v1/VolumeSnapshotClass"
-          fi
 
           EXIT_CODE=0
 

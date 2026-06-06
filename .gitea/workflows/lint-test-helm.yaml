@@ -76,11 +76,6 @@ jobs:
           restore-keys: |
             helm-cache-${{ runner.os }}-
 
-      - name: Set Up Kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.36.1
-
       - name: Configure Kubeconfig
         uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
         with:
@@ -303,6 +298,28 @@ jobs:
           restore-keys: |
             helm-cache-${{ runner.os }}-
 
+      - name: Set Up Kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.36.1
+
+      - name: Get Cluster API Versions
+        id: get-api-versions
+        run: |
+          echo ">> Fetching cluster API versions using kubectl ..."
+          CLUSTER_CRDS=$(kubectl api-versions | tr '\n' ',')
+
+          if [ -n "$CLUSTER_CRDS" ]; then
+            API_VERSIONS="${CLUSTER_CRDS},gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor,snapshot.storage.k8s.io/v1/VolumeSnapshotClass"
+          else
+            API_VERSIONS="gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor,snapshot.storage.k8s.io/v1/VolumeSnapshotClass"
+          fi
+
+          echo ""
+          echo "----"
+
+          echo "api-versions=${API_VERSIONS}" >> "$GITHUB_OUTPUT"
+
       - name: Add Repositories
         env:
           CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
@@ -339,12 +356,10 @@ jobs:
       - name: Validate Rendered Templates
         id: validate
         env:
+          API_VERSIONS: ${{ steps.get-api-versions.outputs.api-versions }}
           CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
         run: |
           SCHEMA_LOCATIONS="-schema-location default -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
-
-          echo ">> Fetching cluster API versions using helm ..."
-          CLUSTER_CRDS=$(kubectl api-versions | tr '\n' ',')
 
           if [ -n "$CLUSTER_CRDS" ]; then
             API_VERSIONS="${CLUSTER_CRDS},gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor,snapshot.storage.k8s.io/v1/VolumeSnapshotClass"
