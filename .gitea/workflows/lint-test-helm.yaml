@@ -332,8 +332,14 @@ jobs:
         run: |
           SCHEMA_LOCATIONS="-schema-location default -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
 
-          echo ">> Fetching cluster CRDs ..."
-          API_VERSIONS=$(kubectl get crds -o jsonpath='{range .items[*]}{.spec.group}/{.spec.versions[0].name}/{.spec.names.kind}{","}{.spec.group}/{.spec.versions[0].name}{","}{end}' 2>/dev/null | sed 's/,$//')
+          echo ">> Fetching cluster API versions using helm ..."
+          CLUSTER_CRDS=$(helm api-versions 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+
+          if [ -n "$CLUSTER_CRDS" ]; then
+            API_VERSIONS="${CLUSTER_CRDS},gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor,snapshot.storage.k8s.io/v1/VolumeSnapshotClass"
+          else
+            API_VERSIONS="gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1,monitoring.coreos.com/v1/ServiceMonitor,snapshot.storage.k8s.io/v1/VolumeSnapshotClass"
+          fi
 
           EXIT_CODE=0
           FAILED_CHARTS=""
