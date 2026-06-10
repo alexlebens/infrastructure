@@ -2,7 +2,7 @@ name: render-manifests
 
 on:
   schedule:
-    - cron: '0 15 * * *'
+    - cron: "0 15 * * *"
 
   workflow_dispatch:
 
@@ -10,7 +10,7 @@ on:
     branches:
       - main
     paths:
-      - 'clusters/cl01tl/helm/**'
+      - "clusters/cl01tl/helm/**"
     types:
       - closed
 
@@ -96,16 +96,25 @@ jobs:
 
       - name: Determine Workflow Mode
         id: mode
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           IS_AUTOMERGE="false"
           RENDER_ALL="false"
           DIFF_TARGET=""
+          TRIGGER_INFO=""
+          NTFY_TITLE="Manifests Updated"
 
           if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo ">> Mode: Dispatch/Schedule (Render All)"
             RENDER_ALL="true"
+            TRIGGER_INFO="Triggered by: ${{ github.event_name }}"
+            NTFY_TITLE="Manifests Rendered (${{ github.event_name }})"
 
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            TRIGGER_INFO="Source PR: ${PR_TITLE}"
+            NTFY_TITLE="${PR_TITLE}"
+
             if [[ "${{ contains(github.event.pull_request.labels.*.name, 'automerge') }}" == "true" ]]; then
               echo ">> Mode: PR Merged (Automerge)"
               IS_AUTOMERGE="true"
@@ -125,6 +134,9 @@ jobs:
           echo "is-automerge=${IS_AUTOMERGE}" >> "$GITHUB_OUTPUT"
           echo "render-all=${RENDER_ALL}" >> "$GITHUB_OUTPUT"
           echo "diff-target=${DIFF_TARGET}" >> "$GITHUB_OUTPUT"
+          echo "trigger-info=${TRIGGER_INFO}" >> "$GITHUB_OUTPUT"
+          echo "ntfy-title=${NTFY_TITLE}" >> "$GITHUB_OUTPUT"
+          echo "pr-title=${PR_TITLE}" >> "$GITHUB_OUTPUT"
 
       - name: Prepare Manifest Branch
         id: prepare-manifest-branch
@@ -619,11 +631,11 @@ jobs:
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
-          title: "Manifest Render - Open PR"
+          title: "PR Created: ${{ steps.mode.outputs.ntfy-title }}"
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Created renderd manifests for cluster '${{ env.CLUSTER }}' with charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
+          details: "Rendered Charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions: '[{"action": "view", "label": "View PR", "url": "${{ vars.USER_URL }}/${{ github.repository }}/pulls/${{ steps.create-pull-request.outputs.pull-request-number }}", "clear": true}]'
 
@@ -633,11 +645,11 @@ jobs:
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
-          title: "Manifest Render - PR Updated"
+          title: "PR Updated: ${{ steps.mode.outputs.ntfy-title }}"
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Updated rendered manifests PR for cluster '${{ env.CLUSTER }}' with charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
+          details: "Rendered Charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions: '[{"action": "view", "label": "View PR", "url": "${{ vars.USER_URL }}/${{ github.repository }}/pulls/${{ steps.create-pull-request.outputs.pull-request-number }}", "clear": true}]'
 
@@ -647,11 +659,11 @@ jobs:
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
-          title: "Manifest Render - Automerged"
+          title: "PR Merged: ${{ steps.mode.outputs.ntfy-title }}"
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Automerged manifest rendering for cluster '${{ env.CLUSTER }}' with charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
+          details: "Rendered Charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions: '[{"action": "view", "label": "View PR", "url": "${{ vars.USER_URL }}/${{ github.repository }}/pulls/${{ steps.create-pull-request.outputs.pull-request-number }}", "clear": true}]'
 
