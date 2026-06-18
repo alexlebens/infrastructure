@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: postgres-backups-remote-rclone
     app.kubernetes.io/version: v1.74.3
-    helm.sh/chart: rclone-postgres-backups-remote-0.12.3
+    helm.sh/chart: rclone-postgres-backups-remote-0.12.5
   namespace: cloudnative-pg
 spec:
   suspend: false
@@ -40,14 +40,13 @@ spec:
           containers:
             - args:
                 - |
+                  set -o pipefail
                   rclone delete \
                     "dest:postgres-backups" \
                     --min-age "45d" \
-                    --rc --rc-addr=0.0.0.0:5573 --rc-enable-metrics --rc-no-auth \
-                    --verbose > /tmp/rclone-prune.log 2>&1
+                    --verbose 2>&1 | tee /tmp/rclone-prune.log
 
                   res=$?
-                  cat /tmp/rclone-prune.log
                   STATS=$(grep "Deleted:" /tmp/rclone-prune.log | tail -n 1)
                   FILES_PRUNED=$(echo "$STATS" | sed 's/.*Deleted:[ \t]*//')
 
@@ -123,6 +122,7 @@ spec:
               name: prune
             - args:
                 - |
+                  set -o pipefail
                   rclone sync \
                     "src:postgres-backups" \
                     "dest:postgres-backups" \
@@ -131,10 +131,9 @@ spec:
                     --include "/cl01tl/*/*/*/base/**" \
                     --exclude "**/walls/**" \
                     --rc --rc-addr=0.0.0.0:5572 --rc-enable-metrics --rc-no-auth \
-                    --verbose > /tmp/rclone-sync.log 2>&1
+                    --verbose 2>&1 | tee /tmp/rclone-sync.log
 
                   res=$?
-                  cat /tmp/rclone-sync.log
                   STATS=$(grep "Transferred:" /tmp/rclone-sync.log | tail -n 2)
                   DATA_TRANS=$(echo "$STATS" | head -n 1 | sed 's/.*Transferred:[ \t]*//')
 
