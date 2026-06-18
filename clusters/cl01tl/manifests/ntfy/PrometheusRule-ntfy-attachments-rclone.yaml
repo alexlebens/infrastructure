@@ -4,10 +4,10 @@ metadata:
   name: ntfy-attachments-rclone
   namespace: ntfy
   labels:
-    helm.sh/chart: rclone-ntfy-attachments-remote-0.11.7
+    helm.sh/chart: rclone-ntfy-attachments-remote-0.12.5
     app.kubernetes.io/instance: ntfy
     app.kubernetes.io/part-of: ntfy
-    app.kubernetes.io/version: "0.11.7"
+    app.kubernetes.io/version: "0.12.5"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: ntfy-attachments-rclone
 spec:
@@ -27,4 +27,16 @@ spec:
             description: |
               A pod for the Rclone sync of s3 bucket 'ntfy-attachments' failed with exit code {{ $value }}.
               Job: {{ $labels.owner_name }}
+              Namespace: {{ $labels.namespace }}
+        - alert: RcloneJobRunningTooLong
+          expr: |
+            kube_job_status_active{job_name=~"rclone-.*"} > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Rclone Job running too long in {{ $labels.namespace }}"
+            description: |
+              A job for the Rclone sync of s3 bucket 'ntfy-attachments' has been running for more than 1 hour.
+              Job: {{ $labels.job_name }}
               Namespace: {{ $labels.namespace }}
