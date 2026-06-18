@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: ntfy-attachments-rclone
     app.kubernetes.io/version: v1.74.3
-    helm.sh/chart: rclone-ntfy-attachments-remote-0.11.7
+    helm.sh/chart: rclone-ntfy-attachments-remote-0.12.5
   namespace: ntfy
 spec:
   suspend: false
@@ -39,15 +39,46 @@ spec:
           restartPolicy: Never
           containers:
             - args:
-                - sync
-                - src:ntfy-attachments
-                - dest:ntfy-attachments
-                - --s3-no-check-bucket
-                - --rc
-                - --rc-addr=0.0.0.0:5572
-                - --rc-enable-metrics
-                - --rc-no-auth
-                - --verbose
+                - |
+                  set -o pipefail
+                  rclone sync \
+                    "src:ntfy-attachments" \
+                    "dest:ntfy-attachments" \
+                    --s3-no-check-bucket \
+                    --rc --rc-addr=0.0.0.0:5572 --rc-enable-metrics --rc-no-auth \
+                    --verbose 2>&1 | tee /tmp/rclone-sync.log
+
+                  res=$?
+                  STATS=$(grep "Transferred:" /tmp/rclone-sync.log | tail -n 2)
+                  DATA_TRANS=$(echo "$STATS" | head -n 1 | sed 's/.*Transferred:[ \t]*//')
+
+                  if [ -z "$DATA_TRANS" ]; then
+                    DATA_TRANS="Unknown"
+
+                  fi
+
+                  TARGET_URL=""
+                  if [ -n "${NTFY_URL:-}" ]; then
+                    TARGET_URL="$NTFY_URL"
+                  fi
+
+                  if [ $res -eq 0 ]; then
+                    if [ -n "${NTFY_TOKEN:-}" ]; then
+                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Rclone Sync Success - ntfy-attachments" --header "Priority: default" --post-data "Job for bucket ntfy-attachments transferred: $DATA_TRANS" "$TARGET_URL"
+                    else
+                      wget -qO- --header "Title: Rclone Sync Success - ntfy-attachments" --header "Priority: default" --post-data "Job for bucket ntfy-attachments transferred: $DATA_TRANS" "$TARGET_URL"
+                    fi
+                  else
+                    if [ -n "${NTFY_TOKEN:-}" ]; then
+                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Rclone Sync Failed - ntfy-attachments" --header "Priority: urgent" --post-data "Job for ntfy-attachments failed, but transferred: $DATA_TRANS" "$TARGET_URL"
+                    else
+                      wget -qO- --header "Title: Rclone Sync Failed - ntfy-attachments" --header "Priority: urgent" --post-data "Job for ntfy-attachments failed, but transferred: $DATA_TRANS" "$TARGET_URL"
+                    fi
+                  fi
+                  exit $res
+              command:
+                - /bin/sh
+                - -c
               env:
                 - name: RCLONE_S3_PROVIDER
                   value: Other
@@ -107,6 +138,17 @@ spec:
                       name: ntfy-attachments-rclone-destination-config
                 - name: RCLONE_CONFIG_DEST_FORCE_PATH_STYLE
                   value: "true"
+                - name: NTFY_URL
+                  valueFrom:
+                    secretKeyRef:
+                      key: ntfy-url
+                      name: ntfy-attachments-rclone-ntfy
+                - name: NTFY_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: ntfy-token
+                      name: ntfy-attachments-rclone-ntfy
+                      optional: true
               image: rclone/rclone:1.74.3@sha256:623378ad0ff3ebd5cebf77720843c0e02edfe46e2d5b5ac6bed54c6371780dfb
               imagePullPolicy: IfNotPresent
               name: sync
