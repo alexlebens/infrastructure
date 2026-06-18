@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: postgres-backups-remote-rclone
     app.kubernetes.io/version: v1.74.3
-    helm.sh/chart: rclone-postgres-backups-remote-0.11.7
+    helm.sh/chart: rclone-postgres-backups-remote-0.12.1
   namespace: cloudnative-pg
 spec:
   jobLabel: app.kubernetes.io/name
@@ -22,8 +22,18 @@ spec:
     - interval: 10s
       path: /metrics
       port: rc-sync
+      relabelings:
+        - action: drop
+          regex: Succeeded|Failed
+          sourceLabels:
+            - __meta_kubernetes_pod_phase
       scrapeTimeout: 5s
     - interval: 10s
       path: /metrics
       port: rc-prune
+      relabelings:
+        - action: drop
+          regex: Succeeded|Failed
+          sourceLabels:
+            - __meta_kubernetes_pod_phase
       scrapeTimeout: 5s
