@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: postgres-backups-external-rclone
     app.kubernetes.io/version: v1.74.3
-    helm.sh/chart: rclone-postgres-backups-external-0.11.7
+    helm.sh/chart: rclone-postgres-backups-external-0.12.1
   namespace: cloudnative-pg
 spec:
   suspend: false
@@ -39,15 +39,19 @@ spec:
           restartPolicy: Never
           containers:
             - args:
-                - delete
-                - dest:postgres-backups-775957147abfbc73
-                - --min-age
-                - 14d
-                - --verbose
-                - --rc
-                - --rc-addr=0.0.0.0:5573
-                - --rc-enable-metrics
-                - --rc-no-auth
+                - |
+                  rclone delete \
+                    "dest:postgres-backups-775957147abfbc73" \
+                    --min-age "14d" \
+                    --rc --rc-addr=0.0.0.0:5573 --rc-enable-metrics --rc-no-auth \
+                    --verbose > /tmp/rclone-prune.log 2>&1
+
+                  res=$?
+                  cat /tmp/rclone-prune.log
+                  exit $res
+              command:
+                - /bin/sh
+                - -c
               env:
                 - name: RCLONE_CONFIG_DEST_TYPE
                   value: s3
@@ -81,21 +85,23 @@ spec:
               imagePullPolicy: IfNotPresent
               name: prune
             - args:
-                - sync
-                - src:postgres-backups
-                - dest:postgres-backups-775957147abfbc73
-                - --s3-no-check-bucket
-                - --max-age
-                - 14d
-                - --include
-                - /cl01tl/*/*/*/base/**
-                - --exclude
-                - '**/walls/**'
-                - --rc
-                - --rc-addr=0.0.0.0:5572
-                - --rc-enable-metrics
-                - --rc-no-auth
-                - --verbose
+                - |
+                  rclone sync \
+                    "src:postgres-backups" \
+                    "dest:postgres-backups-775957147abfbc73" \
+                    --s3-no-check-bucket \
+                    --max-age "14d" \
+                    --include "/cl01tl/*/*/*/base/**" \
+                    --exclude "**/walls/**" \
+                    --rc --rc-addr=0.0.0.0:5572 --rc-enable-metrics --rc-no-auth \
+                    --verbose > /tmp/rclone-sync.log 2>&1
+
+                  res=$?
+                  cat /tmp/rclone-sync.log
+                  exit $res
+              command:
+                - /bin/sh
+                - -c
               env:
                 - name: RCLONE_S3_PROVIDER
                   value: Other
