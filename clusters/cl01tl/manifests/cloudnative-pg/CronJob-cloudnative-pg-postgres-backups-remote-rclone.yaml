@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: postgres-backups-remote-rclone
     app.kubernetes.io/version: v1.74.3
-    helm.sh/chart: rclone-postgres-backups-remote-0.12.2
+    helm.sh/chart: rclone-postgres-backups-remote-0.12.3
   namespace: cloudnative-pg
 spec:
   suspend: false
@@ -62,9 +62,17 @@ spec:
                   fi
 
                   if [ $res -eq 0 ]; then
-                    wget -qO- --header "Title: Rclone Prune Success  - postgres-backups" --header "Priority: default" --post-data "Rclone prune job for bucket 'postgres-backups' pruned: $FILES_PRUNED" "$TARGET_URL"
+                    if [ -n "${NTFY_TOKEN:-}" ]; then
+                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Rclone Prune Success  - postgres-backups" --header "Priority: default" --post-data "Rclone prune job for bucket 'postgres-backups' pruned: $FILES_PRUNED" "$TARGET_URL"
+                    else
+                      wget -qO- --header "Title: Rclone Prune Success  - postgres-backups" --header "Priority: default" --post-data "Rclone prune job for bucket 'postgres-backups' pruned: $FILES_PRUNED" "$TARGET_URL"
+                    fi
                   else
-                    wget -qO- --header "Title: Rclone Prune Failed - postgres-backups" --header "Priority: urgent" --post-data "Rclone prune job for bucket 'postgres-backups' failed, but did prune: $FILES_PRUNED" "$TARGET_URL"
+                    if [ -n "${NTFY_TOKEN:-}" ]; then
+                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Rclone Prune Failed - postgres-backups" --header "Priority: urgent" --post-data "Rclone prune job for bucket 'postgres-backups' failed, but did prune: $FILES_PRUNED" "$TARGET_URL"
+                    else
+                      wget -qO- --header "Title: Rclone Prune Failed - postgres-backups" --header "Priority: urgent" --post-data "Rclone prune job for bucket 'postgres-backups' failed, but did prune: $FILES_PRUNED" "$TARGET_URL"
+                    fi
                   fi
                   exit $res
               command:
@@ -104,6 +112,12 @@ spec:
                     secretKeyRef:
                       key: ntfy-url
                       name: postgres-backups-remote-rclone-ntfy
+                - name: NTFY_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: ntfy-token
+                      name: postgres-backups-remote-rclone-ntfy
+                      optional: true
               image: rclone/rclone:1.74.3@sha256:623378ad0ff3ebd5cebf77720843c0e02edfe46e2d5b5ac6bed54c6371780dfb
               imagePullPolicy: IfNotPresent
               name: prune
@@ -135,9 +149,17 @@ spec:
                   fi
 
                   if [ $res -eq 0 ]; then
-                    wget -qO- --header "Title: Rclone Sync Success - postgres-backups" --header "Priority: default" --post-data "Job for bucket postgres-backups transferred: $DATA_TRANS" "$TARGET_URL"
+                    if [ -n "${NTFY_TOKEN:-}" ]; then
+                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Rclone Sync Success - postgres-backups" --header "Priority: default" --post-data "Job for bucket postgres-backups transferred: $DATA_TRANS" "$TARGET_URL"
+                    else
+                      wget -qO- --header "Title: Rclone Sync Success - postgres-backups" --header "Priority: default" --post-data "Job for bucket postgres-backups transferred: $DATA_TRANS" "$TARGET_URL"
+                    fi
                   else
-                    wget -qO- --header "Title: Rclone Sync Failed - postgres-backups" --header "Priority: urgent" --post-data "Job for postgres-backups failed, but transferred: $DATA_TRANS" "$TARGET_URL"
+                    if [ -n "${NTFY_TOKEN:-}" ]; then
+                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Rclone Sync Failed - postgres-backups" --header "Priority: urgent" --post-data "Job for postgres-backups failed, but transferred: $DATA_TRANS" "$TARGET_URL"
+                    else
+                      wget -qO- --header "Title: Rclone Sync Failed - postgres-backups" --header "Priority: urgent" --post-data "Job for postgres-backups failed, but transferred: $DATA_TRANS" "$TARGET_URL"
+                    fi
                   fi
                   exit $res
               command:
@@ -207,6 +229,12 @@ spec:
                     secretKeyRef:
                       key: ntfy-url
                       name: postgres-backups-remote-rclone-ntfy
+                - name: NTFY_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: ntfy-token
+                      name: postgres-backups-remote-rclone-ntfy
+                      optional: true
               image: rclone/rclone:1.74.3@sha256:623378ad0ff3ebd5cebf77720843c0e02edfe46e2d5b5ac6bed54c6371780dfb
               imagePullPolicy: IfNotPresent
               name: sync
