@@ -1,0 +1,234 @@
+frigate:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+      containers:
+        main:
+          image:
+            repository: ghcr.io/blakeblackshear/frigate
+            tag: 0.14.1@sha256:656301bd28c08f15a778f1fe37b8332e0ae8189c6311e0fcc58b1e7a8f8ab310
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: FRIGATE_RTSP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: frigate-secrets
+                  key: rtsp-password
+            - name: FRIGATE_TAPO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: it06cm-config
+                  key: user
+            - name: FRIGATE_TAPO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: it06cm-config
+                  key: password
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: http
+                initialDelaySeconds: 0
+                periodSeconds: 10
+                timeoutSeconds: 1
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: http
+                initialDelaySeconds: 0
+                periodSeconds: 10
+                timeoutSeconds: 1
+                failureThreshold: 3
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: http
+                failureThreshold: 30
+                periodSeconds: 10
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1000Mi
+              gpu.intel.com/i915: 1
+            limits:
+              gpu.intel.com/i915: 1
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 5000
+        rtsp:
+          port: 8554
+          targetPort: 8554
+        webrtc:
+          port: 8555
+          targetPort: 8555
+          protocol: TCP
+        webrtc-udp:
+          port: 8555
+          targetPort: 8555
+          protocol: UDP
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - frigate.alexlebens.net
+      rules:
+        - backendRefs:
+            - name: frigate-main
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  configMaps:
+    configmap:
+      enabled: true
+      data:
+        config.yml: |
+          mqtt:
+            enabled: false
+
+          ffmpeg:
+            hwaccel_args: preset-vaapi
+
+          detectors:
+            ov:
+              type: openvino
+              device: AUTO
+
+          model:
+            width: 300
+            height: 300
+            input_tensor: nhwc
+            input_pixel_format: bgr
+            path: /openvino-model/ssdlite_mobilenet_v2.xml
+            labelmap_path: /openvino-model/coco_91cl_bkgr.txt
+
+          record:
+            enabled: True
+            motion:
+              days: 7
+            alerts:
+              retain:
+                days: 30
+                mode: motion
+            detections:
+              retain:
+                days: 30
+                mode: motion
+
+          snapshots:
+            enabled: True
+            retain:
+              default: 30
+
+          go2rtc:
+            streams:
+              tapo_c200:
+                - rtsp://{FRIGATE_TAPO_USER}:{FRIGATE_TAPO_PASSWORD}@it06cm.alexlebens.net:554/stream1
+              tapo_c200_sub:
+                - rtsp://{FRIGATE_TAPO_USER}:{FRIGATE_TAPO_PASSWORD}@it06cm.alexlebens.net:554/stream2
+
+          cameras:
+            tapo_c200:
+              ffmpeg:
+                inputs:
+                  - path: rtsp://127.0.0.1:8554/tapo_c200
+                    roles:
+                      - record
+                  - path: rtsp://127.0.0.1:8554/tapo_c200_sub
+                    roles:
+                      - detect
+              detect:
+                width: 640
+                height: 360
+                fps: 5
+  persistence:
+    config:
+      forceRename: frigate-config
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+              readOnly: false
+    media:
+      forceRename: frigate-media
+      storageClass: synology-iscsi-delete
+      accessMode: ReadWriteOnce
+      size: 500Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /media/frigate
+              readOnly: false
+    cache:
+      type: emptyDir
+      medium: Memory
+      sizeLimit: 1Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp/cache
+              readOnly: false
+    config-file:
+      type: configMap
+      name: frigate-configmap
+      advancedMounts:
+        main:
+          main:
+            - path: /config/config.yml
+              subPath: config.yml
+              readOnly: true
+    shm:
+      type: emptyDir
+      medium: Memory
+      sizeLimit: 1Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /dev/shm
+              readOnly: false
+
+volsync-target-config:
+  pvcTarget: frigate-config
+  moverSecurityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+  local:
+    enabled: true
+    schedule: 47 8 * * *
+  remote:
+    enabled: true
+    schedule: 47 10 * * 1
+  external:
+    enabled: true
+    schedule: 47 9 * * 1
