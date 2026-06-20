@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frigate
+  labels:
+    app.kubernetes.io/instance: frigate
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: frigate
+    helm.sh/chart: frigate-5.0.1
+  namespace: frigate
+data:
+  config.yml: |
+    mqtt:
+      enabled: false
+
+    ffmpeg:
+      hwaccel_args: preset-vaapi
+
+    detectors:
+      ov:
+        type: openvino
+        device: AUTO
+
+    model:
+      width: 300
+      height: 300
+      input_tensor: nhwc
+      input_pixel_format: bgr
+      path: /openvino-model/ssdlite_mobilenet_v2.xml
+      labelmap_path: /openvino-model/coco_91cl_bkgr.txt
+
+    record:
+      enabled: True
+      motion:
+        days: 7
+      alerts:
+        retain:
+          days: 30
+          mode: motion
+      detections:
+        retain:
+          days: 30
+          mode: motion
+
+    snapshots:
+      enabled: True
+      retain:
+        default: 30
+
+    go2rtc:
+      streams:
+        tapo_c200:
+          - rtsp://{FRIGATE_TAPO_USER}:{FRIGATE_TAPO_PASSWORD}@it06cm.alexlebens.net:554/stream1
+        tapo_c200_sub:
+          - rtsp://{FRIGATE_TAPO_USER}:{FRIGATE_TAPO_PASSWORD}@it06cm.alexlebens.net:554/stream2
+
+    cameras:
+      tapo_c200:
+        ffmpeg:
+          inputs:
+            - path: rtsp://127.0.0.1:8554/tapo_c200
+              roles:
+                - record
+            - path: rtsp://127.0.0.1:8554/tapo_c200_sub
+              roles:
+                - detect
+        detect:
+          width: 640
+          height: 360
+          fps: 5
