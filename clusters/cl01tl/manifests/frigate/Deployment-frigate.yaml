@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frigate
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: frigate
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: frigate
+    helm.sh/chart: frigate-5.0.1
+  namespace: frigate
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: frigate
+      app.kubernetes.io/instance: frigate
+  template:
+    metadata:
+      annotations:
+        checksum/configMaps: 73196f217bd81232f0b6b69544891c8f54b714df06465d363c7cbadf0cf2a8eb
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: frigate
+        app.kubernetes.io/name: frigate
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: frigate
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: FRIGATE_RTSP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: rtsp-password
+                  name: frigate-secrets
+            - name: FRIGATE_TAPO_USER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: it06cm-config
+            - name: FRIGATE_TAPO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: it06cm-config
+          image: ghcr.io/blakeblackshear/frigate:0.14.1@sha256:656301bd28c08f15a778f1fe37b8332e0ae8189c6311e0fcc58b1e7a8f8ab310
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+          name: main
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 500m
+              gpu.intel.com/i915: 1
+              memory: 1000Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: /tmp/cache
+              name: cache
+            - mountPath: /config
+              name: config
+            - mountPath: /config/config.yml
+              name: config-file
+              readOnly: true
+              subPath: config.yml
+            - mountPath: /media/frigate
+              name: media
+            - mountPath: /dev/shm
+              name: shm
+      volumes:
+        - emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+          name: cache
+        - name: config
+          persistentVolumeClaim:
+            claimName: frigate-config
+        - configMap:
+            name: frigate-configmap
+          name: config-file
+        - name: media
+          persistentVolumeClaim:
+            claimName: frigate-media
+        - emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+          name: shm
