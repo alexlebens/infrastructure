@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kaneo-kaneo-assets-remote-rclone
+  labels:
+    app.kubernetes.io/instance: kaneo
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: kaneo-assets-remote-rclone
+    app.kubernetes.io/version: v1.74.3
+    helm.sh/chart: rclone-kaneo-assets-remote-0.12.5
+  namespace: kaneo
+spec:
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+      - kaneo
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: kaneo
+      app.kubernetes.io/name: kaneo-assets-remote-rclone
+  endpoints:
+    - interval: 10s
+      path: /metrics
+      port: rc-sync
+      relabelings:
+        - action: drop
+          regex: Succeeded|Failed
+          sourceLabels:
+            - __meta_kubernetes_pod_phase
+      scrapeTimeout: 5s
