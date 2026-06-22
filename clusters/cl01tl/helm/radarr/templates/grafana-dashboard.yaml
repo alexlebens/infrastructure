@@ -1,16 +1,26 @@
+{{- range $path, $bytes := .Files.Glob "dashboards/*.json" }}
+{{- $name := base $path | replace ".json" "" }}
+{{- $json := $.Files.Get $path }}
+{{- $dashboard := $json | fromJson }}
+---
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDashboard
 metadata:
-  name: radarr
+  name: {{ $name }}
   namespace: grafana-operator
   labels:
-    app.kubernetes.io/name: radarr
-    {{- include "custom.labels" . | nindent 4 }}
+    app.kubernetes.io/name: {{ $name }}
+    {{- include "custom.labels" $ | nindent 4 }}
 spec:
   instanceSelector:
     matchLabels:
       app: grafana-main
-  folderUID: grafana-folder-application
+{{- if hasKey $dashboard "tags" }}
+{{- if gt (len $dashboard.tags) 0 }}
+  folderUID: grafana-folder-{{ index $dashboard.tags 0 }}
+{{- end }}
+{{- end }}
   resyncPeriod: 6h
   json: |-
-{{ .Files.Get "dashboards/radarr.json" | indent 4 }}
+{{ $json | indent 4 }}
+{{- end }}
