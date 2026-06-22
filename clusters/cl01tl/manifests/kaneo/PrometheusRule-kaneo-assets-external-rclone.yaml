@@ -1,0 +1,42 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kaneo-assets-external-rclone
+  namespace: kaneo
+  labels:
+    helm.sh/chart: rclone-kaneo-assets-external-0.12.5
+    app.kubernetes.io/instance: kaneo
+    app.kubernetes.io/part-of: kaneo
+    app.kubernetes.io/version: "0.12.5"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: kaneo-assets-external-rclone
+spec:
+  groups:
+    - name: rclone.alerts
+      rules:
+        - alert: RclonePodFailed
+          expr: |
+            (kube_pod_container_status_last_terminated_exitcode > 0)
+            * on(pod, namespace) group_left(owner_name)
+            kube_pod_owner{owner_kind="Job", owner_name=~"rclone-.*"}
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Rclone Pod failed in {{ $labels.namespace }}"
+            description: |
+              A pod for the Rclone sync of s3 bucket 'kaneo-assets' failed with exit code {{ $value }}.
+              Job: {{ $labels.owner_name }}
+              Namespace: {{ $labels.namespace }}
+        - alert: RcloneJobRunningTooLong
+          expr: |
+            kube_job_status_active{job_name=~"rclone-.*"} > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Rclone Job running too long in {{ $labels.namespace }}"
+            description: |
+              A job for the Rclone sync of s3 bucket 'kaneo-assets' has been running for more than 1 hour.
+              Job: {{ $labels.job_name }}
+              Namespace: {{ $labels.namespace }}

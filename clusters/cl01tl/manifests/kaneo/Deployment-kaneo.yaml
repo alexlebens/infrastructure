@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kaneo
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: kaneo
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: kaneo
+    helm.sh/chart: kaneo-5.0.1
+  namespace: kaneo
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: kaneo
+      app.kubernetes.io/instance: kaneo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: kaneo
+        app.kubernetes.io/name: kaneo
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: kaneo
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: KANEO_CLIENT_URL
+              value: https://kaneo.alexlebens.net
+            - name: KANEO_API_URL
+              value: https://kaneo.alexlebens.net
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: auth-secret
+                  name: kaneo-key
+            - name: DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: kaneo-postgresql-18-cluster-app
+            - name: DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: kaneo-postgresql-18-cluster-app
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: kaneo-postgresql-18-cluster-app
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: kaneo-postgresql-18-cluster-app
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: kaneo-postgresql-18-cluster-app
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: kaneo-postgresql-18-cluster-app
+            - name: S3_ENDPOINT
+              value: http://garage-main.garage:3900
+            - name: S3_BUCKET
+              value: kaneo-assets
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: S3_REGION
+                  name: kaneo-bucket-garage
+            - name: S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: S3_ACCESS_KEY_ID
+                  name: kaneo-bucket-garage
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: S3_SECRET_ACCESS_KEY
+                  name: kaneo-bucket-garage
+            - name: CUSTOM_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: CUSTOM_OAUTH_CLIENT_ID
+                  name: kaneo-oidc-authentik
+            - name: CUSTOM_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: CUSTOM_OAUTH_CLIENT_SECRET
+                  name: kaneo-oidc-authentik
+            - name: CUSTOM_OAUTH_AUTHORIZATION_URL
+              value: https://authentik.alexlebens.net/application/o/authorize/
+            - name: CUSTOM_OAUTH_TOKEN_URL
+              value: https://authentik.alexlebens.net/application/o/token/
+            - name: CUSTOM_OAUTH_USER_INFO_URL
+              value: https://authentik.alexlebens.net/application/o/userinfo/
+            - name: CUSTOM_OAUTH_LOGOUT_URL
+              value: https://authentik.alexlebens.net/application/o/kaneo/end-session/
+            - name: CUSTOM_OAUTH_DISCOVERY_URL
+              value: https://authentik.alexlebens.net/application/o/kaneo/.well-known/openid-configuration
+            - name: CUSTOM_OAUTH_SCOPES
+              value: profile,email,openid
+            - name: CUSTOM_AUTH_PKCE
+              value: "false"
+          image: ghcr.io/usekaneo/kaneo:v2.7.7@sha256:de8a505b45449601808cc89dc5ef601010a663c800d14705f15073fbcdf68431
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /api/health
+              port: 5173
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
