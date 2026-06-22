@@ -1,0 +1,218 @@
+kaneo:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/usekaneo/kaneo
+            tag: v2.7.7@sha256:de8a505b45449601808cc89dc5ef601010a663c800d14705f15073fbcdf68431
+          env:
+            - name: KANEO_CLIENT_URL
+              value: https://kaneo.alexlebens.net
+            - name: KANEO_API_URL
+              value: https://kaneo.alexlebens.net
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-key
+                  key: auth-secret
+            - name: DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-postgresql-18-cluster-app
+                  key: host
+            - name: DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-postgresql-18-cluster-app
+                  key: port
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-postgresql-18-cluster-app
+                  key: user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-postgresql-18-cluster-app
+                  key: password
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-postgresql-18-cluster-app
+                  key: dbname
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-postgresql-18-cluster-app
+                  key: uri
+            - name: S3_ENDPOINT
+              value: http://garage-main.garage:3900
+            - name: S3_BUCKET
+              value: kaneo-assets
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-bucket-garage
+                  key: S3_REGION
+            - name: S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-bucket-garage
+                  key: S3_ACCESS_KEY_ID
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-bucket-garage
+                  key: S3_SECRET_ACCESS_KEY
+            - name: CUSTOM_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-oidc-authentik
+                  key: CUSTOM_OAUTH_CLIENT_ID
+            - name: CUSTOM_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-oidc-authentik
+                  key: CUSTOM_OAUTH_CLIENT_SECRET
+            - name: CUSTOM_OAUTH_AUTHORIZATION_URL
+              value: https://authentik.alexlebens.net/application/o/authorize/
+            - name: CUSTOM_OAUTH_TOKEN_URL
+              value: https://authentik.alexlebens.net/application/o/token/
+            - name: CUSTOM_OAUTH_USER_INFO_URL
+              value: https://authentik.alexlebens.net/application/o/userinfo/
+            - name: CUSTOM_OAUTH_LOGOUT_URL
+              value: https://authentik.alexlebens.net/application/o/kaneo/end-session/
+            - name: CUSTOM_OAUTH_DISCOVERY_URL
+              value: https://authentik.alexlebens.net/application/o/kaneo/.well-known/openid-configuration
+            - name: CUSTOM_OAUTH_SCOPES
+              value: profile,email,openid
+            - name: CUSTOM_AUTH_PKCE
+              value: "false"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 5173
+                failureThreshold: 5
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 5173
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - kaneo.alexlebens.net
+      rules:
+        - backendRefs:
+            - name: kaneo
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    method: objectStore
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      - name: garage-local
+        index: 1
+        destinationBucket: postgres-backups
+        externalSecretCredentialPath: /garage/home-infra/postgres-backups
+        isWALArchiver: true
+    scheduledBackups:
+      - name: live-backup
+        suspend: false
+        immediate: true
+        schedule: "0 20 16 * * *"
+        backupName: garage-local
+rclone-kaneo-assets-remote:
+  nameOverride: kaneo-assets-remote-rclone
+  cronJob:
+    suspend: false
+    schedule: 30 6 * * 3
+  rclone:
+    source:
+      bucketName: kaneo-assets
+    destination:
+      bucketName: kaneo-assets
+  ntfy:
+    externalSecret:
+      urlPath: /cl01tl/ntfy/config
+      urlProperty: internal-endpoint
+      topicPath: /cl01tl/ntfy/topics
+      topicProperty: rclone
+      tokenPath: /cl01tl/ntfy/users/cl01tl
+      tokenProperty: token
+  secret:
+    externalSecret:
+      source:
+        credentials:
+          path: /garage/home-infra/kaneo-assets
+        config:
+          path: /garage/config
+      destination:
+        credentials:
+          path: /garage/home-infra/kaneo-assets
+        config:
+          path: /garage/config
+rclone-kaneo-assets-external:
+  nameOverride: kaneo-assets-external-rclone
+  cronJob:
+    suspend: false
+    schedule: 0 6 * * 3
+  rclone:
+    source:
+      bucketName: kaneo-assets
+    destination:
+      bucketName: kaneo-assets-47edc3f232f2797f
+  ntfy:
+    externalSecret:
+      urlPath: /cl01tl/ntfy/config
+      urlProperty: internal-endpoint
+      topicPath: /cl01tl/ntfy/topics
+      topicProperty: rclone
+      tokenPath: /cl01tl/ntfy/users/cl01tl
+      tokenProperty: token
+  secret:
+    externalSecret:
+      source:
+        credentials:
+          path: /garage/home-infra/kaneo-assets
+        config:
+          path: /garage/config
+      destination:
+        credentials:
+          path: /backblaze/home-infra/kaneo-assets
+        config:
+          path: /backblaze/config
+          endpointProperty: ENDPOINT
