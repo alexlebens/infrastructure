@@ -17,5 +17,5 @@ app.kubernetes.io/part-of: {{ .Release.Name }}
 NFS names
 */}}
 {{- define "custom.storageNfsName" -}}
-jellyfin-nfs-storage
+jellyfin-testing-nfs-storage
 {{- end -}}
