@@ -1,86 +1,49 @@
 jellyfin-testing:
-  controllers:
-    main:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      pod:
-        affinity:
-          podAntiAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchExpressions:
-                    - key: app.kubernetes.io/name
-                      operator: In
-                      values:
-                        - jellyfin
-                topologyKey: kubernetes.io/hostname
-      containers:
-        main:
-          image:
-            repository: ghcr.io/jellyfin/jellyfin
-            # renovate: datasource=docker depName=ghcr.io/jellyfin/jellyfin
-            tag: 12.0-rc1@sha256:d04e537d57a79adcbed98c7ff0a4d95521372af16ba1a4c43b679d90a3ae896e
-          env:
-            - name: TZ
-              value: America/Chicago
-            - name: JELLYFIN_PublishedServerUrl
-              value: https://jellyfin-testing.alexlebens.net/
-          resources:
-            limits:
-              gpu.intel.com/i915: 1
-            requests:
-              gpu.intel.com/i915: 1
-              cpu: 100m
-              memory: 100Mi
-  service:
-    main:
-      forceRename: jellyfin-testing
-      controller: main
-      ports:
-        http:
-          port: 80
-          targetPort: 8096
-  route:
-    main:
-      kind: HTTPRoute
-      parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
-      hostnames:
-        - jellyfin-testing.alexlebens.net
-      rules:
-        - backendRefs:
-            - name: jellyfin-testing
-              port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
+  image:
+    repository: ghcr.io/jellyfin/jellyfin
+    tag: 12.0-rc1@sha256:d04e537d57a79adcbed98c7ff0a4d95521372af16ba1a4c43b679d90a3ae896e
+  httpRoute:
+    enabled: true
+    parentRefs:
+      - group: gateway.networking.k8s.io
+        kind: Gateway
+        name: traefik-gateway
+        namespace: traefik
+    hostnames:
+      - jellyfin-testing.alexlebens.net
+  resources:
+    limits:
+      gpu.intel.com/i915: 1
+    requests:
+      gpu.intel.com/i915: 1
+      cpu: 100m
+      memory: 100Mi
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - jellyfin
+          topologyKey: kubernetes.io/hostname
+  jellyfin:
+    env:
+      - name: TZ
+        value: America/Chicago
+      - name: JELLYFIN_PublishedServerUrl
+        value: https://jellyfin-testing.alexlebens.net
   persistence:
     config:
-      forceRename: jellyfin-testing-config
-      storageClass: ceph-block
+      enabled: true
       accessMode: ReadWriteOnce
-      size: 10Gi
-      advancedMounts:
-        main:
-          main:
-            - path: /config
-              readOnly: false
-    cache:
-      type: emptyDir
-      advancedMounts:
-        main:
-          main:
-            - path: /cache
-              readOnly: false
+      size: 5Gi
+      storageClass: ceph-block
     media:
+      enabled: true
       existingClaim: jellyfin-testing-nfs-storage
-      advancedMounts:
-        main:
-          main:
-            - path: /mnt/store
-              readOnly: true
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
