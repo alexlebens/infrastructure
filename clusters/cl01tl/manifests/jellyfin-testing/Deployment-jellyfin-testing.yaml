@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellyfin-testing
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: jellyfin-testing
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: jellyfin-testing
+    helm.sh/chart: jellyfin-testing-5.0.1
+  namespace: jellyfin-testing
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: jellyfin-testing
+      app.kubernetes.io/instance: jellyfin-testing
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: jellyfin-testing
+        app.kubernetes.io/name: jellyfin-testing
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: jellyfin-testing
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - jellyfin
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: JELLYFIN_hostwebclient
+              value: "true"
+            - name: JELLYFIN_PublishedServerUrl
+              value: https://jellyfin-testing.alexlebens.net/
+          image: ghcr.io/jellyfin/jellyfin:12.0-rc1@sha256:d04e537d57a79adcbed98c7ff0a4d95521372af16ba1a4c43b679d90a3ae896e
+          name: main
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 100m
+              gpu.intel.com/i915: 1
+              memory: 100Mi
+          volumeMounts:
+            - mountPath: /cache
+              name: cache
+            - mountPath: /config
+              name: config
+            - mountPath: /mnt/store
+              name: media
+              readOnly: true
+      volumes:
+        - emptyDir: {}
+          name: cache
+        - name: config
+          persistentVolumeClaim:
+            claimName: jellyfin-testing-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: jellyfin-testing-nfs-storage
