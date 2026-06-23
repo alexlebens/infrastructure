@@ -3,36 +3,118 @@ kind: Deployment
 metadata:
   name: jellyfin-testing
   labels:
-    app.kubernetes.io/controller: main
-    app.kubernetes.io/instance: jellyfin-testing
-    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: jellyfin-testing-3.2.0
     app.kubernetes.io/name: jellyfin-testing
-    helm.sh/chart: jellyfin-testing-5.0.1
-  namespace: jellyfin-testing
+    app.kubernetes.io/instance: jellyfin-testing
+    app.kubernetes.io/version: "10.11.8"
+    app.kubernetes.io/managed-by: Helm
 spec:
-  revisionHistoryLimit: 3
-  replicas: 1
   strategy:
-    type: Recreate
+    type: RollingUpdate
+  replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
-      app.kubernetes.io/controller: main
       app.kubernetes.io/name: jellyfin-testing
       app.kubernetes.io/instance: jellyfin-testing
   template:
     metadata:
       labels:
-        app.kubernetes.io/controller: main
-        app.kubernetes.io/instance: jellyfin-testing
+        helm.sh/chart: jellyfin-testing-3.2.0
         app.kubernetes.io/name: jellyfin-testing
+        app.kubernetes.io/instance: jellyfin-testing
+        app.kubernetes.io/version: "10.11.8"
+        app.kubernetes.io/managed-by: Helm
     spec:
-      enableServiceLinks: false
       serviceAccountName: jellyfin-testing
-      automountServiceAccountToken: false
-      hostIPC: false
-      hostNetwork: false
-      hostPID: false
-      dnsPolicy: ClusterFirst
+      securityContext: {}
+      containers:
+        - name: jellyfin-testing
+          securityContext: {}
+          image: "ghcr.io/jellyfin/jellyfin:12.0-rc1@sha256:d04e537d57a79adcbed98c7ff0a4d95521372af16ba1a4c43b679d90a3ae896e"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: JELLYFIN_PublishedServerUrl
+              value: https://jellyfin-testing.alexlebens.net
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    echo "Waiting for system.xml to enable metrics..."
+                    timeout=300 # 5 minutes timeout
+                    interval=5  # Check every 5 seconds
+                    elapsed=0
+                    while [ ! -f /config/config/system.xml ]; do
+                      if [ $elapsed -ge $timeout ]; then
+                        echo "ERROR: Timed out waiting for /config/config/system.xml" >&2
+                        exit 1
+                      fi
+                      sleep $interval
+                      elapsed=$((elapsed + interval))
+                    done
+                    echo "Found /config/config/system.xml, enabling metrics..."
+                    # Check if metrics are already enabled before running sed
+                    if ! grep -q '<EnableMetrics>true</EnableMetrics>' /config/config/system.xml; then
+                      sed 's,<EnableMetrics>false</EnableMetrics>,<EnableMetrics>true</EnableMetrics>,' -i /config/config/system.xml
+                      if [ $? -eq 0 ]; then
+                        echo "Metrics enabled successfully."
+                      else
+                        echo "ERROR: Failed to enable metrics in /config/config/system.xml" >&2
+                        exit 1
+                      fi
+                    else
+                      echo "Metrics already enabled."
+                    fi
+                    exit 0
+          ports:
+            - name: http
+              containerPort: 8096
+              protocol: TCP
+          startupProbe:
+            failureThreshold: 30
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            tcpSocket:
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 100m
+              gpu.intel.com/i915: 1
+              memory: 100Mi
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /media
+              name: media
+              readOnly: false
+            - mountPath: /cache
+              name: cache
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: jellyfin-testing-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: jellyfin-testing-nfs-storage
+        - name: cache
+          emptyDir: {}
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -43,35 +125,3 @@ spec:
                     values:
                       - jellyfin
               topologyKey: kubernetes.io/hostname
-      containers:
-        - env:
-            - name: TZ
-              value: America/Chicago
-            - name: JELLYFIN_PublishedServerUrl
-              value: https://jellyfin-testing.alexlebens.net/
-          image: ghcr.io/jellyfin/jellyfin:12.0-rc1@sha256:d04e537d57a79adcbed98c7ff0a4d95521372af16ba1a4c43b679d90a3ae896e
-          name: main
-          resources:
-            limits:
-              gpu.intel.com/i915: 1
-            requests:
-              cpu: 100m
-              gpu.intel.com/i915: 1
-              memory: 100Mi
-          volumeMounts:
-            - mountPath: /cache
-              name: cache
-            - mountPath: /config
-              name: config
-            - mountPath: /mnt/store
-              name: media
-              readOnly: true
-      volumes:
-        - emptyDir: {}
-          name: cache
-        - name: config
-          persistentVolumeClaim:
-            claimName: jellyfin-testing-config
-        - name: media
-          persistentVolumeClaim:
-            claimName: jellyfin-testing-nfs-storage
