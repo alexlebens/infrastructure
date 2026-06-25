@@ -1,10 +1,10 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: hubble
+  name: cilium-http-redirect
   namespace: kube-system
   labels:
-    app.kubernetes.io/name: hubble
+    app.kubernetes.io/name: cilium-http-redirect
     app.kubernetes.io/instance: cilium
     app.kubernetes.io/part-of: cilium
 spec:
@@ -13,15 +13,12 @@ spec:
       kind: Gateway
       name: cilium-gateway
       namespace: kube-system
-      sectionName: https
+      sectionName: http
   hostnames:
-    - hubble.alexlebens.net
+    - "*.alexlebens.net"
   rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
-      backendRefs:
-        - kind: Service
-          name: hubble-ui
-          port: 80
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
