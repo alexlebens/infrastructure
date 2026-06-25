@@ -23,7 +23,7 @@ env:
   YQ_VERSION: "v4.53.3"
 
 jobs:
-  lint-helm:
+  lint-format:
     runs-on: ubuntu-latest
     outputs:
       chart-dir: ${{ steps.check-dir-changes.outputs.chart-dir }}
@@ -60,6 +60,15 @@ jobs:
           echo "----"
 
           echo "exists=true" >> $GITHUB_OUTPUT
+
+      - name: Check Prettier
+        if: steps.branch-exists.outputs.exists == 'true'
+        run: |
+          echo ">> Running Prettier to check formatting ..."
+          npx -y prettier --check .
+
+          echo ""
+          echo "----"
 
       - name: Set Up Helm
         if: steps.branch-exists.outputs.exists == 'true'
@@ -197,6 +206,7 @@ jobs:
               if ! helm lint "${CHART_PATH}" --namespace "default"; then
                 echo "${DIR}" > ".failed_chart_${CHART_NAME}"
                 return 1
+
               fi
 
             else
@@ -211,12 +221,14 @@ jobs:
 
           for DIR in ${CHANGED_CHARTS}; do
             echo "${DIR}"
+
           done | xargs -P 4 -I {} bash -c 'OUT=$(lint_chart "$@" 2>&1); printf "%s\n" "$OUT"' _ {}
 
           if ls .failed_chart_* 1> /dev/null 2>&1; then
             EXIT_CODE=1
             FAILED_CHARTS=$(cat .failed_chart_* | paste -sd ',' - | sed 's/,/, /g')
             rm -f .failed_chart_*
+
           fi
 
           echo ""
@@ -232,12 +244,13 @@ jobs:
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
-          title: "Helm Test Failure"
+          title: "Helm Lint/Format Failure"
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
           details:
-            "Helm linting for cluster '${{ env.CLUSTER }}' failed on charts: ${{ steps.lint.outputs.failed-charts }}"
+            "Helm linting and formatting for cluster '${{ env.CLUSTER }}' failed on charts: ${{
+            steps.lint.outputs.failed-charts }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.USER_URL }}/${{ github.repository
@@ -245,11 +258,11 @@ jobs:
           image: true
 
   render-templates:
-    needs: lint-helm
+    needs: lint-format
     runs-on: ubuntu-latest
     if: |
-      needs.lint-helm.result == 'success' &&
-      needs.lint-helm.outputs.changes-detected == 'true' &&
+      needs.lint-format.result == 'success' &&
+      needs.lint-format.outputs.changes-detected == 'true' &&
       github.event_name == 'pull_request'
     outputs:
       api-versions: ${{ steps.get-api-versions.outputs.api-versions }}
@@ -278,6 +291,17 @@ jobs:
           restore-keys: |
             helm-cache-${{ runner.os }}-
 
+      - name: Set Up Kubectl
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
+        with:
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Configure Kubeconfig
+        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
       - name: Cache yq
         id: cache-yq
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
@@ -295,22 +319,16 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
 
           echo ""
+          echo "----"
+
+      - name: Verify yq Installation
+        run: |
+          echo ""
           echo ">> Verifying installation ..."
           yq --version
 
           echo ""
           echo "----"
-
-      - name: Configure Kubeconfig
-        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBECONFIG }}
-
-      - name: Set Up Kubectl
-        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
-        with:
-          version: ${{ env.KUBECTL_VERSION }}
 
       - name: Get Cluster API Versions
         id: get-api-versions
@@ -335,7 +353,7 @@ jobs:
 
       - name: Add Repositories
         env:
-          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+          CHANGED_CHARTS: ${{ needs.lint-format.outputs.chart-dir }}
         run: |
           echo ">> Adding repositories for chart dependencies ..."
           echo ""
@@ -370,7 +388,7 @@ jobs:
         id: render
         env:
           API_VERSIONS: ${{ steps.get-api-versions.outputs.api-versions }}
-          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+          CHANGED_CHARTS: ${{ needs.lint-format.outputs.chart-dir }}
         run: |
           mkdir -p rendered-raw rendered-split
 
@@ -434,7 +452,7 @@ jobs:
           retention-days: 1
 
   validate-kubeconform:
-    needs: [lint-helm, render-templates]
+    needs: [lint-format, render-templates]
     runs-on: ubuntu-latest
     if: |
       needs.render-templates.result == 'success'
@@ -483,7 +501,7 @@ jobs:
       - name: Validate Rendered Templates
         id: validate
         env:
-          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+          CHANGED_CHARTS: ${{ needs.lint-format.outputs.chart-dir }}
         run: |
           SCHEMA_LOCATIONS="-schema-location default -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
 
@@ -550,7 +568,7 @@ jobs:
           image: true
 
   argo-diff:
-    needs: [lint-helm, render-templates]
+    needs: [lint-format, render-templates]
     runs-on: ubuntu-latest
     if: |
       needs.render-templates.result == 'success'
@@ -602,7 +620,7 @@ jobs:
         env:
           ARGOCD_SERVER_INTERNAL: argocd-server.argocd.svc.cluster.local:80
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-          CHANGED_CHARTS: ${{ needs.lint-helm.outputs.chart-dir }}
+          CHANGED_CHARTS: ${{ needs.lint-format.outputs.chart-dir }}
         run: |
           FAILED_CHARTS=""
           DIFF_FOUND="false"
