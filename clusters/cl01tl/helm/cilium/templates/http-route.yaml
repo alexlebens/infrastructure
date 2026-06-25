@@ -1,6 +1,31 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  name: cilium-http-redirect
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: cilium-http-redirect
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: cilium-gateway
+      namespace: kube-system
+      sectionName: http
+  hostnames:
+    - "*.alexlebens.net"
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
   name: hubble
   namespace: {{ .Release.Namespace }}
   labels:
@@ -10,8 +35,9 @@ spec:
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
-      name: traefik-gateway
-      namespace: traefik
+      name: cilium-gateway
+      namespace: kube-system
+      sectionName: https
   hostnames:
     - hubble.alexlebens.net
   rules:
