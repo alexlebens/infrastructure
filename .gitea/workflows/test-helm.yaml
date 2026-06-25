@@ -354,6 +354,7 @@ jobs:
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
           CHANGED_CHARTS: ${{ needs.lint-format.outputs.chart-dir }}
         run: |
+          echo "FAILED_STAGE=ArgoCD App Diff" >> $GITHUB_ENV
           FAILED_CHARTS=""
           DIFF_FOUND="false"
           EXIT_CODE=0
@@ -361,16 +362,6 @@ jobs:
           # Temporarily hide .git and .gitignore so argocd packages everything without exclusions
           mv .git .git.bak
           if [ -f .gitignore ]; then mv .gitignore .gitignore.bak; fi
-
-          # Flatten out the manifests
-          if [ -d "clusters/${CLUSTER}/manifests/rendered-split" ]; then
-            mv "clusters/${CLUSTER}/manifests/rendered-split/"* "clusters/${CLUSTER}/manifests/"
-            rm -rf "clusters/${CLUSTER}/manifests/rendered-split"
-          fi
-
-          echo ">> Debug: Directory structure of manifests"
-          ls -R "clusters/${CLUSTER}/manifests"
-          echo ">> Debug: End directory structure"
 
           for APP_NAME in ${CHANGED_CHARTS}; do
             ARGOCD_APP_NAME="${APP_NAME}"
@@ -380,6 +371,21 @@ jobs:
                 ;;
 
             esac
+
+            echo ">> Fetching live app configuration for ${ARGOCD_APP_NAME} ..."
+            APP_PATH=$(argocd app get "${ARGOCD_APP_NAME}" --server "${ARGOCD_SERVER_INTERNAL}" --plaintext --auth-token "${ARGOCD_AUTH_TOKEN}" -o json | jq -r '.spec.source.path // empty')
+
+            LOCAL_CHART_PATH="clusters/${CLUSTER}/helm/${APP_NAME}"
+            TEMP_COPIED="false"
+
+            if [ -n "$APP_PATH" ] && [ "$APP_PATH" != "$LOCAL_CHART_PATH" ] && [ "$APP_PATH" != "null" ]; then
+              echo ">> Live ArgoCD App expects path '${APP_PATH}', but local path is '${LOCAL_CHART_PATH}'."
+              echo ">> Temporarily mirroring directory so local diff succeeds..."
+              mkdir -p "$(dirname "$APP_PATH")"
+              cp -r "$LOCAL_CHART_PATH" "$APP_PATH"
+              TEMP_COPIED="true"
+
+            fi
 
             echo ">> Running argocd app diff for ${ARGOCD_APP_NAME} (chart: ${APP_NAME}) ..."
             if ! argocd app diff "${ARGOCD_APP_NAME}" \
@@ -410,15 +416,16 @@ jobs:
               rm -f "diff_output_${APP_NAME}.txt" "error_output_${APP_NAME}.txt"
 
             fi
+
+            if [ "$TEMP_COPIED" == "true" ]; then
+              rm -rf "$APP_PATH"
+
+            fi
           done
 
           # Restore .git and .gitignore
           mv .git.bak .git
           if [ -f .gitignore.bak ]; then mv .gitignore.bak .gitignore; fi
-
-          echo ""
-          echo "----"
-          echo "diff-detected=${DIFF_FOUND}" >> "$GITHUB_OUTPUT"
 
           if [ "$EXIT_CODE" -ne 0 ]; then
              echo "error-detected=true" >> "$GITHUB_OUTPUT"
@@ -428,7 +435,10 @@ jobs:
 
           fi
 
+          FAILED_CHARTS=$(echo $FAILED_CHARTS | xargs)
+          echo "diff-detected=${DIFF_FOUND}" >> "$GITHUB_OUTPUT"
           echo "failed-charts=${FAILED_CHARTS}" >> "$GITHUB_OUTPUT"
+          echo "FAILED_CHART=${FAILED_CHARTS}" >> $GITHUB_ENV
 
           exit $EXIT_CODE
 
