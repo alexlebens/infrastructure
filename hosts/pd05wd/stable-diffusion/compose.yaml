@@ -1,47 +1,47 @@
 ---
 services:
-    tailscale-stable-diffusion:
-        image: ghcr.io/tailscale/tailscale:v1.98.4@sha256:25cde9ad76020b0e29229136d0c38b5962e9a0e1774ffac9b0df68e4a37d6cf0
-        container_name: tailscale-stable-diffusion
-        cap_add:
-            - net_admin
-            - sys_module
-        environment:
-            - TS_STATE_DIR=/var/lib/tailscale
-            - TS_ENABLE_METRICS=true
-            - TS_HOSTNAME=stable-diffusion-pd05wd
-            - TS_SERVE_CONFIG=/config/serve.json
-        env_file:
-            - .ts-env
-        network_mode: service:stable-diffusion
-        restart: always
-        volumes:
-            - tailscale:/var/lib/tailscale
-            - ./serve.json:/config/serve.json
-        devices:
-            - /dev/net/tun:/dev/net/tun
+  tailscale-stable-diffusion:
+    image: ghcr.io/tailscale/tailscale:v1.98.4@sha256:25cde9ad76020b0e29229136d0c38b5962e9a0e1774ffac9b0df68e4a37d6cf0
+    container_name: tailscale-stable-diffusion
+    cap_add:
+      - net_admin
+      - sys_module
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_ENABLE_METRICS=true
+      - TS_HOSTNAME=stable-diffusion-pd05wd
+      - TS_SERVE_CONFIG=/config/serve.json
+    env_file:
+      - .ts-env
+    network_mode: service:stable-diffusion
+    restart: always
+    volumes:
+      - tailscale:/var/lib/tailscale
+      - ./serve.json:/config/serve.json
+    devices:
+      - /dev/net/tun:/dev/net/tun
 
-    stable-diffusion:
-        image: ghcr.io/ai-dock/stable-diffusion-webui:latest-cuda@sha256:bc4b2b12ac8d030cc5daf25e2c32517709b7c15f59a32685c4c1a14a9606eb42
-        container_name: stable-diffusion
-        environment:
-            - WEBUI_ARGS="--api --listen"
-            - CF_QUICK_TUNNELS=false
-            - WEB_ENABLE_AUTH=false
-            - PORT="17860"
-            - SUPERVISOR_NO_AUTOSTART=jupyter,syncthing
-        restart: always
-        deploy:
-            resources:
-                reservations:
-                    devices:
-                        - driver: nvidia
-                          capabilities: ["gpu"]
-                          count: all
-        volumes:
-            - workspace:/workspace
-            - ./models:/opt/stable-diffusion-webui/models/Stable-diffusion
+  stable-diffusion:
+    image: ghcr.io/ai-dock/stable-diffusion-webui:latest-cuda@sha256:bc4b2b12ac8d030cc5daf25e2c32517709b7c15f59a32685c4c1a14a9606eb42
+    container_name: stable-diffusion
+    environment:
+      - WEBUI_ARGS="--api --listen"
+      - CF_QUICK_TUNNELS=false
+      - WEB_ENABLE_AUTH=false
+      - PORT="17860"
+      - SUPERVISOR_NO_AUTOSTART=jupyter,syncthing
+    restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ["gpu"]
+              count: all
+    volumes:
+      - workspace:/workspace
+      - ./models:/opt/stable-diffusion-webui/models/Stable-diffusion
 
 volumes:
-    tailscale:
-    workspace:
+  tailscale:
+  workspace:

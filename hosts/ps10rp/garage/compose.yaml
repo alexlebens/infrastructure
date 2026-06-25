@@ -1,86 +1,86 @@
 services:
-    tailscale-garage:
-        image: ghcr.io/tailscale/tailscale:v1.98.4@sha256:25cde9ad76020b0e29229136d0c38b5962e9a0e1774ffac9b0df68e4a37d6cf0
-        container_name: tailscale-garage
-        cap_add:
-            - net_admin
-            - sys_module
-        environment:
-            - TS_STATE_DIR=/var/lib/tailscale
-            - TS_ENABLE_METRICS=true
-            - TS_HOSTNAME=garage-ps10rp
-            - TS_SERVE_CONFIG=/config/serve.json
-        restart: always
-        networks:
-            internal: null
-        volumes:
-            - tailscale:/var/lib/tailscale
-            - ${PWD}/serve.json:/config/serve.json:ro
-        devices:
-            - /dev/net/tun:/dev/net/tun
+  tailscale-garage:
+    image: ghcr.io/tailscale/tailscale:v1.98.4@sha256:25cde9ad76020b0e29229136d0c38b5962e9a0e1774ffac9b0df68e4a37d6cf0
+    container_name: tailscale-garage
+    cap_add:
+      - net_admin
+      - sys_module
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_ENABLE_METRICS=true
+      - TS_HOSTNAME=garage-ps10rp
+      - TS_SERVE_CONFIG=/config/serve.json
+    restart: always
+    networks:
+      internal: null
+    volumes:
+      - tailscale:/var/lib/tailscale
+      - ${PWD}/serve.json:/config/serve.json:ro
+    devices:
+      - /dev/net/tun:/dev/net/tun
 
-    tailscale-garage-ui:
-        image: ghcr.io/tailscale/tailscale:v1.98.4@sha256:25cde9ad76020b0e29229136d0c38b5962e9a0e1774ffac9b0df68e4a37d6cf0
-        container_name: tailscale-garage-ui
-        cap_add:
-            - net_admin
-            - sys_module
-        environment:
-            - TS_STATE_DIR=/var/lib/tailscale
-            - TS_ENABLE_METRICS=true
-            - TS_HOSTNAME=garage-ui-ps10rp
-            - TS_SERVE_CONFIG=/config/serve.json
-        restart: always
-        network_mode: service:garage-ui
-        volumes:
-            - tailscale-ui:/var/lib/tailscale
-            - ${PWD}/serve-ui.json:/config/serve.json:ro
-        devices:
-            - /dev/net/tun:/dev/net/tun
+  tailscale-garage-ui:
+    image: ghcr.io/tailscale/tailscale:v1.98.4@sha256:25cde9ad76020b0e29229136d0c38b5962e9a0e1774ffac9b0df68e4a37d6cf0
+    container_name: tailscale-garage-ui
+    cap_add:
+      - net_admin
+      - sys_module
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_ENABLE_METRICS=true
+      - TS_HOSTNAME=garage-ui-ps10rp
+      - TS_SERVE_CONFIG=/config/serve.json
+    restart: always
+    network_mode: service:garage-ui
+    volumes:
+      - tailscale-ui:/var/lib/tailscale
+      - ${PWD}/serve-ui.json:/config/serve.json:ro
+    devices:
+      - /dev/net/tun:/dev/net/tun
 
-    garage:
-        image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
-        container_name: garage
-        env_file:
-            - .env
-        environment:
-            RUST_LOG: trace
-        restart: always
-        networks:
-            internal: null
-        volumes:
-            - ${PWD}/garage.toml:/etc/garage.toml:ro
-            - meta:/var/lib/garage/meta
-            - data:/var/lib/garage/data
+  garage:
+    image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
+    container_name: garage
+    env_file:
+      - .env
+    environment:
+      RUST_LOG: trace
+    restart: always
+    networks:
+      internal: null
+    volumes:
+      - ${PWD}/garage.toml:/etc/garage.toml:ro
+      - meta:/var/lib/garage/meta
+      - data:/var/lib/garage/data
 
-    garage-ui:
-        image: khairul169/garage-webui:1.1.0@sha256:17c793551873155065bf9a022dabcde874de808a1f26e648d4b82e168806439c
-        container_name: garage-ui
-        env_file:
-            - .env
-        environment:
-            API_BASE_URL: "http://garage:3903"
-            S3_ENDPOINT_URL: "http://garage:3900"
-        labels:
-            traefik.enable: true
-            traefik.docker.network: internal
-            traefik.http.routers.garage-webui.entrypoints: web-secure
-            traefik.http.routers.garage-webui.rule: Host(`garage-ui.lebens-home.net`)
-            traefik.http.routers.garage-webui.service: garage-webui
-            traefik.http.services.garage-webui.loadbalancer.server.port: 3009
-        restart: always
-        networks:
-            internal: null
-        volumes:
-            - ${PWD}/garage.toml:/etc/garage.toml:ro
+  garage-ui:
+    image: khairul169/garage-webui:1.1.0@sha256:17c793551873155065bf9a022dabcde874de808a1f26e648d4b82e168806439c
+    container_name: garage-ui
+    env_file:
+      - .env
+    environment:
+      API_BASE_URL: "http://garage:3903"
+      S3_ENDPOINT_URL: "http://garage:3900"
+    labels:
+      traefik.enable: true
+      traefik.docker.network: internal
+      traefik.http.routers.garage-webui.entrypoints: web-secure
+      traefik.http.routers.garage-webui.rule: Host(`garage-ui.lebens-home.net`)
+      traefik.http.routers.garage-webui.service: garage-webui
+      traefik.http.services.garage-webui.loadbalancer.server.port: 3009
+    restart: always
+    networks:
+      internal: null
+    volumes:
+      - ${PWD}/garage.toml:/etc/garage.toml:ro
 
 networks:
-    internal:
-        name: internal
-        external: true
+  internal:
+    name: internal
+    external: true
 
 volumes:
-    tailscale:
-    tailscale-ui:
-    meta:
-    data:
+  tailscale:
+  tailscale-ui:
+  meta:
+  data:

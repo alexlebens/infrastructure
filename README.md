@@ -6,13 +6,16 @@
 
 ---
 
-This repository serves as the single source of truth for all GitOps deployments, cluster configurations, and infrastructure-as-code for my personal homelab environments.
+This repository serves as the single source of truth for all GitOps deployments, cluster configurations, and
+infrastructure-as-code for my personal homelab environments.
 
 ## Features
 
 - **GitOps Architecture**: All infrastructure is declaratively defined and automatically reconciled using ArgoCD.
-- **App-of-Apps Pattern**: Clusters are bootstrapped and managed using the App-of-Apps deployment pattern for maximum scalability and maintainability.
-- **Automated Dependency Updates**: Monitored and automatically updated using Renovate to keep all Helm charts, manifests, and system configurations secure and current.
+- **App-of-Apps Pattern**: Clusters are bootstrapped and managed using the App-of-Apps deployment pattern for maximum
+  scalability and maintainability.
+- **Automated Dependency Updates**: Monitored and automatically updated using Renovate to keep all Helm charts,
+  manifests, and system configurations secure and current.
 
 ## Clusters
 
@@ -41,4 +44,5 @@ System-level and node-specific configurations for the following hosts:
 
 ## License
 
-This project is open-source and licensed under the terms of the Apache 2.0 License. See the [LICENSE](LICENSE) file for more details.
+This project is open-source and licensed under the terms of the Apache 2.0 License. See the [LICENSE](LICENSE) file for
+more details.

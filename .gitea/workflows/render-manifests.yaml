@@ -28,9 +28,8 @@ jobs:
   render-manifests:
     runs-on: ubuntu-latest
     if: >-
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name ==
+      'pull_request' && github.event.pull_request.merged == true)
     steps:
       - name: Checkout Main
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -57,7 +56,9 @@ jobs:
           path: |
             ~/.cache/helm
             ~/.config/helm
-          key: helm-cache-${{ runner.os }}-${{ hashFiles('infrastructure/clusters/cl01tl/helm/**/Chart.yaml', 'infrastructure/clusters/cl01tl/helm/**/Chart.lock') }}
+          key:
+            helm-cache-${{ runner.os }}-${{ hashFiles('infrastructure/clusters/cl01tl/helm/**/Chart.yaml',
+            'infrastructure/clusters/cl01tl/helm/**/Chart.lock') }}
           restore-keys: |
             helm-cache-${{ runner.os }}-
 
@@ -478,7 +479,9 @@ jobs:
 
       - name: Create Pull Request
         id: create-pull-request
-        if: steps.commit-push.outputs.push == 'true' && (steps.mode.outputs.is-automerge == 'true' || steps.check-for-pull-request.outputs.pull-request-exists == 'false')
+        if:
+          steps.commit-push.outputs.push == 'true' && (steps.mode.outputs.is-automerge == 'true' ||
+          steps.check-for-pull-request.outputs.pull-request-exists == 'false')
         env:
           IS_AUTOMERGE: ${{ steps.mode.outputs.is-automerge }}
           GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -539,7 +542,9 @@ jobs:
 
       - name: Update Pull Request
         id: update-pull-request
-        if: steps.commit-push.outputs.push == 'true' && steps.check-for-pull-request.outputs.pull-request-exists != 'false' && steps.mode.outputs.is-automerge == 'false'
+        if:
+          steps.commit-push.outputs.push == 'true' && steps.check-for-pull-request.outputs.pull-request-exists !=
+          'false' && steps.mode.outputs.is-automerge == 'false'
         env:
           GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
           GITEA_URL: ${{ secrets.REPO_URL }}
@@ -627,7 +632,9 @@ jobs:
 
       - name: ntfy Created
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
-        if: steps.create-pull-request.outputs.pull-request-operation == 'created' && steps.mode.outputs.is-automerge == 'false'
+        if:
+          steps.create-pull-request.outputs.pull-request-operation == 'created' && steps.mode.outputs.is-automerge ==
+          'false'
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
@@ -637,11 +644,15 @@ jobs:
           tags: action,successfully,completed
           details: "Rendered Charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
-          actions: '[{"action": "view", "label": "View PR", "url": "${{ vars.USER_URL }}/${{ github.repository }}/pulls/${{ steps.create-pull-request.outputs.pull-request-number }}", "clear": true}]'
+          actions:
+            '[{"action": "view", "label": "View PR", "url": "${{ vars.USER_URL }}/${{ github.repository }}/pulls/${{
+            steps.create-pull-request.outputs.pull-request-number }}", "clear": true}]'
 
       - name: ntfy Updated
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
-        if: steps.commit-push.outputs.push == 'true' && steps.check-for-pull-request.outputs.pull-request-exists != 'false' && steps.mode.outputs.is-automerge == 'false'
+        if:
+          steps.commit-push.outputs.push == 'true' && steps.check-for-pull-request.outputs.pull-request-exists !=
+          'false' && steps.mode.outputs.is-automerge == 'false'
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
@@ -651,7 +662,9 @@ jobs:
           tags: action,successfully,completed
           details: "Rendered Charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
-          actions: '[{"action": "view", "label": "View PR", "url": "${{ vars.USER_URL }}/${{ github.repository }}/pulls/${{ steps.create-pull-request.outputs.pull-request-number }}", "clear": true}]'
+          actions:
+            '[{"action": "view", "label": "View PR", "url": "${{ vars.USER_URL }}/${{ github.repository }}/pulls/${{
+            steps.create-pull-request.outputs.pull-request-number }}", "clear": true}]'
 
       - name: ntfy Merged
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -665,7 +678,9 @@ jobs:
           tags: action,successfully,completed
           details: "Rendered Charts: ${{ steps.check-changes.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
-          actions: '[{"action": "view", "label": "View PR", "url": "${{ vars.USER_URL }}/${{ github.repository }}/pulls/${{ steps.create-pull-request.outputs.pull-request-number }}", "clear": true}]'
+          actions:
+            '[{"action": "view", "label": "View PR", "url": "${{ vars.USER_URL }}/${{ github.repository }}/pulls/${{
+            steps.create-pull-request.outputs.pull-request-number }}", "clear": true}]'
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -679,4 +694,6 @@ jobs:
           tags: action,failed
           details: "Manifest rendering for Infrastructure has failed!"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
-          actions: '[{"action": "view", "label": "View Logs", "url": "${{ vars.USER_URL }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+          actions:
+            '[{"action": "view", "label": "View Logs", "url": "${{ vars.USER_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
