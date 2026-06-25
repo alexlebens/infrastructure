@@ -26,7 +26,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      chart-dir-json: ${{ steps.check-dir-changes.outputs.chart-dir-json }}
+      chart-dir: ${{ steps.check-dir-changes.outputs.chart-dir }}
       changes-detected: ${{ steps.check-dir-changes.outputs.changes-detected }}
     steps:
       - name: Checkout
@@ -96,19 +96,17 @@ jobs:
             fi
           done
 
+          VALID_CHARTS=$(echo $VALID_CHARTS | xargs)
+
           if [ -n "${VALID_CHARTS}" ]; then
             echo ""
             echo ">> Charts to test:"
-            echo -e "${VALID_CHARTS}"
-
-            CHANGED_CHARTS_JSON=$(echo -e "${VALID_CHARTS}" | jq -R -s -c 'split("\n") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')
+            echo "${VALID_CHARTS}"
 
             echo ""
             echo "----"
             echo "changes-detected=true" >> $GITHUB_OUTPUT
-            echo "chart-dir-json<<EOF" >> $GITHUB_OUTPUT
-            echo "${CHANGED_CHARTS_JSON}" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            echo "chart-dir=${VALID_CHARTS}" >> $GITHUB_OUTPUT
 
           else
             echo ""
@@ -126,12 +124,8 @@ jobs:
     if: |
       needs.detect-changes.result == 'success' &&
       needs.detect-changes.outputs.changes-detected == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        chart: ${{ fromJson(needs.detect-changes.outputs.chart-dir-json) }}
     env:
-      CHART: ${{ matrix.chart }}
+      CHANGED_CHARTS: ${{ needs.detect-changes.outputs.chart-dir }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -145,31 +139,23 @@ jobs:
           version: ${{ env.HELM_VERSION }}
           cache: true
 
-      - name: Cache Helm Dependencies
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
-        with:
-          path: |
-            ~/.cache/helm
-            ~/.config/helm
-          key:
-            helm-cache-${{ runner.os }}-${{ hashFiles(format('infrastructure/clusters/{0}/helm/{1}/Chart.yaml',
-            env.CLUSTER, matrix.chart), format('infrastructure/clusters/{0}/helm/{1}/Chart.lock', env.CLUSTER,
-            matrix.chart)) }}
-          restore-keys: |
-            helm-cache-${{ runner.os }}-
-
-      - name: Lint Helm Chart
+      - name: Lint Helm Charts
         run: |
-          echo ">> Building helm dependency for ${CHART} ..."
-          helm dependency build "clusters/${CLUSTER}/helm/${CHART}" --skip-refresh
+          echo "FAILED_STAGE=Lint Helm Chart" >> $GITHUB_ENV
+          for CHART in ${CHANGED_CHARTS}; do
+            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
 
-          echo ""
-          echo ">> Linting helm chart ${CHART} ..."
-          helm lint "clusters/${CLUSTER}/helm/${CHART}" --namespace "default"
+            echo ">> Building helm dependency for ${CHART} ..."
+            helm dependency build "clusters/${CLUSTER}/helm/${CHART}" --skip-refresh
+
+            echo ""
+            echo ">> Linting helm chart ${CHART} ..."
+            helm lint "clusters/${CLUSTER}/helm/${CHART}" --namespace "default"
+
+          done
 
           echo ""
           echo "----"
-          echo "FAILED_STAGE=Lint Helm Chart" >> $GITHUB_ENV
 
       - name: Set Up Kubectl
         uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
@@ -232,37 +218,42 @@ jobs:
         env:
           API_VERSIONS: ${{ steps.get-api-versions.outputs.api-versions }}
         run: |
-          mkdir -p rendered-raw rendered-split/${CHART}
+          echo "FAILED_STAGE=Render Templates" >> $GITHUB_ENV
+          for CHART in ${CHANGED_CHARTS}; do
+            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
 
-          CHART_PATH="clusters/${CLUSTER}/helm/${CHART}"
-          NAMESPACE="${CHART}"
+            mkdir -p rendered-raw rendered-split/${CHART}
 
-          case "${CHART}" in
-            "stack")
-              NAMESPACE="argocd"
-              ;;
-            "cilium" | "coredns" | "metrics-server")
-              NAMESPACE="kube-system"
-              ;;
+            CHART_PATH="clusters/${CLUSTER}/helm/${CHART}"
+            NAMESPACE="${CHART}"
 
-          esac
+            case "${CHART}" in
+              "stack")
+                NAMESPACE="argocd"
+                ;;
+              "cilium" | "coredns" | "metrics-server")
+                NAMESPACE="kube-system"
+                ;;
 
-          echo ">> Rendering into '${NAMESPACE}' namespace ..."
-          helm template "${CHART}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --api-versions "${API_VERSIONS}" > "rendered-raw/${CHART}.yaml"
+            esac
 
-          SPLIT_FOLDER="rendered-split/${CHART}/"
-          cat "rendered-raw/${CHART}.yaml" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${SPLIT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
+            echo ">> Rendering into '${NAMESPACE}' namespace ..."
+            helm template "${CHART}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --api-versions "${API_VERSIONS}" > "rendered-raw/${CHART}.yaml"
 
-          for file in "$SPLIT_FOLDER"/*; do
-            yq -i '... comments=""' $file
+            SPLIT_FOLDER="rendered-split/${CHART}/"
+            cat "rendered-raw/${CHART}.yaml" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${SPLIT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
+
+            for file in "$SPLIT_FOLDER"/*; do
+              yq -i '... comments=""' $file
+
+            done
+
+            echo ">> Split templates created successfully for ${CHART}"
 
           done
 
-          echo ">> Split templates created successfully"
-
           echo ""
           echo "----"
-          echo "FAILED_STAGE=Render Templates" >> $GITHUB_ENV
 
       - name: Cache Kubeconform
         id: cache-kubeconform
@@ -294,15 +285,19 @@ jobs:
 
       - name: Kubeconform Rendered Templates
         run: |
+          echo "FAILED_STAGE=Kubeconform Validation" >> $GITHUB_ENV
           SCHEMA_LOCATIONS="-schema-location default -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
 
-          echo ">> Kubeconform for: ${CHART}"
-          set -o pipefail
-          cat "rendered-raw/${CHART}.yaml" | kubeconform ${SCHEMA_LOCATIONS} -ignore-missing-schemas -strict -summary
+          for CHART in ${CHANGED_CHARTS}; do
+            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
+            echo ">> Kubeconform for: ${CHART}"
+            set -o pipefail
+            cat "rendered-raw/${CHART}.yaml" | kubeconform ${SCHEMA_LOCATIONS} -ignore-missing-schemas -strict -summary
+
+          done
 
           echo ""
           echo "----"
-          echo "FAILED_STAGE=Kubeconform Validation" >> $GITHUB_ENV
 
       - name: Cache ArgoCD CLI
         id: cache-argocd
@@ -331,48 +326,67 @@ jobs:
           echo "----"
 
       - name: Run App Diff
-        id: diff
         if: github.event_name == 'pull_request'
         env:
           ARGOCD_SERVER_INTERNAL: argocd-server.argocd.svc.cluster.local:80
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
         run: |
+          echo "FAILED_STAGE=ArgoCD App Diff" >> $GITHUB_ENV
           # Temporarily hide .git and .gitignore so argocd packages everything
           mv .git .git.bak
           if [ -f .gitignore ]; then mv .gitignore .gitignore.bak; fi
 
-          ARGOCD_APP_NAME="${CHART}"
-          case "${CHART}" in
-            "stack")
-              ARGOCD_APP_NAME="stack-cl01tl"
-              ;;
-          esac
+          for CHART in ${CHANGED_CHARTS}; do
+            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
+            ARGOCD_APP_NAME="${CHART}"
+            case "${CHART}" in
+              "stack")
+                ARGOCD_APP_NAME="stack-cl01tl"
+                ;;
+            esac
 
-          echo ">> Running argocd app diff for ${ARGOCD_APP_NAME} (chart: ${CHART}) ..."
+            echo ">> Running argocd app diff for ${ARGOCD_APP_NAME} (chart: ${CHART}) ..."
 
-          DIFF_FOUND="false"
-          if ! argocd app diff "${ARGOCD_APP_NAME}" \
-            --server "${ARGOCD_SERVER_INTERNAL}" \
-            --plaintext \
-            --auth-token "${ARGOCD_AUTH_TOKEN}" \
-            --server-side-generate \
-            --local "$PWD" > diff_output.txt 2> error_output.txt; then
+            if ! argocd app diff "${ARGOCD_APP_NAME}" \
+              --server "${ARGOCD_SERVER_INTERNAL}" \
+              --plaintext \
+              --auth-token "${ARGOCD_AUTH_TOKEN}" \
+              --server-side-generate \
+              --local "$PWD" > diff_output.txt 2> error_output.txt; then
 
-            if [ -s "diff_output.txt" ]; then
-               DIFF_FOUND="true"
-               echo ">> Argo diff found for ${CHART}"
+              if [ -s "diff_output.txt" ]; then
+                 echo ">> Argo diff found for ${CHART}"
+
+                 DIFF_CONTENT=$(cat diff_output.txt)
+                 COMMENT_BODY="### ArgoCD Diff Results
+                 #### App: ${CHART}
+                 \`\`\`diff
+                 ${DIFF_CONTENT}
+                 \`\`\`"
+
+                 curl -s -X 'POST' \
+                   "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+                   -H "Authorization: token ${GITEA_TOKEN}" \
+                   -H "Content-Type: application/json" \
+                   -d "$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')" > /dev/null
+
+              else
+                 echo ">> ArgoCD encountered an error validating ${CHART}!"
+                 cat error_output.txt
+
+                 # Restore git before exiting
+                 mv .git.bak .git
+                 if [ -f .gitignore.bak ]; then mv .gitignore.bak .gitignore; fi
+                 exit 1
+
+              fi
 
             else
-               echo ">> ArgoCD encountered an error validating ${CHART}!"
-               cat error_output.txt
-               exit 1
+              echo ">> No Argo diff or errors found for ${CHART}"
 
             fi
-
-          else
-            echo ">> No Argo diff or errors found for ${CHART}"
-
-          fi
+          done
 
           # Restore .git and .gitignore
           mv .git.bak .git
@@ -380,29 +394,6 @@ jobs:
 
           echo ""
           echo "----"
-          echo "diff-detected=${DIFF_FOUND}" >> "$GITHUB_OUTPUT"
-          echo "FAILED_STAGE=ArgoCD App Diff" >> $GITHUB_ENV
-
-      - name: Post Diff
-        if: |
-          always() &&
-          steps.diff.outputs.diff-detected == 'true' &&
-          github.event.pull_request.number != null
-        env:
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
-        run: |
-          DIFF_CONTENT=$(cat diff_output.txt)
-          COMMENT_BODY="### ArgoCD Diff Results
-          #### App: ${CHART}
-          \`\`\`diff
-          ${DIFF_CONTENT}
-          \`\`\`"
-
-          curl -X 'POST' \
-            "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
-            -H "Authorization: token ${GITEA_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')"
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -410,11 +401,11 @@ jobs:
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
-          title: "Test Chart Failure - ${{ matrix.chart }}"
+          title: "Test Chart Failure - ${{ env.FAILED_CHART }}"
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
-          details: "Testing failed for chart: ${{ matrix.chart }} at stage: ${{ env.FAILED_STAGE }}"
+          details: "Testing failed for chart: ${{ env.FAILED_CHART }} at stage: ${{ env.FAILED_STAGE }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.USER_URL }}/${{ github.repository
