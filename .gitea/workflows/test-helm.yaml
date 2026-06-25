@@ -48,10 +48,10 @@ jobs:
           'pull_request'
         run: |
           if [ "${{ github.event_name }}" == "push" ]; then
-            echo ">> Action is from a push event, will continue with linting"
+            echo ">> Action is from a push event, will continue with testing"
 
           else
-            echo ">> Branch ${{ github.base_ref }} exists, will continue with linting"
+            echo ">> Branch ${{ github.base_ref }} exists, will continue with testing"
 
           fi
 
@@ -132,9 +132,6 @@ jobs:
 
       - name: Add Repositories
         run: |
-          echo ">> Adding repositories for chart dependencies ..."
-          echo ""
-
           for DIR in ${CHANGED_CHARTS}; do
             helm dependency list --max-col-width 120 clusters/${CLUSTER}/helm/${DIR} 2> /dev/null \
               | tail -n +2 \
@@ -149,12 +146,16 @@ jobs:
                 fi
 
               done || true
+
+              echo ""
+
           done
 
           if helm repo list > /dev/null 2>&1; then
             echo ""
             echo ">> Update repository cache ..."
             helm repo update
+            echo ""
 
           fi
 
@@ -193,7 +194,6 @@ jobs:
       - name: Get Cluster API Versions
         id: get-api-versions
         run: |
-          echo ">> Fetching cluster API versions using kubectl ..."
           CLUSTER_CRDS=$(kubectl api-versions | tr '\n' ',')
 
           if [ -n "$CLUSTER_CRDS" ]; then
@@ -205,6 +205,9 @@ jobs:
           fi
 
           API_VERSIONS=$(echo "$API_VERSIONS" | awk -F, '{for(i=1;i<=NF;i++) print $i}' | sort | uniq | paste -sd, -)
+
+          echo ">> API Versions:"
+          echo "$API_VERSIONS"
 
           echo ""
           echo "----"
@@ -259,6 +262,7 @@ jobs:
 
             esac
 
+            echo ""
             echo ">> Rendering into '${NAMESPACE}' namespace ..."
             helm template "${CHART}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --api-versions "${API_VERSIONS}" > "rendered-raw/${CHART}.yaml"
 
@@ -270,6 +274,7 @@ jobs:
 
             done
 
+            echo ""
             echo ">> Split templates created successfully for ${CHART}"
 
           done
@@ -312,6 +317,7 @@ jobs:
 
           for CHART in ${CHANGED_CHARTS}; do
             echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
+            echo ""
             echo ">> Kubeconform for: ${CHART}"
             set -o pipefail
             cat "rendered-raw/${CHART}.yaml" | kubeconform ${SCHEMA_LOCATIONS} -ignore-missing-schemas -strict -summary
@@ -372,6 +378,7 @@ jobs:
 
             esac
 
+            echo ""
             echo ">> Fetching live app configuration for ${ARGOCD_APP_NAME} ..."
             APP_PATH=$(argocd app get "${ARGOCD_APP_NAME}" --server "${ARGOCD_SERVER_INTERNAL}" --plaintext --auth-token "${ARGOCD_AUTH_TOKEN}" -o json | jq -r '.spec.source.path // empty')
 
@@ -380,13 +387,14 @@ jobs:
 
             if [ -n "$APP_PATH" ] && [ "$APP_PATH" != "$LOCAL_CHART_PATH" ] && [ "$APP_PATH" != "null" ]; then
               echo ">> Live ArgoCD App expects path '${APP_PATH}', but local path is '${LOCAL_CHART_PATH}'."
-              echo ">> Temporarily mirroring directory so local diff succeeds..."
+              echo ">> Temporarily mirroring directory so local diff succeeds ..."
               mkdir -p "$(dirname "$APP_PATH")"
               cp -r "$LOCAL_CHART_PATH" "$APP_PATH"
               TEMP_COPIED="true"
 
             fi
 
+            echo ""
             echo ">> Running argocd app diff for ${ARGOCD_APP_NAME} (chart: ${APP_NAME}) ..."
             if ! argocd app diff "${ARGOCD_APP_NAME}" \
               --server "${ARGOCD_SERVER_INTERNAL}" \
@@ -426,6 +434,9 @@ jobs:
           # Restore .git and .gitignore
           mv .git.bak .git
           if [ -f .gitignore.bak ]; then mv .gitignore.bak .gitignore; fi
+
+          echo ""
+          echo "----"
 
           if [ "$EXIT_CODE" -ne 0 ]; then
              echo "error-detected=true" >> "$GITHUB_OUTPUT"
