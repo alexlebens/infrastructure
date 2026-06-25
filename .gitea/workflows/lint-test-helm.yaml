@@ -62,6 +62,7 @@ jobs:
       - name: Check Prettier
         if: steps.branch-exists.outputs.exists == 'true'
         run: |
+          echo ">> Running Prettier to check formatting ..."
           npx -y prettier --check .
 
           echo ""
@@ -88,10 +89,10 @@ jobs:
           RAW_CHARTS=$(git diff --name-only "${DIFF_TARGET}" | grep -E "^clusters/${CLUSTER}/helm/" | awk -F '/' '{print $4}' | sort -u || true)
           VALID_CHARTS=""
 
-          for CHART in $RAW_CHARTS; do
-            # Ensure the directory actually exists and has a Chart.yaml (prevents errors from empty strings, spaces, or deleted charts)
-            if [ -n "$CHART" ] && [ -f "clusters/${CLUSTER}/helm/${CHART}/Chart.yaml" ]; then
-              VALID_CHARTS="${VALID_CHARTS}${CHART}\n"
+          for C in $RAW_CHARTS; do
+            if [ -n "$C" ] && [ -f "clusters/${CLUSTER}/helm/${C}/Chart.yaml" ]; then
+              VALID_CHARTS="${VALID_CHARTS}${C}\n"
+
             fi
           done
 
@@ -100,13 +101,14 @@ jobs:
             echo ">> Charts to test:"
             echo -e "${VALID_CHARTS}"
 
-            # Robust JSON conversion: split by newline, strip whitespace, remove empty items
             CHANGED_CHARTS_JSON=$(echo -e "${VALID_CHARTS}" | jq -R -s -c 'split("\n") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')
 
             echo ""
             echo "----"
             echo "changes-detected=true" >> $GITHUB_OUTPUT
-            echo "chart-dir-json=${CHANGED_CHARTS_JSON}" >> $GITHUB_OUTPUT
+            echo "chart-dir-json<<EOF" >> $GITHUB_OUTPUT
+            echo "${CHANGED_CHARTS_JSON}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
 
           else
             echo ""
@@ -128,6 +130,8 @@ jobs:
       fail-fast: false
       matrix:
         chart: ${{ fromJson(needs.detect-changes.outputs.chart-dir-json) }}
+    env:
+      CHART: ${{ matrix.chart }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -156,12 +160,12 @@ jobs:
 
       - name: Lint Helm Chart
         run: |
-          echo ">> Building helm dependency for ${{ matrix.chart }} ..."
-          helm dependency build "clusters/${CLUSTER}/helm/${{ matrix.chart }}" --skip-refresh
+          echo ">> Building helm dependency for ${CHART} ..."
+          helm dependency build "clusters/${CLUSTER}/helm/${CHART}" --skip-refresh
 
           echo ""
-          echo ">> Linting helm chart ${{ matrix.chart }} ..."
-          helm lint "clusters/${CLUSTER}/helm/${{ matrix.chart }}" --namespace "default"
+          echo ">> Linting helm chart ${CHART} ..."
+          helm lint "clusters/${CLUSTER}/helm/${CHART}" --namespace "default"
 
           echo ""
           echo "----"
@@ -228,12 +232,12 @@ jobs:
         env:
           API_VERSIONS: ${{ steps.get-api-versions.outputs.api-versions }}
         run: |
-          mkdir -p rendered-raw rendered-split/${{ matrix.chart }}
+          mkdir -p rendered-raw rendered-split/${CHART}
 
-          CHART_PATH="clusters/${CLUSTER}/helm/${{ matrix.chart }}"
-          NAMESPACE="${{ matrix.chart }}"
+          CHART_PATH="clusters/${CLUSTER}/helm/${CHART}"
+          NAMESPACE="${CHART}"
 
-          case "${{ matrix.chart }}" in
+          case "${CHART}" in
             "stack")
               NAMESPACE="argocd"
               ;;
@@ -244,10 +248,10 @@ jobs:
           esac
 
           echo ">> Rendering into '${NAMESPACE}' namespace ..."
-          helm template "${{ matrix.chart }}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --api-versions "${API_VERSIONS}" > "rendered-raw/${{ matrix.chart }}.yaml"
+          helm template "${CHART}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --api-versions "${API_VERSIONS}" > "rendered-raw/${CHART}.yaml"
 
-          SPLIT_FOLDER="rendered-split/${{ matrix.chart }}/"
-          cat "rendered-raw/${{ matrix.chart }}.yaml" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${SPLIT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
+          SPLIT_FOLDER="rendered-split/${CHART}/"
+          cat "rendered-raw/${CHART}.yaml" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${SPLIT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
 
           for file in "$SPLIT_FOLDER"/*; do
             yq -i '... comments=""' $file
@@ -292,9 +296,9 @@ jobs:
         run: |
           SCHEMA_LOCATIONS="-schema-location default -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
 
-          echo ">> Kubeconform for: ${{ matrix.chart }}"
+          echo ">> Kubeconform for: ${CHART}"
           set -o pipefail
-          cat "rendered-raw/${{ matrix.chart }}.yaml" | kubeconform ${SCHEMA_LOCATIONS} -ignore-missing-schemas -strict -summary
+          cat "rendered-raw/${CHART}.yaml" | kubeconform ${SCHEMA_LOCATIONS} -ignore-missing-schemas -strict -summary
 
           echo ""
           echo "----"
@@ -337,14 +341,14 @@ jobs:
           mv .git .git.bak
           if [ -f .gitignore ]; then mv .gitignore .gitignore.bak; fi
 
-          ARGOCD_APP_NAME="${{ matrix.chart }}"
-          case "${{ matrix.chart }}" in
+          ARGOCD_APP_NAME="${CHART}"
+          case "${CHART}" in
             "stack")
               ARGOCD_APP_NAME="stack-cl01tl"
               ;;
           esac
 
-          echo ">> Running argocd app diff for ${ARGOCD_APP_NAME} (chart: ${{ matrix.chart }}) ..."
+          echo ">> Running argocd app diff for ${ARGOCD_APP_NAME} (chart: ${CHART}) ..."
 
           DIFF_FOUND="false"
           if ! argocd app diff "${ARGOCD_APP_NAME}" \
@@ -356,17 +360,17 @@ jobs:
 
             if [ -s "diff_output.txt" ]; then
                DIFF_FOUND="true"
-               echo ">> Argo diff found for ${{ matrix.chart }}"
+               echo ">> Argo diff found for ${CHART}"
 
             else
-               echo ">> ArgoCD encountered an error validating ${{ matrix.chart }}!"
+               echo ">> ArgoCD encountered an error validating ${CHART}!"
                cat error_output.txt
                exit 1
 
             fi
 
           else
-            echo ">> No Argo diff or errors found for ${{ matrix.chart }}"
+            echo ">> No Argo diff or errors found for ${CHART}"
 
           fi
 
@@ -389,7 +393,7 @@ jobs:
         run: |
           DIFF_CONTENT=$(cat diff_output.txt)
           COMMENT_BODY="### ArgoCD Diff Results
-          #### App: ${{ matrix.chart }}
+          #### App: ${CHART}
           \`\`\`diff
           ${DIFF_CONTENT}
           \`\`\`"
