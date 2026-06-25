@@ -1,0 +1,34 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cilium-gateway
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: cilium-gateway
+    app.kubernetes.io/instance: cilium
+    app.kubernetes.io/part-of: cilium
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-issuer
+spec:
+  gatewayClassName: cilium
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      hostname: "*.alexlebens.net"
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      port: 443
+      protocol: HTTPS
+      hostname: "*.alexlebens.net"
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: cilium-gateway-cert
+            namespace: kube-system
