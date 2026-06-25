@@ -608,6 +608,10 @@ jobs:
           DIFF_FOUND="false"
           EXIT_CODE=0
 
+          # ArgoCD CLI respects .git and ignores untracked files when building the local tarball
+          # Stage the manifests so they are included in the upload
+          git add "clusters/${CLUSTER}/manifests/"
+
           for APP_NAME in ${CHANGED_CHARTS}; do
             ARGOCD_APP_NAME="${APP_NAME}"
             case "${APP_NAME}" in
@@ -624,34 +628,27 @@ jobs:
               --auth-token "${ARGOCD_AUTH_TOKEN}" \
               --server-side-generate \
               --local "clusters/${CLUSTER}/manifests/${APP_NAME}" \
-              --local-repo-root "." > "output_${APP_NAME}.txt" 2>&1; then
+              --local-repo-root "." > "diff_output_${APP_NAME}.txt" 2> "error_output_${APP_NAME}.txt"; then
 
-              if grep -iE 'error|failed|connection refused|timeout|rpc error' "output_${APP_NAME}.txt"; then
+              if [ -s "diff_output_${APP_NAME}.txt" ]; then
+                 DIFF_FOUND="true"
+                 rm -f "error_output_${APP_NAME}.txt"
+                 echo ">> Argo diff found for ${APP_NAME}"
+                 cat "diff_output_${APP_NAME}.txt"
+                 echo ""
+
+              else
                  echo ">> ArgoCD encountered an error validating ${APP_NAME}!"
                  EXIT_CODE=1
                  FAILED_CHARTS="${FAILED_CHARTS} ${APP_NAME}"
-                 mv "output_${APP_NAME}.txt" "error_output_${APP_NAME}.txt"
-
-              else
-                 DIFF_FOUND="true"
-                 mv "output_${APP_NAME}.txt" "diff_output_${APP_NAME}.txt"
+                 cat "error_output_${APP_NAME}.txt"
+                 echo ""
 
               fi
-            fi
-
-            if [ -s "diff_output_${APP_NAME}.txt" ]; then
-              echo ">> Argo diff found for ${APP_NAME}"
-              cat diff_output_${APP_NAME}.txt
-              echo ""
-
-            elif [ -s "error_output_${APP_NAME}.txt" ]; then
-              echo ">> Argo errors found for ${APP_NAME}"
-              cat error_output_${APP_NAME}.txt
-              echo ""
 
             else
               echo ">> No Argo diff or errors found for ${APP_NAME}"
-              rm -f "output_${APP_NAME}.txt"
+              rm -f "diff_output_${APP_NAME}.txt" "error_output_${APP_NAME}.txt"
 
             fi
           done
