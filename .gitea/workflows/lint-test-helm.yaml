@@ -626,15 +626,19 @@ jobs:
           DIFF_FOUND="false"
           EXIT_CODE=0
 
-          # Temporarily hide .git so argocd packages everything
+          # Temporarily hide .git and .gitignore so argocd packages everything without exclusions
           mv .git .git.bak
+          if [ -f .gitignore ]; then mv .gitignore .gitignore.bak; fi
 
           # Flatten out the manifests
           if [ -d "clusters/${CLUSTER}/manifests/rendered-split" ]; then
             mv "clusters/${CLUSTER}/manifests/rendered-split/"* "clusters/${CLUSTER}/manifests/"
             rm -rf "clusters/${CLUSTER}/manifests/rendered-split"
-
           fi
+
+          echo ">> Debug: Directory structure of manifests"
+          ls -R "clusters/${CLUSTER}/manifests"
+          echo ">> Debug: End directory structure"
 
           for APP_NAME in ${CHANGED_CHARTS}; do
             ARGOCD_APP_NAME="${APP_NAME}"
@@ -677,8 +681,9 @@ jobs:
             fi
           done
 
-          # Restore .git
+          # Restore .git and .gitignore
           mv .git.bak .git
+          if [ -f .gitignore.bak ]; then mv .gitignore.bak .gitignore; fi
 
           echo ""
           echo "----"
@@ -699,7 +704,7 @@ jobs:
       - name: Post Diff
         if: |
           always() &&
-          (steps.diff.outputs.diff-detected == 'true' || steps.diff.outputs.error-detected == 'true') &&
+          steps.diff.outputs.diff-detected == 'true' &&
           github.event.pull_request.number != null
         env:
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
@@ -726,19 +731,6 @@ jobs:
           \`\`\`"
 
             fi
-          done
-
-          for f in error_output_*.txt; do
-            [ -f "$f" ] || continue
-            APP_NAME=$(echo $f | sed 's/error_output_//;s/.txt//')
-            ERROR_CONTENT=$(cat "$f")
-
-            COMMENT_BODY="${COMMENT_BODY}
-          #### Error: ${APP_NAME}
-          \`\`\`text
-          ${ERROR_CONTENT}
-          \`\`\`"
-
           done
 
           curl -X 'POST' \
