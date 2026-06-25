@@ -85,14 +85,23 @@ jobs:
 
           fi
 
-          CHANGED_CHARTS=$(git diff --name-only "${DIFF_TARGET}" | grep -E "^clusters/${CLUSTER}/helm/" | awk -F '/' '{print $4}' | sort -u || true)
+          RAW_CHARTS=$(git diff --name-only "${DIFF_TARGET}" | grep -E "^clusters/${CLUSTER}/helm/" | awk -F '/' '{print $4}' | sort -u || true)
+          VALID_CHARTS=""
 
-          if [ -n "${CHANGED_CHARTS}" ]; then
+          for CHART in $RAW_CHARTS; do
+            # Ensure the directory actually exists and has a Chart.yaml (prevents errors from empty strings, spaces, or deleted charts)
+            if [ -n "$CHART" ] && [ -f "clusters/${CLUSTER}/helm/${CHART}/Chart.yaml" ]; then
+              VALID_CHARTS="${VALID_CHARTS}${CHART}\n"
+            fi
+          done
+
+          if [ -n "${VALID_CHARTS}" ]; then
             echo ""
             echo ">> Charts to test:"
-            echo "${CHANGED_CHARTS}"
+            echo -e "${VALID_CHARTS}"
 
-            CHANGED_CHARTS_JSON=$(echo "${CHANGED_CHARTS}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            # Robust JSON conversion: split by newline, strip whitespace, remove empty items
+            CHANGED_CHARTS_JSON=$(echo -e "${VALID_CHARTS}" | jq -R -s -c 'split("\n") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')
 
             echo ""
             echo "----"
@@ -101,7 +110,7 @@ jobs:
 
           else
             echo ""
-            echo ">> Did not find any helm charts files to lint"
+            echo ">> Did not find any valid helm charts to test"
 
             echo ""
             echo "----"
