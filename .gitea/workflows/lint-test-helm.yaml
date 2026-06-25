@@ -623,27 +623,34 @@ jobs:
               --auth-token "${ARGOCD_AUTH_TOKEN}" \
               --server-side-generate \
               --local "clusters/${CLUSTER}/manifests/${APP_NAME}" \
-              --local-repo-root "." > "diff_output_${APP_NAME}.txt" 2>&1; then
+              --local-repo-root "." > "output_${APP_NAME}.txt" 2>&1; then
 
-              DIFF_FOUND="true"
-
-              if grep -iE 'error|failed|connection refused|timeout' "diff_output_${APP_NAME}.txt"; then
+              if grep -iE 'error|failed|connection refused|timeout|rpc error' "output_${APP_NAME}.txt"; then
                  echo ">> ArgoCD encountered an error validating ${APP_NAME}!"
                  EXIT_CODE=1
                  FAILED_CHARTS="${FAILED_CHARTS} ${APP_NAME}"
+                 mv "output_${APP_NAME}.txt" "error_output_${APP_NAME}.txt"
+
+              else
+                 DIFF_FOUND="true"
+                 mv "output_${APP_NAME}.txt" "diff_output_${APP_NAME}.txt"
 
               fi
             fi
 
             if [ -s "diff_output_${APP_NAME}.txt" ]; then
-              echo ">> Argo diff or errors:"
-              echo ""
+              echo ">> Argo diff found for ${APP_NAME}"
               cat diff_output_${APP_NAME}.txt
               echo ""
 
+            elif [ -s "error_output_${APP_NAME}.txt" ]; then
+              echo ">> Argo errors found for ${APP_NAME}"
+              cat error_output_${APP_NAME}.txt
+              echo ""
+
             else
-              echo ">> No Argo diff found for ${APP_NAME}"
-              rm -f "diff_output_${APP_NAME}.txt"
+              echo ">> No Argo diff or errors found for ${APP_NAME}"
+              rm -f "output_${APP_NAME}.txt"
 
             fi
           done
@@ -651,6 +658,15 @@ jobs:
           echo ""
           echo "----"
           echo "diff-detected=${DIFF_FOUND}" >> "$GITHUB_OUTPUT"
+
+          if [ "$EXIT_CODE" -ne 0 ]; then
+             echo "error-detected=true" >> "$GITHUB_OUTPUT"
+
+          else
+             echo "error-detected=false" >> "$GITHUB_OUTPUT"
+
+          fi
+
           echo "failed-charts=${FAILED_CHARTS}" >> "$GITHUB_OUTPUT"
 
           exit $EXIT_CODE
@@ -658,7 +674,7 @@ jobs:
       - name: Post Diff
         if: |
           always() &&
-          steps.diff.outputs.diff-detected == 'true' &&
+          (steps.diff.outputs.diff-detected == 'true' || steps.diff.outputs.error-detected == 'true') &&
           github.event.pull_request.number != null
         env:
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
@@ -685,6 +701,19 @@ jobs:
           \`\`\`"
 
             fi
+          done
+
+          for f in error_output_*.txt; do
+            [ -f "$f" ] || continue
+            APP_NAME=$(echo $f | sed 's/error_output_//;s/.txt//')
+            ERROR_CONTENT=$(cat "$f")
+
+            COMMENT_BODY="${COMMENT_BODY}
+          #### Error: ${APP_NAME}
+          \`\`\`text
+          ${ERROR_CONTENT}
+          \`\`\`"
+
           done
 
           curl -X 'POST' \
