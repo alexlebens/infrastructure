@@ -348,64 +348,66 @@ jobs:
           echo "----"
 
       - name: Run ArgoCD App Diff
-        if: github.event_name == 'pull_request'
+        id: diff
         env:
           ARGOCD_SERVER_INTERNAL: argocd-server.argocd.svc.cluster.local:80
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          CHANGED_CHARTS: ${{ needs.lint-format.outputs.chart-dir }}
         run: |
-          echo "FAILED_STAGE=ArgoCD App Diff" >> $GITHUB_ENV
-          # Temporarily hide .git and .gitignore so argocd packages everything
+          FAILED_CHARTS=""
+          DIFF_FOUND="false"
+          EXIT_CODE=0
+
+          # Temporarily hide .git and .gitignore so argocd packages everything without exclusions
           mv .git .git.bak
           if [ -f .gitignore ]; then mv .gitignore .gitignore.bak; fi
 
-          for CHART in ${CHANGED_CHARTS}; do
-            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
-            ARGOCD_APP_NAME="${CHART}"
-            case "${CHART}" in
+          # Flatten out the manifests
+          if [ -d "clusters/${CLUSTER}/manifests/rendered-split" ]; then
+            mv "clusters/${CLUSTER}/manifests/rendered-split/"* "clusters/${CLUSTER}/manifests/"
+            rm -rf "clusters/${CLUSTER}/manifests/rendered-split"
+          fi
+
+          echo ">> Debug: Directory structure of manifests"
+          ls -R "clusters/${CLUSTER}/manifests"
+          echo ">> Debug: End directory structure"
+
+          for APP_NAME in ${CHANGED_CHARTS}; do
+            ARGOCD_APP_NAME="${APP_NAME}"
+            case "${APP_NAME}" in
               "stack")
                 ARGOCD_APP_NAME="stack-cl01tl"
                 ;;
+
             esac
 
-            echo ">> Running argocd app diff for ${ARGOCD_APP_NAME} (chart: ${CHART}) ..."
-
+            echo ">> Running argocd app diff for ${ARGOCD_APP_NAME} (chart: ${APP_NAME}) ..."
             if ! argocd app diff "${ARGOCD_APP_NAME}" \
               --server "${ARGOCD_SERVER_INTERNAL}" \
               --plaintext \
               --auth-token "${ARGOCD_AUTH_TOKEN}" \
               --server-side-generate \
-              --local "clusters/${CLUSTER}/helm/${CHART}" > diff_output.txt 2> error_output.txt; then
+              --local "$PWD" > "diff_output_${APP_NAME}.txt" 2> "error_output_${APP_NAME}.txt"; then
 
-              if [ -s "diff_output.txt" ]; then
-                 echo ">> Argo diff found for ${CHART}"
-
-                 DIFF_CONTENT=$(cat diff_output.txt)
-                 COMMENT_BODY="### ArgoCD Diff Results
-                 #### App: ${CHART}
-                 \`\`\`diff
-                 ${DIFF_CONTENT}
-                 \`\`\`"
-
-                 curl -s -X 'POST' \
-                   "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
-                   -H "Authorization: token ${GITEA_TOKEN}" \
-                   -H "Content-Type: application/json" \
-                   -d "$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')" > /dev/null
+              if [ -s "diff_output_${APP_NAME}.txt" ]; then
+                 DIFF_FOUND="true"
+                 rm -f "error_output_${APP_NAME}.txt"
+                 echo ">> Argo diff found for ${APP_NAME}"
+                 cat "diff_output_${APP_NAME}.txt"
+                 echo ""
 
               else
-                 echo ">> ArgoCD encountered an error validating ${CHART}!"
-                 cat error_output.txt
-
-                 # Restore git before exiting
-                 mv .git.bak .git
-                 if [ -f .gitignore.bak ]; then mv .gitignore.bak .gitignore; fi
-                 exit 1
+                 echo ">> ArgoCD encountered an error validating ${APP_NAME}!"
+                 EXIT_CODE=1
+                 FAILED_CHARTS="${FAILED_CHARTS} ${APP_NAME}"
+                 cat "error_output_${APP_NAME}.txt"
+                 echo ""
 
               fi
 
             else
-              echo ">> No Argo diff or errors found for ${CHART}"
+              echo ">> No Argo diff or errors found for ${APP_NAME}"
+              rm -f "diff_output_${APP_NAME}.txt" "error_output_${APP_NAME}.txt"
 
             fi
           done
@@ -416,6 +418,19 @@ jobs:
 
           echo ""
           echo "----"
+          echo "diff-detected=${DIFF_FOUND}" >> "$GITHUB_OUTPUT"
+
+          if [ "$EXIT_CODE" -ne 0 ]; then
+             echo "error-detected=true" >> "$GITHUB_OUTPUT"
+
+          else
+             echo "error-detected=false" >> "$GITHUB_OUTPUT"
+
+          fi
+
+          echo "failed-charts=${FAILED_CHARTS}" >> "$GITHUB_OUTPUT"
+
+          exit $EXIT_CODE
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
