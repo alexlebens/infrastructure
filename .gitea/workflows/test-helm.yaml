@@ -194,17 +194,14 @@ jobs:
       - name: Get Cluster API Versions
         id: get-api-versions
         run: |
-          CLUSTER_CRDS=$(kubectl api-versions | tr '\n' ',')
+          CLUSTER_API_VERSIONS=$(kubectl api-versions | tr '\n' ',')
+          CLUSTER_CRD_KINDS=$(kubectl get crd -o json | jq -r '.items[] | .spec.group as $group | .spec.names.kind as $kind | .spec.versions[] | select(.served == true) | "\($group)/\(.name)/\($kind)"' | paste -sd, -)
 
-          if [ -n "$CLUSTER_CRDS" ]; then
-            API_VERSIONS="${CLUSTER_CRDS},gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1/ServiceMonitor"
+          # Merge versions and kinds
+          API_VERSIONS="${CLUSTER_API_VERSIONS},${CLUSTER_CRD_KINDS}"
 
-          else
-            API_VERSIONS="gateway.networking.k8s.io/v1/HTTPRoute,monitoring.coreos.com/v1/ServiceMonitor"
-
-          fi
-
-          API_VERSIONS=$(echo "$API_VERSIONS" | awk -F, '{for(i=1;i<=NF;i++) print $i}' | sort | uniq | paste -sd, -)
+          # Format for helm
+          API_VERSIONS=$(echo "$API_VERSIONS" | awk -F, '{for(i=1;i<=NF;i++) if($i!="") print $i}' | sort | uniq | paste -sd, -)
 
           echo ">> API Versions:"
           echo "$API_VERSIONS"
