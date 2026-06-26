@@ -18,7 +18,7 @@ spec:
   template:
     metadata:
       annotations:
-        cilium.io/cilium-configmap-checksum: "edd6586253886f6a3770ef390de0bc386d5a96299457475990bb84d4aaedeb4c"
+        cilium.io/cilium-configmap-checksum: "26392febd9439cd8630e9246fea31524ecf39bbd02aa4c94ff08f662f4e387c1"
         kubectl.kubernetes.io/default-container: cilium-agent
       labels:
         k8s-app: cilium
@@ -32,7 +32,7 @@ spec:
           type: Unconfined
       containers:
         - name: cilium-agent
-          image: "quay.io/cilium/cilium:v1.18.9@sha256:c9140c2ebcc636ba346a4152fb28d616a4a51586c22c72dcd6f273bed41053c0"
+          image: "quay.io/cilium/cilium:v1.19.5@sha256:20fbbc14ac20b55a292c0dcda5571bf31cde30a7dbc68c29db3e709390ab0732"
           imagePullPolicy: IfNotPresent
           command:
             - cilium-agent
@@ -42,7 +42,7 @@ spec:
             httpGet:
               host: "127.0.0.1"
               path: /healthz
-              port: 9879
+              port: health
               scheme: HTTP
               httpHeaders:
                 - name: "brief"
@@ -55,7 +55,7 @@ spec:
             httpGet:
               host: "127.0.0.1"
               path: /healthz
-              port: 9879
+              port: health
               scheme: HTTP
               httpHeaders:
                 - name: "brief"
@@ -70,7 +70,7 @@ spec:
             httpGet:
               host: "127.0.0.1"
               path: /healthz
-              port: 9879
+              port: health
               scheme: HTTP
               httpHeaders:
                 - name: "brief"
@@ -136,6 +136,10 @@ spec:
                 command:
                   - /cni-uninstall.sh
           ports:
+            - name: health
+              containerPort: 9879
+              hostPort: 9879
+              protocol: TCP
             - name: peer-service
               containerPort: 4244
               hostPort: 4244
@@ -201,7 +205,7 @@ spec:
               mountPath: /tmp
       initContainers:
         - name: config
-          image: "quay.io/cilium/cilium:v1.18.9@sha256:c9140c2ebcc636ba346a4152fb28d616a4a51586c22c72dcd6f273bed41053c0"
+          image: "quay.io/cilium/cilium:v1.19.5@sha256:20fbbc14ac20b55a292c0dcda5571bf31cde30a7dbc68c29db3e709390ab0732"
           imagePullPolicy: IfNotPresent
           command:
             - cilium-dbg
@@ -225,14 +229,20 @@ spec:
             - name: tmp
               mountPath: /tmp
           terminationMessagePolicy: FallbackToLogsOnError
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+              drop:
+                - ALL
         - name: apply-sysctl-overwrites
-          image: "quay.io/cilium/cilium:v1.18.9@sha256:c9140c2ebcc636ba346a4152fb28d616a4a51586c22c72dcd6f273bed41053c0"
+          image: "quay.io/cilium/cilium:v1.19.5@sha256:20fbbc14ac20b55a292c0dcda5571bf31cde30a7dbc68c29db3e709390ab0732"
           imagePullPolicy: IfNotPresent
           env:
             - name: BIN_PATH
               value: /opt/cni/bin
           command:
-            - sh
+            - bash
             - -ec
             - |
               cp /usr/bin/cilium-sysctlfix /hostbin/cilium-sysctlfix;
@@ -256,7 +266,7 @@ spec:
               drop:
                 - ALL
         - name: mount-bpf-fs
-          image: "quay.io/cilium/cilium:v1.18.9@sha256:c9140c2ebcc636ba346a4152fb28d616a4a51586c22c72dcd6f273bed41053c0"
+          image: "quay.io/cilium/cilium:v1.19.5@sha256:20fbbc14ac20b55a292c0dcda5571bf31cde30a7dbc68c29db3e709390ab0732"
           imagePullPolicy: IfNotPresent
           args:
             - 'mount | grep "/sys/fs/bpf type bpf" || mount -t bpf bpf /sys/fs/bpf'
@@ -272,7 +282,7 @@ spec:
               mountPath: /sys/fs/bpf
               mountPropagation: Bidirectional
         - name: clean-cilium-state
-          image: "quay.io/cilium/cilium:v1.18.9@sha256:c9140c2ebcc636ba346a4152fb28d616a4a51586c22c72dcd6f273bed41053c0"
+          image: "quay.io/cilium/cilium:v1.19.5@sha256:20fbbc14ac20b55a292c0dcda5571bf31cde30a7dbc68c29db3e709390ab0732"
           imagePullPolicy: IfNotPresent
           command:
             - /init-container.sh
@@ -320,11 +330,14 @@ spec:
             - name: cilium-run
               mountPath: /var/run/cilium
         - name: install-cni-binaries
-          image: "quay.io/cilium/cilium:v1.18.9@sha256:c9140c2ebcc636ba346a4152fb28d616a4a51586c22c72dcd6f273bed41053c0"
+          image: "quay.io/cilium/cilium:v1.19.5@sha256:20fbbc14ac20b55a292c0dcda5571bf31cde30a7dbc68c29db3e709390ab0732"
           imagePullPolicy: IfNotPresent
           command:
             - "/install-plugin.sh"
           resources:
+            limits:
+              cpu: 1
+              memory: 1Gi
             requests:
               cpu: 100m
               memory: 10Mi
