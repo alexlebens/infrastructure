@@ -100,3 +100,73 @@ spec:
     password:
       name: pikvm-credentials
       key: password
+
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: blackbox-httproutes-ps08rp
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: blackbox-httproutes-ps08rp
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  metricsPath: /probe
+  params:
+    module: [http_2xx]
+  kubernetesSDConfigs:
+    - role: httproute
+  relabelings:
+    - action: drop
+      sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe]
+      regex: "false"
+    - sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe_module]
+      action: replace
+      targetLabel: __param_module
+      regex: (.+)
+      replacement: ${1}
+    - sourceLabels: [__meta_kubernetes_httproute_hostname]
+      action: keep
+      regex: (.+)
+    - sourceLabels: [__meta_kubernetes_httproute_hostname]
+      targetLabel: __param_target
+      replacement: https://${1}/
+    - sourceLabels: [__param_target]
+      targetLabel: instance
+    - targetLabel: __address__
+      replacement: ps08rp.alexlebens.net:9115
+
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: blackbox-httproutes-ps09rp
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: blackbox-httproutes-ps09rp
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  metricsPath: /probe
+  params:
+    module: [http_2xx]
+  kubernetesSDConfigs:
+    - role: httproute
+  relabelings:
+    - action: drop
+      sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe]
+      regex: "false"
+    - sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe_module]
+      action: replace
+      targetLabel: __param_module
+      regex: (.+)
+      replacement: ${1}
+    - sourceLabels: [__meta_kubernetes_httproute_hostname]
+      action: keep
+      regex: (.+)
+    - sourceLabels: [__meta_kubernetes_httproute_hostname]
+      targetLabel: __param_target
+      replacement: https://${1}/
+    - sourceLabels: [__param_target]
+      targetLabel: instance
+    - targetLabel: __address__
+      replacement: ps09rp.alexlebens.net:9115
