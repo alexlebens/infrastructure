@@ -1,0 +1,32 @@
+---
+services:
+  tailscale-blackbox-exporter:
+    image: ghcr.io/tailscale/tailscale:v1.98.4@sha256:25cde9ad76020b0e29229136d0c38b5962e9a0e1774ffac9b0df68e4a37d6cf0
+    container_name: tailscale-blackbox-exporter
+    cap_add:
+      - net_admin
+      - sys_module
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_ENABLE_METRICS=true
+      - TS_HOSTNAME=blackbox-exporter-ps10rp
+      - TS_SERVE_CONFIG=/config/serve.json
+    network_mode: service:blackbox-exporter
+    restart: always
+    volumes:
+      - tailscale:/var/lib/tailscale
+      - ${PWD}/serve.json:/config/serve.json
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+  blackbox-exporter:
+    image: quay.io/prometheus/blackbox-exporter:v0.28.0
+    container_name: blackbox-exporte
+    command:
+      - "--config.file=/etc/blackbox_exporter/config.yml"
+    restart: always
+    volumes:
+      - ./blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+
+volumes:
+  tailscale:
