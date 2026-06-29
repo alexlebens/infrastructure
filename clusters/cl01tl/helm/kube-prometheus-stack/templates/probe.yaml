@@ -1,0 +1,78 @@
+{{- $alexNetTargets2xx := list
+  "http://it01ag.alexlebens.net:9926"
+  "http://it02ph.alexlebens.net"
+  "http://it03tb.alexlebens.net"
+  "http://it04tb.alexlebens.net"
+  "http://it05sp.alexlebens.net"
+  "http://dv01hr.alexlebens.net"
+  "https://dv02kv.alexlebens.net/login/"
+  "https://synology.alexlebens.net"
+  "http://ps02sn-bond.alexlebens.net"
+  "http://ps08rp.alexlebens.net:9100"
+  "http://ps09rp.alexlebens.net:9100"
+  "https://nw01un.alexlebens.net"
+-}}
+
+{{- $alexNetTargets401 := list
+-}}
+
+{{- $lebensNetTargets2xx := list
+  "https://www.lebens-home.net"
+  "https://gitea.lebens-home.net"
+  "http://printer.lebens-home.net"
+-}}
+
+{{- $lebensNetTargets401 := list
+-}}
+
+{{- $probers := list
+  (dict "name" "ps08rp" "url" "ps08rp.alexlebens.net:9115" "targets2xx" $alexNetTargets2xx "targets401" $alexNetTargets401)
+  (dict "name" "ps09rp" "url" "ps09rp.alexlebens.net:9115" "targets2xx" $alexNetTargets2xx "targets401" $alexNetTargets401)
+  (dict "name" "ps10rp" "url" "blackbox-exporter-ps10rp.boreal-beaufort.ts.net:9115" "targets2xx" $lebensNetTargets2xx "targets401" $lebensNetTargets401)
+-}}
+
+{{- range $prober := $probers }}
+{{- if $prober.targets2xx }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: blackbox-{{ $prober.name }}-http-2xx
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: blackbox-{{ $prober.name }}-http-2xx
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  prober:
+    url: {{ $prober.url }}
+  module: http_2xx
+  targets:
+    staticConfig:
+      static:
+{{- range $prober.targets2xx }}
+        - {{ . }}
+{{- end }}
+{{- end }}
+{{- if $prober.targets401 }}
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: blackbox-{{ $prober.name }}-http-401
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: blackbox-{{ $prober.name }}-http-401
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  prober:
+    url: {{ $prober.url }}
+  module: http_401
+  targets:
+    staticConfig:
+      static:
+{{- range $prober.targets401 }}
+        - {{ . }}
+{{- end }}
+{{- end }}
+{{- end }}
