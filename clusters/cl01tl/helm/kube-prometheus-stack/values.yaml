@@ -98,6 +98,57 @@ kube-prometheus-stack:
             namespace: traefik
     prometheusSpec:
       scrapeInterval: 30s
+      additionalScrapeConfigs:
+        - job_name: blackbox-httproutes-ps08rp
+          metrics_path: /probe
+          params:
+            module: [http_2xx]
+          kubernetes_sd_configs:
+            - role: httproute
+          relabelings:
+            - action: drop
+              sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe]
+              regex: "false"
+            - sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe_module]
+              action: replace
+              targetLabel: __param_module
+              regex: (.+)
+              replacement: ${1}
+            - sourceLabels: [__meta_kubernetes_httproute_hostname]
+              action: keep
+              regex: (.+)
+            - sourceLabels: [__meta_kubernetes_httproute_hostname]
+              targetLabel: __param_target
+              replacement: https://${1}/
+            - sourceLabels: [__param_target]
+              targetLabel: instance
+            - targetLabel: __address__
+              replacement: ps08rp.alexlebens.net:9115
+        - job_name: blackbox-httproutes-ps09rp
+          metrics_path: /probe
+          params:
+            module: [http_2xx]
+          kubernetes_sd_configs:
+            - role: httproute
+          relabelings:
+            - action: drop
+              sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe]
+              regex: "false"
+            - sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe_module]
+              action: replace
+              targetLabel: __param_module
+              regex: (.+)
+              replacement: ${1}
+            - sourceLabels: [__meta_kubernetes_httproute_hostname]
+              action: keep
+              regex: (.+)
+            - sourceLabels: [__meta_kubernetes_httproute_hostname]
+              targetLabel: __param_target
+              replacement: https://${1}/
+            - sourceLabels: [__param_target]
+              targetLabel: instance
+            - targetLabel: __address__
+              replacement: ps09rp.alexlebens.net:9115
       retention: 60d
       retentionSize: 450GiB
       externalUrl: https://prometheus.alexlebens.net
