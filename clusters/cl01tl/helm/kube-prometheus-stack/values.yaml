@@ -98,6 +98,57 @@ kube-prometheus-stack:
             namespace: traefik
     prometheusSpec:
       scrapeInterval: 30s
+      additionalScrapeConfigs:
+        - job_name: blackbox-httproutes-ps08rp
+          metrics_path: /probe
+          params:
+            module: [http_2xx]
+          kubernetes_sd_configs:
+            - role: httproute
+          relabelings:
+            - action: drop
+              sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe]
+              regex: "false"
+            - sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe_module]
+              action: replace
+              targetLabel: __param_module
+              regex: (.+)
+              replacement: ${1}
+            - sourceLabels: [__meta_kubernetes_httproute_hostname]
+              action: keep
+              regex: (.+)
+            - sourceLabels: [__meta_kubernetes_httproute_hostname]
+              targetLabel: __param_target
+              replacement: https://${1}/
+            - sourceLabels: [__param_target]
+              targetLabel: instance
+            - targetLabel: __address__
+              replacement: ps08rp.alexlebens.net:9115
+        - job_name: blackbox-httproutes-ps09rp
+          metrics_path: /probe
+          params:
+            module: [http_2xx]
+          kubernetes_sd_configs:
+            - role: httproute
+          relabelings:
+            - action: drop
+              sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe]
+              regex: "false"
+            - sourceLabels: [__meta_kubernetes_httproute_annotation_prometheus_io_probe_module]
+              action: replace
+              targetLabel: __param_module
+              regex: (.+)
+              replacement: ${1}
+            - sourceLabels: [__meta_kubernetes_httproute_hostname]
+              action: keep
+              regex: (.+)
+            - sourceLabels: [__meta_kubernetes_httproute_hostname]
+              targetLabel: __param_target
+              replacement: https://${1}/
+            - sourceLabels: [__param_target]
+              targetLabel: instance
+            - targetLabel: __address__
+              replacement: ps09rp.alexlebens.net:9115
       retention: 60d
       retentionSize: 450GiB
       externalUrl: https://prometheus.alexlebens.net
@@ -134,30 +185,6 @@ prometheus-blackbox-exporter:
       scrapeTimeout: 10s
       module: http_2xx
     targets:
-      - name: lidarr
-        url: http://lidarr.lidarr:80/
-        hostname: lidarr.lidarr
-      - name: radarr
-        url: http://radarr.radarr:80/
-        hostname: radarr.radarr
-      - name: radarr-4k
-        url: http://radarr-4k.radarr-4k:80/
-        hostname: radarr-4k.radarr-4k
-      - name: radarr-anime
-        url: http://radarr-anime.radarr-anime:80/
-        hostname: radarr-anime.radarr-anime
-      - name: radarr-standup
-        url: http://radarr-standup.radarr-standup:80/
-        hostname: radarr-standup.radarr-standup
-      - name: sonarr
-        url: http://sonarr.sonarr:80/
-        hostname: sonarr.sonarr
-      - name: sonarr-4k
-        url: http://sonarr-4k.sonarr-4k:80/
-        hostname: sonarr-4k.sonarr-4k
-      - name: sonarr-anime
-        url: http://sonarr-anime.sonarr-anime:80/
-        hostname: sonarr-anime.sonarr-anime
       - name: authentik
         url: https://auth.alexlebens.dev/
         hostname: auth.alexlebens.dev
@@ -206,6 +233,22 @@ prometheus-blackbox-exporter:
         annotations:
           summary: "Endpoint {{ $labels.instance }} is down"
           description: "Failed to probe {{ $labels.instance }} for more than 30 seconds."
+      - alert: EndpointHighLatency
+        expr: max by (instance, target) (probe_duration_seconds) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Endpoint {{ $labels.instance }} is slow"
+          description: "Endpoint {{ $labels.instance }} is taking longer than 5 seconds to respond."
+      - alert: SSLCertificateExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 7
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "SSL Certificate for {{ $labels.instance }} expires soon"
+          description: "The SSL certificate for {{ $labels.instance }} will expire in less than 7 days."
 ntfy-alertmanager:
   global:
     fullnameOverride: ntfy-alertmanager

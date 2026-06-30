@@ -1,0 +1,37 @@
+{{- range $prober := list "ps08rp" "ps09rp" }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: blackbox-{{ $prober }}-{{ $.Release.Namespace }}-http-2xx
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: blackbox-{{ $prober }}-{{ $.Release.Namespace }}-http-2xx
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  prober:
+    url: {{ $prober }}.alexlebens.net:9115
+  module: http_2xx
+  targets:
+    staticConfig:
+      static:
+        - https://gitea.alexlebens.net
+{{- end }}
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: blackbox-cl01tl-{{ $.Release.Namespace }}-http-2xx
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: blackbox-cl01tl-{{ $.Release.Namespace }}-http-2xx
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  prober:
+    url: kube-prometheus-stack-prometheus-blackbox-exporter.kube-prometheus-stack.svc.cluster.local:9115
+  module: http_2xx
+  targets:
+    staticConfig:
+      static:
+        - {{ $.Values.gitea.gitea.config.server.LOCAL_ROOT_URL }}
