@@ -20,3 +20,19 @@ spec:
           for: 60s
           labels:
             severity: critical
+        - alert: EndpointHighLatency
+          annotations:
+            description: Endpoint {{ $labels.instance }} is taking longer than 5 seconds to respond.
+            summary: Endpoint {{ $labels.instance }} is slow
+          expr: max by (instance, target) (probe_duration_seconds) > 5
+          for: 2m
+          labels:
+            severity: warning
+        - alert: SSLCertificateExpiringSoon
+          annotations:
+            description: The SSL certificate for {{ $labels.instance }} will expire in less than 7 days.
+            summary: SSL Certificate for {{ $labels.instance }} expires soon
+          expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 7
+          for: 1h
+          labels:
+            severity: warning
