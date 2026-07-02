@@ -38,6 +38,34 @@ spec:
       "liveNow": true,
       "panels": [
         {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "id": 6,
+          "repeat": "instance",
+          "title": "$instance",
+          "type": "row"
+        },
+        {
+          "gridPos": {
+            "h": 2,
+            "w": 24,
+            "x": 0,
+            "y": 1
+          },
+          "id": 100,
+          "options": {
+            "content": "<div style=\"display: flex; justify-content: center; align-items: center; height: 50px;\">\n  <h1 style=\"margin: 0;\">$instance</h1>\n</div>",
+            "mode": "html"
+          },
+          "transparent": false,
+          "type": "text"
+        },
+        {
           "datasource": {
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
@@ -422,10 +450,10 @@ spec:
             ]
           },
           "gridPos": {
-            "h": 9,
+            "h": 5,
             "w": 24,
             "x": 0,
-            "y": 0
+            "y": 3
           },
           "id": 2,
           "options": {
@@ -438,14 +466,14 @@ spec:
               }
             ]
           },
-          "pluginVersion": "13.0.1",
+          "pluginVersion": "13.1.0",
           "targets": [
             {
               "datasource": {
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "probe_success{job=~\"$job\", instance=~\"$instance\"}",
+              "expr": "max by (instance, prober) (label_replace(label_replace(probe_success{job=~\"$job\", instance=~\"$instance\"}, \"prober\", \"$1\", \"job\", \"(.*)\"), \"prober\", \"$1\", \"job\", \".*blackbox-(.*)-(?:http|tcp|icmp).*\"))",
               "format": "table",
               "instant": true,
               "interval": "",
@@ -457,7 +485,7 @@ spec:
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "probe_http_ssl{job=~\"$job\", instance=~\"$instance\"} > 0",
+              "expr": "max by (instance, prober) (label_replace(label_replace(probe_http_ssl{job=~\"$job\", instance=~\"$instance\"}, \"prober\", \"$1\", \"job\", \"(.*)\"), \"prober\", \"$1\", \"job\", \".*blackbox-(.*)-(?:http|tcp|icmp).*\"))",
               "format": "table",
               "instant": true,
               "interval": "",
@@ -469,7 +497,7 @@ spec:
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "(probe_ssl_earliest_cert_expiry{job=~\"$job\", instance=~\"$instance\"} - time()) / 3600 / 24",
+              "expr": "min by (instance, prober) (label_replace(label_replace((probe_ssl_earliest_cert_expiry{job=~\"$job\", instance=~\"$instance\"} - time()) / 3600 / 24, \"prober\", \"$1\", \"job\", \"(.*)\"), \"prober\", \"$1\", \"job\", \".*blackbox-(.*)-(?:http|tcp|icmp).*\"))",
               "format": "table",
               "instant": true,
               "interval": "",
@@ -481,7 +509,7 @@ spec:
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "probe_http_status_code{job=~\"$job\", instance=~\"$instance\"} > 0",
+              "expr": "max by (instance, prober) (label_replace(label_replace(probe_http_status_code{job=~\"$job\", instance=~\"$instance\"}, \"prober\", \"$1\", \"job\", \"(.*)\"), \"prober\", \"$1\", \"job\", \".*blackbox-(.*)-(?:http|tcp|icmp).*\"))",
               "format": "table",
               "instant": true,
               "interval": "",
@@ -493,11 +521,10 @@ spec:
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "avg_over_time(probe_duration_seconds{job=~\"$job\", instance=~\"$instance\"}[1m])",
+              "expr": "avg by (instance, prober) (label_replace(label_replace(avg_over_time(probe_duration_seconds{job=~\"$job\", instance=~\"$instance\"}[1m]), \"prober\", \"$1\", \"job\", \"(.*)\"), \"prober\", \"$1\", \"job\", \".*blackbox-(.*)-(?:http|tcp|icmp).*\"))",
               "format": "table",
-              "instant": false,
+              "instant": true,
               "interval": "",
-              "intervalFactor": 1,
               "legendFormat": "",
               "refId": "E"
             },
@@ -506,7 +533,7 @@ spec:
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "probe_tls_version_info{job=~\"$job\", instance=~\"$instance\"}",
+              "expr": "max by (instance, prober, version) (label_replace(label_replace(probe_tls_version_info{job=~\"$job\", instance=~\"$instance\"}, \"prober\", \"$1\", \"job\", \"(.*)\"), \"prober\", \"$1\", \"job\", \".*blackbox-(.*)-(?:http|tcp|icmp).*\"))",
               "format": "table",
               "instant": true,
               "interval": "",
@@ -518,7 +545,7 @@ spec:
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "avg_over_time(probe_dns_lookup_time_seconds{job=~\"$job\", instance=~\"$instance\"}[1m])",
+              "expr": "avg by (instance, prober) (label_replace(label_replace(avg_over_time(probe_dns_lookup_time_seconds{job=~\"$job\", instance=~\"$instance\"}[1m]), \"prober\", \"$1\", \"job\", \"(.*)\"), \"prober\", \"$1\", \"job\", \".*blackbox-(.*)-(?:http|tcp|icmp).*\"))",
               "format": "table",
               "instant": true,
               "interval": "",
@@ -526,12 +553,12 @@ spec:
               "refId": "G"
             }
           ],
-          "title": "HTTP Probe Overview",
+          "title": "Probe Overview",
           "transformations": [
             {
               "id": "seriesToColumns",
               "options": {
-                "byField": "instance"
+                "byField": "prober"
               }
             },
             {
@@ -546,88 +573,37 @@ spec:
                   "Time 5": true,
                   "Time 6": true,
                   "Time 7": true,
-                  "Time 8": true,
-                  "Value": false,
-                  "Value #A": false,
-                  "Value #B": false,
-                  "Value #F": true,
-                  "__name__": true,
-                  "__name__ 1": true,
-                  "__name__ 2": true,
-                  "__name__ 3": true,
-                  "__name__ 4": true,
-                  "__name__ 5": true,
-                  "__name__ 6": true,
-                  "__name__ 7": true,
-                  "job": true,
-                  "job 1": true,
-                  "job 2": true,
-                  "job 3": true,
-                  "job 4": true,
-                  "job 5": true,
-                  "job 6": true,
-                  "job 7": true,
-                  "job 8": true,
-                  "phase": true,
-                  "type": true,
-                  "type 1": true,
-                  "type 2": true,
-                  "type 3": true,
-                  "type 4": true,
-                  "type 5": true,
-                  "type 6": true,
-                  "type 7": true,
-                  "type 8": true,
-                  "version": false
+                  "instance": true,
+                  "instance 1": true,
+                  "instance 2": true,
+                  "instance 3": true,
+                  "instance 4": true,
+                  "instance 5": true,
+                  "instance 6": true,
+                  "instance 7": true,
+                  "id": true,
+                  "Value #F": true
                 },
                 "indexByName": {
-                  "Time 1": 9,
-                  "Time 2": 13,
-                  "Time 3": 17,
-                  "Time 4": 20,
-                  "Time 5": 24,
-                  "Time 6": 28,
-                  "Time 7": 32,
+                  "prober": 0,
                   "Value #A": 1,
-                  "Value #B": 3,
-                  "Value #C": 5,
                   "Value #D": 2,
+                  "Value #B": 3,
+                  "version": 4,
+                  "Value #C": 5,
                   "Value #E": 6,
-                  "Value #F": 8,
-                  "Value #G": 7,
-                  "__name__ 1": 10,
-                  "__name__ 2": 14,
-                  "__name__ 3": 21,
-                  "__name__ 4": 25,
-                  "__name__ 5": 29,
-                  "instance": 0,
-                  "job 1": 11,
-                  "job 2": 15,
-                  "job 3": 18,
-                  "job 4": 22,
-                  "job 5": 26,
-                  "job 6": 30,
-                  "type 1": 12,
-                  "type 2": 16,
-                  "type 3": 19,
-                  "type 4": 23,
-                  "type 5": 27,
-                  "type 6": 31,
-                  "version": 4
+                  "Value #G": 7
                 },
                 "renameByName": {
-                  "Value": "Up",
+                  "prober": "Prober",
                   "Value #A": "Status",
                   "Value #B": "SSL",
                   "Value #C": "SSL Cert Expiry (days)",
                   "Value #D": "Code",
                   "Value #E": "Probe Duration (s)",
+                  "version": "TLS Version",
                   "Value #F": "",
-                  "Value #G": "DNS Lookup Duration (s)",
-                  "Value #H": "Probe IP",
-                  "instance": "Instance",
-                  "type 6": "",
-                  "version": "TLS Version"
+                  "Value #G": "DNS Lookup Duration (s)"
                 }
               }
             }
@@ -644,7 +620,7 @@ spec:
           "fieldConfig": {
             "defaults": {
               "color": {
-                "mode": "thresholds"
+                "mode": "palette-classic"
               },
               "custom": {
                 "axisPlacement": "auto",
@@ -662,36 +638,24 @@ spec:
                 {
                   "options": {
                     "0": {
-                      "text": "Failed"
+                      "color": "red",
+                      "text": "Down"
                     },
                     "1": {
-                      "text": "OK"
+                      "color": "green",
+                      "text": "Up"
                     }
                   },
                   "type": "value"
                 }
-              ],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": 0
-                  },
-                  {
-                    "color": "green",
-                    "value": 1
-                  }
-                ]
-              }
-            },
-            "overrides": []
+              ]
+            }
           },
           "gridPos": {
-            "h": 9,
+            "h": 5,
             "w": 24,
             "x": 0,
-            "y": 9
+            "y": 8
           },
           "id": 4,
           "options": {
@@ -702,6 +666,7 @@ spec:
             },
             "legend": {
               "displayMode": "list",
+              "overflow": "ellipsis",
               "placement": "bottom",
               "showLegend": true
             },
@@ -714,22 +679,22 @@ spec:
               "sort": "none"
             }
           },
-          "pluginVersion": "13.0.1",
+          "pluginVersion": "13.1.0",
           "targets": [
             {
               "datasource": {
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "probe_success{job=~\"$job\", instance=~\"$instance\"} and (min_over_time(probe_success{job=~\"$job\", instance=~\"$instance\"}[$__range] @ end()) == 0)",
+              "expr": "max by (instance, prober) (label_replace(label_replace(probe_success{job=~\"$job\", instance=~\"$instance\"}, \"prober\", \"$1\", \"job\", \"(.*)\"), \"prober\", \"$1\", \"job\", \".*blackbox-(.*)-(?:http|tcp|icmp).*\"))",
               "instant": false,
               "interval": "",
               "intervalFactor": 2,
-              "legendFormat": "{{ instance }}",
+              "legendFormat": "{{ prober }}",
               "refId": "A"
             }
           ],
-          "title": "Failures Timeline",
+          "title": "Probe Timeline",
           "transparent": true,
           "type": "state-timeline"
         },
@@ -753,15 +718,15 @@ spec:
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
                 "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
+                "fillOpacity": 10,
+                "gradientMode": "opacity",
                 "hideFrom": {
                   "legend": false,
                   "tooltip": false,
                   "viz": false
                 },
                 "insertNulls": false,
-                "lineInterpolation": "linear",
+                "lineInterpolation": "smooth",
                 "lineWidth": 1,
                 "pointSize": 5,
                 "scaleDistribution": {
@@ -769,7 +734,7 @@ spec:
                 },
                 "showPoints": "never",
                 "showValues": false,
-                "spanNulls": false,
+                "spanNulls": true,
                 "stacking": {
                   "group": "A",
                   "mode": "none"
@@ -778,6 +743,7 @@ spec:
                   "mode": "off"
                 }
               },
+              "min": 0,
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -792,14 +758,13 @@ spec:
                 ]
               },
               "unit": "s"
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
-            "h": 9,
+            "h": 5,
             "w": 24,
             "x": 0,
-            "y": 18
+            "y": 13
           },
           "id": 5,
           "options": {
@@ -811,7 +776,9 @@ spec:
             "legend": {
               "calcs": ["mean", "max", "min"],
               "displayMode": "table",
-              "placement": "right",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "bottom",
               "showLegend": true
             },
             "tooltip": {
@@ -820,23 +787,39 @@ spec:
               "sort": "desc"
             }
           },
-          "pluginVersion": "13.0.1",
+          "pluginVersion": "13.1.0",
           "targets": [
             {
               "datasource": {
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "sum(probe_http_duration_seconds{job=~\"$job\", instance=~\"$instance\"}) by (instance)",
+              "expr": "avg by (instance, prober) (label_replace(label_replace(probe_http_duration_seconds{job=~\"$job\", instance=~\"$instance\"}, \"prober\", \"$1\", \"job\", \"(.*)\"), \"prober\", \"$1\", \"job\", \".*blackbox-(.*)-(?:http|tcp|icmp).*\"))",
               "instant": false,
               "interval": "",
               "intervalFactor": 2,
-              "legendFormat": "{{ instance }}",
+              "legendFormat": "{{ prober }}",
               "refId": "A"
             }
           ],
-          "title": "HTTP Probe Duration",
+          "title": "Probe Duration",
+          "transparent": true,
           "type": "timeseries"
+        },
+        {
+          "gridPos": {
+            "h": 2,
+            "w": 24,
+            "x": 0,
+            "y": 18
+          },
+          "id": 101,
+          "options": {
+            "content": "",
+            "mode": "markdown"
+          },
+          "transparent": true,
+          "type": "text"
         }
       ],
       "preload": true,
@@ -846,7 +829,7 @@ spec:
       "templating": {
         "list": [
           {
-            "allowCustomValue": true,
+            "allValue": ".*",
             "current": {
               "text": "All",
               "value": "$__all"
@@ -858,9 +841,9 @@ spec:
             "definition": "label_values(probe_success,job)",
             "hide": 0,
             "includeAll": true,
-            "label": "Job",
-            "multi": false,
-            "name": "job",
+            "label": "Prober",
+            "multi": true,
+            "name": "prober",
             "options": [],
             "query": {
               "qryType": 1,
@@ -868,7 +851,7 @@ spec:
               "refId": "PrometheusVariableQueryEditor-VariableQuery"
             },
             "refresh": 1,
-            "regex": "",
+            "regex": "/.*blackbox-([^-]+)-.*/",
             "regexApplyTo": "value",
             "skipUrlSync": false,
             "sort": 1,
@@ -884,20 +867,80 @@ spec:
               "type": "prometheus",
               "uid": "kube-prometheus-stack"
             },
-            "definition": "label_values(probe_success{job=\"$job\"},instance)",
+            "definition": "label_values(probe_success,job)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Job",
+            "multi": true,
+            "name": "job",
+            "options": [],
+            "query": {
+              "qryType": 1,
+              "query": "label_values(probe_success,job)",
+              "refId": "PrometheusVariableQueryEditor-VariableQuery"
+            },
+            "refresh": 1,
+            "regex": "/^(.*blackbox-${prober}-.*)$/",
+            "regexApplyTo": "value",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          },
+          {
+            "current": {
+              "text": "Down",
+              "value": "0"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "label": "Show",
+            "multi": false,
+            "name": "Filter",
+            "options": [
+              {
+                "selected": false,
+                "text": "All",
+                "value": "2"
+              },
+              {
+                "selected": true,
+                "text": "Down",
+                "value": "0"
+              },
+              {
+                "selected": false,
+                "text": "Up",
+                "value": "1"
+              }
+            ],
+            "query": "All : 2, Down : 0, Up : 1",
+            "skipUrlSync": false,
+            "type": "custom"
+          },
+          {
+            "allowCustomValue": true,
+            "current": {
+              "text": "All",
+              "value": "$__all"
+            },
+            "datasource": {
+              "type": "prometheus",
+              "uid": "kube-prometheus-stack"
+            },
+            "definition": "query_result(probe_success{job=~\"$job\"} == $Filter or probe_success{job=~\"$job\"} * 0 == $Filter - 2)",
             "hide": 0,
             "includeAll": true,
             "label": "Instance",
-            "multi": false,
+            "multi": true,
             "name": "instance",
             "options": [],
             "query": {
               "qryType": 1,
-              "query": "label_values(probe_success{job=\"$job\"},instance)",
+              "query": "query_result(probe_success{job=~\"$job\"} == $Filter or probe_success{job=~\"$job\"} * 0 == $Filter - 2)",
               "refId": "PrometheusVariableQueryEditor-VariableQuery"
             },
             "refresh": 1,
-            "regex": "",
+            "regex": "/instance=\"([^\"]+)\"/",
             "regexApplyTo": "value",
             "skipUrlSync": false,
             "sort": 1,
