@@ -8,7 +8,7 @@ metadata:
     app: redis-ha
     heritage: "Helm"
     release: "argocd"
-    chart: redis-ha-4.34.11
+    chart: redis-ha-4.38.0
   annotations: {}
 spec:
   selector:
@@ -23,7 +23,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/init-config: ba53465a7f9221d17ea160133c99baec040e67b7b15fb4743adc8eca497cdf89
+        checksum/init-config: 6c121221ac1ef350745177ff068ab91ccc00a6e4ff8eab73bb95453154a49db2
       labels:
         release: argocd
         app: redis-ha
@@ -212,6 +212,28 @@ spec:
         - name: split-brain-fix
           image: redis:8.8.0-alpine@sha256:cc4528bddf546d352dcb171aa39bf1650c23b85a463784e9e9dea16ece1d18e8
           imagePullPolicy: IfNotPresent
+          livenessProbe:
+            exec:
+              command:
+                - cat
+                - /readonly-config/redis.conf
+            failureThreshold: 5
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 15
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test -d /proc/1
+            failureThreshold: 5
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 15
+          resources: {}
           command:
             - sh
           args:
@@ -233,7 +255,6 @@ spec:
               value: 40000915ab58c3fa8fd888fb8b24711944e6cbb4
             - name: SENTINEL_ID_2
               value: 2bbec7894d954a8af3bb54d13eaec53cb024e2ca
-          resources: {}
           volumeMounts:
             - name: config
               mountPath: /readonly-config
