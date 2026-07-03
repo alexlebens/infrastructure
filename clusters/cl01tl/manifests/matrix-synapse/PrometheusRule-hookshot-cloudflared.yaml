@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hookshot-cloudflared
+  namespace: matrix-synapse
+  labels:
+    app.kubernetes.io/name: hookshot-cloudflared
+    helm.sh/chart: cloudflared-hookshot-4.0.0
+    app.kubernetes.io/version: "4.0.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: matrix-synapse
+spec:
+  groups:
+    - name: hookshot-cloudflared.rules
+      rules:
+        - alert: CloudflaredDown
+          annotations:
+            description: Cloudflared tunnel has lost connection to the edge.
+            summary: Cloudflared tunnel {{ $labels.tunnel_id }} is down
+          expr: cloudflared_tunnel_active == 0
+          for: 1m
+          labels:
+            severity: critical
