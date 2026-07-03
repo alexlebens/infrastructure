@@ -8,13 +8,13 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: hookshot-cloudflared
     app.kubernetes.io/version: 2026.6.1
-    helm.sh/chart: cloudflared-hookshot-3.4.1
+    helm.sh/chart: cloudflared-hookshot-4.0.0
   namespace: matrix-synapse
 spec:
   revisionHistoryLimit: 3
-  replicas: 1
+  replicas: 2
   strategy:
-    type: Recreate
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/controller: main
@@ -30,6 +30,10 @@ spec:
       enableServiceLinks: false
       serviceAccountName: matrix-synapse-hookshot-cloudflared
       automountServiceAccountToken: false
+      securityContext:
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -53,8 +57,30 @@ spec:
                   name: matrix-synapse-hookshot-cloudflared-secret
           image: cloudflare/cloudflared:2026.6.1@sha256:6d91c121b803126f7a5344005d17a9324788fc09d305b6e2560ec6040a7ae283
           imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /ready
+              port: 20241
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 1
           name: main
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /ready
+              port: 20241
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 1
           resources:
             requests:
               cpu: 1m
               memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
