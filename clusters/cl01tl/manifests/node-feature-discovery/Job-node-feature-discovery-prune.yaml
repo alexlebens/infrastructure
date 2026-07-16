@@ -4,22 +4,23 @@ metadata:
   name: node-feature-discovery-prune
   namespace: node-feature-discovery
   labels:
-    helm.sh/chart: node-feature-discovery-0.18.3
+    helm.sh/chart: node-feature-discovery-0.19.0
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: node-feature-discovery
-    app.kubernetes.io/version: "v0.18.3"
+    app.kubernetes.io/version: "v0.19.0"
     app.kubernetes.io/managed-by: Helm
   annotations:
     "helm.sh/hook": post-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
+  ttlSecondsAfterFinished: 3600
   template:
     metadata:
       labels:
-        helm.sh/chart: node-feature-discovery-0.18.3
+        helm.sh/chart: node-feature-discovery-0.19.0
         app.kubernetes.io/name: node-feature-discovery
         app.kubernetes.io/instance: node-feature-discovery
-        app.kubernetes.io/version: "v0.18.3"
+        app.kubernetes.io/version: "v0.19.0"
         app.kubernetes.io/managed-by: Helm
         role: prune
     spec:
@@ -40,6 +41,12 @@ spec:
             - "nfd-master"
           args:
             - "-prune"
+          resources:
+            limits:
+              memory: 4Gi
+            requests:
+              cpu: 10m
+              memory: 20Mi
       restartPolicy: Never
       affinity:
         nodeAffinity:
@@ -55,9 +62,3 @@ spec:
         - effect: NoSchedule
           key: node-role.kubernetes.io/control-plane
           operator: Exists
-      resources:
-        limits:
-          memory: 4Gi
-        requests:
-          cpu: 10m
-          memory: 20Mi
