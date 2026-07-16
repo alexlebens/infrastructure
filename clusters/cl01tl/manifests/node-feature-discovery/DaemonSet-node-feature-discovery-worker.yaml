@@ -4,14 +4,17 @@ metadata:
   name: node-feature-discovery-worker
   namespace: node-feature-discovery
   labels:
-    helm.sh/chart: node-feature-discovery-0.18.3
+    helm.sh/chart: node-feature-discovery-0.19.0
     app.kubernetes.io/name: node-feature-discovery
     app.kubernetes.io/instance: node-feature-discovery
-    app.kubernetes.io/version: "v0.18.3"
+    app.kubernetes.io/version: "v0.19.0"
     app.kubernetes.io/managed-by: Helm
     role: worker
 spec:
   revisionHistoryLimit:
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 10%
   selector:
     matchLabels:
       app.kubernetes.io/name: node-feature-discovery
@@ -24,7 +27,7 @@ spec:
         app.kubernetes.io/instance: node-feature-discovery
         role: worker
       annotations:
-        checksum/config: 0ff3ad6ed18d5d7f9cd6e7d703e20338b50f37fe59fddf7cf6a5a57525292ed8
+        checksum/config: a223bfe47d6b31f830d2984234cd623728c816f6d7a47dd7ef0ffa0a6f9f00f5
     spec:
       dnsPolicy: ClusterFirstWithHostNet
       imagePullSecrets:
@@ -76,6 +79,7 @@ spec:
             - "nfd-worker"
           args:
             - "-feature-gates=NodeFeatureGroupAPI=true"
+            - "-owner-refs=pod,ds"
             - "-port=8080"
           ports:
             - containerPort: 8080
