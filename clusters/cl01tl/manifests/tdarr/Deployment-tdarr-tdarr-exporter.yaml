@@ -3,10 +3,10 @@ kind: Deployment
 metadata:
   name: tdarr-tdarr-exporter
   labels:
-    helm.sh/chart: tdarr-exporter-1.2.0
+    helm.sh/chart: tdarr-exporter-2.0.1
     app.kubernetes.io/name: tdarr-exporter
     app.kubernetes.io/instance: tdarr
-    app.kubernetes.io/version: "2.1.0"
+    app.kubernetes.io/version: "3.0.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -20,17 +20,29 @@ spec:
     metadata:
       annotations:
       labels:
-        helm.sh/chart: tdarr-exporter-1.2.0
+        helm.sh/chart: tdarr-exporter-2.0.1
         app.kubernetes.io/name: tdarr-exporter
         app.kubernetes.io/instance: tdarr
-        app.kubernetes.io/version: "2.1.0"
+        app.kubernetes.io/version: "3.0.0"
         app.kubernetes.io/managed-by: Helm
     spec:
       serviceAccountName: default
-      securityContext: {}
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: tdarr-exporter
-          securityContext: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
           image: "docker.io/homeylab/tdarr-exporter:1.4.3@sha256:88254cb505bfff20e86e04fa23a71789a411e7939e3bcbccbd5ef397ff91d052"
           imagePullPolicy: IfNotPresent
           ports:
