@@ -73,7 +73,7 @@ spec:
                   key: input-ports
                   name: airvpn-wireguard-conf
             - name: FIREWALL_OUTBOUND_SUBNETS
-              value: 127.0.0.0/8,192.168.1.0/24,10.244.0.0/16,10.96.0.0/12
+              value: 127.0.0.0/8,192.168.1.0/24,10.244.0.0/16,10.96.0.0/12,10.0.0.0/8
             - name: FIREWALL_INPUT_PORTS
               value: 8080,9022,9999
             - name: BLOCK_MALICIOUS
@@ -113,6 +113,15 @@ spec:
             - mountPath: /gluetun/update.sh
               name: update-script
               subPath: update.sh
+        - command:
+            - /bin/sh
+            - -c
+            - touch /tmp/lockfile-data/lockfile
+          image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+          name: init-lockfile
+          volumeMounts:
+            - mountPath: /tmp/lockfile-data
+              name: lockfile-data
         - args:
             - -ec
             - |
@@ -168,12 +177,17 @@ spec:
           volumeMounts:
             - mountPath: /config/qBittorrent
               name: config-data
+            - mountPath: /config/qBittorrent/lockfile
+              name: lockfile-data
+              subPath: lockfile
             - mountPath: /mnt/store
               name: storage
       volumes:
         - name: config-data
           persistentVolumeClaim:
             claimName: qbittorrent-config-data
+        - emptyDir: {}
+          name: lockfile-data
         - name: storage
           persistentVolumeClaim:
             claimName: qbittorrent-nfs-storage
