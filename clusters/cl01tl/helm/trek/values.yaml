@@ -1,0 +1,129 @@
+trek:
+  controllers:
+    main:
+      type: deployment
+      replicas: 1
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: mauriceboe/trek
+            tag: 3.4.0@sha256:78cbaf2615660e0228e69e03c7cfd8d588f5ec1f600c21b66ffd3347c3e7c18a
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: 3000
+            - name: TZ
+              value: America/Chicago
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: trek-key
+                  key: encryption-key
+            - name: ALLOWED_ORIGINS
+              value: https://trek.alexlebens.dev
+            - name: FORCE_HTTPS
+              value: "true"
+            - name: TRUST_PROXY
+              value: "1"
+            - name: ALLOW_INTERNAL_NETWORK
+              value: "true"
+            - name: APP_URL
+              value: https://trek.alexlebens.dev
+            - name: OIDC_ISSUER
+              value: https://auth.alexlebens.dev/application/o/trek/
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: trek-oidc-authentik
+                  key: OIDC_CLIENT_ID
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: trek-oidc-authentik
+                  key: OIDC_CLIENT_SECRET
+            - name: OIDC_DISPLAY_NAME
+              value: Authentik
+            - name: OIDC_SCOPE
+              value: "openid email profile"
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: trek-config
+                  key: admin-email
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: trek-config
+                  key: admin-password
+          resources:
+            requests:
+              cpu: 25m
+              memory: 100Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 3000
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 3000
+  persistence:
+    data:
+      forceRename: trek-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data
+              readOnly: false
+    uploads:
+      forceRename: trek-uploads
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /app/uploads
+              readOnly: false
+cloudflared:
+  probe:
+    enabled: true
+    targetUrl: https://trek.alexlebens.dev
+volsync-target-data:
+  pvcTarget: trek-data
+  local:
+    enabled: true
+    schedule: 0 8 * * *
+  remote:
+    enabled: true
+    schedule: 0 10 * * 0
+  external:
+    enabled: true
+    schedule: 0 9 * * 0
+volsync-target-uploads:
+  pvcTarget: trek-uploads
+  local:
+    enabled: true
+    schedule: 0 8 * * *
+  remote:
+    enabled: true
+    schedule: 0 10 * * 0
+  external:
+    enabled: true
+    schedule: 0 9 * * 0
