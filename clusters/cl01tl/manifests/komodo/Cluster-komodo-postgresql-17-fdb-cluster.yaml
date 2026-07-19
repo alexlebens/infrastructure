@@ -5,10 +5,10 @@ metadata:
   namespace: komodo
   labels:
     app.kubernetes.io/name: komodo-postgresql-17-fdb-cluster
-    helm.sh/chart: postgresql-17-fdb-cluster-7.15.2
+    helm.sh/chart: postgresql-17-fdb-cluster-8.2.3
     app.kubernetes.io/instance: komodo
     app.kubernetes.io/part-of: komodo
-    app.kubernetes.io/version: "7.15.2"
+    app.kubernetes.io/version: "v1.30.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   instances: 3
@@ -41,9 +41,6 @@ spec:
       - pg_cron
       - pg_documentdb_core
       - pg_documentdb
-    pg_hba:
-      - host ferretDB postgres localhost trust
-      - host ferretDB ferret localhost trust
     parameters:
       cron.database_name: ferretDB
       documentdb.enableBypassDocumentValidation: "true"
@@ -57,16 +54,18 @@ spec:
       hot_standby_feedback: "on"
       max_slot_wal_keep_size: 2000MB
       shared_buffers: 512MB
+    pg_hba:
+      - host ferretDB postgres localhost trust
+      - host ferretDB ferret localhost trust
   monitoring:
-    enablePodMonitor: false
     disableDefaultQueries: false
   plugins:
     - name: barman-cloud.cloudnative-pg.io
       enabled: true
       isWALArchiver: true
       parameters:
-        barmanObjectName: "komodo-postgresql-17-fdb-backup-garage-local"
-        serverName: "komodo-postgresql-17-fdb-backup-2"
+        barmanObjectName: komodo-postgresql-17-fdb-backup
+        serverName: komodo-postgresql-17-fdb-backup-2
   bootstrap:
     recovery:
       database: app
@@ -78,5 +77,5 @@ spec:
         enabled: true
         isWALArchiver: false
         parameters:
-          barmanObjectName: "komodo-postgresql-17-fdb-recovery"
+          barmanObjectName: komodo-postgresql-17-fdb-recovery
           serverName: komodo-postgresql-17-fdb-backup-2
