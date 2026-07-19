@@ -5,10 +5,10 @@ metadata:
   namespace: outline
   labels:
     app.kubernetes.io/name: outline-postgresql-18-alert-rules
-    helm.sh/chart: postgres-18-cluster-7.15.2
+    helm.sh/chart: postgres-18-cluster-8.2.2
     app.kubernetes.io/instance: outline
     app.kubernetes.io/part-of: outline
-    app.kubernetes.io/version: "7.15.2"
+    app.kubernetes.io/version: "v1.30.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -48,7 +48,7 @@ spec:
               risk of data loss and downtime if the primary instance fails.
 
               The primary instance is still online and able to serve queries, although connections to the `-ro` endpoint
-              will fail. The `-r` endpoint os operating at reduced capacity and all traffic is being served by the main.
+              will fail. The `-r` endpoint is operating at reduced capacity and all traffic is being served by the main.
 
               This can happen during a normal fail-over or automated minor version upgrades in a cluster with 2 or less
               instances. The replaced instance may need some time to catch-up with the cluster primary instance.
@@ -128,6 +128,21 @@ spec:
             severity: warning
             namespace: outline
             cnpg_cluster: outline-postgresql-18-cluster
+        - alert: CNPGInstanceMetricsAbsent
+          annotations:
+            summary: CNPG instance metrics exporter is hung
+            description: |-
+              CloudNativePG instance "outline/{{`{{`}} $labels.pod {{`}}`}}" has had an unreachable metrics endpoint for 10 minutes, so its metrics exporter is hung.
+
+              The lag, HA and replication alerts all read from this exporter and will not fire while it is down. A hung exporter has previously coincided with a frozen standby, so physical replication may be stuck and unmonitored. Check the instance directly.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGInstanceMetricsAbsent.md
+          expr: |
+            up{namespace="outline",pod=~"outline-postgresql-18-cluster-([1-9][0-9]*)$"} == 0
+          for: 10m
+          labels:
+            severity: critical
+            namespace: outline
+            cnpg_cluster: outline-postgresql-18-cluster
         - alert: CNPGClusterInstancesOnSameNode
           annotations:
             summary: CNPG Cluster instances are located on the same node.
@@ -139,6 +154,126 @@ spec:
             runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterInstancesOnSameNode.md
           expr: |
             count by (node) (kube_pod_info{namespace="outline", pod=~"outline-postgresql-18-cluster-([1-9][0-9]*)$"}) > 1
+          for: 5m
+          labels:
+            severity: warning
+            namespace: outline
+            cnpg_cluster: outline-postgresql-18-cluster
+        - alert: CNPGClusterLogicalReplicationErrorsCritical
+          annotations:
+            summary: CNPG Cluster critical logical replication errors
+            description: |-
+              CloudNativePG Cluster's "outline/outline-postgresql-18-cluster" "{{ .subname }}" subscription has experienced {{`{{`}} $value {{`}}`}} errors in the last 5 minutes.
+
+              CRITICAL: High error rate indicates persistent replication issues requiring immediate attention. This could lead to significant data inconsistency or complete replication failure. Errors include both apply errors and sync errors. The subscription may stop working if errors continue.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterLogicalReplicationErrors.md
+          expr: |
+            label_replace(max by (namespace, job, subname) (increase(cnpg_pg_stat_subscription_apply_error_count[5m]) + increase(cnpg_pg_stat_subscription_sync_error_count[5m])), "cluster", "$1", "job", ".+/(.+)") >= 5
+          for: 0m
+          labels:
+            severity: critical
+            namespace: outline
+            cnpg_cluster: outline-postgresql-18-cluster
+        - alert: CNPGClusterLogicalReplicationErrors
+          annotations:
+            summary: CNPG Cluster logical replication errors detected
+            description: |-
+              CloudNativePG Cluster's "outline/outline-postgresql-18-cluster" "{{ .subname }}" subscription has experienced {{`{{`}} $value {{`}}`}} errors.
+
+              This includes both apply errors (during normal replication) and sync errors (during initial table sync). Errors indicate data consistency issues that need immediate attention to prevent data divergence.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterLogicalReplicationErrors.md
+          expr: |
+            label_replace(max by (namespace, job, subname) (increase(cnpg_pg_stat_subscription_apply_error_count[5m]) + increase(cnpg_pg_stat_subscription_sync_error_count[5m])), "cluster", "$1", "job", ".+/(.+)") > 0
+          for: 1m
+          labels:
+            severity: warning
+            namespace: outline
+            cnpg_cluster: outline-postgresql-18-cluster
+        - alert: CNPGClusterLogicalReplicationLaggingCritical
+          annotations:
+            summary: CNPG Cluster critical logical replication lag
+            description: |-
+              CloudNativePG Cluster's "outline/outline-postgresql-18-cluster" "{{ .subname }}" subscription is experiencing critical replication lag!
+              Current lag: {{`{{`}} $value {{`}}`}}s
+
+              CRITICAL: The subscriber is significantly behind the publisher. Immediate action required. This could lead to significant data inconsistency, disk space exhaustion on publisher, or extended recovery time.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterLogicalReplicationLagging.md
+          expr: |
+            (
+              # Receipt lag - not receiving WAL data
+              label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_receipt_lag_seconds), "cluster", "$1", "job", ".+/(.+)") > 300
+            ) or (
+              # Apply lag - not applying received data
+              label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_apply_lag_seconds), "cluster", "$1", "job", ".+/(.+)") > 300
+            ) or (
+              # LSN distance - large amount of pending data
+              label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_buffered_lag_bytes), "cluster", "$1", "job", ".+/(.+)") / 1024^3 > 4
+            )
+          for: 2m
+          labels:
+            severity: critical
+            namespace: outline
+            cnpg_cluster: outline-postgresql-18-cluster
+        - alert: CNPGClusterLogicalReplicationLagging
+          annotations:
+            summary: CNPG Cluster logical replication lagging
+            description: |-
+              CloudNativePG Cluster's "outline/outline-postgresql-18-cluster" "{{ .subname }}" subscription is experiencing replication lag.
+              Current lag: {{`{{`}} $value {{`}}`}}s
+
+              This alert indicates the subscriber is falling behind the publisher. The lag could be receipt lag (not receiving WAL data fast enough due to network issues), apply lag (receiving data but not applying it fast enough due to resource contention), or LSN distance (large amount of pending data to be applied).
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterLogicalReplicationLagging.md
+          expr: |
+            (
+              # Receipt lag - time since last message received
+              label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_receipt_lag_seconds), "cluster", "$1", "job", ".+/(.+)") > 60
+            ) or (
+              # Apply lag - time delay in applying changes
+              label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_apply_lag_seconds), "cluster", "$1", "job", ".+/(.+)") > 60
+            ) or (
+              # LSN distance - bytes pending to be applied
+              label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_buffered_lag_bytes), "cluster", "$1", "job", ".+/(.+)") / 1024^3 > 1
+            )
+          for: 5m
+          labels:
+            severity: warning
+            namespace: outline
+            cnpg_cluster: outline-postgresql-18-cluster
+        - alert: CNPGClusterLogicalReplicationStoppedCritical
+          annotations:
+            summary: CNPG Cluster logical replication subscription CRITICAL
+            description: "CloudNativePG Cluster's \"outline/outline-postgresql-18-cluster\" \"{{ .subname }}\" subscription is in a critical state.\n\nCRITICAL: The subscription has been stopped for more than 15 minutes. This will lead to significant data divergence and requires immediate intervention.\n\nStatus: \nDuration: {{`{{`}} $value {{`}}`}}s"
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterLogicalReplicationStopped.md
+          expr: |
+            (
+              # Subscription is explicitly disabled
+              label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_enabled), "cluster", "$1", "job", ".+/(.+)") == 0
+            ) or (
+              # Subscription is enabled but stuck (no worker process with significant lag)
+              label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_enabled), "cluster", "$1", "job", ".+/(.+)") == 1
+              and label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_pid), "cluster", "$1", "job", ".+/(.+)") == 0
+              and label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_buffered_lag_bytes), "cluster", "$1", "job", ".+/(.+)") / 1024^3 > 0.1
+            )
+          for: 15m
+          labels:
+            severity: critical
+            namespace: outline
+            cnpg_cluster: outline-postgresql-18-cluster
+        - alert: CNPGClusterLogicalReplicationStopped
+          annotations:
+            summary: CNPG Cluster logical replication subscription stopped
+            description: "CloudNativePG Cluster's \"outline/outline-postgresql-18-cluster\" \"{{ .subname }}\" subscription is stopped.\n\nStatus: \n\nThe subscription is not actively replicating data. This could be intentional (disabled) or due to an issue preventing the subscription from working."
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterLogicalReplicationStopped.md
+          expr: |
+            (
+              # Subscription is explicitly disabled
+              label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_enabled), "cluster", "$1", "job", ".+/(.+)") == 0
+            ) or (
+              # Subscription is enabled but stuck (no worker process with significant lag)
+              label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_enabled), "cluster", "$1", "job", ".+/(.+)") == 1
+              and label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_pid), "cluster", "$1", "job", ".+/(.+)") == 0
+              and label_replace(max by (namespace, job, subname) (cnpg_pg_stat_subscription_buffered_lag_bytes), "cluster", "$1", "job", ".+/(.+)") / 1024^3 > 0.1
+            )
           for: 5m
           labels:
             severity: warning
@@ -236,6 +371,36 @@ spec:
           expr: |
             cnpg_pg_replication_lag{namespace="outline"} > 300
           for: 1m
+          labels:
+            severity: warning
+            namespace: outline
+            cnpg_cluster: outline-postgresql-18-cluster
+        - alert: CNPGClusterPhysicalReplicationLagCritical
+          annotations:
+            summary: CNPG Cluster very high physical replication lag
+            description: |-
+              CloudNativePG Cluster "outline/outline-postgresql-18-cluster" is experiencing a very high physical replication lag of {{`{{`}} $value {{`}}`}}ms.
+
+              High replication lag indicates network issues, busy instances, slow queries or suboptimal configuration.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterPhysicalReplicationLag.md
+          expr: |
+            max(cnpg_pg_replication_lag{namespace="outline",pod=~"outline-postgresql-18-cluster-([1-9][0-9]*)$"}) > 15
+          for: 5m
+          labels:
+            severity: critical
+            namespace: outline
+            cnpg_cluster: outline-postgresql-18-cluster
+        - alert: CNPGClusterPhysicalReplicationLagWarning
+          annotations:
+            summary: CNPG Cluster high physical replication lag
+            description: |-
+              CloudNativePG Cluster "outline/outline-postgresql-18-cluster" is experiencing a high physical replication lag of {{`{{`}} $value {{`}}`}}ms.
+
+              High replication lag indicates network issues, busy instances, slow queries or suboptimal configuration.
+            runbook_url: https://github.com/cloudnative-pg/charts/blob/main/charts/cluster/docs/runbooks/CNPGClusterPhysicalReplicationLag.md
+          expr: |
+            max(cnpg_pg_replication_lag{namespace="outline",pod=~"outline-postgresql-18-cluster-([1-9][0-9]*)$"}) > 1
+          for: 5m
           labels:
             severity: warning
             namespace: outline
