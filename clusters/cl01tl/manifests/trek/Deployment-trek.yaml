@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trek
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: trek
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: trek
+    helm.sh/chart: trek-5.0.1
+  namespace: trek
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: trek
+      app.kubernetes.io/instance: trek
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: trek
+        app.kubernetes.io/name: trek
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: trek
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3000"
+            - name: TZ
+              value: America/Chicago
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: encryption-key
+                  name: trek-key
+            - name: ALLOWED_ORIGINS
+              value: https://trek.alexlebens.dev
+            - name: FORCE_HTTPS
+              value: "true"
+            - name: TRUST_PROXY
+              value: "1"
+            - name: ALLOW_INTERNAL_NETWORK
+              value: "true"
+            - name: APP_URL
+              value: https://trek.alexlebens.dev
+            - name: OIDC_ISSUER
+              value: https://auth.alexlebens.dev/application/o/trek/
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: OIDC_CLIENT_ID
+                  name: trek-oidc-authentik
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: OIDC_CLIENT_SECRET
+                  name: trek-oidc-authentik
+            - name: OIDC_DISPLAY_NAME
+              value: Authentik
+            - name: OIDC_SCOPE
+              value: openid email profile
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  key: admin-email
+                  name: trek-config
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: admin-password
+                  name: trek-config
+          image: mauriceboe/trek:3.4.0@sha256:78cbaf2615660e0228e69e03c7cfd8d588f5ec1f600c21b66ffd3347c3e7c18a
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: main
+          resources:
+            requests:
+              cpu: 25m
+              memory: 100Mi
+          volumeMounts:
+            - mountPath: /app/data
+              name: data
+            - mountPath: /app/uploads
+              name: uploads
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: trek-data
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: trek-uploads

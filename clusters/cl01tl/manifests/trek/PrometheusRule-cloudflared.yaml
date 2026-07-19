@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cloudflared
+  namespace: trek
+  labels:
+    app.kubernetes.io/name: cloudflared
+    helm.sh/chart: cloudflared-4.1.1
+    app.kubernetes.io/version: "4.1.1"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: trek
+spec:
+  groups:
+    - name: cloudflared.rules
+      rules:
+        - alert: CloudflaredDown
+          annotations:
+            description: Cloudflared tunnel has lost connection to the edge.
+            summary: Cloudflared tunnel {{ $labels.tunnel_id }} is down
+          expr: cloudflared_tunnel_active == 0
+          for: 1m
+          labels:
+            severity: critical
