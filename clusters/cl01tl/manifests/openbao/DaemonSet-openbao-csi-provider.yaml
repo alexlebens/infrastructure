@@ -31,6 +31,15 @@ spec:
             requests:
               cpu: 10m
               memory: 30Mi
+          securityContext:
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
           image: "quay.io/openbao/openbao-csi-provider:2.0.2@sha256:3cb312e88c62c926caec03bf69497a16805a29daabb5ad2c7a236ab43bb241db"
           imagePullPolicy: IfNotPresent
           args:
@@ -71,8 +80,13 @@ spec:
               cpu: 10m
               memory: 10Mi
           command:
-            - bao
+            - /bin/sh
+            - -ec
           args:
+            - |
+              umask 0007
+              exec bao "$@"
+            - bao
             - agent
             - -config=/etc/vault/config.hcl
           ports:
