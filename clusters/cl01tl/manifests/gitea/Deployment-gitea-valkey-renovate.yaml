@@ -3,10 +3,10 @@ kind: Deployment
 metadata:
   name: gitea-valkey-renovate
   labels:
-    helm.sh/chart: valkey-0.10.0
+    helm.sh/chart: valkey-0.11.0
     app.kubernetes.io/name: valkey-renovate
     app.kubernetes.io/instance: gitea
-    app.kubernetes.io/version: "9.1.0"
+    app.kubernetes.io/version: "9.1.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -22,7 +22,7 @@ spec:
         app.kubernetes.io/name: valkey-renovate
         app.kubernetes.io/instance: gitea
       annotations:
-        checksum/initconfig: aa56a36028eb99e89605f18a48d62d0e
+        checksum/initconfig: 76ea2af278266ec6166b3bff57693c8c
     spec:
       automountServiceAccountToken: false
       serviceAccountName: gitea-valkey-renovate
@@ -34,7 +34,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: gitea-valkey-renovate-init
-          image: docker.io/valkey/valkey:9.1.0@sha256:8e8d64b405ce18f41b8e5ee20aa4687a8ed0022d1298f2ce31cdcf3a76e09411
+          image: docker.io/valkey/valkey:9.1.1@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -52,7 +52,7 @@ spec:
               mountPath: /scripts
       containers:
         - name: gitea-valkey-renovate
-          image: docker.io/valkey/valkey:9.1.0@sha256:8e8d64b405ce18f41b8e5ee20aa4687a8ed0022d1298f2ce31cdcf3a76e09411
+          image: docker.io/valkey/valkey:9.1.1@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
           imagePullPolicy: IfNotPresent
           command: ["valkey-server"]
           args: ["/data/conf/valkey.conf"]
@@ -65,18 +65,30 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
           env:
-            - name: VALKEY_LOGLEVEL
+            - name: VALKEY_LOG_LEVEL
               value: "notice"
           ports:
             - name: tcp
               containerPort: 6379
               protocol: TCP
-          startupProbe:
-            exec:
-              command: ["sh", "-c", "valkey-cli ping"]
           livenessProbe:
             exec:
-              command: ["sh", "-c", "valkey-cli ping"]
+              command:
+                - valkey-cli
+                - ping
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+          startupProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
           resources:
             requests:
               cpu: 10m

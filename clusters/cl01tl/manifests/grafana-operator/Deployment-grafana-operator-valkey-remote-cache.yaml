@@ -3,10 +3,10 @@ kind: Deployment
 metadata:
   name: grafana-operator-valkey-remote-cache
   labels:
-    helm.sh/chart: valkey-0.10.0
+    helm.sh/chart: valkey-0.11.0
     app.kubernetes.io/name: valkey-remote-cache
     app.kubernetes.io/instance: grafana-operator
-    app.kubernetes.io/version: "9.1.0"
+    app.kubernetes.io/version: "9.1.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -22,7 +22,7 @@ spec:
         app.kubernetes.io/name: valkey-remote-cache
         app.kubernetes.io/instance: grafana-operator
       annotations:
-        checksum/initconfig: 39f6d81d819f671ad57482e90a29afd4
+        checksum/initconfig: 246ac5c164d141a92f7b7e6e47e3a83e
     spec:
       automountServiceAccountToken: false
       serviceAccountName: grafana-operator-valkey-remote-cache
@@ -34,7 +34,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: grafana-operator-valkey-remote-cache-init
-          image: docker.io/valkey/valkey:9.1.0@sha256:8e8d64b405ce18f41b8e5ee20aa4687a8ed0022d1298f2ce31cdcf3a76e09411
+          image: docker.io/valkey/valkey:9.1.1@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -52,7 +52,7 @@ spec:
               mountPath: /scripts
       containers:
         - name: grafana-operator-valkey-remote-cache
-          image: docker.io/valkey/valkey:9.1.0@sha256:8e8d64b405ce18f41b8e5ee20aa4687a8ed0022d1298f2ce31cdcf3a76e09411
+          image: docker.io/valkey/valkey:9.1.1@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
           imagePullPolicy: IfNotPresent
           command: ["valkey-server"]
           args: ["/data/conf/valkey.conf"]
@@ -65,18 +65,30 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
           env:
-            - name: VALKEY_LOGLEVEL
+            - name: VALKEY_LOG_LEVEL
               value: "notice"
           ports:
             - name: tcp
               containerPort: 6379
               protocol: TCP
-          startupProbe:
-            exec:
-              command: ["sh", "-c", "valkey-cli ping"]
           livenessProbe:
             exec:
-              command: ["sh", "-c", "valkey-cli ping"]
+              command:
+                - valkey-cli
+                - ping
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+          startupProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
           resources:
             requests:
               cpu: 10m

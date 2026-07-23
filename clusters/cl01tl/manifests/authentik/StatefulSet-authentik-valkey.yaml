@@ -3,10 +3,10 @@ kind: StatefulSet
 metadata:
   name: authentik-valkey
   labels:
-    helm.sh/chart: valkey-0.10.0
+    helm.sh/chart: valkey-0.11.0
     app.kubernetes.io/name: valkey
     app.kubernetes.io/instance: authentik
-    app.kubernetes.io/version: "9.1.0"
+    app.kubernetes.io/version: "9.1.1"
     app.kubernetes.io/managed-by: Helm
 spec:
   serviceName: authentik-valkey-headless
@@ -17,7 +17,9 @@ spec:
       app.kubernetes.io/name: valkey
       app.kubernetes.io/instance: authentik
   volumeClaimTemplates:
-    - metadata:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
         name: valkey-data
       spec:
         accessModes:
@@ -32,7 +34,7 @@ spec:
         app.kubernetes.io/name: valkey
         app.kubernetes.io/instance: authentik
       annotations:
-        checksum/initconfig: "7526385bfc8f9e1af7020567f125184c"
+        checksum/initconfig: "fd4f8fc701541bb3c8c5ea5e65604176"
     spec:
       automountServiceAccountToken: false
       serviceAccountName: authentik-valkey
@@ -44,7 +46,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: authentik-valkey-init
-          image: docker.io/valkey/valkey:9.1.0@sha256:8e8d64b405ce18f41b8e5ee20aa4687a8ed0022d1298f2ce31cdcf3a76e09411
+          image: docker.io/valkey/valkey:9.1.1@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -67,7 +69,7 @@ spec:
               mountPath: /scripts
       containers:
         - name: authentik-valkey
-          image: docker.io/valkey/valkey:9.1.0@sha256:8e8d64b405ce18f41b8e5ee20aa4687a8ed0022d1298f2ce31cdcf3a76e09411
+          image: docker.io/valkey/valkey:9.1.1@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
           imagePullPolicy: IfNotPresent
           command: ["valkey-server"]
           args: ["/data/conf/valkey.conf"]
@@ -84,18 +86,30 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
-            - name: VALKEY_LOGLEVEL
+            - name: VALKEY_LOG_LEVEL
               value: "notice"
           ports:
             - name: tcp
               containerPort: 6379
               protocol: TCP
-          startupProbe:
-            exec:
-              command: ["sh", "-c", "valkey-cli ping"]
           livenessProbe:
             exec:
-              command: ["sh", "-c", "valkey-cli ping"]
+              command:
+                - valkey-cli
+                - ping
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+          startupProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
           resources:
             requests:
               cpu: 10m
