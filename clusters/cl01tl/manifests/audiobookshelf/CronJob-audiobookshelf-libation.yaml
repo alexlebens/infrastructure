@@ -1,0 +1,84 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: audiobookshelf-libation
+  labels:
+    app.kubernetes.io/controller: libation
+    app.kubernetes.io/instance: audiobookshelf
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: audiobookshelf
+    helm.sh/chart: audiobookshelf-5.0.1
+  namespace: audiobookshelf
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 30
+  timeZone: America/Chicago
+  schedule: "0 0 1 1 *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      parallelism: 1
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/controller: libation
+            app.kubernetes.io/instance: audiobookshelf
+            app.kubernetes.io/name: audiobookshelf
+        spec:
+          enableServiceLinks: false
+          serviceAccountName: audiobookshelf
+          automountServiceAccountToken: false
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          initContainers:
+            - command:
+                - /bin/sh
+                - -ec
+                - |
+                  cp -f /tmp/AccountsSettings.json /config/AccountsSettings.json
+                  cp -f /tmp/Settings.json /config/Settings.json
+              image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+              name: init-copy-config
+              volumeMounts:
+                - mountPath: /config
+                  name: libation-config
+                - mountPath: /tmp/AccountsSettings.json
+                  mountPropagation: None
+                  name: libation-secret-config
+                  readOnly: true
+                  subPath: AccountsSettings.json
+                - mountPath: /tmp/Settings.json
+                  mountPropagation: None
+                  name: libation-secret-config
+                  readOnly: true
+                  subPath: Settings.json
+          containers:
+            - image: rmcrackan/libation:13.7.0@sha256:5ed894697ca0cbbc505c9f57d57c20199fb1cb0b10bb2fc038202772e31193da
+              name: main
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 20Mi
+              volumeMounts:
+                - mountPath: /config
+                  name: libation-config
+                - mountPath: /data
+                  name: libation-data
+          volumes:
+            - name: libation-config
+              persistentVolumeClaim:
+                claimName: libation
+            - emptyDir: {}
+              name: libation-data
+            - csi:
+                driver: secrets-store.csi.k8s.io
+                readOnly: true
+                volumeAttributes:
+                  secretProviderClass: libation-config
+              name: libation-secret-config
