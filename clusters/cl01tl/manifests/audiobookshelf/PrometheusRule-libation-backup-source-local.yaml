@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: libation-backup-source-local
+  namespace: audiobookshelf
+  labels:
+    helm.sh/chart: volsync-target-libation-config-2.2.1
+    app.kubernetes.io/instance: audiobookshelf
+    app.kubernetes.io/part-of: audiobookshelf
+    app.kubernetes.io/version: "2.2.1"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: libation-backup-source-local
+spec:
+  groups:
+    - name: volsync.alerts
+      rules:
+        - alert: VolSyncBackupPodFailed
+          expr: |
+            (kube_pod_container_status_terminated_exitcode > 0)
+            * on(pod, namespace) group_left(owner_name)
+            kube_pod_owner{owner_kind="Job", owner_name=~"volsync-.*"}
+          labels:
+            severity: critical
+          annotations:
+            summary: "VolSync Backup Pod failed in {{ $labels.namespace }}"
+            description: |
+              A pod for the VolSync backup of PVC 'libation' failed with exit code {{ $value }}.
+              Job: {{ $labels.owner_name }}
+              Namespace: {{ $labels.namespace }}
