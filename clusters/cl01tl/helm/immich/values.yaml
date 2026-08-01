@@ -145,6 +145,35 @@ immich:
               cpu: 10m
               memory: 500Mi
               gpu.intel.com/i915: 1
+    immich-memories-notify:
+      type: deployment
+      replicas: 1
+      containers:
+        main:
+          image:
+            repository: ghcr.io/ismaildakrory/immich-memories-notify
+            tag: 3.0.0@sha256:077069c227b6f789f8012624db8e53b4f45fc0c128ba449c0f848d42a5bb661d
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: IMMICH_URL
+              value: http://immich-main.immich:80
+            - name: IMMICH_EXTERNAL_URL
+              value: https://immich.alexlebens.net
+            - name: IMMICH_API_KEY_USER1
+              valueFrom:
+                secretKeyRef:
+                  name: immich-memories
+                  key: IMMICH_API_KEY_USER1
+            - name: NTFY_URL
+              value: http://ntfy.ntfy:80
+            - name: NTFY_EXTERNAL_URL
+              value: http://ntfy.alexlebens.dev
+            - name: NTFY_PASSWORD_USER1
+              valueFrom:
+                secretKeyRef:
+                  name: immich-memories
+                  key: NTFY_PASSWORD_USER1
   service:
     main:
       controller: main
@@ -164,6 +193,12 @@ immich:
         http:
           port: 3003
           targetPort: 3003
+    memories-notify:
+      controller: immich-memories-notify
+      ports:
+        http:
+          port: 5000
+          targetPort: 5000
   serviceMonitor:
     main:
       selector:
@@ -214,6 +249,12 @@ immich:
               readOnly: true
               mountPropagation: None
               subPath: immich.json
+        immich-memories-notify:
+          main:
+            - path: /app/config.yaml
+              readOnly: true
+              mountPropagation: None
+              subPath: config.yaml
     data:
       forceRename: immich
       storageClass: ceph-block
@@ -235,6 +276,15 @@ immich:
         machine-learning:
           main:
             - path: /cache
+    memories-state:
+      forceRename: immich-memories-state
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      advancedMounts:
+        immich-memories-notify:
+          main:
+            - path: /app/state
 postgres-18-cluster:
   mode: recovery
   cluster:

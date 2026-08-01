@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: garage-storage-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: garage
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: garage.rules
+      rules:
+        - alert: GarageStorageCapacityWarning
+          expr: (garage_local_disk_avail / garage_local_disk_total) < 0.20
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Garage node {{ `{{ $labels.instance }}` }} volume {{ `{{ $labels.volume }}` }} has less than 20% storage available"
+            description: "The volume {{ `{{ $labels.volume }}` }} on {{ `{{ $labels.instance }}` }} has {{ `{{ $value | humanizePercentage }}` }} free space remaining."
+        - alert: GarageStorageCapacityCritical
+          expr: (garage_local_disk_avail / garage_local_disk_total) < 0.10
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Garage node {{ `{{ $labels.instance }}` }} volume {{ `{{ $labels.volume }}` }} has less than 10% storage available"
+            description: "The volume {{ `{{ $labels.volume }}` }} on {{ `{{ $labels.instance }}` }} has {{ `{{ $value | humanizePercentage }}` }} free space remaining."
