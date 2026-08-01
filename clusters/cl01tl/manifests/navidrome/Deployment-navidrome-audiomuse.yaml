@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navidrome-audiomuse
+  labels:
+    app.kubernetes.io/controller: audiomuse
+    app.kubernetes.io/instance: navidrome
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: navidrome
+    helm.sh/chart: navidrome-5.0.1
+  namespace: navidrome
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: audiomuse
+      app.kubernetes.io/name: navidrome
+      app.kubernetes.io/instance: navidrome
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: audiomuse
+        app.kubernetes.io/instance: navidrome
+        app.kubernetes.io/name: navidrome
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: navidrome
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: REDIS_HOST
+              value: navidrome-valkey
+            - name: REDIS_PORT
+              value: "6379"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: navidrome-postgresql-app
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: navidrome-postgresql-app
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: navidrome-postgresql-app
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: navidrome-postgresql-app
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: navidrome-postgresql-app
+          image: ghcr.io/neptunehub/audiomuse-ai:3.1.1@sha256:15c50b3e7ec34f9c1e99340f54bf0a61135226d9b838bf75284e1ef55dfbc2ab
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
+          volumeMounts:
+            - mountPath: /music
+              name: music
+              readOnly: true
+            - mountPath: /music-grabber
+              name: music-grabber
+              readOnly: true
+            - mountPath: /music-single
+              name: music-single
+              readOnly: true
+            - mountPath: /music-youtube
+              name: music-youtube
+              readOnly: true
+      volumes:
+        - name: music
+          persistentVolumeClaim:
+            claimName: navidrome-music-nfs-storage
+        - name: music-grabber
+          persistentVolumeClaim:
+            claimName: navidrome-music-grabber-nfs-storage
+        - name: music-single
+          persistentVolumeClaim:
+            claimName: navidrome-music-single-nfs-storage
+        - name: music-youtube
+          persistentVolumeClaim:
+            claimName: navidrome-music-youtube-nfs-storage
