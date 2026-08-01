@@ -36,6 +36,39 @@ spec:
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
+      initContainers:
+        - command:
+            - /bin/sh
+            - -c
+            - |
+              mkdir -p /data/plugins
+              install_plugin() {
+                PLUGIN_NAME=$1
+                VERSION=$2
+                URL=$3
+                if [ ! -f "/data/plugins/.${PLUGIN_NAME}.${VERSION}" ]; then
+                  echo ">> Downloading ${PLUGIN_NAME} version ${VERSION}..."
+                  rm -f /data/plugins/${PLUGIN_NAME}
+                  rm -f /data/plugins/.${PLUGIN_NAME}.*
+                  wget -qO /data/plugins/${PLUGIN_NAME} ${URL}
+                  touch "/data/plugins/.${PLUGIN_NAME}.${VERSION}"
+                else
+                  echo ">> ${PLUGIN_NAME} version ${VERSION} is already installed, skipping ..."
+                fi
+              }
+              # renovate: datasource=github-releases depName=NeptuneHub/AudioMuse-AI-NV-plugin
+              install_plugin "audiomuseai.ndp" "v9" "https://github.com/NeptuneHub/AudioMuse-AI-NV-plugin/releases/download/v9/audiomuseai.ndp"
+
+              # renovate: datasource=github-releases depName=J0R6IT0/navidrome-lyrics-plugin
+              install_plugin "nd-lyrics.ndp" "v7.1.0" "https://github.com/J0R6IT0/navidrome-lyrics-plugin/releases/download/v7.1.0/nd-lyrics.ndp"
+
+              # renovate: datasource=github-releases depName=andykelk/navidrome-ntfy-plugin
+              install_plugin "navidrome-ntfy.ndp" "v1.1.0" "https://github.com/andykelk/navidrome-ntfy-plugin/releases/download/v1.1.0/navidrome-ntfy.ndp"
+          image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+          name: download-plugins
+          volumeMounts:
+            - mountPath: /data
+              name: data
       containers:
         - env:
             - name: ND_MUSICFOLDER
@@ -52,6 +85,16 @@ spec:
               value: "true"
             - name: ND_AUTOIMPORTPLAYLISTS
               value: "true"
+            - name: ND_PLUGINS_ENABLED
+              value: "true"
+            - name: ND_PLUGINS_AUTORELOAD
+              value: "true"
+            - name: ND_LYRICSPRIORITY
+              value: embedded,nd-lyrics
+            - name: ND_AGENTS
+              value: audiomuseai,lastfm,deezer
+            - name: ND_DEVARTISTINFOTIMETOLIVE
+              value: 1s
           image: ghcr.io/navidrome/navidrome:0.63.2@sha256:9012939114fbb1bb641b81cf96dec5ded15f0aafefe8d47a511d7cb919658e40
           name: main
           resources:
