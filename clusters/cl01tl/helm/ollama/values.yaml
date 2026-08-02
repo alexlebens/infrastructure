@@ -102,6 +102,48 @@ ollama:
             requests:
               cpu: 10m
               memory: 650Mi
+    router:
+      type: deployment
+      replicas: 3
+      containers:
+        main:
+          image:
+            repository: haproxy
+            tag: 3.0.26-alpine@sha256:7c8dac975b9def049d6585b7efe865486acaa7b6ec5e74eec45f08fde8bb2ad4
+          resources:
+            requests:
+              cpu: 5m
+              memory: 20Mi
+  configMaps:
+    router:
+      enabled: true
+      forceRename: ollama-router
+      data:
+        haproxy.cfg: |
+          global
+            log stdout format raw local0
+
+          defaults
+            log global
+            mode http
+            option httplog
+            timeout connect 5s
+            timeout client 10m
+            timeout server 10m
+
+          frontend ollama
+            bind *:11434
+            default_backend ollama_servers
+
+          backend ollama_servers
+            option httpchk GET /
+            server desktop ollama-pd05wd.boreal-beaufort.ts.net:443 ssl verify none check inter 5s fall 2 rise 2
+            server-template cluster 3 ollama-headless.ollama.svc.cluster.local:11434 check backup resolvers k8s
+
+          resolvers k8s
+            nameserver dns 10.96.0.10:53
+            accepted_payload_size 8192
+            hold valid 10s
   service:
     server:
       controller: server
@@ -123,6 +165,12 @@ ollama:
         http:
           port: 80
           targetPort: 8080
+    router:
+      controller: router
+      ports:
+        http:
+          port: 11434
+          targetPort: 11434
   route:
     main:
       kind: HTTPRoute
@@ -152,6 +200,15 @@ ollama:
           main:
             - path: /app/backend/data
               readOnly: false
+    router-config:
+      type: configMap
+      name: ollama-router
+      advancedMounts:
+        router:
+          main:
+            - path: /usr/local/etc/haproxy/haproxy.cfg
+              subPath: haproxy.cfg
+              readOnly: true
 postgres-18-cluster:
   nameOverride: ollama-web-postgresql-18
   mode: recovery
