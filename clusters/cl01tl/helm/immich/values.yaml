@@ -174,6 +174,39 @@ immich:
                 secretKeyRef:
                   name: immich-memories
                   key: NTFY_PASSWORD_USER1
+  configMaps:
+    memories-notify-config:
+      enabled: true
+      data:
+        config.yaml: |
+          settings:
+            top_persons_limit: 3
+            exclude_recent_days: 30
+            year_range: 20
+            include_location: true
+            include_album: true
+            video_emoji: true
+            birthday_enabled: true
+            trip_highlights_enabled: true
+            trip_highlights_cooldown_days: 7
+            trip_highlights_min_photos: 5
+            trip_highlights_repeat_days: 90
+            weekly_collage_enabled: true
+            collage_cooldown_days: 7
+            collage_person_limit: 3
+            collage_template: random
+            collage_album_name: Weekly Highlights
+            notification_windows:
+              - start: "16:00"
+                end: "20:00"
+                events: [memory, person, album, then_and_now, trip_highlights, collage]
+          users:
+            - name: Alex
+              immich_api_key: ${IMMICH_API_KEY_USER1}
+              ntfy_topic: immich
+              ntfy_username: cl01tl
+              ntfy_password: ${NTFY_PASSWORD_USER1}
+              enabled: true
   service:
     main:
       controller: main
@@ -249,11 +282,14 @@ immich:
               readOnly: true
               mountPropagation: None
               subPath: immich.json
+    memories-notify-config:
+      type: configMap
+      name: immich-memories-notify-config
+      advancedMounts:
         immich-memories-notify:
           main:
             - path: /app/config.yaml
               readOnly: true
-              mountPropagation: None
               subPath: config.yaml
     data:
       forceRename: immich
