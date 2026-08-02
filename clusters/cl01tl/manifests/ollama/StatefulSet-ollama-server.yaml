@@ -1,9 +1,9 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: ollama-server-3
+  name: ollama-server
   labels:
-    app.kubernetes.io/controller: server-3
+    app.kubernetes.io/controller: server
     app.kubernetes.io/instance: ollama
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: ollama
@@ -11,18 +11,20 @@ metadata:
   namespace: ollama
 spec:
   revisionHistoryLimit: 3
-  replicas: 1
-  strategy:
-    type: Recreate
+  replicas: 3
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
-      app.kubernetes.io/controller: server-3
+      app.kubernetes.io/controller: server
       app.kubernetes.io/name: ollama
       app.kubernetes.io/instance: ollama
+  serviceName: ollama
   template:
     metadata:
       labels:
-        app.kubernetes.io/controller: server-3
+        app.kubernetes.io/controller: server
         app.kubernetes.io/instance: ollama
         app.kubernetes.io/name: ollama
         ollama-type: server
@@ -50,6 +52,8 @@ spec:
               value: 24h
             - name: OLLAMA_HOST
               value: 0.0.0.0
+            - name: OLLAMA_NUM_PARALLEL
+              value: "4"
           image: ollama/ollama:0.32.5@sha256:4dea9fb511947e24a84237bb636b0203abcb2ff0d3fbc7b4ff865deb91362131
           name: main
           resources:
@@ -61,8 +65,14 @@ spec:
               memory: 20Mi
           volumeMounts:
             - mountPath: /root/.ollama
-              name: server-3
-      volumes:
-        - name: server-3
-          persistentVolumeClaim:
-            claimName: ollama-server-3
+              name: ollama-data
+  volumeClaimTemplates:
+    - metadata:
+        name: ollama-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 40Gi
+        storageClassName: ceph-block
