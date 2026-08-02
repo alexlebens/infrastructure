@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-router
+  labels:
+    app.kubernetes.io/controller: router
+    app.kubernetes.io/instance: ollama
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ollama
+    helm.sh/chart: ollama-5.0.1
+  namespace: ollama
+spec:
+  revisionHistoryLimit: 3
+  replicas: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: router
+      app.kubernetes.io/name: ollama
+      app.kubernetes.io/instance: ollama
+  template:
+    metadata:
+      annotations:
+        checksum/configMaps: c5d75125699899282e1cf8a47979a67f2bfe74716fda7588a5bdb46c1bce58ae
+      labels:
+        app.kubernetes.io/controller: router
+        app.kubernetes.io/instance: ollama
+        app.kubernetes.io/name: ollama
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: ollama
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - image: haproxy:3.0.26-alpine@sha256:7c8dac975b9def049d6585b7efe865486acaa7b6ec5e74eec45f08fde8bb2ad4
+          name: main
+          resources:
+            requests:
+              cpu: 5m
+              memory: 20Mi
+          volumeMounts:
+            - mountPath: /usr/local/etc/haproxy/haproxy.cfg
+              name: router-config
+              readOnly: true
+              subPath: haproxy.cfg
+      volumes:
+        - configMap:
+            name: ollama-router
+          name: router-config
