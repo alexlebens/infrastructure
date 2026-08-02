@@ -1,9 +1,16 @@
 ollama:
   controllers:
-    server-1:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
+    server:
+      type: statefulset
+      replicas: 3
+      statefulset:
+        volumeClaimTemplates:
+          - name: ollama-data
+            accessMode: ReadWriteOnce
+            size: 40Gi
+            storageClass: ceph-block
+            globalMounts:
+              - path: /root/.ollama
       pod:
         labels:
           ollama-type: server
@@ -27,74 +34,8 @@ ollama:
               value: 24h
             - name: OLLAMA_HOST
               value: 0.0.0.0
-          resources:
-            limits:
-              gpu.intel.com/i915: 1
-            requests:
-              cpu: 10m
-              memory: 20Mi
-              gpu.intel.com/i915: 1
-    server-2:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      pod:
-        labels:
-          ollama-type: server
-        affinity:
-          podAntiAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchExpressions:
-                    - key: ollama-type
-                      operator: In
-                      values:
-                        - server
-                topologyKey: kubernetes.io/hostname
-      containers:
-        main:
-          image:
-            repository: ollama/ollama
-            tag: 0.32.5@sha256:4dea9fb511947e24a84237bb636b0203abcb2ff0d3fbc7b4ff865deb91362131
-          env:
-            - name: OLLAMA_KEEP_ALIVE
-              value: 24h
-            - name: OLLAMA_HOST
-              value: 0.0.0.0
-          resources:
-            limits:
-              gpu.intel.com/i915: 1
-            requests:
-              cpu: 10m
-              memory: 20Mi
-              gpu.intel.com/i915: 1
-    server-3:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      pod:
-        labels:
-          ollama-type: server
-        affinity:
-          podAntiAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchExpressions:
-                    - key: ollama-type
-                      operator: In
-                      values:
-                        - server
-                topologyKey: kubernetes.io/hostname
-      containers:
-        main:
-          image:
-            repository: ollama/ollama
-            tag: 0.32.5@sha256:4dea9fb511947e24a84237bb636b0203abcb2ff0d3fbc7b4ff865deb91362131
-          env:
-            - name: OLLAMA_KEEP_ALIVE
-              value: 24h
-            - name: OLLAMA_HOST
-              value: 0.0.0.0
+            - name: OLLAMA_NUM_PARALLEL
+              value: "4"
           resources:
             limits:
               gpu.intel.com/i915: 1
@@ -135,7 +76,7 @@ ollama:
                   name: ollama-web-postgresql-18-cluster-app
                   key: uri
             - name: OLLAMA_BASE_URL
-              value: http://ollama-server-1.ollama:11434
+              value: http://ollama-server.ollama:11434
             - name: ENABLE_OAUTH_SIGNUP
               value: true
             - name: OAUTH_USERNAME_CLAIM
@@ -159,20 +100,8 @@ ollama:
               cpu: 10m
               memory: 650Mi
   service:
-    server-1:
-      controller: server-1
-      ports:
-        http:
-          port: 11434
-          targetPort: 11434
-    server-2:
-      controller: server-2
-      ports:
-        http:
-          port: 11434
-          targetPort: 11434
-    server-3:
-      controller: server-3
+    server:
+      controller: server
       ports:
         http:
           port: 11434
@@ -202,33 +131,6 @@ ollama:
                 type: PathPrefix
                 value: /
   persistence:
-    server-1:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 40Gi
-      advancedMounts:
-        server-1:
-          main:
-            - path: /root/.ollama
-              readOnly: false
-    server-2:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 40Gi
-      advancedMounts:
-        server-2:
-          main:
-            - path: /root/.ollama
-              readOnly: false
-    server-3:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 40Gi
-      advancedMounts:
-        server-3:
-          main:
-            - path: /root/.ollama
-              readOnly: false
     web-data:
       forceRename: ollama-web-data
       storageClass: ceph-block
