@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflare-ddns
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: cloudflare-ddns
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: cloudflare-ddns
+    helm.sh/chart: cloudflare-ddns-5.0.1
+  namespace: cloudflare-ddns
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: cloudflare-ddns
+      app.kubernetes.io/instance: cloudflare-ddns
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: cloudflare-ddns
+        app.kubernetes.io/name: cloudflare-ddns
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: cloudflare-ddns
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - envFrom:
+            - secretRef:
+                name: cloudflare-ddns
+          image: favonia/cloudflare-ddns:1.17.0@sha256:61013368c8f95981c0bb8bf56d962078d8b4e95724a554fa2dabb20d6e478097
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
