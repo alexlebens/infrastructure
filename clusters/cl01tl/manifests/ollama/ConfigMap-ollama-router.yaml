@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ollama-router
+  labels:
+    app.kubernetes.io/instance: ollama
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ollama
+    helm.sh/chart: ollama-5.0.1
+  namespace: ollama
+data:
+  haproxy.cfg: |
+    global
+      log stdout format raw local0
+
+    defaults
+      log global
+      mode http
+      option httplog
+      timeout connect 5s
+      timeout client 10m
+      timeout server 10m
+
+    frontend ollama
+      bind *:11434
+      default_backend ollama_servers
+
+    backend ollama_servers
+      option httpchk GET /
+      server desktop ollama-pd05wd.boreal-beaufort.ts.net:443 ssl verify none check inter 5s fall 2 rise 2
+      server-template cluster 3 ollama-headless.ollama.svc.cluster.local:11434 check backup resolvers k8s
+
+    resolvers k8s
+      nameserver dns 10.96.0.10:53
+      accepted_payload_size 8192
+      hold valid 10s
