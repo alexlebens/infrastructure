@@ -138,13 +138,21 @@ ollama:
 
           backend ollama_servers
             option httpchk GET /
-            server desktop ollama-pd05wd.boreal-beaufort.ts.net:443 ssl verify none check inter 5s fall 2 rise 2 resolvers k8s
+            server desktop ollama-pd05wd.boreal-beaufort.ts.net:443 ssl verify none sni str(ollama-pd05wd.boreal-beaufort.ts.net) check check-sni ollama-pd05wd.boreal-beaufort.ts.net inter 5s fall 2 rise 2 resolvers k8s
             server-template cluster 3 ollama-headless.ollama.svc.cluster.local:11434 check backup resolvers k8s
 
           resolvers k8s
             nameserver dns 10.96.0.10:53
             accepted_payload_size 8192
             hold valid 10s
+
+          frontend stats
+            bind *:8404
+            mode http
+            stats enable
+            stats uri /
+            stats refresh 5s
+            stats show-node
   service:
     server:
       controller: server
@@ -172,6 +180,9 @@ ollama:
         http:
           port: 11434
           targetPort: 11434
+        stats:
+          port: 8404
+          targetPort: 8404
   route:
     main:
       kind: HTTPRoute
