@@ -263,20 +263,27 @@ jobs:
       - name: Remove Changed Manifest Files
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
         env:
+          RENDER_ALL: ${{ steps.mode.outputs.render-all }}
           RENDER_DIR: ${{ steps.check-dir-changes.outputs.render-dir }}
         run: |
           cd "${MANIFEST_DIR}"
 
-          echo ">> Remove manifest files and rebuild from source ..."
-          echo ""
+          if [[ "$RENDER_ALL" == "true" ]]; then
+            echo ">> Full render detected, cleaning all manifests for cluster ${CLUSTER} ..."
+            rm -rf "${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/"*
 
-          for DIR in ${RENDER_DIR}; do
-            CHART_PATH="${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/${DIR}"
+          else
+            echo ">> Remove manifest files and rebuild from source ..."
+            echo ""
 
-            echo "${CHART_PATH}"
-            rm -rf "${CHART_PATH}"/*
+            for DIR in ${RENDER_DIR}; do
+              CHART_PATH="${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/${DIR}"
 
-          done
+              echo "${CHART_PATH}"
+              rm -rf "${CHART_PATH}"/*
+
+            done
+          fi
 
           echo ""
           echo "----"
