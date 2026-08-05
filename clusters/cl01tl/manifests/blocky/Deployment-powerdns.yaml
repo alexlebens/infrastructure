@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: powerdns
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: blocky
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: blocky
+    helm.sh/chart: powerdns-5.0.1
+  namespace: blocky
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: blocky
+      app.kubernetes.io/instance: blocky
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: blocky
+        app.kubernetes.io/name: blocky
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: powerdns
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - command:
+            - /bin/sh
+            - -c
+            - |
+              if [ ! -f /config/pdns.sqlite3 ]; then
+                apt-get update && apt-get install -y sqlite3 wget || apk add sqlite wget
+                wget -qO /tmp/schema.sql https://raw.githubusercontent.com/PowerDNS/pdns/master/modules/gsqlite3backend/schema.sqlite3.sql
+                sqlite3 /config/pdns.sqlite3 < /tmp/schema.sql
+              fi
+              exec /usr/sbin/pdns_server --launch=gsqlite3 --gsqlite3-database=/config/pdns.sqlite3 --api=yes --api-key=$$PDNS_API_KEY --webserver=yes --webserver-address=0.0.0.0 --webserver-allow-from=0.0.0.0/0
+          envFrom:
+            - secretRef:
+                name: powerdns-api-key
+          image: powerdns/pdns-auth-48:4.8.5@sha256:fa976e8b0dd37ba07eb34c46303c35f7a85602255be7e239c49b3a494b9fefe3
+          name: main
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+          volumeMounts:
+            - mountPath: /config
+              name: config
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: powerdns
