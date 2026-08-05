@@ -1,10 +1,8 @@
 blocky:
+  nameOverride: blocky
   controllers:
     main:
       type: deployment
-      pod:
-        labels:
-          target-app: blocky
       replicas: 3
       strategy: RollingUpdate
       containers:
@@ -160,8 +158,7 @@ blocky:
 
   service:
     dns-external:
-      selector:
-        target-app: blocky
+      controller: main
       type: LoadBalancer
       annotations:
         tailscale.com/expose: "true"
@@ -176,8 +173,7 @@ blocky:
           targetPort: 53
           protocol: UDP
     metrics:
-      selector:
-        target-app: blocky
+      controller: main
       ports:
         metrics:
           port: 4000
@@ -208,13 +204,11 @@ blocky:
               mountPropagation: None
               subPath: config.yml
 powerdns:
+  nameOverride: powerdns
   fullnameOverride: powerdns
   controllers:
     main:
       type: deployment
-      pod:
-        labels:
-          target-app: powerdns
       replicas: 1
       strategy: Recreate
       initContainers:
@@ -258,8 +252,7 @@ powerdns:
               memory: 50Mi
   service:
     main:
-      selector:
-        target-app: powerdns
+      controller: main
       ports:
         http:
           port: 8081
