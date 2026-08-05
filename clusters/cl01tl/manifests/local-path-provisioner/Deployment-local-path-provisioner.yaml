@@ -5,9 +5,9 @@ metadata:
   namespace: local-path-provisioner
   labels:
     app.kubernetes.io/name: local-path-provisioner
-    helm.sh/chart: local-path-provisioner-0.0.37
+    helm.sh/chart: local-path-provisioner-0.0.38
     app.kubernetes.io/instance: local-path-provisioner
-    app.kubernetes.io/version: "v0.0.36"
+    app.kubernetes.io/version: "v0.0.37"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -19,9 +19,9 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: local-path-provisioner
-        helm.sh/chart: local-path-provisioner-0.0.37
+        helm.sh/chart: local-path-provisioner-0.0.38
         app.kubernetes.io/instance: local-path-provisioner
-        app.kubernetes.io/version: "v0.0.36"
+        app.kubernetes.io/version: "v0.0.37"
         app.kubernetes.io/managed-by: Helm
     spec:
       serviceAccountName: local-path-provisioner
@@ -30,7 +30,7 @@ spec:
       containers:
         - name: local-path-provisioner
           securityContext: {}
-          image: "rancher/local-path-provisioner:v0.0.36@sha256:1eba82e9c386038b4af6d69cca7519fac738c28c42735ed48ce70c882ad0d80f"
+          image: "rancher/local-path-provisioner:v0.0.37@sha256:e757967a5ec338f6a9b371c5a9688bedaa8c3578ea3dd4db329ea0084be0a86f"
           imagePullPolicy: IfNotPresent
           command:
             - local-path-provisioner
@@ -55,10 +55,35 @@ spec:
                   fieldPath: metadata.namespace
             - name: CONFIG_MOUNT_PATH
               value: /etc/config/
+            - name: HEALTH_PORT
+              value: "8080"
           resources:
             limits:
               cpu: 1m
               memory: 30Mi
+          ports:
+            - name: health
+              containerPort: 8080
+              protocol: TCP
+          startupProbe:
+            failureThreshold: 12
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 5
       volumes:
         - name: config-volume
           configMap:
