@@ -2,7 +2,6 @@ audiobookshelf:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -57,7 +56,7 @@ audiobookshelf:
         securityContext:
           runAsUser: 1001
           runAsGroup: 1001
-          fsGroup: 1001
+          fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
       initContainers:
         init-copy-config:
@@ -101,10 +100,8 @@ audiobookshelf:
       ports:
         http:
           port: 80
-          targetPort: 80
         apprise:
           port: 8000
-          targetPort: 8000
   serviceMonitor:
     main:
       selector:
@@ -114,28 +111,18 @@ audiobookshelf:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: apprise
-          scheme: http
-          path: /metrics
-          interval: 30s
-          scrapeTimeout: 15s
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
+        - name: cilium-gateway
+          namespace: kube-system
       hostnames:
         - audiobookshelf.alexlebens.net
       rules:
         - backendRefs:
             - name: audiobookshelf
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     config:
       forceRename: audiobookshelf-config
@@ -146,7 +133,6 @@ audiobookshelf:
         main:
           main:
             - path: /config
-              readOnly: false
     metadata:
       forceRename: audiobookshelf-metadata
       storageClass: ceph-block
@@ -156,7 +142,6 @@ audiobookshelf:
         main:
           main:
             - path: /metadata
-              readOnly: false
     libation-secret-config:
       type: custom
       volumeSpec:
@@ -169,13 +154,11 @@ audiobookshelf:
         libation:
           init-copy-config:
             - path: /tmp/AccountsSettings.json
-              readOnly: true
-              mountPropagation: None
               subPath: AccountsSettings.json
-            - path: /tmp/Settings.json
               readOnly: true
-              mountPropagation: None
+            - path: /tmp/Settings.json
               subPath: Settings.json
+              readOnly: true
     libation-config:
       forceRename: libation
       storageClass: ceph-block
@@ -185,42 +168,36 @@ audiobookshelf:
         libation:
           main:
             - path: /config
-              readOnly: false
           init-copy-config:
             - path: /config
-              readOnly: false
         libation-debug:
           main:
             - path: /config
-              readOnly: false
     libation-data:
       type: emptyDir
       advancedMounts:
         libation:
           main:
             - path: /data
-              readOnly: false
     books:
       existingClaim: audiobookshelf-books-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /mnt/store/Books
-              readOnly: false
+              readOnly: true
     audiobooks:
       existingClaim: audiobookshelf-audiobooks-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /mnt/store/Audiobooks
-              readOnly: false
     podcasts:
       existingClaim: audiobookshelf-podcasts-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /mnt/store/Podcasts
-              readOnly: false
 volsync-target-config:
   pvcTarget: audiobookshelf-config
   local:

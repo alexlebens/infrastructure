@@ -2,7 +2,6 @@ actual:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -27,14 +26,10 @@ actual:
                     - bash
                     - -c
                     - node src/scripts/health-check.js
-                failureThreshold: 5
                 initialDelaySeconds: 60
-                periodSeconds: 10
-                successThreshold: 1
                 timeoutSeconds: 10
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -43,20 +38,14 @@ actual:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
+        - name: cilium-gateway
+          namespace: kube-system
       hostnames:
         - actual.alexlebens.net
       rules:
         - backendRefs:
             - name: actual
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     data:
       forceRename: actual-data
@@ -67,7 +56,6 @@ actual:
         main:
           main:
             - path: /data
-              readOnly: false
 volsync-target-data:
   pvcTarget: actual-data
   local:
