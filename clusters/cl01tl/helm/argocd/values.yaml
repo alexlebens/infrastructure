@@ -1,7 +1,4 @@
 argocd:
-  crds:
-    install: true
-    keep: true
   configs:
     cm:
       admin.enabled: true
@@ -34,16 +31,12 @@ argocd:
         g, gitea, role:ci-diff
         g, homepage, role:readonly
   controller:
-    replicas: 1
     resources:
       requests:
         cpu: 30m
         memory: 1000Mi
     readinessProbe:
-      failureThreshold: 3
       initialDelaySeconds: 60
-      periodSeconds: 30
-      successThreshold: 1
       timeoutSeconds: 5
     metrics:
       enabled: true
@@ -75,15 +68,14 @@ argocd:
                 The application [{{`{{$labels.name}}`}} has not been synchronized for over 12 hours which means that the
                 state of this cloud has drifted away from the state inside Git.
   dex:
-    enabled: true
-    resources:
-      requests:
-        cpu: 1m
-        memory: 50Mi
     metrics:
       enabled: true
       serviceMonitor:
         enabled: true
+    resources:
+      requests:
+        cpu: 1m
+        memory: 50Mi
     livenessProbe:
       enabled: true
     readinessProbe:
@@ -93,6 +85,12 @@ argocd:
     image:
       repository: redis
       tag: 8.10.0-alpine@sha256:5cca2f8a01ef2264c52dac86f14ec6a5abe973a93331e1b62522cfc5e63e4691
+    exporter:
+      enabled: true
+      image: ghcr.io/oliver006/redis_exporter
+      tag: v1.82.0@sha256:6a97d4dd743b533e1f950c677b87d880e44df363c61af3f406fc9e53ed65ee03
+      serviceMonitor:
+        enabled: true
     persistentVolume:
       enabled: true
     redis:
@@ -101,25 +99,18 @@ argocd:
           cpu: 1000m
           memory: 100Mi
     haproxy:
-      enabled: true
-      hardAntiAffinity: false
       image:
         repository: haproxy
         tag: 3.4.3-alpine@sha256:fe709fdaf6f2db6f9c2f0bea51a63920cba7ba44bea1a97961611adfa19ac096
+      hardAntiAffinity: false
       resources:
         requests:
           cpu: 5m
           memory: 100Mi
       metrics:
-        enabled: true
         serviceMonitor:
           enabled: true
-    exporter:
-      enabled: true
-      image: ghcr.io/oliver006/redis_exporter
-      tag: v1.82.0@sha256:6a97d4dd743b533e1f950c677b87d880e44df363c61af3f406fc9e53ed65ee03
-      serviceMonitor:
-        enabled: true
+    auth: false
     prometheusRule:
       enabled: true
       interval: 30s
@@ -133,7 +124,6 @@ argocd:
           annotations:
             description: Redis pod {{ "{{ $labels.pod }}" }} is down
             summary: Redis pod {{ "{{ $labels.pod }}" }} is down
-    auth: false
   redisSecretInit:
     enabled: false
   server:
@@ -149,10 +139,8 @@ argocd:
     httproute:
       enabled: true
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
+        - name: cilium-gateway
+          namespace: kube-system
       hostnames:
         - argocd.alexlebens.net
   repoServer:
@@ -162,18 +150,10 @@ argocd:
         cpu: 1m
         memory: 50Mi
     readinessProbe:
-      enabled: true
-      failureThreshold: 3
       initialDelaySeconds: 60
-      periodSeconds: 30
-      successThreshold: 1
       timeoutSeconds: 5
     livenessProbe:
-      enabled: true
-      failureThreshold: 3
       initialDelaySeconds: 60
-      periodSeconds: 30
-      successThreshold: 1
       timeoutSeconds: 5
     metrics:
       enabled: true
@@ -185,24 +165,20 @@ argocd:
       requests:
         cpu: 10m
         memory: 50Mi
+    readinessProbe:
+      enabled: true
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 5
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 5
     metrics:
       enabled: true
       serviceMonitor:
         enabled: true
-    readinessProbe:
-      enabled: true
-      failureThreshold: 3
-      initialDelaySeconds: 60
-      periodSeconds: 30
-      successThreshold: 1
-      timeoutSeconds: 5
-    livenessProbe:
-      enabled: true
-      failureThreshold: 3
-      initialDelaySeconds: 60
-      periodSeconds: 30
-      successThreshold: 1
-      timeoutSeconds: 5
   notifications:
     argocdUrl: https://argocd.alexlebens.net
     secret:
@@ -250,7 +226,7 @@ argocd:
                 "title": "Created: {{.app.metadata.name}}",
                 "tags": ["building_construction"],
                 "priority": 4,
-                "click": "{{.context.argocdUrl}}/applications/argocd/{{.app.metadata.name}}"
+                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}"
               }
       template.app-deleted: |
         webhook:
@@ -276,7 +252,7 @@ argocd:
                 "title": "Deployed: {{.app.metadata.name}}",
                 "tags": ["+1"],
                 "priority": 3,
-                "click": "{{.context.argocdUrl}}/applications/argocd/{{.app.metadata.name}}"
+                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}"
               }
       template.app-health-degraded: |
         webhook:
@@ -289,7 +265,7 @@ argocd:
                 "title": "Degraded: {{.app.metadata.name}}",
                 "tags": ["rotating_light"],
                 "priority": 4,
-                "click": "{{.context.argocdUrl}}/applications/argocd/{{.app.metadata.name}}"
+                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}"
               }
       template.app-sync-failed: |
         webhook:
@@ -302,7 +278,7 @@ argocd:
                 "title": "Sync Failed: {{.app.metadata.name}}",
                 "tags": ["rotating_light"],
                 "priority": 4,
-                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true"
+                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}?operation=true"
               }
       template.app-sync-running: |
         webhook:
@@ -315,7 +291,7 @@ argocd:
                 "title": "Sync Running: {{.app.metadata.name}}",
                 "tags": ["runner"],
                 "priority": 3,
-                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true"
+                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}?operation=true"
               }
       template.app-sync-status-unknown: |
         webhook:
@@ -328,7 +304,7 @@ argocd:
                 "title": "Sync Unknown: {{.app.metadata.name}}",
                 "tags": ["question"],
                 "priority": 3,
-                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"
+                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}"
               }
       template.app-sync-succeeded: |
         webhook:
@@ -341,49 +317,5 @@ argocd:
                 "title": "Sync Succeeded: {{.app.metadata.name}}",
                 "tags": ["+1"],
                 "priority": 3,
-                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true"
+                "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}?operation=true"
               }
-    triggers:
-      trigger.on-created: |
-        - description: Application {{.app.metadata.name}} has been created.
-          oncePer: app.metadata.name
-          send:
-            - app-created
-          when: "true"
-      trigger.on-deleted: |
-        - description: Application {{.app.metadata.name}} has been deleted.
-          oncePer: app.metadata.name
-          send:
-            - app-deleted
-          when: app.metadata.deletionTimestamp != nil
-      trigger.on-deployed: |
-        - description: Application is synced and healthy. Triggered once per commit.
-          oncePer: app.status.operationState.syncResult.revision
-          send:
-            - app-deployed
-          when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
-      trigger.on-health-degraded: |
-        - description: Application has degraded
-          send:
-            - app-health-degraded
-          when: app.status.health.status == 'Degraded'
-      trigger.on-sync-failed: |
-        - description: Application syncing has failed
-          send:
-            - app-sync-failed
-          when: app.status.operationState.phase in ['Error', 'Failed']
-      trigger.on-sync-running: |
-        - description: Application is being synced
-          send:
-           - app-sync-running
-          when: app.status.operationState.phase in ['Running']
-      trigger.on-sync-status-unknown: |
-        - description: Application status is 'Unknown'
-          send:
-            - app-sync-status-unknown
-          when: app.status.sync.status == 'Unknown'
-      trigger.on-sync-succeeded: |
-        - description: Application syncing has succeeded
-          send:
-            - app-sync-succeeded
-          when: app.status.operationState.phase in ['Succeeded']
