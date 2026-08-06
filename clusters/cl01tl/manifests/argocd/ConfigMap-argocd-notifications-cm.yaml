@@ -42,7 +42,7 @@ data:
             "title": "Created: {{.app.metadata.name}}",
             "tags": ["building_construction"],
             "priority": 4,
-            "click": "{{.context.argocdUrl}}/applications/argocd/{{.app.metadata.name}}"
+            "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}"
           }
   template.app-deleted: |
     webhook:
@@ -68,7 +68,7 @@ data:
             "title": "Deployed: {{.app.metadata.name}}",
             "tags": ["+1"],
             "priority": 3,
-            "click": "{{.context.argocdUrl}}/applications/argocd/{{.app.metadata.name}}"
+            "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}"
           }
   template.app-health-degraded: |
     webhook:
@@ -81,7 +81,7 @@ data:
             "title": "Degraded: {{.app.metadata.name}}",
             "tags": ["rotating_light"],
             "priority": 4,
-            "click": "{{.context.argocdUrl}}/applications/argocd/{{.app.metadata.name}}"
+            "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}"
           }
   template.app-sync-failed: |
     webhook:
@@ -94,7 +94,7 @@ data:
             "title": "Sync Failed: {{.app.metadata.name}}",
             "tags": ["rotating_light"],
             "priority": 4,
-            "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true"
+            "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}?operation=true"
           }
   template.app-sync-running: |
     webhook:
@@ -107,7 +107,7 @@ data:
             "title": "Sync Running: {{.app.metadata.name}}",
             "tags": ["runner"],
             "priority": 3,
-            "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true"
+            "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}?operation=true"
           }
   template.app-sync-status-unknown: |
     webhook:
@@ -120,7 +120,7 @@ data:
             "title": "Sync Unknown: {{.app.metadata.name}}",
             "tags": ["question"],
             "priority": 3,
-            "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"
+            "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}"
           }
   template.app-sync-succeeded: |
     webhook:
@@ -133,48 +133,5 @@ data:
             "title": "Sync Succeeded: {{.app.metadata.name}}",
             "tags": ["+1"],
             "priority": 3,
-            "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}?operation=true"
+            "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}?operation=true"
           }
-  trigger.on-created: |
-    - description: Application {{.app.metadata.name}} has been created.
-      oncePer: app.metadata.name
-      send:
-        - app-created
-      when: "true"
-  trigger.on-deleted: |
-    - description: Application {{.app.metadata.name}} has been deleted.
-      oncePer: app.metadata.name
-      send:
-        - app-deleted
-      when: app.metadata.deletionTimestamp != nil
-  trigger.on-deployed: |
-    - description: Application is synced and healthy. Triggered once per commit.
-      oncePer: app.status.operationState.syncResult.revision
-      send:
-        - app-deployed
-      when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
-  trigger.on-health-degraded: |
-    - description: Application has degraded
-      send:
-        - app-health-degraded
-      when: app.status.health.status == 'Degraded'
-  trigger.on-sync-failed: |
-    - description: Application syncing has failed
-      send:
-        - app-sync-failed
-      when: app.status.operationState.phase in ['Error', 'Failed']
-  trigger.on-sync-running: |
-    - description: Application is being synced
-      send:
-       - app-sync-running
-      when: app.status.operationState.phase in ['Running']
-  trigger.on-sync-status-unknown: |
-    - description: Application status is 'Unknown'
-      send:
-        - app-sync-status-unknown
-      when: app.status.sync.status == 'Unknown'
-  trigger.on-sync-succeeded: |
-    - description: Application syncing has succeeded
-      send:
-        - app-sync-succeeded
-      when: app.status.operationState.phase in ['Succeeded']
