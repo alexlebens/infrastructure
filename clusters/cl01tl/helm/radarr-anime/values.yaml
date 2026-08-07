@@ -2,7 +2,6 @@ radarr-anime:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -42,16 +41,42 @@ radarr-anime:
               value: false
             - name: ENABLE_UNKNOWN_QUEUE_ITEMS
               value: false
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          envFrom:
+            - secretRef:
+                name: radarr-anime-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:7878
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
           targetPort: 7878
         metrics:
           port: 9793
-          targetPort: 9793
+        oauth:
+          port: 4180
+        oauth-metrics:
+          port: 44180
   serviceMonitor:
     main:
       selector:
@@ -63,41 +88,19 @@ radarr-anime:
         - port: metrics
           interval: 3m
           scrapeTimeout: 1m
-          path: /metrics
+        - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - radarr-anime.alexlebens.net
       rules:
         - backendRefs:
-            - name: ak-outpost-traefik-proxy-auth
-              namespace: authentik
-              port: 9000
-              weight: 100
-          filters: []
-          matches:
-            - path:
-                type: PathPrefix
-                value: /outpost.goauthentik.io
-        - backendRefs:
             - name: radarr-anime
-              port: 80
-          filters:
-            - type: ExtensionRef
-              extensionRef:
-                group: traefik.io
-                kind: Middleware
-                name: oidc-forward-auth
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
+              port: 4180
   persistence:
     config:
       forceRename: radarr-anime-config
@@ -108,7 +111,6 @@ radarr-anime:
         main:
           main:
             - path: /config
-              readOnly: false
           metrics:
             - path: /config
               readOnly: true
@@ -118,7 +120,6 @@ radarr-anime:
         main:
           main:
             - path: /mnt/store
-              readOnly: false
 postgres-18-cluster:
   mode: recovery
   cluster:
