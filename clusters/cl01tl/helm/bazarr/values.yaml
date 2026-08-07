@@ -23,10 +23,49 @@ bazarr:
               value: 1000
             - name: PGID
               value: 1000
+            - name: BAZARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bazarr-key
+                  key: key
           resources:
             requests:
               cpu: 10m
               memory: 250Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - "wget -qO- http://127.0.0.1:6767/api/system/status?apikey=$BAZARR_API_KEY || exit 1"
+                initialDelaySeconds: 60
+                timeoutSeconds: 10
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - "wget -qO- http://127.0.0.1:6767/api/system/status?apikey=$BAZARR_API_KEY || exit 1"
+                initialDelaySeconds: 60
+                timeoutSeconds: 10
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - "wget -qO- http://127.0.0.1:6767/api/system/status?apikey=$BAZARR_API_KEY || exit 1"
+                initialDelaySeconds: 60
+                timeoutSeconds: 10
         metrics:
           image:
             repository: ghcr.io/onedr0p/exportarr
