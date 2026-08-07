@@ -41,9 +41,32 @@ prowlarr:
               value: false
             - name: PROWLARR__BACKFILL
               value: true
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          envFrom:
+            - secretRef:
+                name: prowlarr-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:9696
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -51,6 +74,10 @@ prowlarr:
         metrics:
           port: 9792
           targetPort: 9792
+        oauth:
+          port: 4180
+        oauth-metrics:
+          port: 44180
   serviceMonitor:
     main:
       selector:
@@ -60,27 +87,19 @@ prowlarr:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 1m
-          scrapeTimeout: 30s
-          path: /metrics
+        - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - prowlarr.alexlebens.net
       rules:
         - backendRefs:
             - name: prowlarr
-              port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
+              port: 4180
   persistence:
     config:
       forceRename: prowlarr-config
@@ -91,7 +110,6 @@ prowlarr:
         main:
           main:
             - path: /config
-              readOnly: false
 volsync-target-config:
   pvcTarget: prowlarr-config
   moverSecurityContext:
