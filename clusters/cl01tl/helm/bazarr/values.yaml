@@ -2,7 +2,6 @@ bazarr:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       annotations:
         prometheus.io/probe-module: http_401
@@ -24,10 +23,49 @@ bazarr:
               value: 1000
             - name: PGID
               value: 1000
+            - name: BAZARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bazarr-key
+                  key: key
           resources:
             requests:
               cpu: 10m
               memory: 250Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - "wget -qO- http://127.0.0.1:6767/api/system/status?apikey=$BAZARR_API_KEY || exit 1"
+                initialDelaySeconds: 60
+                timeoutSeconds: 10
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - "wget -qO- http://127.0.0.1:6767/api/system/status?apikey=$BAZARR_API_KEY || exit 1"
+                initialDelaySeconds: 60
+                timeoutSeconds: 10
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /bin/sh
+                    - -c
+                    - "wget -qO- http://127.0.0.1:6767/api/system/status?apikey=$BAZARR_API_KEY || exit 1"
+                initialDelaySeconds: 60
+                timeoutSeconds: 10
         metrics:
           image:
             repository: ghcr.io/onedr0p/exportarr
@@ -47,16 +85,55 @@ bazarr:
               value: false
             - name: ENABLE_UNKNOWN_QUEUE_ITEMS
               value: false
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          envFrom:
+            - secretRef:
+                name: bazarr-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:6767
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
           targetPort: 6767
         metrics:
           port: 9792
-          targetPort: 9792
+        oauth:
+          port: 4180
+        oauth-metrics:
+          port: 44180
   serviceMonitor:
     main:
       selector:
@@ -68,25 +145,18 @@ bazarr:
         - port: metrics
           interval: 3m
           scrapeTimeout: 1m
-          path: /metrics
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - bazarr.alexlebens.net
       rules:
         - backendRefs:
             - name: bazarr
-              port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
+              port: 4180
   persistence:
     config:
       forceRename: bazarr-config
@@ -97,14 +167,12 @@ bazarr:
         main:
           main:
             - path: /config
-              readOnly: false
     media:
       existingClaim: bazarr-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /mnt/store
-              readOnly: false
 volsync-target-config:
   pvcTarget: bazarr-config
   moverSecurityContext:
