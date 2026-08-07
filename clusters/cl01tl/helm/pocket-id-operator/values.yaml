@@ -1,0 +1,168 @@
+pocket-id-operator:
+  operator:
+    timezone: "America/Chicago"
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+    dashboard:
+      enabled: true
+pocket-id-instance:
+  instance:
+    name: pocket-id
+    spec:
+      encryptionKey:
+        valueFrom:
+          secretKeyRef:
+            name: pocket-id-encryption
+            key: key
+      appUrl: https://pocket-id.alexlebens.dev
+      s3:
+        bucket: pocket-id-assets
+        region: us-east-1
+        endpoint: http://garage-main.garage:3900
+        forcePathStyle: true
+        accessKeyId:
+          valueFrom:
+            secretKeyRef:
+              name: pocket-id-s3
+              key: access-key
+        secretAccessKey:
+          valueFrom:
+            secretKeyRef:
+              name: pocket-id-s3
+              key: secret-key
+      databaseUrl:
+        valueFrom:
+          secretKeyRef:
+            name: pocket-id-postgresql-18-cluster-app
+            key: uri
+      ui:
+        appName: "Auth"
+        sessionDuration: 1440
+        accentColor: "#3b82f6"
+      userManagement:
+        allowOwnAccountEdit: true
+        allowUserSignups: "disabled"
+      logging:
+        level: "info"
+        json: true
+      route:
+        enabled: false
+        parentRefs:
+          - name: traefik-gateway
+            namespace: traefik
+      metrics:
+        enabled: true
+      versionCheckDisabled: true
+      auditLogRetentionDays: 30
+      timezone: "America/Chicago"
+  users:
+    - name: alexlebens
+      spec:
+        admin: true
+        locale: en
+        userID: f7ee8574-4629-4e1c-8ce0-729494d842ba
+        userInfoSecretRef:
+          name: pocket-id-alexlebens-user-info
+    - name: andrewlebens
+      spec:
+        locale: en
+        userID: 046779f0-f2a5-4f46-9c42-fbc002333e64
+        userInfoSecretRef:
+          name: pocket-id-andrewlebens-user-info
+  userGroups:
+    - name: platform-admins
+      spec:
+        friendlyName: "Platform Administrators"
+        users:
+          userRefs:
+            - name: alexlebens
+    - name: app-admins
+      spec:
+        friendlyName: "Application Administrators"
+        users:
+          userRefs:
+            - name: alexlebens
+    - name: users
+      spec:
+        friendlyName: "Users"
+        users:
+          userRefs:
+            - name: alexlebens
+            - name: andrewlebens
+cloudflared:
+  probe:
+    enabled: true
+    targetUrl: https://pocket-id.alexlebens.dev
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 5 14 * * *"
+rclone-pocket-id-assets-remote:
+  cronJob:
+    suspend: false
+    schedule: 30 6 * * 3
+  rclone:
+    source:
+      bucketName: pocket-id-assets
+    destination:
+      bucketName: pocket-id-assets
+  ntfy:
+    externalSecret:
+      urlPath: /cl01tl/ntfy/config
+      urlProperty: internal-endpoint
+      topicPath: /cl01tl/ntfy/topics
+      topicProperty: rclone
+      tokenPath: /cl01tl/ntfy/users/cl01tl
+      tokenProperty: token
+  secret:
+    externalSecret:
+      source:
+        credentials:
+          path: /garage/home-infra/pocket-id-assets
+        config:
+          path: /garage/config
+      destination:
+        credentials:
+          path: /garage/home-infra/pocket-id-assets
+        config:
+          path: /garage/config
+rclone-pocket-id-assets-external:
+  nameOverride: pocket-id-assets-external-rclone
+  cronJob:
+    suspend: false
+    schedule: 0 6 * * 3
+  rclone:
+    source:
+      bucketName: pocket-id-assets
+    destination:
+      bucketName: pocket-id-assets-bcb0bc04dac3e3fd
+  ntfy:
+    externalSecret:
+      urlPath: /cl01tl/ntfy/config
+      urlProperty: internal-endpoint
+      topicPath: /cl01tl/ntfy/topics
+      topicProperty: rclone
+      tokenPath: /cl01tl/ntfy/users/cl01tl
+      tokenProperty: token
+  secret:
+    externalSecret:
+      source:
+        credentials:
+          path: /garage/home-infra/pocket-id-assets
+        config:
+          path: /garage/config
+      destination:
+        credentials:
+          path: /backblaze/home-infra/pocket-id-assets
+        config:
+          path: /backblaze/config
+          endpointProperty: ENDPOINT
