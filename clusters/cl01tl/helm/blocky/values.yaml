@@ -177,71 +177,178 @@ powerdns:
   controllers:
     powerdns:
       type: deployment
-      replicas: 1
-      strategy: Recreate
-      initContainers:
-        init-db:
-          image:
-            repository: alpine
-            tag: 3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
-          command:
-            - /bin/sh
-            - -ec
-            - |
-              if [ ! -f /var/lib/powerdns/pdns.sqlite3 ]; then
-                apk add --no-cache sqlite wget
-                wget -qO /tmp/schema.sql https://raw.githubusercontent.com/PowerDNS/pdns/master/modules/gsqlite3backend/schema.sqlite3.sql
-                sqlite3 /var/lib/powerdns/pdns.sqlite3 < /tmp/schema.sql
-
-                # seed the base zone and required NS/SOA records
-                sqlite3 /var/lib/powerdns/pdns.sqlite3 <<EOF
-                INSERT INTO domains (name, type) VALUES ('alexlebens.net', 'NATIVE');
-                INSERT INTO records (domain_id, name, type, content, ttl, auth) SELECT id, 'alexlebens.net', 'SOA', 'ns1.alexlebens.net hostmaster.alexlebens.net 1 10800 3600 604800 3600', 3600, 1 FROM domains WHERE name = 'alexlebens.net';
-                INSERT INTO records (domain_id, name, type, content, ttl, auth) SELECT id, 'alexlebens.net', 'NS', 'ns1.alexlebens.net', 3600, 1 FROM domains WHERE name = 'alexlebens.net';
-              EOF
-              fi
-              chown -R 953:953 /var/lib/powerdns
+      replicas: 3
+      strategy: RollingUpdate
       containers:
         main:
           image:
             repository: powerdns/pdns-auth-48
             tag: 4.8.5@sha256:fa976e8b0dd37ba07eb34c46303c35f7a85602255be7e239c49b3a494b9fefe3
           args:
-            - "--max-tcp-connections=1000"
+            - --max-tcp-connections=1000
           env:
             - name: PDNS_AUTH_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: powerdns-api-key
                   key: api-key
+            - name: PDNS_AUTH_LAUNCH
+              value: gpgsql
+            - name: PDNS_AUTH_GPGSQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: powerdns-postgres-18-cluster-app
+                  key: host
+            - name: PDNS_AUTH_GPGSQL_DBNAME
+              valueFrom:
+                secretKeyRef:
+                  name: powerdns-postgres-18-cluster-app
+                  key: dbname
+            - name: PDNS_AUTH_GPGSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: powerdns-postgres-18-cluster-app
+                  key: username
+            - name: PDNS_AUTH_GPGSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: powerdns-postgres-18-cluster-app
+                  key: password
           resources:
             requests:
               cpu: 10m
               memory: 50Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - pdns_control
+                    - rping
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - pdns_control
+                    - rping
   service:
     main:
       controller: powerdns
       ports:
         http:
           port: 8081
-          targetPort: 8081
-          protocol: TCP
         dns-tcp:
           port: 53
-          targetPort: 53
           protocol: TCP
         dns-udp:
           port: 53
-          targetPort: 53
           protocol: UDP
-  persistence:
-    config:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 1Gi
-      advancedMounts:
-        powerdns:
-          main:
-            - path: /var/lib/powerdns
-          init-db:
-            - path: /var/lib/powerdns
+powerdns-postgres-18-cluster:
+  nameOverride: powerdns-postgresql-18
+  mode: standalone
+  cluster:
+    initdb:
+      postInitApplicationSQL:
+        - |
+          CREATE TABLE domains (
+            id                    SERIAL PRIMARY KEY,
+            name                  VARCHAR(255) NOT NULL,
+            master                VARCHAR(128) DEFAULT NULL,
+            last_check            INT DEFAULT NULL,
+            type                  TEXT NOT NULL,
+            notified_serial       BIGINT DEFAULT NULL,
+            account               VARCHAR(40) DEFAULT NULL,
+            options               TEXT DEFAULT NULL,
+            catalog               TEXT DEFAULT NULL,
+            CONSTRAINT c_lowercase_name CHECK (((name)::TEXT = LOWER((name)::TEXT)))
+          );
+          CREATE UNIQUE INDEX name_index ON domains(name);
+          CREATE INDEX catalog_idx ON domains(catalog);
+
+          CREATE TABLE records (
+            id                    BIGSERIAL PRIMARY KEY,
+            domain_id             INT DEFAULT NULL,
+            name                  VARCHAR(255) DEFAULT NULL,
+            type                  VARCHAR(10) DEFAULT NULL,
+            content               VARCHAR(65535) DEFAULT NULL,
+            ttl                   INT DEFAULT NULL,
+            prio                  INT DEFAULT NULL,
+            disabled              BOOL DEFAULT 'f',
+            ordername             VARCHAR(255),
+            auth                  BOOL DEFAULT 't'
+          );
+          CREATE INDEX nametype_index ON records(name,type);
+          CREATE INDEX domain_id ON records(domain_id);
+          CREATE INDEX recordorder ON records (domain_id, ordername text_pattern_ops);
+
+          CREATE TABLE supermasters (
+            ip                    INET NOT NULL,
+            nameserver            VARCHAR(255) NOT NULL,
+            account               VARCHAR(40) NOT NULL,
+            PRIMARY KEY(ip, nameserver)
+          );
+
+          CREATE TABLE comments (
+            id                    SERIAL PRIMARY KEY,
+            domain_id             INT NOT NULL,
+            name                  VARCHAR(255) NOT NULL,
+            type                  VARCHAR(10) NOT NULL,
+            modified_at           INT NOT NULL,
+            account               VARCHAR(40) DEFAULT NULL,
+            comment               VARCHAR(65535) NOT NULL
+          );
+          CREATE INDEX comments_domain_id_idx ON comments (domain_id);
+          CREATE INDEX comments_name_type_idx ON comments (name, type);
+          CREATE INDEX comments_order_idx ON comments (domain_id, modified_at);
+
+          CREATE TABLE domainmetadata (
+            id                    SERIAL PRIMARY KEY,
+            domain_id             INT NOT NULL,
+            kind                  VARCHAR(32),
+            content               TEXT
+          );
+          CREATE INDEX domainmetadata_idx ON domainmetadata (domain_id, kind);
+
+          CREATE TABLE cryptokeys (
+            id                    SERIAL PRIMARY KEY,
+            domain_id             INT NOT NULL,
+            flags                 INT NOT NULL,
+            active                BOOL,
+            published             BOOL DEFAULT 't',
+            content               TEXT
+          );
+          CREATE INDEX domainidindex ON cryptokeys(domain_id);
+
+          CREATE TABLE tsigkeys (
+            id                    SERIAL PRIMARY KEY,
+            name                  VARCHAR(255),
+            algorithm             VARCHAR(50),
+            secret                VARCHAR(255)
+          );
+          CREATE UNIQUE INDEX namealgoindex ON tsigkeys(name, algorithm);
+
+          INSERT INTO domains (name, type)
+          VALUES ('alexlebens.net', 'NATIVE');
+
+          INSERT INTO records (domain_id, name, type, content, ttl, auth)
+          SELECT id, 'alexlebens.net', 'SOA', 'ns1.alexlebens.net hostmaster.alexlebens.net 1 10800 3600 604800 3600', 3600, 1
+          FROM domains
+          WHERE name = 'alexlebens.net';
+
+          INSERT INTO records (domain_id, name, type, content, ttl, auth)
+          SELECT id, 'alexlebens.net', 'NS', 'ns1.alexlebens.net', 3600, 1
+          FROM domains
+          WHERE name = 'alexlebens.net';
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 25 15 * * *"
