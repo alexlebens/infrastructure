@@ -2,7 +2,6 @@ dawarich:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -55,23 +54,25 @@ dawarich:
             - name: APPLICATION_PROTOCOL
               value: http
             - name: OIDC_ISSUER
-              value: https://authentik.alexlebens.net/application/o/darwich/
+              value: https://pocket-id.alexlebens.dev
             - name: OIDC_REDIRECT_URI
               value: https://dawarich.alexlebens.net/users/auth/openid_connect/callback
             - name: OIDC_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-oidc-authentik
-                  key: client
+                  name: dawarich-oidc-secret
+                  key: clientId
             - name: OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-oidc-authentik
-                  key: secret
+                  name: dawarich-oidc-secret
+                  key: clientSecret
             - name: OIDC_PROVIDER_NAME
-              value: Authentik
+              value: AlexAuth
             - name: OIDC_AUTO_REGISTER
               value: true
+            - name: OIDC_PKCE_ENABLED
+              value: "true"
             - name: PROMETHEUS_EXPORTER_ENABLED
               value: true
             - name: PROMETHEUS_EXPORTER_HOST
@@ -126,8 +127,6 @@ dawarich:
                     - "wget -qO - http://127.0.0.1:3000/api/v1/health | grep -q '\"status\"\\s*:\\s*\"ok\"'"
                 failureThreshold: 5
                 initialDelaySeconds: 60
-                periodSeconds: 10
-                successThreshold: 1
                 timeoutSeconds: 10
           resources:
             requests:
@@ -180,23 +179,25 @@ dawarich:
             - name: DISTANCE_UNIT
               value: mi
             - name: OIDC_ISSUER
-              value: https://authentik.alexlebens.net/application/o/darwich/
+              value: https://pocket-id.alexlebens.dev
             - name: OIDC_REDIRECT_URI
               value: https://dawarich.alexlebens.net/users/auth/openid_connect/callback
             - name: OIDC_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-oidc-authentik
-                  key: client
+                  name: dawarich-oidc-secret
+                  key: clientId
             - name: OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-oidc-authentik
-                  key: secret
+                  name: dawarich-oidc-secret
+                  key: clientSecret
             - name: OIDC_PROVIDER_NAME
-              value: Authentik
+              value: AlexAuth
             - name: OIDC_AUTO_REGISTER
               value: true
+            - name: OIDC_PKCE_ENABLED
+              value: "true"
             - name: PROMETHEUS_EXPORTER_ENABLED
               value: true
             - name: PROMETHEUS_EXPORTER_HOST
@@ -251,19 +252,15 @@ dawarich:
                     - sidekiq
                 failureThreshold: 5
                 initialDelaySeconds: 60
-                periodSeconds: 10
-                successThreshold: 1
                 timeoutSeconds: 10
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
           targetPort: 3000
         metrics:
           port: 9394
-          targetPort: 9394
   serviceMonitor:
     main:
       selector:
@@ -273,9 +270,6 @@ dawarich:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 30s
-          scrapeTimeout: 15s
-          path: /metrics
           basicAuth:
             password:
               name: dawarich-metrics-credentials
@@ -287,9 +281,7 @@ dawarich:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - dawarich.alexlebens.net
@@ -297,10 +289,6 @@ dawarich:
         - backendRefs:
             - name: dawarich
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     storage:
       forceRename: dawarich-storage
@@ -311,10 +299,8 @@ dawarich:
         main:
           main:
             - path: /var/app/storage
-              readOnly: false
           sidekiq:
             - path: /var/app/storage
-              readOnly: false
     public:
       forceRename: dawarich-public
       storageClass: ceph-block
@@ -324,10 +310,8 @@ dawarich:
         main:
           main:
             - path: /var/app/public
-              readOnly: false
           sidekiq:
             - path: /var/app/public
-              readOnly: false
     watched:
       forceRename: dawarich-watched
       storageClass: ceph-block
@@ -337,10 +321,8 @@ dawarich:
         main:
           main:
             - path: /var/app/tmp/imports/watched
-              readOnly: false
           sidekiq:
             - path: /var/app/tmp/imports/watched
-              readOnly: false
 postgres-18-cluster:
   mode: recovery
   cluster:
