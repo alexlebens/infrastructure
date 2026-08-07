@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    helm.sh/chart: pocket-id-operator-0.12.2
+    app.kubernetes.io/name: pocket-id-operator
+    app.kubernetes.io/instance: pocket-id-operator
+    app.kubernetes.io/version: "v0.12.2"
+    app.kubernetes.io/managed-by: Helm
+    control-plane: controller-manager
+  name: pocket-id-operator
+  namespace: pocket-id-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pocket-id-operator
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: operator
+      labels:
+        app.kubernetes.io/name: pocket-id-operator
+        control-plane: controller-manager
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - amd64
+                      - arm64
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+      containers:
+        - args:
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            - --leader-elect
+            - --zap-log-level=info
+          env:
+            - name: AUTOGENERATE_LOGOS
+              value: "true"
+            - name: TZ
+              value: "America/Chicago"
+          command:
+            - /manager
+          image: "ghcr.io/aclerici38/pocket-id-operator:v0.12.2@sha256:3a72d98969c7f036cf15c1072e57d4673ffcad94ca1b011ec886fc185b49d51f"
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          name: operator
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: pocket-id-operator
+      terminationGracePeriodSeconds: 10
