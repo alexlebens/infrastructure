@@ -2,7 +2,6 @@ freshrss:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -64,7 +63,7 @@ freshrss:
             - name: OIDC_ENABLED
               value: 1
             - name: OIDC_PROVIDER_METADATA_URL
-              value: https://auth.alexlebens.dev/application/o/freshrss/.well-known/openid-configuration
+              value: https://pocket-id.alexlebens.dev/.well-known/openid-configuration
             - name: OIDC_X_FORWARDED_HEADERS
               value: X-Forwarded-Port X-Forwarded-Proto X-Forwarded-Host
             - name: OIDC_SCOPES
@@ -73,7 +72,7 @@ freshrss:
               value: preferred_username
           envFrom:
             - secretRef:
-                name: freshrss-oidc-authentik
+                name: freshrss-oidc-secret
             - secretRef:
                 name: freshrss-install-config
           resources:
@@ -82,11 +81,9 @@ freshrss:
               memory: 100Mi
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
-          targetPort: 80
   persistence:
     data:
       forceRename: freshrss-data
@@ -97,7 +94,6 @@ freshrss:
         main:
           main:
             - path: /var/www/FreshRSS/data
-              readOnly: false
 cloudflared:
   probe:
     enabled: true
