@@ -1,0 +1,52 @@
+apiVersion: garage.rajsingh.info/v1beta2
+kind: GarageCluster
+metadata:
+  name: garage-cluster-a
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: garage-cluster-a
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - garage-cluster-a
+          topologyKey: kubernetes.io/hostname
+  replication:
+    factor: 3
+  blocks:
+    compressionLevel: "none"
+  storage:
+    replicas: 3
+    metadata:
+      size: 50Gi
+      storageClassName: ceph-block
+    data:
+      size: 1000Gi
+      storageClassName: synology-iscsi-delete
+    resources:
+      requests:
+        cpu: 20m
+        memory: 150Mi
+  s3Api:
+    rootDomain: ".s3.alexlebens.net"
+  webApi:
+    rootDomain: ".s3.alexlebens.net"
+  network:
+    rpcSecretRef:
+      name: garage-operator-token
+      key: rpc-secret
+  admin:
+    metricsRequireToken: true
+    adminTokenSecretRef:
+      name: garage-operator-token
+      key: admin-token
+    metricsTokenSecretRef:
+      name: garage-operator-token
+      key: metrics-token
