@@ -19,3 +19,6 @@ NFS names
 {{- define "custom.storageMiaNfsName" -}}
 foldergram-pictures-collection-mia-nfs-storage
 {{- end -}}
+{{- define "custom.storageRijksmuseumNfsName" -}}
+foldergram-pictures-collection-rijksmuseum-nfs-storage
+{{- end -}}
