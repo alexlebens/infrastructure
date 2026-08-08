@@ -22,7 +22,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/configMaps: 73196f217bd81232f0b6b69544891c8f54b714df06465d363c7cbadf0cf2a8eb
+        checksum/configMaps: c503815df14bc3f73733af2cb92e6581eb3793eda14916fa01437a3a29764cb6
       labels:
         app.kubernetes.io/controller: main
         app.kubernetes.io/instance: frigate
@@ -59,22 +59,14 @@ spec:
                   name: it06cm-config
           image: ghcr.io/blakeblackshear/frigate:0.17.2@sha256:06e48c72f5af2887eafff09a4c53e8df9238827ae9e8df811cbdeaab1c7a4330
           livenessProbe:
-            failureThreshold: 3
             httpGet:
               path: /
               port: 5000
-            initialDelaySeconds: 0
-            periodSeconds: 10
-            timeoutSeconds: 1
           name: main
           readinessProbe:
-            failureThreshold: 3
             httpGet:
               path: /
               port: 5000
-            initialDelaySeconds: 0
-            periodSeconds: 10
-            timeoutSeconds: 1
           resources:
             limits:
               gpu.intel.com/i915: 1
@@ -87,7 +79,6 @@ spec:
             httpGet:
               path: /
               port: 5000
-            periodSeconds: 10
           volumeMounts:
             - mountPath: /tmp/cache
               name: cache
@@ -101,6 +92,38 @@ spec:
               name: media
             - mountPath: /dev/shm
               name: shm
+        - env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:5000
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: '*'
+            - name: OAUTH2_PROXY_SET_XAUTHREQUEST
+              value: "true"
+            - name: OAUTH2_PROXY_PASS_USER_HEADERS
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: frigate-oauth-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+          name: oauth
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4180
       volumes:
         - emptyDir:
             medium: Memory
