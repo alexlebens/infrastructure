@@ -182,18 +182,27 @@ powerdns:
       containers:
         main:
           image:
-            repository: powerdns/pdns-auth-48
-            tag: 4.8.5@sha256:fa976e8b0dd37ba07eb34c46303c35f7a85602255be7e239c49b3a494b9fefe3
+            repository: powerdns/pdns-auth-51
+            tag: 5.1.4@sha256:bb5b1c133bcca1dd455075321de7d55db4945a8d7f2ba23339e3c7bbe416b205
           args:
+            - --no-config
             - --max-tcp-connections=1000
+            - --api=yes
+            - --api-key=$(PDNS_AUTH_API_KEY)
+            - --webserver=yes
+            - --webserver-address=0.0.0.0
+            - --webserver-allow-from=0.0.0.0/0,::/0
+            - --launch=gpgsql
+            - --gpgsql-host=$(PDNS_AUTH_GPGSQL_HOST)
+            - --gpgsql-dbname=$(PDNS_AUTH_GPGSQL_DBNAME)
+            - --gpgsql-user=$(PDNS_AUTH_GPGSQL_USER)
+            - --gpgsql-password=$(PDNS_AUTH_GPGSQL_PASSWORD)
           env:
             - name: PDNS_AUTH_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: powerdns-api-key
                   key: api-key
-            - name: PDNS_AUTH_LAUNCH
-              value: gpgsql
             - name: PDNS_AUTH_GPGSQL_HOST
               valueFrom:
                 secretKeyRef:
@@ -249,7 +258,7 @@ powerdns:
           protocol: UDP
 powerdns-postgres-18-cluster:
   nameOverride: powerdns-postgresql-18
-  mode: standalone
+  mode: recovery
   cluster:
     initdb:
       postInitApplicationSQL:
@@ -279,8 +288,14 @@ powerdns-postgres-18-cluster:
             prio                  INT DEFAULT NULL,
             disabled              BOOL DEFAULT 'f',
             ordername             VARCHAR(255),
-            auth                  BOOL DEFAULT 't'
+            auth                  BOOL DEFAULT 't',
+            CONSTRAINT domain_exists
+            FOREIGN KEY(domain_id) REFERENCES domains(id)
+            ON DELETE CASCADE,
+            CONSTRAINT c_lowercase_name CHECK (((name)::TEXT = LOWER((name)::TEXT)))
           );
+
+          CREATE INDEX rec_name_index ON records(name);
           CREATE INDEX nametype_index ON records(name,type);
           CREATE INDEX domain_id ON records(domain_id);
           CREATE INDEX recordorder ON records (domain_id, ordername text_pattern_ops);
@@ -299,7 +314,11 @@ powerdns-postgres-18-cluster:
             type                  VARCHAR(10) NOT NULL,
             modified_at           INT NOT NULL,
             account               VARCHAR(40) DEFAULT NULL,
-            comment               VARCHAR(65535) NOT NULL
+            comment               VARCHAR(65535) NOT NULL,
+            CONSTRAINT domain_exists
+            FOREIGN KEY(domain_id) REFERENCES domains(id)
+            ON DELETE CASCADE,
+            CONSTRAINT c_lowercase_name CHECK (((name)::TEXT = LOWER((name)::TEXT)))
           );
           CREATE INDEX comments_domain_id_idx ON comments (domain_id);
           CREATE INDEX comments_name_type_idx ON comments (name, type);
@@ -307,18 +326,20 @@ powerdns-postgres-18-cluster:
 
           CREATE TABLE domainmetadata (
             id                    SERIAL PRIMARY KEY,
-            domain_id             INT NOT NULL,
+            domain_id             INT REFERENCES domains(id) ON DELETE CASCADE,
             kind                  VARCHAR(32),
             content               TEXT
           );
-          CREATE INDEX domainmetadata_idx ON domainmetadata (domain_id, kind);
+
+          CREATE INDEX domainidmetaindex ON domainmetadata(domain_id);
+
 
           CREATE TABLE cryptokeys (
             id                    SERIAL PRIMARY KEY,
-            domain_id             INT NOT NULL,
+            domain_id             INT REFERENCES domains(id) ON DELETE CASCADE,
             flags                 INT NOT NULL,
             active                BOOL,
-            published             BOOL DEFAULT 't',
+            published             BOOL DEFAULT TRUE,
             content               TEXT
           );
           CREATE INDEX domainidindex ON cryptokeys(domain_id);
@@ -327,7 +348,8 @@ powerdns-postgres-18-cluster:
             id                    SERIAL PRIMARY KEY,
             name                  VARCHAR(255),
             algorithm             VARCHAR(50),
-            secret                VARCHAR(255)
+            secret                VARCHAR(255),
+            CONSTRAINT c_lowercase_name CHECK (((name)::TEXT = LOWER((name)::TEXT)))
           );
           CREATE UNIQUE INDEX namealgoindex ON tsigkeys(name, algorithm);
 
@@ -343,6 +365,9 @@ powerdns-postgres-18-cluster:
           SELECT id, 'alexlebens.net', 'NS', 'ns1.alexlebens.net', 3600, true
           FROM domains
           WHERE name = 'alexlebens.net';
+
+          GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO app;
+          GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO app;
   recovery:
     objectStore:
       index: 1
