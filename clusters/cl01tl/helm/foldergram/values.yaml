@@ -2,7 +2,6 @@ foldergram:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -23,38 +22,32 @@ foldergram:
             - name: GALLERY_ROOT
               value: /gallery
             - name: CSRF_TRUSTED_ORIGINS
-              value: https://foldergram.alexlebens.net, https://art.alexlebens.dev
-            # - name: PUBLIC_DEMO_MODE
-            #   value: 1
+              value: https://art.alexlebens.dev
           resources:
             requests:
               cpu: 1m
               memory: 200Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 4141
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 4141
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
           targetPort: 4141
-  route:
-    main:
-      kind: HTTPRoute
-      parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
-      hostnames:
-        - foldergram.alexlebens.net
-      rules:
-        - backendRefs:
-            - name: foldergram
-              port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     db:
       forceRename: foldergram-db
@@ -65,7 +58,6 @@ foldergram:
         main:
           main:
             - path: /app/data/db
-              readOnly: false
     data:
       forceRename: foldergram-data
       storageClass: synology-iscsi-delete
@@ -75,13 +67,19 @@ foldergram:
         main:
           main:
             - path: /app/data
-              readOnly: false
     pictures-mia:
       existingClaim: foldergram-pictures-collection-mia-nfs-storage
       advancedMounts:
         main:
           main:
             - path: "/gallery/Minneapolis Institute of Art"
+              readOnly: true
+    pictures-rijksmuseum:
+      existingClaim: foldergram-pictures-collection-rijksmuseum-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: "/gallery/Rijksmuseum"
               readOnly: true
 cloudflared:
   probe:
