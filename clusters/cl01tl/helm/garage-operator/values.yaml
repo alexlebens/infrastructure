@@ -6,3 +6,35 @@ garage-operator:
   prometheusRules:
     enabled: true
   watchNamespaces: []
+garage-ui-cluster-a:
+  fullnameOverride: garage-ui-cluster-a
+  config:
+    server:
+      domain: garage-a.alexlebens.net
+      root_url: https://garage-a.alexlebens.net
+    garage:
+      endpoint: http://garage-cluster-a.garage:3900
+      admin_endpoint: http://garage-cluster-a.garage:3903
+      existingSecret:
+        name: garage-operator-token
+        key: admin-token
+    auth:
+      oidc:
+        enabled: true
+        provider_name: AlexAuth
+        client_id: 8C33EB93-937D-4E94-AE16-9B7B9659C4D9
+        existingSecret:
+          name: garage-cluster-a-ui-oidc
+          key: clientSecret
+        issuer: https://pocket-id.alexlebens.dev
+        team_attribute_path: groups
+    access_control:
+      teams:
+        - name: platform-admin
+          claim_values: ["platform-admin"]
+          cluster_permissions: ["cluster.status", "cluster.health", "cluster.layout"]
+          bindings:
+            - bucket_prefixes: ["*"]
+              permissions: ["preset:bucket_owner"]
+  serviceMonitor:
+    enabled: true
