@@ -2,7 +2,6 @@ frigate:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -39,10 +38,6 @@ frigate:
                 httpGet:
                   path: /
                   port: 5000
-                initialDelaySeconds: 0
-                periodSeconds: 10
-                timeoutSeconds: 1
-                failureThreshold: 3
             readiness:
               enabled: true
               custom: true
@@ -50,10 +45,6 @@ frigate:
                 httpGet:
                   path: /
                   port: 5000
-                initialDelaySeconds: 0
-                periodSeconds: 10
-                timeoutSeconds: 1
-                failureThreshold: 3
             startup:
               enabled: true
               custom: true
@@ -62,7 +53,6 @@ frigate:
                   path: /
                   port: 5000
                 failureThreshold: 30
-                periodSeconds: 10
           resources:
             requests:
               cpu: 100m
@@ -70,24 +60,65 @@ frigate:
               gpu.intel.com/i915: 1
             limits:
               gpu.intel.com/i915: 1
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          envFrom:
+            - secretRef:
+                name: frigate-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:5000
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+            - name: OAUTH2_PROXY_SET_XAUTHREQUEST
+              value: "true"
+            - name: OAUTH2_PROXY_PASS_USER_HEADERS
+              value: "true"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
           targetPort: 5000
         rtsp:
           port: 8554
-          targetPort: 8554
         webrtc:
           port: 8555
-          targetPort: 8555
           protocol: TCP
         webrtc-udp:
           port: 8555
-          targetPort: 8555
           protocol: UDP
+        oauth:
+          port: 4180
+        oauth-metrics:
+          port: 44180
   serviceMonitor:
     main:
       selector:
@@ -97,33 +128,36 @@ frigate:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: http
-          scheme: http
           path: /api/metrics
-          interval: 1m
-          scrapeTimeout: 10s
+        - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - frigate.alexlebens.net
       rules:
         - backendRefs:
             - name: frigate
-              port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
+              port: 4180
   configMaps:
     configmap:
       enabled: true
       data:
         config.yml: |
+          auth:
+            enabled: false
+
+          proxy:
+            header_map:
+              user: X-Forwarded-Preferred-Username
+            role_map:
+              admin:
+                - admin
+            default_role: admin
+
           mqtt:
             enabled: false
 
@@ -192,7 +226,6 @@ frigate:
         main:
           main:
             - path: /config
-              readOnly: false
     media:
       forceRename: frigate-media
       storageClass: synology-iscsi-delete
@@ -202,7 +235,6 @@ frigate:
         main:
           main:
             - path: /media/frigate
-              readOnly: false
     cache:
       type: emptyDir
       medium: Memory
@@ -211,7 +243,6 @@ frigate:
         main:
           main:
             - path: /tmp/cache
-              readOnly: false
     config-file:
       type: configMap
       name: frigate
@@ -229,8 +260,6 @@ frigate:
         main:
           main:
             - path: /dev/shm
-              readOnly: false
-
 volsync-target-config:
   pvcTarget: frigate-config
   moverSecurityContext:
