@@ -35,16 +35,20 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      volumes:
+        - name: config
+          configMap:
+            name: cert-manager
       containers:
         - name: cert-manager-controller
           image: "quay.io/jetstack/cert-manager-controller:v1.21.1"
           imagePullPolicy: IfNotPresent
           args:
             - --v=2
+            - --config=/var/cert-manager/config/config.yaml
             - --cluster-resource-namespace=$(POD_NAMESPACE)
             - --leader-election-namespace=kube-system
             - --acme-http01-solver-image=quay.io/jetstack/cert-manager-acmesolver:v1.21.1
-            - --enable-gateway-api
             - --max-concurrent-challenges=60
           ports:
             - containerPort: 9402
@@ -59,6 +63,9 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: config
+              mountPath: /var/cert-manager/config
           env:
             - name: POD_NAMESPACE
               valueFrom:
