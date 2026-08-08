@@ -3,6 +3,78 @@ freshrss:
     main:
       type: deployment
       strategy: Recreate
+      initContainers:
+        install-ext-readingtime:
+          image:
+            repository: alpine
+            tag: 3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+          env:
+            - name: EXTENSION_VERSION
+              value: "91b824edefba5f940d7962fa9ed77bd33b543690"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if [ -f "/ext/.readingtime-version" ] && [ "$(cat /ext/.readingtime-version)" = "${EXTENSION_VERSION}" ]; then
+                echo ">> ReadingTime version ${EXTENSION_VERSION} already installed."
+                exit 0
+              fi
+              apk add --no-cache wget unzip
+              mkdir -p /tmp/ext-unzipped /ext/xExtension-ReadingTime
+              wget -qO /tmp/ext.zip "https://github.com/FreshRSS/Extensions/archive/${EXTENSION_VERSION}.zip"
+              unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
+              rm -rf /ext/xExtension-ReadingTime/*
+              cp -r /tmp/ext-unzipped/*/xExtension-ReadingTime/* /ext/xExtension-ReadingTime/
+              echo "${EXTENSION_VERSION}" > /ext/.readingtime-version
+              chown -R 568:568 /ext/xExtension-ReadingTime /ext/.readingtime-version
+        install-ext-readability:
+          image:
+            repository: alpine
+            tag: 3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+          env:
+            # renovate: datasource=github-commits depName=Niehztog/freshrss-af-readability
+            - name: EXTENSION_VERSION
+              value: "2843fa0b22da5f419228ce2c90501435f16fd5de"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if [ -f "/ext/.readability-version" ] && [ "$(cat /ext/.readability-version)" = "${EXTENSION_VERSION}" ]; then
+                echo "AF-Readability version ${EXTENSION_VERSION} already installed."
+                exit 0
+              fi
+              apk add --no-cache wget unzip
+              mkdir -p /tmp/ext-unzipped /ext/xExtension-AF-Readability
+              wget -qO /tmp/ext.zip "https://github.com/Niehztog/freshrss-af-readability/archive/${EXTENSION_VERSION}.zip"
+              unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
+              rm -rf /ext/xExtension-AF-Readability/*
+              cp -r /tmp/ext-unzipped/*/xExtension-*/* /ext/xExtension-AF-Readability/
+              echo "${EXTENSION_VERSION}" > /ext/.readability-version
+              chown -R 568:568 /ext/xExtension-AF-Readability /ext/.readability-version
+        install-ext-feeddigest:
+          image:
+            repository: alpine
+            tag: 3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+          env:
+            # renovate: datasource=github-commits depName=fengchang/xExtension-FeedDigest
+            - name: EXTENSION_VERSION
+              value: "42bd317a3ebcd5b4c8fc6bed40c130d5c99eb45f"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              if [ -f "/ext/.feeddigest-version" ] && [ "$(cat /ext/.feeddigest-version)" = "${EXTENSION_VERSION}" ]; then
+                echo "FeedDigest version ${EXTENSION_VERSION} already installed."
+                exit 0
+              fi
+              apk add --no-cache wget unzip
+              mkdir -p /tmp/ext-unzipped /ext/xExtension-FeedDigest
+              wget -qO /tmp/ext.zip "https://github.com/fengchang/xExtension-FeedDigest/archive/${EXTENSION_VERSION}.zip"
+              unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
+              rm -rf /ext/xExtension-FeedDigest/*
+              cp -r /tmp/ext-unzipped/*/* /ext/xExtension-FeedDigest/
+              echo "${EXTENSION_VERSION}" > /ext/.feeddigest-version
+              chown -R 568:568 /ext/xExtension-FeedDigest /ext/.feeddigest-version
       containers:
         main:
           image:
@@ -94,6 +166,26 @@ freshrss:
         main:
           main:
             - path: /var/www/FreshRSS/data
+    extensions:
+      forceRename: freshrss-extensions
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /var/www/FreshRSS/extensions/xExtension-ReadingTime
+              subPath: xExtension-ReadingTime
+            - path: /var/www/FreshRSS/extensions/xExtension-AF-Readability
+              subPath: xExtension-AF-Readability
+            - path: /var/www/FreshRSS/extensions/xExtension-FeedDigest
+              subPath: xExtension-FeedDigest
+          install-ext-readingtime:
+            - path: /ext
+          install-ext-readability:
+            - path: /ext
+          install-ext-feeddigest:
+            - path: /ext
 cloudflared:
   probe:
     enabled: true
