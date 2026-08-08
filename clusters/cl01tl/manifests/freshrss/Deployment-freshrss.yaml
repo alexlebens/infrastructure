@@ -33,6 +33,79 @@ spec:
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
+      initContainers:
+        - command:
+            - /bin/sh
+            - -c
+            - |
+              if [ -f "/ext/.feeddigest-version" ] && [ "$(cat /ext/.feeddigest-version)" = "${EXTENSION_VERSION}" ]; then
+                echo "FeedDigest version ${EXTENSION_VERSION} already installed."
+                exit 0
+              fi
+              apk add --no-cache wget unzip
+              mkdir -p /tmp/ext-unzipped /ext/xExtension-FeedDigest
+              wget -qO /tmp/ext.zip "https://github.com/fengchang/xExtension-FeedDigest/archive/${EXTENSION_VERSION}.zip"
+              unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
+              rm -rf /ext/xExtension-FeedDigest/*
+              cp -r /tmp/ext-unzipped/*/* /ext/xExtension-FeedDigest/
+              echo "${EXTENSION_VERSION}" > /ext/.feeddigest-version
+              chown -R 568:568 /ext/xExtension-FeedDigest /ext/.feeddigest-version
+          env:
+            - name: EXTENSION_VERSION
+              value: 42bd317a3ebcd5b4c8fc6bed40c130d5c99eb45f
+          image: alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+          name: install-ext-feeddigest
+          volumeMounts:
+            - mountPath: /ext
+              name: extensions
+        - command:
+            - /bin/sh
+            - -c
+            - |
+              if [ -f "/ext/.readability-version" ] && [ "$(cat /ext/.readability-version)" = "${EXTENSION_VERSION}" ]; then
+                echo "AF-Readability version ${EXTENSION_VERSION} already installed."
+                exit 0
+              fi
+              apk add --no-cache wget unzip
+              mkdir -p /tmp/ext-unzipped /ext/xExtension-AF-Readability
+              wget -qO /tmp/ext.zip "https://github.com/Niehztog/freshrss-af-readability/archive/${EXTENSION_VERSION}.zip"
+              unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
+              rm -rf /ext/xExtension-AF-Readability/*
+              cp -r /tmp/ext-unzipped/*/xExtension-*/* /ext/xExtension-AF-Readability/
+              echo "${EXTENSION_VERSION}" > /ext/.readability-version
+              chown -R 568:568 /ext/xExtension-AF-Readability /ext/.readability-version
+          env:
+            - name: EXTENSION_VERSION
+              value: 2843fa0b22da5f419228ce2c90501435f16fd5de
+          image: alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+          name: install-ext-readability
+          volumeMounts:
+            - mountPath: /ext
+              name: extensions
+        - command:
+            - /bin/sh
+            - -c
+            - |
+              if [ -f "/ext/.readingtime-version" ] && [ "$(cat /ext/.readingtime-version)" = "${EXTENSION_VERSION}" ]; then
+                echo ">> ReadingTime version ${EXTENSION_VERSION} already installed."
+                exit 0
+              fi
+              apk add --no-cache wget unzip
+              mkdir -p /tmp/ext-unzipped /ext/xExtension-ReadingTime
+              wget -qO /tmp/ext.zip "https://github.com/FreshRSS/Extensions/archive/${EXTENSION_VERSION}.zip"
+              unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
+              rm -rf /ext/xExtension-ReadingTime/*
+              cp -r /tmp/ext-unzipped/*/xExtension-ReadingTime/* /ext/xExtension-ReadingTime/
+              echo "${EXTENSION_VERSION}" > /ext/.readingtime-version
+              chown -R 568:568 /ext/xExtension-ReadingTime /ext/.readingtime-version
+          env:
+            - name: EXTENSION_VERSION
+              value: 91b824edefba5f940d7962fa9ed77bd33b543690
+          image: alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+          name: install-ext-readingtime
+          volumeMounts:
+            - mountPath: /ext
+              name: extensions
       containers:
         - env:
             - name: PGID
@@ -89,7 +162,7 @@ spec:
             - name: OIDC_ENABLED
               value: "1"
             - name: OIDC_PROVIDER_METADATA_URL
-              value: https://auth.alexlebens.dev/application/o/freshrss/.well-known/openid-configuration
+              value: https://pocket-id.alexlebens.dev/.well-known/openid-configuration
             - name: OIDC_X_FORWARDED_HEADERS
               value: X-Forwarded-Port X-Forwarded-Proto X-Forwarded-Host
             - name: OIDC_SCOPES
@@ -98,11 +171,25 @@ spec:
               value: preferred_username
           envFrom:
             - secretRef:
-                name: freshrss-oidc-authentik
+                name: freshrss-oidc-secret
             - secretRef:
                 name: freshrss-install-config
           image: freshrss/freshrss:1.29.1@sha256:ab6b363102ccdbc39f6a62db926f567c61a5289bf25ba460f1c34423d8cc1a4d
+          livenessProbe:
+            exec:
+              command:
+                - /var/www/FreshRSS/cli/health.php
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 10
           name: main
+          readinessProbe:
+            exec:
+              command:
+                - /var/www/FreshRSS/cli/health.php
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 10
           resources:
             requests:
               cpu: 1m
@@ -110,7 +197,19 @@ spec:
           volumeMounts:
             - mountPath: /var/www/FreshRSS/data
               name: data
+            - mountPath: /var/www/FreshRSS/extensions/xExtension-ReadingTime
+              name: extensions
+              subPath: xExtension-ReadingTime
+            - mountPath: /var/www/FreshRSS/extensions/xExtension-AF-Readability
+              name: extensions
+              subPath: xExtension-AF-Readability
+            - mountPath: /var/www/FreshRSS/extensions/xExtension-FeedDigest
+              name: extensions
+              subPath: xExtension-FeedDigest
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: freshrss-data
+        - name: extensions
+          persistentVolumeClaim:
+            claimName: freshrss-extensions

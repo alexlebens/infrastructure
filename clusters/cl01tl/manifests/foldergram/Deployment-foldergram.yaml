@@ -47,9 +47,17 @@ spec:
             - name: GALLERY_ROOT
               value: /gallery
             - name: CSRF_TRUSTED_ORIGINS
-              value: https://foldergram.alexlebens.net, https://art.alexlebens.dev
+              value: https://art.alexlebens.dev
           image: ghcr.io/foldergram/foldergram:1.2.2@sha256:f72dfe39d9042555fd1b509a06f6c93c8b9a8be02541c80135a9a8f25fe362d4
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 4141
           name: main
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 4141
           resources:
             requests:
               cpu: 1m
@@ -62,6 +70,9 @@ spec:
             - mountPath: /gallery/Minneapolis Institute of Art
               name: pictures-mia
               readOnly: true
+            - mountPath: /gallery/Rijksmuseum
+              name: pictures-rijksmuseum
+              readOnly: true
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -72,3 +83,6 @@ spec:
         - name: pictures-mia
           persistentVolumeClaim:
             claimName: foldergram-pictures-collection-mia-nfs-storage
+        - name: pictures-rijksmuseum
+          persistentVolumeClaim:
+            claimName: foldergram-pictures-collection-rijksmuseum-nfs-storage
