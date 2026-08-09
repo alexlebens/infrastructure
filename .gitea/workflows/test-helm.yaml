@@ -273,6 +273,21 @@ jobs:
           echo ""
           echo "----"
 
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.14"
+
+      - name: Cache Python Dependencies
+        id: cache-pip
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-pyyaml
+
+      - name: Install PyYAML
+        run: pip3 install pyyaml --break-system-packages || pip3 install pyyaml
+
       - name: Cache Kubeconform
         id: cache-kubeconform
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
@@ -301,10 +316,45 @@ jobs:
           echo ""
           echo "----"
 
+      - name: Cache openapi2jsonschema
+        id: cache-openapi
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.local/bin/openapi2jsonschema.py
+          key: ${{ runner.os }}-openapi2jsonschema
+
+      - name: Download openapi2jsonschema
+        if: steps.cache-openapi.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.local/bin
+          wget -qO ~/.local/bin/openapi2jsonschema.py https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/openapi2jsonschema.py
+          chmod +x ~/.local/bin/openapi2jsonschema.py
+
+          echo ""
+          echo "----"
+
+      - name: Extract Live Cluster CRDs
+        run: |
+          echo ">> Setting up CRD schema generation from live cluster ..."
+          mkdir -p $HOME/.schemas
+
+          echo ">> Fetching and splitting cluster CRDs ..."
+          kubectl get crds -A -o yaml | yq '.items[]' > /tmp/all-crds.yaml
+
+          echo ">> Generating JSON schemas ..."
+          cd $HOME/.schemas
+          export FILENAME_FORMAT='{kind}_{version}'
+          python3 ~/.local/bin/openapi2jsonschema.py /tmp/all-crds.yaml
+
+          echo ">> Live schemas generated successfully"
+
+          echo ""
+          echo "----"
+
       - name: Kubeconform Rendered Templates
         run: |
           echo "FAILED_STAGE=Kubeconform Validation" >> $GITHUB_ENV
-          SCHEMA_LOCATIONS="-schema-location default -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
+          SCHEMA_LOCATIONS="-schema-location default -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json -schema-location $HOME/.schemas/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
 
           for CHART in ${CHANGED_CHARTS}; do
             echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
