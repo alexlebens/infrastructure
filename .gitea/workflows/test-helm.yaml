@@ -60,14 +60,31 @@ jobs:
           echo ">> Target branch for diff is: ${BASE_BRANCH}"
 
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            DIFF_TARGET="${BASE_BRANCH}"
             echo ""
             echo ">> Checking for changes in a pull request ..."
+            # If the PR was automerged before this step runs, origin/main might already
+            # include our changes, causing the standard diff to be empty.
+            if git diff --name-only "${BASE_BRANCH}" | grep -q .; then
+              DIFF_TARGET="${BASE_BRANCH}"
+
+            else
+              echo ">> Diff against ${BASE_BRANCH} is empty (likely already merged). Falling back to HEAD^1..HEAD"
+              DIFF_TARGET="HEAD^1..HEAD"
+
+            fi
 
           else
-            DIFF_TARGET="${{ github.event.before }}..HEAD"
+            BEFORE="${{ github.event.before }}"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" == "0000000000000000000000000000000000000000" ]; then
+              DIFF_TARGET="HEAD^1..HEAD"
+
+            else
+              DIFF_TARGET="${BEFORE}..HEAD"
+
+            fi
+
             echo ""
-            echo ">> Checking for changes from a push ..."
+            echo ">> Checking for changes from a push (Diff target: $DIFF_TARGET) ..."
 
           fi
 
