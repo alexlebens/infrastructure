@@ -1,0 +1,137 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kaneo-assets-backup-primary
+  namespace: kaneo
+  labels:
+    app.kubernetes.io/name: kaneo-assets-backup-primary
+    helm.sh/chart: garage-bucket-kaneo-assets-0.2.6
+    app.kubernetes.io/instance: kaneo
+    app.kubernetes.io/part-of: kaneo
+    app.kubernetes.io/version: "v0.7.3"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  schedule: "0 0 * * *"
+  timeZone: "America/Chicago"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: kaneo-assets-backup-primary
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumes:
+            - name: tmp
+              emptyDir: {}
+          containers:
+            - name: backup
+              image: "rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548"
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+              resources:
+                limits:
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              command:
+                - /bin/sh
+                - -c
+              args:
+                - |
+                  set -o pipefail
+
+                  # --- Sync Phase ---
+                  rclone sync \
+                    "src:kaneo-assets" \
+                    "dest:kaneo-assets" \
+                    --s3-no-check-bucket \
+                    --verbose 2>&1 | tee /tmp/rclone-sync.log
+
+                  sync_res=$?
+                  STATS=$(grep "Transferred:" /tmp/rclone-sync.log | tail -n 2)
+                  DATA_TRANS=$(echo "$STATS" | head -n 1 | sed 's/.*Transferred:[ \t]*//')
+                  if [ -z "$DATA_TRANS" ]; then DATA_TRANS="Unknown"; fi
+
+                  if [ $sync_res -eq 0 ]; then
+                    if [ -n "${NTFY_TOKEN:-}" ]; then
+                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Backup Success - kaneo-assets" --post-data "Job transferred: $DATA_TRANS" "$NTFY_URL"
+                    else
+                      wget -qO- --header "Title: Backup Success - kaneo-assets" --post-data "Job transferred: $DATA_TRANS" "$NTFY_URL"
+                    fi
+                  else
+                    if [ -n "${NTFY_TOKEN:-}" ]; then
+                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Backup Failed - kaneo-assets" --header "Priority: urgent" --post-data "Job failed, transferred: $DATA_TRANS" "$NTFY_URL"
+                    else
+                      wget -qO- --header "Title: Backup Failed - kaneo-assets" --header "Priority: urgent" --post-data "Job failed, transferred: $DATA_TRANS" "$NTFY_URL"
+                    fi
+                    exit $sync_res
+                  fi
+              env:
+                - name: RCLONE_CONFIG_SRC_TYPE
+                  value: "s3"
+                - name: RCLONE_CONFIG_SRC_PROVIDER
+                  value: "Other"
+                - name: RCLONE_CONFIG_SRC_ENDPOINT
+                  value: "http://garage-cluster-a.garage-operator.svc.cluster.local:3900"
+                - name: RCLONE_CONFIG_SRC_ENV_AUTH
+                  value: "false"
+                - name: RCLONE_CONFIG_SRC_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: kaneo-assets-key
+                      key: AWS_ACCESS_KEY_ID
+                - name: RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: kaneo-assets-key
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: RCLONE_CONFIG_DEST_TYPE
+                  value: "s3"
+                - name: RCLONE_CONFIG_DEST_PROVIDER
+                  value: "Other"
+                - name: RCLONE_CONFIG_DEST_ENDPOINT
+                  value: "https://garage-ps10rp.boreal-beaufort.ts.net:3900"
+                - name: RCLONE_CONFIG_DEST_REGION
+                  value: "us-east-1"
+                - name: RCLONE_CONFIG_DEST_ENV_AUTH
+                  value: "false"
+                - name: RCLONE_CONFIG_DEST_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: kaneo-assets-secret-backup-primary
+                      key: AWS_ACCESS_KEY_ID
+                - name: RCLONE_CONFIG_DEST_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: kaneo-assets-secret-backup-primary
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: NTFY_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: kaneo-assets-secret-backup-ntfy
+                      key: ntfy-url
+                - name: NTFY_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: kaneo-assets-secret-backup-ntfy
+                      key: ntfy-token
