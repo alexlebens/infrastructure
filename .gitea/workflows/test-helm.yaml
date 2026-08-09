@@ -60,14 +60,31 @@ jobs:
           echo ">> Target branch for diff is: ${BASE_BRANCH}"
 
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            DIFF_TARGET="${BASE_BRANCH}"
             echo ""
             echo ">> Checking for changes in a pull request ..."
+            # If the PR was automerged before this step runs, origin/main might already
+            # include our changes, causing the standard diff to be empty.
+            if git diff --name-only "${BASE_BRANCH}" | grep -q .; then
+              DIFF_TARGET="${BASE_BRANCH}"
+
+            else
+              echo ">> Diff against ${BASE_BRANCH} is empty (likely already merged). Falling back to HEAD^1..HEAD"
+              DIFF_TARGET="HEAD^1..HEAD"
+
+            fi
 
           else
-            DIFF_TARGET="${{ github.event.before }}..HEAD"
+            BEFORE="${{ github.event.before }}"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" == "0000000000000000000000000000000000000000" ]; then
+              DIFF_TARGET="HEAD^1..HEAD"
+
+            else
+              DIFF_TARGET="${BEFORE}..HEAD"
+
+            fi
+
             echo ""
-            echo ">> Checking for changes from a push ..."
+            echo ">> Checking for changes from a push (Diff target: $DIFF_TARGET) ..."
 
           fi
 
@@ -333,13 +350,27 @@ jobs:
           echo ""
           echo "----"
 
+      - name: Get CRDs Hash for Cache
+        id: crd-hash
+        run: |
+          CRD_HASH=$(kubectl get crds -A -o jsonpath='{range .items[*]}{.metadata.name}-{.metadata.resourceVersion}{"\n"}{end}' | sha256sum | awk '{print $1}')
+          echo "hash=${CRD_HASH}" >> $GITHUB_OUTPUT
+
+      - name: Cache CRD Schemas
+        id: cache-crd-schemas
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.schemas
+          key: ${{ runner.os }}-crd-schemas-${{ steps.crd-hash.outputs.hash }}
+
       - name: Extract Live Cluster CRDs
+        if: steps.cache-crd-schemas.outputs.cache-hit != 'true'
         run: |
           echo ">> Setting up CRD schema generation from live cluster ..."
           mkdir -p $HOME/.schemas
 
           echo ">> Fetching and splitting cluster CRDs ..."
-          kubectl get crds -A -o yaml | yq '.items[]' > /tmp/all-crds.yaml
+          kubectl get crds -A -o json | jq -c '.items[]' | awk '{print "---"; print $0}' > /tmp/all-crds.yaml
 
           echo ">> Generating JSON schemas ..."
           cd $HOME/.schemas
