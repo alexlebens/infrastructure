@@ -2,7 +2,6 @@ kaneo:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -104,18 +103,12 @@ kaneo:
                 httpGet:
                   path: /api/health
                   port: 5173
-                failureThreshold: 5
-                initialDelaySeconds: 15
-                periodSeconds: 10
-                successThreshold: 1
-                timeoutSeconds: 5
           resources:
             requests:
               cpu: 10m
               memory: 120Mi
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -124,9 +117,7 @@ kaneo:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - kaneo.alexlebens.net
@@ -134,10 +125,6 @@ kaneo:
         - backendRefs:
             - name: kaneo
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
 postgres-18-cluster:
   mode: recovery
   recovery:
@@ -149,64 +136,20 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 20 16 * * *"
-rclone-kaneo-assets-remote:
-  nameOverride: kaneo-assets-remote-rclone
-  cronJob:
-    suspend: false
-    schedule: 30 6 * * 3
-  rclone:
-    source:
-      bucketName: kaneo-assets
-    destination:
-      bucketName: kaneo-assets
-  ntfy:
-    externalSecret:
-      urlPath: /cl01tl/ntfy/config
-      urlProperty: internal-endpoint
-      topicPath: /cl01tl/ntfy/topics
-      topicProperty: rclone
-      tokenPath: /cl01tl/ntfy/users/cl01tl
-      tokenProperty: token
-  secret:
-    externalSecret:
-      source:
-        credentials:
-          path: /garage/home-infra/kaneo-assets
-        config:
-          path: /garage/config
+garage-bucket-kaneo-assets:
+  bucketName: kaneo-assets
+  backups:
+    primary:
+      enabled: false
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
       destination:
-        credentials:
-          path: /garage/home-infra/kaneo-assets
-        config:
-          path: /garage/config
-rclone-kaneo-assets-external:
-  nameOverride: kaneo-assets-external-rclone
-  cronJob:
-    suspend: false
-    schedule: 0 6 * * 3
-  rclone:
-    source:
-      bucketName: kaneo-assets
-    destination:
-      bucketName: kaneo-assets-47edc3f232f2797f
-  ntfy:
-    externalSecret:
-      urlPath: /cl01tl/ntfy/config
-      urlProperty: internal-endpoint
-      topicPath: /cl01tl/ntfy/topics
-      topicProperty: rclone
-      tokenPath: /cl01tl/ntfy/users/cl01tl
-      tokenProperty: token
-  secret:
-    externalSecret:
-      source:
-        credentials:
-          path: /garage/home-infra/kaneo-assets
-        config:
-          path: /garage/config
+        bucketName: kaneo-assets
+    secondary:
+      enabled: false
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
       destination:
-        credentials:
-          path: /backblaze/home-infra/kaneo-assets
-        config:
-          path: /backblaze/config
-          endpointProperty: ENDPOINT
+        bucketName: kaneo-assets-47edc3f232f2797f
