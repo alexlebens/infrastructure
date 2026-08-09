@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kaneo-assets-cors-apply
+  namespace: kaneo
+  labels:
+    app.kubernetes.io/name: kaneo-assets-cors-apply
+    helm.sh/chart: garage-bucket-kaneo-assets-0.3.0
+    app.kubernetes.io/instance: kaneo
+    app.kubernetes.io/part-of: kaneo
+    app.kubernetes.io/version: "v0.7.3"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "0"
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    metadata:
+      name: kaneo-assets-cors-apply
+      labels:
+        app.kubernetes.io/name: kaneo-assets-cors-apply
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: aws-cli
+          image: "amazon/aws-cli:2.27.51@sha256:3960aa7002208c9d26cdca90a16416c6f75da95b522da5bed212ef9bf4a804cb"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo ">> Applying CORS configuration to kaneo-assets bucket..."
+              aws s3api put-bucket-cors \
+                --bucket kaneo-assets \
+                --cors-configuration file:///etc/config/cors.json \
+                --endpoint-url http://garage-cluster-a.garage-operator.svc.cluster.local:3900 \
+                --region garage
+              echo ">> Done!"
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-assets-key
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kaneo-assets-key
+                  key: AWS_SECRET_ACCESS_KEY
+          volumeMounts:
+            - name: config
+              mountPath: /etc/config
+      volumes:
+        - name: config
+          configMap:
+            name: kaneo-assets-cors
