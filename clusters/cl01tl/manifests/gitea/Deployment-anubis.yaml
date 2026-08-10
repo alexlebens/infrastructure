@@ -11,9 +11,9 @@ metadata:
   namespace: gitea
 spec:
   revisionHistoryLimit: 3
-  replicas: 1
+  replicas: 2
   strategy:
-    type: Recreate
+    type: RollingUpdate
   selector:
     matchLabels:
       app.kubernetes.io/controller: main
@@ -61,7 +61,13 @@ spec:
             - name: OG_EXPIRY_TIME
               value: 24h
           image: ghcr.io/techarohq/anubis:v1.27.0@sha256:8828275668b7bc675679f100970f9714f731388fbbf66ae94de8aca952e3fc4a
+          livenessProbe:
+            tcpSocket:
+              port: 8080
           name: main
+          readinessProbe:
+            tcpSocket:
+              port: 8080
           resources:
             requests:
               cpu: 20m
