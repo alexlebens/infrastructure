@@ -2,7 +2,6 @@ home-assistant:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -20,35 +19,12 @@ home-assistant:
             requests:
               cpu: 1m
               memory: 400Mi
-        code-server:
-          image:
-            repository: ghcr.io/linuxserver/code-server
-            tag: 4.132.0-ls356@sha256:0a3087964a72abe79e4a7d26ad2ef20e0c19e5fcbe102c208e4a570fff4b8303
-          env:
-            - name: TZ
-              value: America/Chicago
-            - name: PUID
-              value: 1000
-            - name: PGID
-              value: 1000
-            - name: DEFAULT_WORKSPACE
-              value: /config
-          envFrom:
-            - secretRef:
-                name: home-assistant-code-server-password
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
           targetPort: 8123
-    code-server:
-      controller: main
-      ports:
-        http:
-          port: 8443
-          targetPort: 8443
   serviceMonitor:
     main:
       selector:
@@ -59,8 +35,6 @@ home-assistant:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: http
-          interval: 3m
-          scrapeTimeout: 1m
           path: /api/prometheus
           bearerTokenSecret:
             name: home-assistant-metric-token
@@ -69,9 +43,7 @@ home-assistant:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - home-assistant.alexlebens.net
@@ -79,27 +51,6 @@ home-assistant:
         - backendRefs:
             - name: home-assistant-main
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
-    code-server:
-      kind: HTTPRoute
-      parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
-      hostnames:
-        - home-assistant-code-server.alexlebens.net
-      rules:
-        - backendRefs:
-            - name: home-assistant-code-server
-              port: 8443
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     config:
       forceRename: home-assistant-config
@@ -110,10 +61,6 @@ home-assistant:
         main:
           main:
             - path: /config
-              readOnly: false
-          code-server:
-            - path: /config/home-assistant
-              readOnly: false
 volsync-target-config:
   pvcTarget: home-assistant-config
   local:
