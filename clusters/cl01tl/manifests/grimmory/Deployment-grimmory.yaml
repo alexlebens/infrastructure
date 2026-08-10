@@ -53,28 +53,49 @@ spec:
                 secretKeyRef:
                   key: password
                   name: grimmory-database-secret
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: grimmory-oidc-secret
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: grimmory-oidc-secret
+            - name: OIDC_ISSUER_URI
+              value: https://pocket-id.alexlebens.dev
             - name: GRIMMORY_PORT
               value: "6060"
             - name: SWAGGER_ENABLED
               value: "false"
           image: ghcr.io/grimmory-tools/grimmory:v3.3.1@sha256:746bf67ac42b5c5f359946ccf4fcfee21129b876371965943c3400036fc2f170
           livenessProbe:
+            failureThreshold: 5
             httpGet:
               path: /api/v1/healthcheck
               port: 6060
+            periodSeconds: 10
+            timeoutSeconds: 5
           name: main
           readinessProbe:
+            failureThreshold: 5
             httpGet:
               path: /api/v1/healthcheck
               port: 6060
+            periodSeconds: 10
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 10m
               memory: 450Mi
           startupProbe:
+            failureThreshold: 30
             httpGet:
               path: /api/v1/healthcheck
               port: 6060
+            periodSeconds: 60
+            timeoutSeconds: 5
           volumeMounts:
             - mountPath: /bookdrop
               name: books-import
