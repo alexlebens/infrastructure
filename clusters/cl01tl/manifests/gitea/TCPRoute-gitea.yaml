@@ -1,6 +1,8 @@
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
 metadata:
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: gitea-ssh.alexlebens.net
   labels:
     helm.sh/chart: gitea-12.7.0
     app: gitea
@@ -13,18 +15,13 @@ metadata:
   namespace: gitea
 spec:
   parentRefs:
-    - name: traefik-gateway
-      namespace: traefik
-  hostnames:
-    - gitea.alexlebens.net
+    - name: cilium-ssh-gateway
+      namespace: kube-system
+      sectionName: ssh
   rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
-      backendRefs:
+    - backendRefs:
         - group: ""
           kind: Service
-          name: gitea-http
-          port: 3000
+          name: gitea-ssh
+          port: 22
           weight: 1
