@@ -24,18 +24,17 @@ spec:
     auth:
       disable_login_form: "true"
       auto_login: "true"
-      signout_redirect_url: https://authentik.alexlebens.net/application/o/grafana/end-session/
     auth.generic_oauth:
       enabled: "true"
-      name: Authentik
+      name: AlexAuth
       allow_sign_up: "true"
       client_id: ${AUTH_CLIENT_ID}
       client_secret: ${AUTH_CLIENT_SECRET}
-      scopes: openid profile email
-      auth_url: https://authentik.alexlebens.net/application/o/authorize/
-      token_url: https://authentik.alexlebens.net/application/o/token/
-      api_url: https://authentik.alexlebens.net/application/o/userinfo/
-      role_attribute_path: contains(groups, 'Grafana Admins') && 'Admin' || contains(groups, 'Grafana Editors') && 'Editor' || 'Viewer'
+      scopes: openid profile email groups
+      auth_url: https://pocket-id.alexlebens.dev/authorize
+      token_url: https://pocket-id.alexlebens.dev/api/oidc/token
+      api_url: https://pocket-id.alexlebens.dev/api/oidc/userinfo
+      role_attribute_path: contains(groups[*], 'platform-admin') && 'Admin' || contains(groups[*], 'admin') && 'Editor' || contains(groups[*], 'user') && 'Viewer'
     database:
       type: postgres
       host: "${DB_HOST}:${DB_PORT}"
@@ -65,13 +64,13 @@ spec:
                 - name: AUTH_CLIENT_ID
                   valueFrom:
                     secretKeyRef:
-                      name: grafana-oidc-authentik
-                      key: AUTH_CLIENT_ID
+                      name: grafana-oidc-secret
+                      key: clientId
                 - name: AUTH_CLIENT_SECRET
                   valueFrom:
                     secretKeyRef:
-                      name: grafana-oidc-authentik
-                      key: AUTH_CLIENT_SECRET
+                      name: grafana-oidc-secret
+                      key: clientSecret
                 - name: ADMIN_USER
                   valueFrom:
                     secretKeyRef:
@@ -110,9 +109,7 @@ spec:
   httpRoute:
     spec:
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - grafana.alexlebens.net
