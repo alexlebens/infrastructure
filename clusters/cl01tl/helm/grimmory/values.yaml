@@ -2,7 +2,6 @@ grimmory:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -45,9 +44,6 @@ grimmory:
                 httpGet:
                   path: /api/v1/healthcheck
                   port: 6060
-                failureThreshold: 5
-                periodSeconds: 10
-                timeoutSeconds: 5
             readiness:
               enabled: true
               custom: true
@@ -55,9 +51,6 @@ grimmory:
                 httpGet:
                   path: /api/v1/healthcheck
                   port: 6060
-                failureThreshold: 5
-                periodSeconds: 10
-                timeoutSeconds: 5
             startup:
               enabled: true
               custom: true
@@ -65,12 +58,8 @@ grimmory:
                 httpGet:
                   path: /api/v1/healthcheck
                   port: 6060
-                failureThreshold: 30
-                periodSeconds: 60
-                timeoutSeconds: 5
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -79,9 +68,7 @@ grimmory:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - grimmory.alexlebens.net
@@ -89,10 +76,6 @@ grimmory:
         - backendRefs:
             - name: grimmory
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     config:
       forceRename: grimmory-config
@@ -103,70 +86,41 @@ grimmory:
         main:
           main:
             - path: /app/data
-              readOnly: false
     books-import:
       type: emptyDir
       advancedMounts:
         main:
           main:
             - path: /bookdrop
-              readOnly: false
     data:
       existingClaim: grimmory-books-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /data
-              readOnly: false
     ingest:
       existingClaim: grimmory-books-import-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /bookdrop/ingest
-              readOnly: false
 mariadb-cluster:
   mariadb:
     rootPasswordSecretKeyRef:
-      generate: false
       name: grimmory-database-secret
       key: password
+      generate: false
     storage:
       size: 5Gi
-    replicas: 3
-    galera:
-      enabled: true
-    bootstrapFrom:
-      s3:
-        bucket: mariadb-backups-b230a2f5aecf080a4b372c08
-        prefix: cl01tl/grimmory
-        endpoint: nyc3.digitaloceanspaces.com
-        region: us-east-1
-        accessKeyIdSecretKeyRef:
-          name: grimmory-mariadb-cluster-backup-secret-external
-          key: access
-        secretAccessKeySecretKeyRef:
-          name: grimmory-mariadb-cluster-backup-secret-external
-          key: secret
-        tls:
-          enabled: true
-      backupContentType: Physical
   databases:
     - name: booklore
       characterSet: utf8
       collate: utf8_general_ci
-      cleanupPolicy: Delete
-      requeueInterval: 10h
   users:
     - name: grimmory
       passwordSecretKeyRef:
         name: grimmory-database-secret
         key: password
-      host: "%"
-      maxUserConnections: 100
-      cleanupPolicy: Delete
-      requeueInterval: 10h
-      retryInterval: 30s
   grants:
     - name: grimmory
       privileges:
@@ -175,33 +129,29 @@ mariadb-cluster:
       table: "*"
       username: grimmory
       grantOption: true
-      host: "%"
-      cleanupPolicy: Delete
-      requeueInterval: 10h
-      retryInterval: 30s
   physicalBackups:
-    - name: backup-external
+    - name: backup-local
       schedule:
-        cron: "0 0 * * 6"
+        cron: "0 0 * * *"
         suspend: false
         immediate: true
       compression: gzip
-      maxRetention: 2160h
+      maxRetention: 360h
       successfulJobsHistoryLimit: 1
       storage:
         s3:
-          bucket: mariadb-backups-6e3b78870f7af040
+          bucket: mariadb-backups
           prefix: cl01tl/grimmory
-          endpoint: s3.us-east-005.backblazeb2.com
-          region: us-east-005
+          endpoint: garage-cluster-a.garage-operator.svc.cluster.local:3900
+          region: garage
           accessKeyIdSecretKeyRef:
-            name: grimmory-mariadb-cluster-backup-secret-external
+            name: grimmory-mariadb-cluster-backup-secret-garage
             key: access
           secretAccessKeySecretKeyRef:
-            name: grimmory-mariadb-cluster-backup-secret-external
+            name: grimmory-mariadb-cluster-backup-secret-garage
             key: secret
           tls:
-            enabled: true
+            enabled: false
     - name: backup-remote
       schedule:
         cron: "0 0 * * 0"
@@ -224,26 +174,28 @@ mariadb-cluster:
             key: secret
           tls:
             enabled: true
-    - name: backup-garage
+    - name: backup-external
       schedule:
-        cron: "0 0 * * *"
+        cron: "0 0 * * 6"
         suspend: false
         immediate: true
       compression: gzip
-      maxRetention: 360h
+      maxRetention: 2160h
       successfulJobsHistoryLimit: 1
       storage:
         s3:
-          bucket: mariadb-backups
+          bucket: mariadb-backups-6e3b78870f7af040
           prefix: cl01tl/grimmory
-          endpoint: garage-main.garage:3900
-          region: us-east-1
+          endpoint: s3.us-east-005.backblazeb2.com
+          region: us-east-005
           accessKeyIdSecretKeyRef:
-            name: grimmory-mariadb-cluster-backup-secret-garage
+            name: grimmory-mariadb-cluster-backup-secret-external
             key: access
           secretAccessKeySecretKeyRef:
-            name: grimmory-mariadb-cluster-backup-secret-garage
+            name: grimmory-mariadb-cluster-backup-secret-external
             key: secret
+          tls:
+            enabled: true
 volsync-target-config:
   pvcTarget: grimmory-config
   moverSecurityContext:
