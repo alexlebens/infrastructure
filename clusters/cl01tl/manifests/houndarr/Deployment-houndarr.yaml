@@ -43,10 +43,24 @@ spec:
               value: "1000"
             - name: HOUNDARR_SECURE_COOKIES
               value: "true"
+            - name: HOUNDARR_AUTH_MODE
+              value: proxy
+            - name: HOUNDARR_AUTH_PROXY_HEADER
+              value: X-Auth-Request-User
+            - name: HOUNDARR_SECURE_COOKIES
+              value: "true"
             - name: HOUNDARR_TRUSTED_PROXIES
               value: 10.96.0.0/12
-          image: ghcr.io/av1155/houndarr:v1.13.1@sha256:475cf515388aee659e44a28435949a42a4e0de87e03b3f20d7f05fcb21fc76b7
+          image: ghcr.io/av1155/houndarr:v0.8.0@sha256:498114408ff36e84d12534c0174092b3a9e3ee76df74f0c4fa47f7d19edbf66f
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8877
           name: main
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8877
           resources:
             requests:
               cpu: 5m
@@ -54,6 +68,36 @@ spec:
           volumeMounts:
             - mountPath: /data
               name: data
+        - env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:8877
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_SET_XAUTHREQUEST
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: '*'
+          envFrom:
+            - secretRef:
+                name: houndarr-oauth-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+          name: oauth
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4180
       volumes:
         - name: data
           persistentVolumeClaim:
