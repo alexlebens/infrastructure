@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mariadb-backups-test-connection
+  namespace: mariadb-operator
+  labels:
+    app.kubernetes.io/name: mariadb-backups-test-connection
+    helm.sh/chart: garage-bucket-mariadb-backups-0.3.3
+    app.kubernetes.io/instance: mariadb-operator
+    app.kubernetes.io/part-of: mariadb-operator
+    app.kubernetes.io/version: "v0.7.3"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": test
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  volumes:
+    - name: tmp
+      emptyDir: {}
+  containers:
+    - name: rclone-test
+      image: "rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548"
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        readOnlyRootFilesystem: true
+      resources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      command:
+        - /bin/sh
+        - -c
+      args:
+        - |
+          echo ">> Testing S3 connection and waiting for bucket to be ready..."
+          MAX_RETRIES=12
+          RETRY_INTERVAL=10
+          BUCKET_NAME="mariadb-backups"
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i: Checking if bucket '$BUCKET_NAME' exists..."
+            if rclone lsd "src:" | grep -q "$BUCKET_NAME"; then
+              echo ">> Connection successful and bucket is ready!"
+              exit 0
+            fi
+            echo "Bucket not ready or connection failed. Retrying in $RETRY_INTERVAL seconds..."
+            sleep $RETRY_INTERVAL
+          done
+
+          echo ">> Failed to find bucket '$BUCKET_NAME' after $MAX_RETRIES attempts."
+          exit 1
+      env:
+        - name: RCLONE_CONFIG_SRC_TYPE
+          value: "s3"
+        - name: RCLONE_CONFIG_SRC_PROVIDER
+          value: "Other"
+        - name: RCLONE_CONFIG_SRC_ENDPOINT
+          value: "http://garage-cluster-a.garage-operator.svc.cluster.local:3900"
+        - name: RCLONE_CONFIG_SRC_ENV_AUTH
+          value: "false"
+        - name: RCLONE_CONFIG_SRC_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: mariadb-backups-key
+              key: AWS_ACCESS_KEY_ID
+        - name: RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mariadb-backups-key
+              key: AWS_SECRET_ACCESS_KEY
