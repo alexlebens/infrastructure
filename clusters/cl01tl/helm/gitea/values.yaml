@@ -1,23 +1,20 @@
+global:
+  security:
+    allowInsecureImages: true
 gitea:
   global:
     imageRegistry: registry.hub.docker.com
   replicaCount: 3
   strategy:
-    type: "RollingUpdate"
     rollingUpdate:
-      maxSurge: "100%"
       maxUnavailable: 1
   image:
     repository: gitea/gitea
     tag: 1.27.1
   service:
     http:
-      type: ClusterIP
-      port: 3000
       clusterIP: 10.103.160.139
     ssh:
-      type: ClusterIP
-      port: 22
       clusterIP: 10.103.160.140
   gatewayAPI:
     enabled: true
@@ -26,12 +23,18 @@ gitea:
         enabled: true
         tls: true
         parentRefs:
-          - group: gateway.networking.k8s.io
-            kind: Gateway
-            name: traefik-gateway
+          - name: traefik-gateway
             namespace: traefik
         hostnames:
           - gitea.alexlebens.net
+      tcpRoute:
+        enabled: true
+        annotations:
+          external-dns.alpha.kubernetes.io/hostname: gitea-ssh.alexlebens.net
+        parentRefs:
+          - name: cilium-ssh-gateway
+            namespace: kube-system
+            sectionName: ssh
   resources:
     requests:
       cpu: 500m
@@ -42,40 +45,26 @@ gitea:
     accessModes:
       - ReadWriteMany
   extraVolumes:
-    - name: gitea-themes-storage
-      persistentVolumeClaim:
-        claimName: gitea-themes-storage
     - name: gitea-custom-templates
       configMap:
         name: gitea-custom-templates
-  extraInitVolumeMounts:
-    - name: gitea-themes-storage
-      readOnly: false
-      mountPath: /data/gitea/public/assets/css
   extraContainerVolumeMounts:
-    - name: gitea-themes-storage
-      readOnly: true
-      mountPath: /data/gitea/public/assets/css
     - name: gitea-custom-templates
       mountPath: /data/gitea/templates/custom/header.tmpl
       subPath: header.tmpl
       readOnly: true
-  initPreScript: |
-    wget https://github.com/catppuccin/gitea/releases/latest/download/catppuccin-gitea.tar.gz;
-    tar -xvzf catppuccin-gitea.tar.gz -C /data/gitea/public/assets/css;
-    rm catppuccin-gitea.tar.gz;
   gitea:
     metrics:
       enabled: true
       serviceMonitor:
         enabled: true
     oauth:
-      - name: Authentik
+      - name: AlexAuth
         provider: openidConnect
-        existingSecret: gitea-oidc-authentik
-        autoDiscoverUrl: https://auth.alexlebens.dev/application/o/gitea/.well-known/openid-configuration
-        iconUrl: https://goauthentik.io/img/icon.png
-        scopes: "email profile"
+        existingSecret: gitea-oidc-secret
+        autoDiscoverUrl: https://pocket-id.alexlebens.dev/.well-known/openid-configuration
+        iconUrl: https://web-assets.alexlebens.dev/logo/logo-round.svg
+        scopes: "openid email profile groups"
     config:
       APP_NAME: Gitea
       server:
@@ -85,7 +74,7 @@ gitea:
         LOCAL_ROOT_URL: http://gitea-http.gitea.svc.cluster.local:3000
         START_SSH_SERVER: true
         HTTP_PORT: 3000
-        SSH_DOMAIN: gitea.alexlebens.net
+        SSH_DOMAIN: gitea-ssh.alexlebens.net
         SSH_PORT: 22
         SSH_LISTEN_PORT: 22
         ENABLE_PPROF: true
@@ -121,7 +110,6 @@ gitea:
         ALLOWED_HOST_LIST: private
       ui:
         DEFAULT_THEME: gitea-auto
-        THEMES: gitea-light,gitea-dark,gitea-auto,catppuccin-rosewater-auto,catppuccin-flamingo-auto,catppuccin-pink-auto,catppuccin-mauve-auto,catppuccin-red-auto,catppuccin-maroon-auto,catppuccin-peach-auto,catppuccin-yellow-auto,catppuccin-green-auto,catppuccin-teal-auto,catppuccin-sky-auto,catppuccin-sapphire-auto,catppuccin-blue-auto,catppuccin-lavender-auto,catppuccin-latte-rosewater,catppuccin-latte-flamingo,catppuccin-latte-pink,catppuccin-latte-mauve,catppuccin-latte-red,catppuccin-latte-maroon,catppuccin-latte-peach,catppuccin-latte-yellow,catppuccin-latte-green,catppuccin-latte-teal,catppuccin-latte-sky,catppuccin-latte-sapphire,catppuccin-latte-blue,catppuccin-latte-lavender,catppuccin-frappe-rosewater,catppuccin-frappe-flamingo,catppuccin-frappe-pink,catppuccin-frappe-mauve,catppuccin-frappe-red,catppuccin-frappe-maroon,catppuccin-frappe-peach,catppuccin-frappe-yellow,catppuccin-frappe-green,catppuccin-frappe-teal,catppuccin-frappe-sky,catppuccin-frappe-sapphire,catppuccin-frappe-blue,catppuccin-frappe-lavender,catppuccin-macchiato-rosewater,catppuccin-macchiato-flamingo,catppuccin-macchiato-pink,catppuccin-macchiato-mauve,catppuccin-macchiato-red,catppuccin-macchiato-maroon,catppuccin-macchiato-peach,catppuccin-macchiato-yellow,catppuccin-macchiato-green,catppuccin-macchiato-teal,catppuccin-macchiato-sky,catppuccin-macchiato-sapphire,catppuccin-macchiato-blue,catppuccin-macchiato-lavender,catppuccin-mocha-rosewater,catppuccin-mocha-flamingo,catppuccin-mocha-pink,catppuccin-mocha-mauve,catppuccin-mocha-red,catppuccin-mocha-maroon,catppuccin-mocha-peach,catppuccin-mocha-yellow,catppuccin-mocha-green,catppuccin-mocha-teal,catppuccin-mocha-sky,catppuccin-mocha-sapphire,catppuccin-mocha-blue,catppuccin-mocha-lavender
       mirror:
         DEFAULT_INTERVAL: 10m
       repo-archive:
@@ -152,8 +140,6 @@ gitea:
           secretKeyRef:
             name: gitea-meilisearch-key
             key: ISSUE_INDEXER_CONN_STR
-  valkey-cluster:
-    enabled: false
   valkey:
     enabled: false
   postgresql-ha:
@@ -248,8 +234,8 @@ anubis:
   controllers:
     main:
       type: deployment
-      replicas: 1
-      strategy: Recreate
+      replicas: 2
+      strategy: RollingUpdate
       pod:
         securityContext:
           runAsUser: 1000
@@ -291,16 +277,27 @@ anubis:
             requests:
               cpu: 20m
               memory: 40Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 8080
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 8080
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
           targetPort: 8080
         metrics:
           port: 9090
-          targetPort: 9090
   serviceMonitor:
     main:
       selector:
@@ -310,9 +307,6 @@ anubis:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 30s
-          scrapeTimeout: 15s
-          path: /metrics
 meilisearch:
   environment:
     MEILI_NO_ANALYTICS: true
@@ -354,6 +348,7 @@ postgres-18-cluster:
   backup:
     objectStore:
       index: 1
+      endpointURL: http://garage-cluster-a.garage-operator.svc.cluster.local:3900
     scheduledBackups:
       suspend: false
       schedule: "0 0 7 * * *"
