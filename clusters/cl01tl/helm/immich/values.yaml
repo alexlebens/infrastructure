@@ -2,7 +2,6 @@ immich:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         automountServiceAccountToken: true
@@ -57,10 +56,6 @@ immich:
                 httpGet:
                   path: /api/server/ping
                   port: 2283
-                initialDelaySeconds: 0
-                periodSeconds: 10
-                timeoutSeconds: 1
-                failureThreshold: 3
             readiness:
               enabled: true
               custom: true
@@ -68,10 +63,6 @@ immich:
                 httpGet:
                   path: /api/server/ping
                   port: 2283
-                initialDelaySeconds: 0
-                periodSeconds: 10
-                timeoutSeconds: 1
-                failureThreshold: 3
             startup:
               enabled: true
               custom: true
@@ -79,10 +70,6 @@ immich:
                 httpGet:
                   path: /api/server/ping
                   port: 2283
-                initialDelaySeconds: 0
-                periodSeconds: 10
-                timeoutSeconds: 1
-                failureThreshold: 30
           resources:
             limits:
               gpu.intel.com/i915: 1
@@ -92,7 +79,6 @@ immich:
               memory: 500Mi
     machine-learning:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         automountServiceAccountToken: true
@@ -112,10 +98,6 @@ immich:
                 httpGet:
                   path: /ping
                   port: 3003
-                initialDelaySeconds: 0
-                periodSeconds: 10
-                timeoutSeconds: 1
-                failureThreshold: 3
             readiness:
               enabled: true
               custom: true
@@ -123,10 +105,6 @@ immich:
                 httpGet:
                   path: /ping
                   port: 3003
-                initialDelaySeconds: 0
-                periodSeconds: 10
-                timeoutSeconds: 1
-                failureThreshold: 3
             startup:
               enabled: true
               custom: true
@@ -134,10 +112,6 @@ immich:
                 httpGet:
                   path: /ping
                   port: 3003
-                initialDelaySeconds: 0
-                periodSeconds: 10
-                timeoutSeconds: 1
-                failureThreshold: 30
           resources:
             limits:
               gpu.intel.com/i915: 1
@@ -147,7 +121,6 @@ immich:
               gpu.intel.com/i915: 1
     immich-memories-notify:
       type: deployment
-      replicas: 1
       containers:
         main:
           image:
@@ -181,6 +154,8 @@ immich:
       data:
         config.yaml: |
           settings:
+            immich:
+              url: http://immich-main.immich:80
             top_persons_limit: 3
             exclude_recent_days: 30
             year_range: 20
@@ -217,22 +192,18 @@ immich:
           targetPort: 2283
         metrics-api:
           port: 8081
-          targetPort: 8081
         metrics-ms:
           port: 8082
-          targetPort: 8082
     machine-learning:
       controller: machine-learning
       ports:
         http:
           port: 3003
-          targetPort: 3003
     memories-notify:
       controller: immich-memories-notify
       ports:
         http:
           port: 5000
-          targetPort: 5000
   serviceMonitor:
     main:
       selector:
@@ -244,18 +215,14 @@ immich:
         - port: metrics-api
           interval: 3m
           scrapeTimeout: 1m
-          path: /metrics
         - port: metrics-ms
           interval: 3m
           scrapeTimeout: 1m
-          path: /metrics
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - immich.alexlebens.net
@@ -263,10 +230,6 @@ immich:
         - backendRefs:
             - name: immich-main
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     config:
       type: custom
@@ -280,9 +243,8 @@ immich:
         main:
           main:
             - path: /config/immich.json
-              readOnly: true
-              mountPropagation: None
               subPath: immich.json
+              readOnly: true
     memories-notify-config:
       type: configMap
       name: immich-memories-notify-config
@@ -290,8 +252,8 @@ immich:
         immich-memories-notify:
           main:
             - path: /app/config.yaml
-              readOnly: true
               subPath: config.yaml
+              readOnly: true
     data:
       forceRename: immich
       storageClass: ceph-block
@@ -302,7 +264,6 @@ immich:
         main:
           main:
             - path: /usr/src/app/upload
-              readOnly: false
     model-cache:
       forceRename: immich-model-cache
       storageClass: ceph-block
@@ -340,6 +301,7 @@ postgres-18-cluster:
   recovery:
     objectStore:
       index: 1
+      endpointURL: http://garage-cluster-a.garage-operator.svc.cluster.local:3900
   backup:
     objectStore:
       index: 1
