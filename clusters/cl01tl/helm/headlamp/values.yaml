@@ -1,5 +1,4 @@
 headlamp:
-  replicaCount: 1
   image:
     registry: ghcr.io
     repository: headlamp-k8s/headlamp
@@ -8,25 +7,22 @@ headlamp:
     oidc:
       secret:
         create: false
+      usePKCE: true
+      useCookie: true
       externalSecret:
         enabled: true
-        name: headlamp-oidc-authentik
+        name: headlamp-oidc-secret
+        hasScopes: true
     watchPlugins: true
   httpRoute:
     enabled: true
     parentRefs:
-      - group: gateway.networking.k8s.io
-        kind: Gateway
-        name: traefik-gateway
+      - name: traefik-gateway
         namespace: traefik
     hostnames:
       - headlamp.alexlebens.net
     rules:
-      - matches:
-          - path:
-              type: PathPrefix
-              value: /
-        backendRefs:
+      - backendRefs:
           - kind: Service
             name: headlamp
             port: 80
@@ -44,7 +40,7 @@ headlamp:
       plugins:
         - name: cert-manager
           source: https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_cert-manager
-          version: 0.1.0
+          version: 0.1.1
         - name: external-secrets-operator
           source: https://artifacthub.io/packages/headlamp/external-secrets-operator-headlamp-plugin/external-secrets-operator
           version: 0.1.0-beta7
