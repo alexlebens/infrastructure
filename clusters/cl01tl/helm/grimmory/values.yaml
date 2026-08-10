@@ -28,6 +28,18 @@ grimmory:
                 secretKeyRef:
                   name: grimmory-database-secret
                   key: password
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: grimmory-oidc-secret
+                  key: clientId
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: grimmory-oidc-secret
+                  key: clientSecret
+            - name: OIDC_ISSUER_URI
+              value: https://pocket-id.alexlebens.dev
             - name: GRIMMORY_PORT
               value: 6060
             - name: SWAGGER_ENABLED
@@ -44,6 +56,9 @@ grimmory:
                 httpGet:
                   path: /api/v1/healthcheck
                   port: 6060
+                failureThreshold: 5
+                periodSeconds: 10
+                timeoutSeconds: 5
             readiness:
               enabled: true
               custom: true
@@ -51,6 +66,9 @@ grimmory:
                 httpGet:
                   path: /api/v1/healthcheck
                   port: 6060
+                failureThreshold: 5
+                periodSeconds: 10
+                timeoutSeconds: 5
             startup:
               enabled: true
               custom: true
@@ -58,6 +76,9 @@ grimmory:
                 httpGet:
                   path: /api/v1/healthcheck
                   port: 6060
+                failureThreshold: 30
+                periodSeconds: 60
+                timeoutSeconds: 5
   service:
     main:
       ports:
@@ -112,6 +133,21 @@ mariadb-cluster:
       generate: false
     storage:
       size: 5Gi
+    bootstrapFrom:
+      s3:
+        bucket: mariadb-backups-b230a2f5aecf080a4b372c08
+        prefix: cl01tl/grimmory
+        endpoint: nyc3.digitaloceanspaces.com
+        region: us-east-1
+        accessKeyIdSecretKeyRef:
+          name: grimmory-mariadb-cluster-backup-secret-external
+          key: access
+        secretAccessKeySecretKeyRef:
+          name: grimmory-mariadb-cluster-backup-secret-external
+          key: secret
+        tls:
+          enabled: true
+      backupContentType: Physical
   databases:
     - name: booklore
       characterSet: utf8
