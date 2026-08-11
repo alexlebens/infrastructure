@@ -2,7 +2,6 @@ kiwix:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -18,9 +17,23 @@ kiwix:
             requests:
               cpu: 1m
               memory: 10Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 8080
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 8080
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -29,9 +42,7 @@ kiwix:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - kiwix.alexlebens.net
@@ -39,10 +50,6 @@ kiwix:
         - backendRefs:
             - name: kiwix
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     media:
       existingClaim: kiwix-nfs-storage
