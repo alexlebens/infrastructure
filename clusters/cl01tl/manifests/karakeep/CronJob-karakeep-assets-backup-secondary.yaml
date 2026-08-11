@@ -1,0 +1,145 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: karakeep-assets-backup-secondary
+  namespace: karakeep
+  labels:
+    app.kubernetes.io/name: karakeep-assets-backup-secondary
+    helm.sh/chart: garage-bucket-karakeep-assets-0.3.5
+    app.kubernetes.io/instance: karakeep
+    app.kubernetes.io/part-of: karakeep
+    app.kubernetes.io/version: "v0.7.3"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  schedule: "0 0 * * *"
+  timeZone: "America/Chicago"
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      podReplacementPolicy: Failed
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: karakeep-assets-backup-secondary
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+          volumes:
+            - name: tmp
+              emptyDir: {}
+          containers:
+            - name: backup
+              image: "rclone/rclone:1.75.0@sha256:b06aed988cf5967de7c25be5925240983981c757f4ed1ac9d2fa659d51d60548"
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+              resources:
+                limits:
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              command:
+                - /bin/sh
+                - -c
+              args:
+                - |
+                  set -o pipefail
+
+                  # --- Sync Phase ---
+                  rclone sync \
+                    "src:karakeep-assets" \
+                    "dest:karakeep-assets-bcb0bc04dac3e3fd" \
+                    --s3-no-check-bucket \
+                    --verbose 2>&1 | tee /tmp/rclone-sync.log
+
+                  sync_res=$?
+                  STATS=$(grep "Transferred:" /tmp/rclone-sync.log | tail -n 2)
+                  DATA_TRANS=$(echo "$STATS" | head -n 1 | sed 's/.*Transferred:[ \t]*//')
+                  if [ -z "$DATA_TRANS" ]; then DATA_TRANS="Unknown"; fi
+
+                  if [ $sync_res -eq 0 ]; then
+                    if [ -n "${NTFY_TOKEN:-}" ]; then
+                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Backup Success - karakeep-assets" --post-data "Job transferred: $DATA_TRANS" "$NTFY_URL"
+                    else
+                      wget -qO- --header "Title: Backup Success - karakeep-assets" --post-data "Job transferred: $DATA_TRANS" "$NTFY_URL"
+                    fi
+                  else
+                    if [ -n "${NTFY_TOKEN:-}" ]; then
+                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Backup Failed - karakeep-assets" --header "Priority: urgent" --post-data "Job failed, transferred: $DATA_TRANS" "$NTFY_URL"
+                    else
+                      wget -qO- --header "Title: Backup Failed - karakeep-assets" --header "Priority: urgent" --post-data "Job failed, transferred: $DATA_TRANS" "$NTFY_URL"
+                    fi
+                    exit $sync_res
+                  fi
+              env:
+                - name: RCLONE_CONFIG_SRC_TYPE
+                  value: "s3"
+                - name: RCLONE_CONFIG_SRC_PROVIDER
+                  value: "Other"
+                - name: RCLONE_CONFIG_SRC_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: karakeep-assets-key
+                      key: endpoint
+                - name: RCLONE_CONFIG_SRC_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      name: karakeep-assets-key
+                      key: region
+                - name: RCLONE_CONFIG_SRC_ENV_AUTH
+                  value: "false"
+                - name: RCLONE_CONFIG_SRC_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: karakeep-assets-key
+                      key: access-key-id
+                - name: RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: karakeep-assets-key
+                      key: secret-access-key
+                - name: RCLONE_CONFIG_DEST_TYPE
+                  value: "s3"
+                - name: RCLONE_CONFIG_DEST_PROVIDER
+                  value: "Other"
+                - name: RCLONE_CONFIG_DEST_ENDPOINT
+                  value: "s3.us-east-005.backblazeb2.com"
+                - name: RCLONE_CONFIG_DEST_REGION
+                  value: "us-east-005"
+                - name: RCLONE_CONFIG_DEST_ENV_AUTH
+                  value: "false"
+                - name: RCLONE_CONFIG_DEST_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: karakeep-assets-secret-backup-secondary
+                      key: AWS_ACCESS_KEY_ID
+                - name: RCLONE_CONFIG_DEST_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: karakeep-assets-secret-backup-secondary
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: NTFY_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: karakeep-assets-secret-backup-ntfy
+                      key: ntfy-url
+                - name: NTFY_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: karakeep-assets-secret-backup-ntfy
+                      key: ntfy-token

@@ -11,7 +11,7 @@ metadata:
   namespace: karakeep
 spec:
   revisionHistoryLimit: 3
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate
   selector:
@@ -60,31 +60,28 @@ spec:
                 secretKeyRef:
                   key: prometheus-token
                   name: karakeep-metric-token
+            - name: ASSET_STORE_S3_BUCKET
+              value: karakeep-assets
             - name: ASSET_STORE_S3_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  key: ENDPOINT
-                  name: karakeep-bucket-garage
+                  key: endpoint
+                  name: karakeep-assets-key
             - name: ASSET_STORE_S3_REGION
               valueFrom:
                 secretKeyRef:
-                  key: ACCESS_REGION
-                  name: karakeep-bucket-garage
-            - name: ASSET_STORE_S3_BUCKET
-              valueFrom:
-                secretKeyRef:
-                  key: BUCKET
-                  name: karakeep-bucket-garage
+                  key: region
+                  name: karakeep-assets-key
             - name: ASSET_STORE_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  key: ACCESS_KEY_ID
-                  name: karakeep-bucket-garage
+                  key: access-key-id
+                  name: karakeep-assets-key
             - name: ASSET_STORE_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  key: ACCESS_SECRET_KEY
-                  name: karakeep-bucket-garage
+                  key: secret-access-key
+                  name: karakeep-assets-key
             - name: ASSET_STORE_S3_FORCE_PATH_STYLE
               value: "true"
             - name: MEILI_ADDR
@@ -114,7 +111,7 @@ spec:
                 secretKeyRef:
                   key: clientSecret
                   name: karakeep-oidc-secret
-            - name: OAUTH_ALLOW_DANGEROUS_EMAIL_ACCOUNT_LINKING
+            - name: DISABLE_PASSWORD_AUTH
               value: "true"
             - name: OLLAMA_BASE_URL
               value: http://ollama-router.ollama:11434
@@ -131,11 +128,25 @@ spec:
             - name: OCR_USE_LLM
               value: "true"
           image: ghcr.io/karakeep-app/karakeep:0.33.2@sha256:b069e4307dec06ea06d16989c6861c30a1ff208568be44ed5fb5d422cd3e950c
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
           name: main
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
           resources:
             requests:
               cpu: 20m
               memory: 500Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /api/health
+              port: 3000
+            periodSeconds: 10
           volumeMounts:
             - mountPath: /data
               name: data
