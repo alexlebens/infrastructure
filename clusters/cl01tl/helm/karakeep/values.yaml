@@ -2,7 +2,6 @@ karakeep:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -65,21 +64,23 @@ karakeep:
             - name: DISABLE_SIGNUPS
               value: false
             - name: OAUTH_PROVIDER_NAME
-              value: "Authentik"
+              value: "AlexAuth"
             - name: OAUTH_WELLKNOWN_URL
-              value: https://auth.alexlebens.dev/application/o/karakeep/.well-known/openid-configuration
+              value: https://pocket-id.alexlebens.dev/.well-known/openid-configuration
             - name: OAUTH_SCOPE
               value: "openid email profile"
             - name: OAUTH_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-oidc-authentik
-                  key: AUTHENTIK_CLIENT_ID
+                  name: karakeep-oidc-secret
+                  key: clientId
             - name: OAUTH_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-oidc-authentik
-                  key: AUTHENTIK_CLIENT_SECRET
+                  name: karakeep-oidc-secret
+                  key: clientSecret
+            - name: OAUTH_ALLOW_DANGEROUS_EMAIL_ACCOUNT_LINKING
+              value: true
             - name: OLLAMA_BASE_URL
               value: http://ollama-router.ollama:11434
             - name: OLLAMA_KEEP_ALIVE
@@ -111,14 +112,11 @@ karakeep:
             - --hide-scrollbars
   service:
     main:
-      controller: main
       ports:
         http:
           port: 3000
-          targetPort: 3000
         chrome:
           port: 9222
-          targetPort: 9222
   serviceMonitor:
     main:
       selector:
@@ -128,8 +126,6 @@ karakeep:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: http
-          interval: 30s
-          scrapeTimeout: 15s
           path: /api/metrics
           authorization:
             credentials:
@@ -145,7 +141,6 @@ karakeep:
         main:
           main:
             - path: /data
-              readOnly: false
 cloudflared:
   probe:
     enabled: true
