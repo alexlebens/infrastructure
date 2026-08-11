@@ -19,3 +19,6 @@ NFS names
 {{- define "custom.storageNfsName" -}}
 jellyfin-testing-nfs-storage
 {{- end -}}
+{{- define "custom.storageYoutubeNfsName" -}}
+jellyfin-testing-youtube-nfs-storage
+{{- end -}}
