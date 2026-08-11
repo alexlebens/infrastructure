@@ -2,7 +2,6 @@ jellyfin:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -37,6 +36,29 @@ jellyfin:
               gpu.intel.com/i915: 1
               cpu: 1
               memory: 1000Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8096
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8096
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8096
+                failureThreshold: 30
         exporter:
           image:
             repository: rebelcore/jellyfin-exporter
@@ -53,14 +75,12 @@ jellyfin:
   service:
     main:
       forceRename: jellyfin
-      controller: main
       ports:
         http:
           port: 80
           targetPort: 8096
         metrics:
           port: 9594
-          targetPort: 9594
   serviceMonitor:
     main:
       selector:
@@ -70,17 +90,11 @@ jellyfin:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          scheme: http
-          path: /metrics
-          interval: 30s
-          scrapeTimeout: 15s
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - jellyfin.alexlebens.net
@@ -88,10 +102,6 @@ jellyfin:
         - backendRefs:
             - name: jellyfin
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     config:
       forceRename: jellyfin-config
@@ -102,7 +112,6 @@ jellyfin:
         main:
           main:
             - path: /config
-              readOnly: false
     cache:
       forceRename: jellyfin-cache
       storageClass: ceph-block
@@ -112,14 +121,12 @@ jellyfin:
         main:
           main:
             - path: /cache
-              readOnly: false
     media:
       existingClaim: jellyfin-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /mnt/store
-              readOnly: false
     youtube:
       existingClaim: jellyfin-youtube-nfs-storage
       advancedMounts:
