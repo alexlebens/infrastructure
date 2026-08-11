@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: jellyfin-testing-meilisearch
+  namespace: jellyfin-testing
+  labels:
+    helm.sh/chart: meilisearch-0.36.0
+    app.kubernetes.io/name: meilisearch
+    app.kubernetes.io/instance: jellyfin-testing
+    app.kubernetes.io/version: "v1.52.0"
+    app.kubernetes.io/component: search-engine
+    app.kubernetes.io/part-of: meilisearch
+    app.kubernetes.io/managed-by: Helm
+spec:
+  jobLabel: jellyfin-testing
+  namespaceSelector:
+    matchNames:
+      - jellyfin-testing
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: meilisearch
+      app.kubernetes.io/instance: jellyfin-testing
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 1m
+      scrapeTimeout: 10s
+      bearerTokenSecret:
+        name: jellyfin-meilisearch-key
+        key: MEILI_MASTER_KEY

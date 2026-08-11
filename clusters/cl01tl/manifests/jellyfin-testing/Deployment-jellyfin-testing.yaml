@@ -10,7 +10,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   strategy:
-    type: Recreate
+    type: RollingUpdate
   replicas: 1
   revisionHistoryLimit: 3
   selector:
@@ -27,7 +27,9 @@ spec:
         app.kubernetes.io/managed-by: Helm
     spec:
       serviceAccountName: jellyfin-testing
-      securityContext: {}
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: jellyfin-testing
           securityContext: {}
@@ -106,15 +108,26 @@ spec:
               readOnly: false
             - mountPath: /cache
               name: cache
+            - mountPath: /mnt/store
+              name: media-nfs
+              readOnly: true
+            - mountPath: /mnt/youtube
+              name: youtube-nfs
+              readOnly: true
       volumes:
         - name: config
           persistentVolumeClaim:
             claimName: jellyfin-testing-config
         - name: media
-          persistentVolumeClaim:
-            claimName: jellyfin-testing-nfs-storage
+          emptyDir: {}
         - name: cache
           emptyDir: {}
+        - name: media-nfs
+          persistentVolumeClaim:
+            claimName: jellyfin-nfs-storage
+        - name: youtube-nfs
+          persistentVolumeClaim:
+            claimName: jellyfin-youtube-nfs-storage
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
