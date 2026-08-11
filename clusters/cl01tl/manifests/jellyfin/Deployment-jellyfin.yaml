@@ -3,39 +3,127 @@ kind: Deployment
 metadata:
   name: jellyfin
   labels:
-    app.kubernetes.io/controller: main
-    app.kubernetes.io/instance: jellyfin
-    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: jellyfin-3.2.0
     app.kubernetes.io/name: jellyfin
-    helm.sh/chart: jellyfin-5.0.1
-  namespace: jellyfin
+    app.kubernetes.io/instance: jellyfin
+    app.kubernetes.io/version: "10.11.8"
+    app.kubernetes.io/managed-by: Helm
 spec:
-  revisionHistoryLimit: 3
-  replicas: 1
   strategy:
     type: Recreate
+  replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
-      app.kubernetes.io/controller: main
       app.kubernetes.io/name: jellyfin
       app.kubernetes.io/instance: jellyfin
   template:
     metadata:
       labels:
-        app.kubernetes.io/controller: main
-        app.kubernetes.io/instance: jellyfin
+        helm.sh/chart: jellyfin-3.2.0
         app.kubernetes.io/name: jellyfin
+        app.kubernetes.io/instance: jellyfin
+        app.kubernetes.io/version: "10.11.8"
+        app.kubernetes.io/managed-by: Helm
     spec:
-      enableServiceLinks: false
       serviceAccountName: jellyfin
-      automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
-      hostIPC: false
-      hostNetwork: false
-      hostPID: false
-      dnsPolicy: ClusterFirst
+      containers:
+        - name: jellyfin
+          securityContext: {}
+          image: "ghcr.io/jellyfin/jellyfin:10.11.11@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: JELLYFIN_PublishedServerUrl
+              value: https://jellyfin-testing.alexlebens.net
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    echo "Waiting for system.xml to enable metrics..."
+                    timeout=300 # 5 minutes timeout
+                    interval=5  # Check every 5 seconds
+                    elapsed=0
+                    while [ ! -f /config/config/system.xml ]; do
+                      if [ $elapsed -ge $timeout ]; then
+                        echo "ERROR: Timed out waiting for /config/config/system.xml" >&2
+                        exit 1
+                      fi
+                      sleep $interval
+                      elapsed=$((elapsed + interval))
+                    done
+                    echo "Found /config/config/system.xml, enabling metrics..."
+                    # Check if metrics are already enabled before running sed
+                    if ! grep -q '<EnableMetrics>true</EnableMetrics>' /config/config/system.xml; then
+                      sed 's,<EnableMetrics>false</EnableMetrics>,<EnableMetrics>true</EnableMetrics>,' -i /config/config/system.xml
+                      if [ $? -eq 0 ]; then
+                        echo "Metrics enabled successfully."
+                      else
+                        echo "ERROR: Failed to enable metrics in /config/config/system.xml" >&2
+                        exit 1
+                      fi
+                    else
+                      echo "Metrics already enabled."
+                    fi
+                    exit 0
+          ports:
+            - name: http
+              containerPort: 8096
+              protocol: TCP
+          startupProbe:
+            failureThreshold: 30
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            tcpSocket:
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 100m
+              gpu.intel.com/i915: 1
+              memory: 100Mi
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /media
+              name: media
+              readOnly: false
+            - mountPath: /cache
+              name: cache
+            - mountPath: /mnt/youtube
+              name: youtube
+              readOnly: true
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: jellyfin-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: jellyfin-testing-nfs-storage
+        - name: cache
+          persistentVolumeClaim:
+            claimName: jellyfin-cache
+        - name: youtube
+          persistentVolumeClaim:
+            claimName: jellyfin-youtube-nfs-storage
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -46,54 +134,3 @@ spec:
                     values:
                       - plex
               topologyKey: kubernetes.io/hostname
-      containers:
-        - args:
-            - --jellyfin.address=http://127.0.0.1:8096
-            - --jellyfin.token=$(TOKEN)
-          env:
-            - name: TOKEN
-              valueFrom:
-                secretKeyRef:
-                  key: token
-                  name: jellyfin-metric-token
-          image: rebelcore/jellyfin-exporter:v1.5.2@sha256:8a1294b7fea80993e4ec18220e391578e0f9ca9e109294fd6a379d2cb5213c85
-          name: exporter
-        - env:
-            - name: TZ
-              value: America/Chicago
-            - name: JELLYFIN_hostwebclient
-              value: "true"
-            - name: JELLYFIN_PublishedServerUrl
-              value: https://jellyfin.alexlebens.net/
-          image: ghcr.io/jellyfin/jellyfin:10.11.11@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112
-          name: main
-          resources:
-            limits:
-              gpu.intel.com/i915: 1
-            requests:
-              cpu: 1
-              gpu.intel.com/i915: 1
-              memory: 1000Mi
-          volumeMounts:
-            - mountPath: /cache
-              name: cache
-            - mountPath: /config
-              name: config
-            - mountPath: /mnt/store
-              name: media
-            - mountPath: /mnt/youtube
-              name: youtube
-              readOnly: true
-      volumes:
-        - name: cache
-          persistentVolumeClaim:
-            claimName: jellyfin-cache
-        - name: config
-          persistentVolumeClaim:
-            claimName: jellyfin-config
-        - name: media
-          persistentVolumeClaim:
-            claimName: jellyfin-nfs-storage
-        - name: youtube
-          persistentVolumeClaim:
-            claimName: jellyfin-youtube-nfs-storage
