@@ -2,7 +2,10 @@ jellyfin-testing:
   image:
     repository: ghcr.io/jellyfin/jellyfin
     tag: preview@sha256:0477e4312c4a4a711585cb5f9f83cf5ba89cc2e2a7a6507db479d5f104789a1b
-  deploymentStrategy:
+  podSecurityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+  eploymentStrategy:
     type: Recreate
   httpRoute:
     enabled: true
@@ -18,6 +21,20 @@ jellyfin-testing:
       gpu.intel.com/i915: 1
       cpu: 100m
       memory: 100Mi
+  volumes:
+    - name: media-nfs
+      persistentVolumeClaim:
+        claimName: jellyfin-nfs-storage
+    - name: youtube-nfs
+      persistentVolumeClaim:
+        claimName: jellyfin-youtube-nfs-storage
+  volumeMounts:
+    - mountPath: /mnt/store
+      name: media-nfs
+      readOnly: true
+    - mountPath: /mnt/youtube
+      name: youtube-nfs
+      readOnly: true
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -36,14 +53,29 @@ jellyfin-testing:
         value: https://jellyfin-testing.alexlebens.net
   persistence:
     config:
-      enabled: true
       accessMode: ReadWriteOnce
       size: 50Gi
       storageClass: ceph-block
     media:
-      enabled: true
-      existingClaim: jellyfin-testing-nfs-storage
+      enabled: false
   metrics:
     enabled: true
     serviceMonitor:
       enabled: true
+meilisearch:
+  environment:
+    MEILI_NO_ANALYTICS: true
+    MEILI_ENV: production
+    MEILI_UPGRADE_DB: true
+  auth:
+    existingMasterKeySecret: jellyfin-meilisearch-key
+  persistence:
+    enabled: true
+    storageClass: ceph-block
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 10m
+      memory: 1000Mi
+  serviceMonitor:
+    enabled: true
