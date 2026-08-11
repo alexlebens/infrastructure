@@ -1,132 +1,64 @@
 jellyfin:
-  controllers:
-    main:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      pod:
-        securityContext:
-          fsGroup: 1000
-          fsGroupChangePolicy: OnRootMismatch
-        affinity:
-          podAntiAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchExpressions:
-                    - key: app.kubernetes.io/name
-                      operator: In
-                      values:
-                        - plex
-                topologyKey: kubernetes.io/hostname
-      containers:
-        main:
-          image:
-            repository: ghcr.io/jellyfin/jellyfin
-            tag: 10.11.11@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112
-          env:
-            - name: TZ
-              value: America/Chicago
-            - name: JELLYFIN_hostwebclient
-              value: true
-            - name: JELLYFIN_PublishedServerUrl
-              value: https://jellyfin.alexlebens.net/
-          resources:
-            limits:
-              gpu.intel.com/i915: 1
-            requests:
-              gpu.intel.com/i915: 1
-              cpu: 1
-              memory: 1000Mi
-        exporter:
-          image:
-            repository: rebelcore/jellyfin-exporter
-            tag: v1.5.2@sha256:8a1294b7fea80993e4ec18220e391578e0f9ca9e109294fd6a379d2cb5213c85
-          args:
-            - "--jellyfin.address=http://127.0.0.1:8096"
-            - "--jellyfin.token=$(TOKEN)"
-          env:
-            - name: TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: jellyfin-metric-token
-                  key: token
-  service:
-    main:
-      forceRename: jellyfin
-      controller: main
-      ports:
-        http:
-          port: 80
-          targetPort: 8096
-        metrics:
-          port: 9594
-          targetPort: 9594
-  serviceMonitor:
-    main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: jellyfin
-          app.kubernetes.io/instance: jellyfin
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
-      endpoints:
-        - port: metrics
-          scheme: http
-          path: /metrics
-          interval: 30s
-          scrapeTimeout: 15s
-  route:
-    main:
-      kind: HTTPRoute
-      parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
-      hostnames:
-        - jellyfin.alexlebens.net
-      rules:
-        - backendRefs:
-            - name: jellyfin
-              port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
+  image:
+    repository: ghcr.io/jellyfin/jellyfin
+    tag: 10.11.11@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112
+  podSecurityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+  deploymentStrategy:
+    type: Recreate
+  httpRoute:
+    enabled: true
+    parentRefs:
+      - name: traefik-gateway
+        namespace: traefik
+    hostnames:
+      - jellyfin.alexlebens.net
+  resources:
+    limits:
+      gpu.intel.com/i915: 1
+    requests:
+      gpu.intel.com/i915: 1
+      cpu: 100m
+      memory: 100Mi
+  volumes:
+    - name: youtube
+      persistentVolumeClaim:
+        claimName: jellyfin-youtube-nfs-storage
+  volumeMounts:
+    - mountPath: /mnt/youtube
+      name: youtube
+      readOnly: true
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - plex
+          topologyKey: kubernetes.io/hostname
+  jellyfin:
+    env:
+      - name: TZ
+        value: America/Chicago
+      - name: JELLYFIN_PublishedServerUrl
+        value: https://jellyfin-testing.alexlebens.net
   persistence:
     config:
-      forceRename: jellyfin-config
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
       size: 200Gi
-      advancedMounts:
-        main:
-          main:
-            - path: /config
-              readOnly: false
-    cache:
-      forceRename: jellyfin-cache
       storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 20Gi
-      advancedMounts:
-        main:
-          main:
-            - path: /cache
-              readOnly: false
     media:
-      existingClaim: jellyfin-nfs-storage
-      advancedMounts:
-        main:
-          main:
-            - path: /mnt/store
-              readOnly: false
-    youtube:
-      existingClaim: jellyfin-youtube-nfs-storage
-      advancedMounts:
-        main:
-          main:
-            - path: /mnt/youtube
-              readOnly: true
+      existingClaim: jellyfin-testing-nfs-storage
+    cache:
+      enabled: true
+      size: 20Gi
+      storageClass: ceph-block
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
 meilisearch:
   environment:
     MEILI_NO_ANALYTICS: true
