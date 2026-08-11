@@ -2,6 +2,7 @@ karakeep:
   controllers:
     main:
       type: deployment
+      replicas: 0
       strategy: Recreate
       containers:
         main:
@@ -25,31 +26,28 @@ karakeep:
                 secretKeyRef:
                   name: karakeep-metric-token
                   key: prometheus-token
+            - name: ASSET_STORE_S3_BUCKET
+              value: karakeep-assets
             - name: ASSET_STORE_S3_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-bucket-garage
-                  key: ENDPOINT
+                  name: karakeep-assets-key
+                  key: endpoint
             - name: ASSET_STORE_S3_REGION
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-bucket-garage
-                  key: ACCESS_REGION
-            - name: ASSET_STORE_S3_BUCKET
-              valueFrom:
-                secretKeyRef:
-                  name: karakeep-bucket-garage
-                  key: BUCKET
+                  name: karakeep-assets-key
+                  key: region
             - name: ASSET_STORE_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-bucket-garage
-                  key: ACCESS_KEY_ID
+                  name: karakeep-assets-key
+                  key: access-key-id
             - name: ASSET_STORE_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-bucket-garage
-                  key: ACCESS_SECRET_KEY
+                  name: karakeep-assets-key
+                  key: secret-access-key
             - name: ASSET_STORE_S3_FORCE_PATH_STYLE
               value: true
             - name: MEILI_ADDR
@@ -79,7 +77,7 @@ karakeep:
                 secretKeyRef:
                   name: karakeep-oidc-secret
                   key: clientSecret
-            - name: OAUTH_ALLOW_DANGEROUS_EMAIL_ACCOUNT_LINKING
+            - name: DISABLE_PASSWORD_AUTH
               value: true
             - name: OLLAMA_BASE_URL
               value: http://ollama-router.ollama:11434
@@ -99,6 +97,30 @@ karakeep:
             requests:
               cpu: 20m
               memory: 500Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3000
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3000
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3000
+                failureThreshold: 30
+                periodSeconds: 10
         chrome:
           image:
             repository: ghcr.io/zenika/alpine-chrome
@@ -175,63 +197,20 @@ volsync-target-data:
   external:
     enabled: true
     schedule: 5 9 * * 2
-rclone-karakeep-assets-remote:
-  cronJob:
-    suspend: false
-    schedule: 30 6 * * 3
-  rclone:
-    source:
-      bucketName: karakeep-assets
-    destination:
-      bucketName: karakeep-assets
-  ntfy:
-    externalSecret:
-      urlPath: /cl01tl/ntfy/config
-      urlProperty: internal-endpoint
-      topicPath: /cl01tl/ntfy/topics
-      topicProperty: rclone
-      tokenPath: /cl01tl/ntfy/users/cl01tl
-      tokenProperty: token
-  secret:
-    externalSecret:
-      source:
-        credentials:
-          path: /garage/home-infra/karakeep-assets
-        config:
-          path: /garage/config
+garage-bucket-karakeep-assets:
+  bucketName: karakeep-assets
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: true
+        schedule: 0 0 * * *
       destination:
-        credentials:
-          path: /garage/home-infra/karakeep-assets
-        config:
-          path: /garage/config
-rclone-karakeep-assets-external:
-  nameOverride: karakeep-assets-external-rclone
-  cronJob:
-    suspend: false
-    schedule: 0 6 * * 3
-  rclone:
-    source:
-      bucketName: karakeep-assets
-    destination:
-      bucketName: karakeep-assets-bcb0bc04dac3e3fd
-  ntfy:
-    externalSecret:
-      urlPath: /cl01tl/ntfy/config
-      urlProperty: internal-endpoint
-      topicPath: /cl01tl/ntfy/topics
-      topicProperty: rclone
-      tokenPath: /cl01tl/ntfy/users/cl01tl
-      tokenProperty: token
-  secret:
-    externalSecret:
-      source:
-        credentials:
-          path: /garage/home-infra/karakeep-assets
-        config:
-          path: /garage/config
+        bucketName: karakeep-assets
+    secondary:
+      enabled: true
+      cronJob:
+        suspend: true
+        schedule: 0 0 * * *
       destination:
-        credentials:
-          path: /backblaze/home-infra/karakeep-assets
-        config:
-          path: /backblaze/config
-          endpointProperty: ENDPOINT
+        bucketName: karakeep-assets-bcb0bc04dac3e3fd
