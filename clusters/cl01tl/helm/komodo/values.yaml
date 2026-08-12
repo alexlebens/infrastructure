@@ -2,7 +2,6 @@ komodo:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -64,19 +63,19 @@ komodo:
             - name: KOMODO_OIDC_ENABLED
               value: true
             - name: KOMODO_OIDC_PROVIDER
-              value: http://authentik-server.authentik/application/o/komodo/
+              value: https://pocket-id.alexlebens.dev/
             - name: KOMODO_OIDC_REDIRECT_HOST
-              value: https://authentik.alexlebens.net
+              value: https://komodo.alexlebens.net
             - name: KOMODO_OIDC_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: komodo-oidc-authentik
-                  key: client
+                  name: komodo-oidc-secret
+                  key: clientId
             - name: KOMODO_OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: komodo-oidc-authentik
-                  key: secret
+                  name: komodo-oidc-secret
+                  key: clientSecret
             - name: KOMODO_OIDC_USE_FULL_EMAIL
               value: true
           resources:
@@ -85,7 +84,6 @@ komodo:
               memory: 90Mi
     ferretdb-2:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -118,14 +116,11 @@ komodo:
       ports:
         http:
           port: 27017
-          targetPort: 27017
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - komodo.alexlebens.net
@@ -133,10 +128,6 @@ komodo:
         - backendRefs:
             - name: komodo-main
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     keys:
       forceRename: komodo-keys
@@ -147,7 +138,6 @@ komodo:
         main:
           main:
             - path: /config/keys
-              readOnly: false
     cache:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
@@ -156,7 +146,6 @@ komodo:
         main:
           main:
             - path: /repo-cache
-              readOnly: false
     syncs:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
@@ -165,7 +154,6 @@ komodo:
         main:
           main:
             - path: /syncs
-              readOnly: false
 postgresql-17-fdb-cluster:
   nameOverride: komodo-postgresql-17-fdb
   mode: recovery
