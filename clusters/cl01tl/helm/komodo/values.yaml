@@ -2,7 +2,6 @@ komodo:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -85,7 +84,6 @@ komodo:
               memory: 90Mi
     ferretdb-2:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -118,14 +116,11 @@ komodo:
       ports:
         http:
           port: 27017
-          targetPort: 27017
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - komodo.alexlebens.net
@@ -133,10 +128,6 @@ komodo:
         - backendRefs:
             - name: komodo-main
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     keys:
       forceRename: komodo-keys
@@ -147,7 +138,6 @@ komodo:
         main:
           main:
             - path: /config/keys
-              readOnly: false
     cache:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
@@ -156,7 +146,6 @@ komodo:
         main:
           main:
             - path: /repo-cache
-              readOnly: false
     syncs:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
@@ -165,7 +154,6 @@ komodo:
         main:
           main:
             - path: /syncs
-              readOnly: false
 postgresql-17-fdb-cluster:
   nameOverride: komodo-postgresql-17-fdb
   mode: recovery
