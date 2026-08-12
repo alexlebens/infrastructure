@@ -2,7 +2,6 @@ kube-prometheus-stack:
   crds:
     enabled: false
   defaultRules:
-    create: true
     rules:
       kubeControllerManager: false
       kubeSchedulerAlerting: false
@@ -14,16 +13,14 @@ kube-prometheus-stack:
     config:
       route:
         group_by: ["namespace", "alertname"]
-        group_wait: 30s
-        group_interval: 5m
         repeat_interval: 24h
         receiver: ntfy
         routes:
-          - receiver: ntfy
-            group_wait: 10s
-            group_interval: 5m
-            repeat_interval: 24h
+          - receiver: "null"
+            matchers:
+              - alertname =~ "InfoInhibitor|Watchdog"
       receivers:
+        - name: "null"
         - name: ntfy
           webhook_configs:
             - url: http://ntfy-alertmanager.kube-prometheus-stack:80
@@ -37,9 +34,7 @@ kube-prometheus-stack:
         hostnames:
           - alertmanager.alexlebens.net
         parentRefs:
-          - group: gateway.networking.k8s.io
-            kind: Gateway
-            name: traefik-gateway
+          - name: traefik-gateway
             namespace: traefik
     alertmanagerSpec:
       secrets:
@@ -54,7 +49,7 @@ kube-prometheus-stack:
   kubeEtcd:
     service:
       selector:
-        k8s-app: kube-controller-manager
+        k8s-app: kube-controller-manager # Fix selector for kube-etcd for Talos (set itentionally to kube-controller-manager because all master nodes has the same roles)
     serviceMonitor:
       metricRelabelings:
         - action: labeldrop
@@ -92,20 +87,17 @@ kube-prometheus-stack:
         hostnames:
           - prometheus.alexlebens.net
         parentRefs:
-          - group: gateway.networking.k8s.io
-            kind: Gateway
-            name: traefik-gateway
+          - name: traefik-gateway
             namespace: traefik
     prometheusSpec:
-      scrapeInterval: 30s
-      retention: 60d
-      retentionSize: 450GiB
       externalUrl: https://prometheus.alexlebens.net
       ruleSelectorNilUsesHelmValues: false
       serviceMonitorSelectorNilUsesHelmValues: false
       podMonitorSelectorNilUsesHelmValues: false
-      scrapeConfigSelectorNilUsesHelmValues: false
       probeSelectorNilUsesHelmValues: false
+      scrapeConfigSelectorNilUsesHelmValues: false
+      retention: 90d
+      retentionSize: 950GiB
       storageSpec:
         volumeClaimTemplate:
           spec:
@@ -113,19 +105,19 @@ kube-prometheus-stack:
             accessModes: ["ReadWriteOnce"]
             resources:
               requests:
-                storage: 500Gi
+                storage: 1000Gi
 prometheus-blackbox-exporter:
   revisionHistoryLimit: 3
   image:
     registry: quay.io
     repository: prometheus/blackbox-exporter
     tag: v0.28.0
+  configExistingSecretName: blackbox-exporter-config
   resources:
     requests:
       cpu: 20m
       memory: 50Mi
-  replicas: 3
-  configExistingSecretName: blackbox-exporter-config
+  replicas: 2
   serviceMonitor:
     selfMonitor:
       enabled: true
@@ -134,7 +126,7 @@ prometheus-blackbox-exporter:
     rules:
       - alert: EndpointDown
         expr: max by (instance, target) (probe_success) == 0
-        for: 60s
+        for: 30s
         labels:
           severity: critical
         annotations:
@@ -162,7 +154,6 @@ ntfy-alertmanager:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         automountServiceAccountToken: true
@@ -175,7 +166,6 @@ ntfy-alertmanager:
             tag: 1.0.0@sha256:81788c7905774b7b0b2ed6833b2bc4826a90a42e4b738706edcedd5f489e7a73
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -193,9 +183,8 @@ ntfy-alertmanager:
         main:
           main:
             - path: /etc/ntfy-alertmanager/config
-              readOnly: true
-              mountPropagation: None
               subPath: config
+              readOnly: true
 valkey:
   valkey:
     dataStorage:
@@ -203,3 +192,45 @@ valkey:
     replica:
       persistence:
         size: 10Gi
+blackboxProbes:
+  alexNetTargets2xx: &alexNetTargets2xx
+    - https://nw01un.alexlebens.net
+    - https://ps02sn.alexlebens.net
+    - http://ps02sn-bond.alexlebens.net
+    - http://ps08rp.alexlebens.net:9100
+    - http://ps09rp.alexlebens.net:9100
+    - http://dv01hr.alexlebens.net
+    - https://dv02kv.alexlebens.net/login/
+    - https://unifi.alexlebens.net
+    - https://synology.alexlebens.net
+    - http://synologybond.alexlebens.net
+    - http://hdhr.alexlebens.net
+    - https://pikvm.alexlebens.net/login/
+    - http://it01ag.alexlebens.net:9926
+    - http://it02ph.alexlebens.net
+    - http://it03tb.alexlebens.net
+    - http://it04tb.alexlebens.net
+    - http://it05sp.alexlebens.net
+    - http://it06cm.alexlebens.net
+    - http://airgradient.alexlebens.net:9926
+  alexNetTargets401: &alexNetTargets401
+    - https://cl01tl.alexlebens.net:9926
+    - https://cl01tl-api.alexlebens.net:9926
+    - https://cl01tl-endpoint.alexlebens.net:9926
+  probers:
+    - name: ps08rp
+      url: ps08rp.alexlebens.net:9115
+      targets2xx: *alexNetTargets2xx
+      targets401: *alexNetTargets401
+    - name: ps09rp
+      url: ps09rp.alexlebens.net:9115
+      targets2xx: *alexNetTargets2xx
+      targets401: *alexNetTargets401
+    - name: ps10rp
+      url: blackbox-exporter-ps10rp.boreal-beaufort.ts.net:9115
+      targets2xx:
+        - https://gitea.lebens-home.net
+        - https://garage-ui.lebens-home.net
+        - https://www.lebens-home.net
+        - http://printer.lebens-home.net
+      targets401: []
