@@ -1,5 +1,9 @@
 loki:
   deploymentMode: Monolithic
+  global:
+    extraEnvFrom:
+      - secretRef:
+          name: loki-data-secret
   loki:
     auth_enabled: false
     limits_config:
@@ -11,17 +15,31 @@ loki:
     commonConfig:
       replication_factor: 1
     storage:
-      type: filesystem
+      type: s3
+      use_thanos_objstore: true
+      bucketNames:
+        chunks: loki-data
+        ruler: loki-data
+      object_store:
+        type: s3
+        s3:
+          endpoint: garage-main.garage:3900
+          region: garage
+          bucket_name: loki-data
+          access_key_id: ${AWS_ACCESS_KEY_ID}
+          secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+          insecure: true
+          s3_force_path_style: true
     schemaConfig:
       configs:
         - from: "2024-01-11"
-          store: boltdb-shipper
-          object_store: filesystem
+          store: tsdb
+          object_store: s3
           schema: v13
           index:
             period: 24h
     compactor:
-      delete_request_store: filesystem
+      delete_request_store: s3
       working_directory: /var/loki/compactor
       compaction_interval: 10m
       retention_enabled: true
@@ -32,24 +50,17 @@ loki:
         remote_timeout: 10s
       remote_timeout: 10s
   gateway:
-    enabled: true
     resources:
       requests:
         cpu: 10m
         memory: 20Mi
-    basicAuth:
-      enabled: false
     route:
       main:
         enabled: true
-        apiVersion: gateway.networking.k8s.io/v1
-        kind: HTTPRoute
         hostnames:
           - loki.alexlebens.net
         parentRefs:
-          - group: gateway.networking.k8s.io
-            kind: Gateway
-            name: traefik-gateway
+          - name: traefik-gateway
             namespace: traefik
   singleBinary:
     replicas: 1
@@ -58,8 +69,8 @@ loki:
         cpu: 100m
         memory: 300Mi
     persistence:
-      size: 150Gi
-      storageClass: synology-iscsi-delete
+      size: 10Gi
+      storageClass: ceph-block
   write:
     enabled: false
     replicas: 0
@@ -77,34 +88,47 @@ alloy:
       create: true
       content: |
         logging {
-          level = "debug"
+          level  = "info"
           format = "logfmt"
         }
         discovery.kubernetes "pods" {
           role = "pod"
+          selectors {
+            role  = "pod"
+            field = "spec.nodeName=" + sys.env("HOSTNAME")
+          }
         }
         discovery.relabel "pods" {
           targets = discovery.kubernetes.pods.targets
 
           rule {
             source_labels = ["__meta_kubernetes_namespace"]
-            target_label = "namespace"
-            action = "replace"
+            target_label  = "namespace"
+            action        = "replace"
           }
           rule {
-            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            source_labels = [
+              "__meta_kubernetes_pod_label_app_kubernetes_io_name",
+              "__meta_kubernetes_pod_label_app"
+            ]
+            regex        = "^;*(.*?);*$"
             target_label = "app"
-            action = "replace"
+            action       = "replace"
           }
           rule {
             source_labels = ["__meta_kubernetes_pod_container_name"]
-            target_label = "container"
-            action = "replace"
+            target_label  = "container"
+            action        = "replace"
           }
           rule {
             source_labels = ["__meta_kubernetes_pod_name"]
-            target_label = "pod"
-            action = "replace"
+            target_label  = "pod"
+            action        = "replace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label  = "node"
+            action        = "replace"
           }
         }
         loki.source.kubernetes "pods" {
@@ -119,7 +143,7 @@ alloy:
             drop_counter_reason = "too old"
           }
           stage.match {
-            selector = "{instance=~\".*\"}"
+            selector = "{namespace=~\".*\"}"
             stage.json {
               expressions = {
                 level = "\"level\"",
@@ -142,3 +166,5 @@ alloy:
         }
   serviceMonitor:
     enabled: true
+garage-bucket-loki-data:
+  bucketName: loki-data
