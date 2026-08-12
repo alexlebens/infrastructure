@@ -6,11 +6,11 @@ metadata:
     helm.sh/resource-policy: keep
     cert-manager.io/inject-ca-from: garage-operator/garage-operator-webhook-cert
   labels:
-    helm.sh/chart: garage-operator-0.7.3
+    helm.sh/chart: garage-operator-0.7.4
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.7.3"
+    app.kubernetes.io/version: "0.7.4"
     app.kubernetes.io/managed-by: Helm
   name: garageclusters.garage.rajsingh.info
 spec:
@@ -1055,7 +1055,7 @@ spec:
                       description: |-
                         CompressionLevel is the zstd compression level
                         1-19: standard, 20-22: ultra, -1 to -99: fast, "none": disabled
-                      pattern: ^(none|-?[1-9][0-9]*)$
+                      pattern: ^(none|0|-?[1-9][0-9]*)$
                       type: string
                     disableScrub:
                       description: DisableScrub disables automatic monthly data directory scrub
@@ -1156,9 +1156,8 @@ spec:
                       properties:
                         kubeConfigSecretRef:
                           description: |-
-                            KubeConfigSecretRef references a secret containing a kubeconfig for a remote Kubernetes cluster.
-                            Only needed for multi-cluster federation where the GarageCluster lives in a different
-                            Kubernetes cluster entirely (not just a different namespace).
+                            KubeConfigSecretRef is reserved for a future remote Kubernetes client integration.
+                            It is currently rejected by admission because the operator does not use it.
                           properties:
                             key:
                               description: The key of the secret to select from.  Must be a valid secret key.
@@ -1605,7 +1604,6 @@ spec:
                     - Must specify connectTo to reference a storage cluster
                   type: boolean
                 image:
-                  default: dxflrs/garage:v2.3.0
                   description: |-
                     Image specifies the Garage container image to use.
                     Takes precedence over imageRepository if both are set.
@@ -1648,8 +1646,7 @@ spec:
                   properties:
                     bindAddress:
                       description: |-
-                        BindAddress is a custom bind address for the K2V API.
-                        Can be a TCP address or Unix socket path (e.g., "unix:///run/garage/k2v.sock").
+                        BindAddress is a custom wildcard TCP bind address for the K2V API.
                         If set, this overrides BindPort.
                       type: string
                     bindPort:
@@ -1863,8 +1860,9 @@ spec:
                       type: array
                     rpcBindAddress:
                       description: |-
-                        RPCBindAddress is a custom bind address for the RPC server.
-                        Can be a TCP address (e.g., "0.0.0.0:3901", "[::]:3901").
+                        RPCBindAddress is a custom wildcard TCP bind address for the RPC server.
+                        Managed workloads accept "0.0.0.0:3901" or "[::]:3901" so the
+                        generated Service can reach every Garage process.
                         If set, this overrides RPCBindPort.
                       type: string
                     rpcBindOutgoing:
@@ -2001,17 +1999,18 @@ spec:
                     Required for multi-cluster federation
                   properties:
                     externalIP:
-                      description: ExternalIP configuration
+                      description: |-
+                        ExternalIP is retained for API compatibility but is not supported.
+                        Setting it is rejected because the operator does not consume the explicit
+                        address mapping or template.
                       properties:
                         addressTemplate:
-                          description: |-
-                            AddressTemplate uses go template to generate addresses from pod info
-                            Example: "garage-{{.Index}}.example.com"
+                          description: AddressTemplate is retained for API compatibility but is unsupported.
                           type: string
                         addresses:
                           additionalProperties:
                             type: string
-                          description: Addresses maps pod names to external IPs
+                          description: Addresses is retained for API compatibility but is unsupported.
                           type: object
                       type: object
                     loadBalancer:
@@ -2138,9 +2137,9 @@ spec:
                           - type: integer
                           - type: string
                         description: |-
-                          DefaultCapacity is the default storage capacity to assign to remote nodes
-                          that don't yet have a role in the layout. If not specified, defaults to 100Gi.
-                          Set to "0" to add nodes as gateway-only (no storage).
+                          DefaultCapacity is retained for API compatibility but is not supported.
+                          Remote role capacity is copied from the source cluster's committed or
+                          staged layout and cannot be overridden by the importing cluster.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       name:
@@ -2280,9 +2279,9 @@ spec:
                   properties:
                     bindAddress:
                       description: |-
-                        BindAddress is a custom bind address for the S3 API.
-                        Can be a TCP address (e.g., "0.0.0.0:3900", "[::]:3900") or
-                        a Unix socket path (e.g., "unix:///run/garage/s3.sock").
+                        BindAddress is a custom wildcard TCP bind address for the S3 API.
+                        Managed workloads accept "0.0.0.0:3900" or "[::]:3900" so the
+                        generated Service and probes can reach every Garage process.
                         If set, this overrides BindPort.
                       type: string
                     bindPort:
@@ -4295,8 +4294,7 @@ spec:
                       type: boolean
                     bindAddress:
                       description: |-
-                        BindAddress is a custom bind address for the Web API.
-                        Can be a TCP address or Unix socket path (e.g., "unix:///run/garage/web.sock").
+                        BindAddress is a custom wildcard TCP bind address for the Web API.
                         If set, this overrides BindPort.
                       type: string
                     bindPort:
@@ -4415,6 +4413,37 @@ spec:
                         type: string
                     type: object
                   type: array
+                autoModePvcHandoffs:
+                  description: |-
+                    AutoModePVCHandoffs mirrors the hub version's controller-owned retained
+                    PVC identity handoffs so conversion cannot erase an in-flight replacement.
+                  items:
+                    description: |-
+                      AutoModePVCHandoffStatus mirrors the v1beta2 retained Auto-mode PVC handoff
+                      for lossless status conversion.
+                    properties:
+                      previousGarageNodeUid:
+                        type: string
+                      pvcName:
+                        type: string
+                      pvcUid:
+                        type: string
+                      replacementGarageNodeUid:
+                        type: string
+                      replacementReservationHash:
+                        type: string
+                      slotName:
+                        type: string
+                    required:
+                      - previousGarageNodeUid
+                      - pvcName
+                      - pvcUid
+                      - slotName
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - pvcName
+                  x-kubernetes-list-type: map
                 blockErrorDetails:
                   description: BlockErrorDetails provides detailed information about block errors
                   properties:
@@ -5366,7 +5395,7 @@ spec:
                   properties:
                     compressionLevel:
                       description: CompressionLevel is the zstd compression level.
-                      pattern: ^(none|-?[1-9][0-9]*)$
+                      pattern: ^(none|0|-?[1-9][0-9]*)$
                       type: string
                     disableScrub:
                       description: DisableScrub disables automatic monthly data directory scrub.
@@ -5437,9 +5466,8 @@ spec:
                       properties:
                         kubeConfigSecretRef:
                           description: |-
-                            KubeConfigSecretRef references a secret containing a kubeconfig for a remote Kubernetes cluster.
-                            Only needed for multi-cluster federation where the GarageCluster lives in a different
-                            Kubernetes cluster entirely (not just a different namespace).
+                            KubeConfigSecretRef is reserved for a future remote Kubernetes client integration.
+                            It is currently rejected by admission because the operator does not use it.
                           properties:
                             key:
                               description: The key of the secret to select from.  Must be a valid secret key.
@@ -8300,7 +8328,6 @@ spec:
                     - replicas
                   type: object
                 image:
-                  default: dxflrs/garage:v2.3.0
                   description: |-
                     Image specifies the Garage container image to use.
                     Takes precedence over imageRepository if both are set.
@@ -8340,7 +8367,7 @@ spec:
                     Omit to disable K2V.
                   properties:
                     bindAddress:
-                      description: BindAddress is a custom bind address for the K2V API.
+                      description: BindAddress is a custom wildcard TCP bind address for the K2V API.
                       type: string
                     bindPort:
                       default: 3904
@@ -8521,7 +8548,7 @@ spec:
                         type: string
                       type: array
                     rpcBindAddress:
-                      description: RPCBindAddress is a custom bind address for the RPC server.
+                      description: RPCBindAddress is a custom wildcard TCP bind address for the RPC server.
                       type: string
                     rpcBindOutgoing:
                       description: RPCBindOutgoing pre-binds outgoing sockets to same IP.
@@ -8609,15 +8636,18 @@ spec:
                     Used for multi-cluster federation of the storage tier.
                   properties:
                     externalIP:
-                      description: ExternalIP configuration.
+                      description: |-
+                        ExternalIP is retained for API compatibility but is not supported.
+                        Setting it is rejected because the operator does not consume the explicit
+                        address mapping or template.
                       properties:
                         addressTemplate:
-                          description: AddressTemplate uses go template to generate addresses from pod info.
+                          description: AddressTemplate is retained for API compatibility but is unsupported.
                           type: string
                         addresses:
                           additionalProperties:
                             type: string
-                          description: Addresses maps pod names to external IPs.
+                          description: Addresses is retained for API compatibility but is unsupported.
                           type: object
                       type: object
                     loadBalancer:
@@ -8752,7 +8782,10 @@ spec:
                         anyOf:
                           - type: integer
                           - type: string
-                        description: DefaultCapacity is the default storage capacity to assign to remote nodes.
+                        description: |-
+                          DefaultCapacity is retained for API compatibility but is not supported.
+                          Remote role capacity is copied from the source cluster's committed or
+                          staged layout and cannot be overridden by the importing cluster.
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
                       name:
@@ -8806,7 +8839,7 @@ spec:
                   description: S3API configures the S3-compatible API endpoint
                   properties:
                     bindAddress:
-                      description: BindAddress is a custom bind address for the S3 API.
+                      description: BindAddress is a custom wildcard TCP bind address for the S3 API.
                       type: string
                     bindPort:
                       default: 3900
@@ -14001,7 +14034,7 @@ spec:
                       description: AddHostToMetrics adds the domain name to metrics labels for per-domain tracking.
                       type: boolean
                     bindAddress:
-                      description: BindAddress is a custom bind address for the Web API.
+                      description: BindAddress is a custom wildcard TCP bind address for the Web API.
                       type: string
                     bindPort:
                       default: 3902
@@ -14102,6 +14135,52 @@ spec:
                         type: string
                     type: object
                   type: array
+                autoModePvcHandoffs:
+                  description: |-
+                    AutoModePVCHandoffs are controller-owned, exact-UID authorizations for
+                    retained Auto-mode claims whose GarageNode slot was scaled down and later
+                    recreated. Entries are removed after the replacement binds the exact PVC.
+                  items:
+                    description: |-
+                      AutoModePVCHandoffStatus authorizes one exact retained PVC incarnation to
+                      move from a deleted Auto-mode GarageNode to its replacement. The parent
+                      GarageCluster status is the trust boundary: predictable object names and
+                      user-writable labels or annotations are never sufficient to adopt a claim.
+                    properties:
+                      previousGarageNodeUid:
+                        description: |-
+                          PreviousGarageNodeUID is the exact deleted GarageNode incarnation that
+                          reserved the claim.
+                        type: string
+                      pvcName:
+                        description: PVCName and PVCUID identify the exact retained claim incarnation.
+                        type: string
+                      pvcUid:
+                        type: string
+                      replacementGarageNodeUid:
+                        description: |-
+                          ReplacementGarageNodeUID is the only new GarageNode incarnation allowed
+                          to consume this handoff.
+                        type: string
+                      replacementReservationHash:
+                        description: |-
+                          ReplacementReservationHash is a one-way commitment to the nonce placed
+                          on the controller-created replacement GarageNode. It closes the crash gap
+                          between Create and recording the replacement object's API-server UID.
+                        type: string
+                      slotName:
+                        description: SlotName is the stable Auto-mode slot (for example, cluster-gateway-1).
+                        type: string
+                    required:
+                      - previousGarageNodeUid
+                      - pvcName
+                      - pvcUid
+                      - slotName
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - pvcName
+                  x-kubernetes-list-type: map
                 blockErrorDetails:
                   description: BlockErrorDetails provides detailed information about block errors.
                   properties:
