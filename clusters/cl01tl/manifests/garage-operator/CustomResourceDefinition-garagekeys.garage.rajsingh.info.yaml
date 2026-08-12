@@ -5,11 +5,11 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.20.1
     helm.sh/resource-policy: keep
   labels:
-    helm.sh/chart: garage-operator-0.7.3
+    helm.sh/chart: garage-operator-0.7.4
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.7.3"
+    app.kubernetes.io/version: "0.7.4"
     app.kubernetes.io/managed-by: Helm
   name: garagekeys.garage.rajsingh.info
 spec:
@@ -164,9 +164,8 @@ spec:
                   properties:
                     kubeConfigSecretRef:
                       description: |-
-                        KubeConfigSecretRef references a secret containing a kubeconfig for a remote Kubernetes cluster.
-                        Only needed for multi-cluster federation where the GarageCluster lives in a different
-                        Kubernetes cluster entirely (not just a different namespace).
+                        KubeConfigSecretRef is reserved for a future remote Kubernetes client integration.
+                        It is currently rejected by admission because the operator does not use it.
                       properties:
                         key:
                           description: The key of the secret to select from.  Must be a valid secret key.
@@ -234,6 +233,7 @@ spec:
                       description: |-
                         SecretRef references a Kubernetes secret containing the credentials.
                         Mutually exclusive with inline accessKeyId/secretAccessKey.
+                        The namespace must be empty or match the GarageKey namespace.
                       properties:
                         name:
                           description: name is unique within a namespace to reference a secret resource.
@@ -377,7 +377,10 @@ spec:
                     type: object
                   type: array
                 clusterWide:
-                  description: ClusterWide indicates this key has cluster-wide bucket access via allBuckets
+                  description: |-
+                    ClusterWide records reserved or active operator ownership of permissions
+                    managed through spec.allBuckets. It is set before the first remote allow
+                    and remains set until every resulting permission has been removed.
                   type: boolean
                 conditions:
                   description: Conditions represent the current state
@@ -443,7 +446,9 @@ spec:
                   format: date-time
                   type: string
                 effectivePermissions:
-                  description: EffectivePermissions shows merged permissions from both bucket and key definitions
+                  description: |-
+                    EffectivePermissions is retained for API compatibility but is not currently
+                    populated. Status.Buckets reports Garage's authoritative effective bucket access.
                   items:
                     description: EffectivePermission shows the resolved permission for a bucket
                     properties:
@@ -477,6 +482,16 @@ spec:
                 keyId:
                   description: KeyID is the Garage-assigned key ID
                   type: string
+                managedBucketGrants:
+                  description: |-
+                    ManagedBucketGrants lists Garage bucket IDs with reserved or active
+                    operator ownership from this key's spec.bucketPermissions. IDs are recorded
+                    before the first remote mutation and removed only after exact convergence,
+                    allowing crash-safe removal or downgrade without touching manual grants.
+                    Cluster-wide spec.allBuckets ownership is represented by ClusterWide.
+                  items:
+                    type: string
+                  type: array
                 observedGeneration:
                   description: ObservedGeneration is the last observed generation
                   format: int64

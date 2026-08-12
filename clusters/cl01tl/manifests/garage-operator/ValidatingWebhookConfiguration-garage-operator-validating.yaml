@@ -3,15 +3,34 @@ kind: ValidatingWebhookConfiguration
 metadata:
   name: garage-operator-validating
   labels:
-    helm.sh/chart: garage-operator-0.7.3
+    helm.sh/chart: garage-operator-0.7.4
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.7.3"
+    app.kubernetes.io/version: "0.7.4"
     app.kubernetes.io/managed-by: Helm
   annotations:
     cert-manager.io/inject-ca-from: garage-operator/garage-operator-webhook-cert
 webhooks:
+  - name: vmanagedpvcfinalizer.kb.io
+    admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: garage-operator-webhook
+        namespace: garage-operator
+        path: /validate-core-v1-managed-pvc-finalizer
+    failurePolicy: Fail
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - UPDATE
+        resources:
+          - persistentvolumeclaims
+    sideEffects: None
   - name: vgarageadmintoken.kb.io
     admissionReviewVersions:
       - v1
