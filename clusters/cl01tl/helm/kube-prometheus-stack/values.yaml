@@ -36,9 +36,53 @@ kube-prometheus-stack:
         parentRefs:
           - name: traefik-gateway
             namespace: traefik
+        rules:
+          - backendRefs:
+              - name: kube-prometheus-stack-alertmanager
+                port: 4180
+    service:
+      additionalPorts:
+        - name: oauth
+          port: 4180
+          targetPort: 4180
+        - name: oauth-metrics
+          port: 44180
+          targetPort: 44180
+    serviceMonitor:
+      additionalEndpoints:
+        - port: oauth-metrics
+          path: /metrics
     alertmanagerSpec:
       secrets:
         - alertmanager-ntfy-config
+      containers:
+        - name: oauth
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          ports:
+            - containerPort: 4180
+              name: oauth
+            - containerPort: 44180
+              name: oauth-metrics
+          envFrom:
+            - secretRef:
+                name: alertmanager-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:9093
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
   grafana:
     enabled: false
   kubeApiServer:
@@ -81,6 +125,14 @@ kube-prometheus-stack:
         annotations:
           argocd.argoproj.io/hook: PreSync
   prometheus:
+    service:
+      additionalPorts:
+        - name: oauth
+          port: 4180
+          targetPort: 4180
+        - name: oauth-metrics
+          port: 44180
+          targetPort: 44180
     route:
       main:
         enabled: true
@@ -89,6 +141,14 @@ kube-prometheus-stack:
         parentRefs:
           - name: traefik-gateway
             namespace: traefik
+        rules:
+          - backendRefs:
+              - name: kube-prometheus-stack-prometheus
+                port: 4180
+    serviceMonitor:
+      additionalEndpoints:
+        - port: oauth-metrics
+          path: /metrics
     prometheusSpec:
       externalUrl: https://prometheus.alexlebens.net
       ruleSelectorNilUsesHelmValues: false
@@ -106,6 +166,32 @@ kube-prometheus-stack:
             resources:
               requests:
                 storage: 1000Gi
+      containers:
+        - name: oauth
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3
+          ports:
+            - containerPort: 4180
+              name: oauth
+          envFrom:
+            - secretRef:
+                name: prometheus-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:9090
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
 prometheus-blackbox-exporter:
   revisionHistoryLimit: 3
   image:
