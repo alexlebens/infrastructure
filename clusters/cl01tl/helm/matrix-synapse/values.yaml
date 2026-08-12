@@ -160,7 +160,6 @@ matrix-hookshot:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       serviceAccount:
         name: matrix-synapse
@@ -175,20 +174,15 @@ matrix-hookshot:
               memory: 90Mi
   service:
     main:
-      controller: main
       ports:
         webhook:
           port: 9000
-          targetPort: 9000
         metrics:
           port: 9001
-          targetPort: 9001
         widgets:
           port: 9002
-          targetPort: 9002
         appservice:
           port: 9993
-          targetPort: 9993
   serviceMonitor:
     main:
       selector:
@@ -200,7 +194,6 @@ matrix-hookshot:
         - targetPort: 9001
           interval: 3m
           scrapeTimeout: 1m
-          path: /metrics
   persistence:
     config:
       type: custom
@@ -214,9 +207,8 @@ matrix-hookshot:
         main:
           main:
             - path: /data/config.yml
-              readOnly: true
-              mountPropagation: None
               subPath: config.yml
+              readOnly: true
     registration:
       type: custom
       volumeSpec:
@@ -229,9 +221,8 @@ matrix-hookshot:
         main:
           main:
             - path: /data/registration.yml
-              readOnly: true
-              mountPropagation: None
               subPath: registration.yml
+              readOnly: true
     passkey:
       type: custom
       volumeSpec:
@@ -244,9 +235,8 @@ matrix-hookshot:
         main:
           main:
             - path: /data/passkey.pem
-              readOnly: true
-              mountPropagation: None
               subPath: passkey.pem
+              readOnly: true
     data:
       forceRename: matrix-hookshot
       storageClass: ceph-block
@@ -256,7 +246,6 @@ matrix-hookshot:
         main:
           main:
             - path: /data
-              readOnly: false
 mautrix-discord:
   global:
     nameOverride: mautrix-discord
@@ -264,7 +253,6 @@ mautrix-discord:
   controllers:
     main:
       type: statefulset
-      replicas: 1
       strategy: RollingUpdate
       # initContainers:
       #   init-copy-config:
@@ -292,11 +280,9 @@ mautrix-discord:
               memory: 40Mi
   service:
     main:
-      controller: main
       ports:
         http:
           port: 29334
-          targetPort: 29334
   persistence:
     config:
       type: custom
@@ -311,7 +297,6 @@ mautrix-discord:
           init-copy-config:
             - path: /tmp
               readOnly: true
-              mountPropagation: None
     data:
       forceRename: mautrix-discord
       storageClass: ceph-block
@@ -321,10 +306,8 @@ mautrix-discord:
         main:
           init-copy-config:
             - path: /data
-              readOnly: false
           main:
             - path: /data
-              readOnly: false
 mautrix-whatsapp:
   global:
     nameOverride: mautrix-whatsapp
@@ -332,7 +315,6 @@ mautrix-whatsapp:
   controllers:
     main:
       type: statefulset
-      replicas: 1
       strategy: RollingUpdate
       # initContainers:
       #   init-copy-config:
@@ -360,11 +342,9 @@ mautrix-whatsapp:
               memory: 20Mi
   service:
     main:
-      controller: main
       ports:
         http:
           port: 29318
-          targetPort: 29318
   persistence:
     config:
       type: custom
@@ -379,7 +359,6 @@ mautrix-whatsapp:
           init-copy-config:
             - path: /tmp
               readOnly: true
-              mountPropagation: None
     data:
       forceRename: mautrix-whatsapp
       storageClass: ceph-block
@@ -389,10 +368,8 @@ mautrix-whatsapp:
         main:
           init-copy-config:
             - path: /data
-              readOnly: false
           main:
             - path: /data
-              readOnly: false
 cloudflared-synapse:
   name: synapse
   probe:
@@ -408,6 +385,7 @@ postgres-18-cluster:
   backup:
     objectStore:
       index: 1
+      endpointURL: http://garage-cluster-a.garage-operator.svc.cluster.local:3900
     scheduledBackups:
       suspend: false
       schedule: "0 0 15 * * *"
