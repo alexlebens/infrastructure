@@ -36,16 +36,13 @@ kube-prometheus-stack:
         parentRefs:
           - name: traefik-gateway
             namespace: traefik
-        rules:
-          - backendRefs:
-              - name: kube-prometheus-stack-alertmanager
-                port: 4180
     service:
+      port: 4180
       targetPort: 4180
       additionalPorts:
-        - name: oauth
-          port: 4180
-          targetPort: 4180
+        - name: http-web
+          port: 9093
+          targetPort: 9093
         - name: oauth-metrics
           port: 44180
           targetPort: 44180
@@ -127,11 +124,12 @@ kube-prometheus-stack:
           argocd.argoproj.io/hook: PreSync
   prometheus:
     service:
+      port: 4180
       targetPort: 4180
       additionalPorts:
-        - name: oauth
-          port: 4180
-          targetPort: 4180
+        - name: http-web
+          port: 9090
+          targetPort: 9090
         - name: oauth-metrics
           port: 44180
           targetPort: 44180
@@ -143,16 +141,19 @@ kube-prometheus-stack:
         parentRefs:
           - name: traefik-gateway
             namespace: traefik
-        rules:
-          - backendRefs:
-              - name: kube-prometheus-stack-prometheus
-                port: 4180
     serviceMonitor:
       additionalEndpoints:
         - port: oauth-metrics
           path: /metrics
     prometheusSpec:
       externalUrl: https://prometheus.alexlebens.net
+      additionalAlertManagerConfigs:
+        - path_prefix: /
+          scheme: http
+          apiVersion: v2
+          static_configs:
+            - targets:
+                - kube-prometheus-stack-alertmanager.kube-prometheus-stack.svc:9093
       ruleSelectorNilUsesHelmValues: false
       serviceMonitorSelectorNilUsesHelmValues: false
       podMonitorSelectorNilUsesHelmValues: false
