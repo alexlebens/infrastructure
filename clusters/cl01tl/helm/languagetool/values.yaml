@@ -2,7 +2,6 @@ languagetool:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -20,9 +19,30 @@ languagetool:
             requests:
               cpu: 1m
               memory: 800Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /v2/healthcheck
+                  port: 8010
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /v2/healthcheck
+                  port: 8010
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /v2/healthcheck
+                  port: 8010
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -31,9 +51,7 @@ languagetool:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - languagetool.alexlebens.net
@@ -41,10 +59,6 @@ languagetool:
         - backendRefs:
             - name: languagetool
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     data:
       forceRename: languagetool-data
@@ -55,7 +69,6 @@ languagetool:
         main:
           main:
             - path: /ngrams
-              readOnly: false
 volsync-target-data:
   pvcTarget: languagetool-data
   local:
