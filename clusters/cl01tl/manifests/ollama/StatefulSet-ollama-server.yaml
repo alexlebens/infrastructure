@@ -11,7 +11,7 @@ metadata:
   namespace: ollama
 spec:
   revisionHistoryLimit: 3
-  replicas: 3
+  replicas: 2
   podManagementPolicy: OrderedReady
   updateStrategy:
     type: RollingUpdate
@@ -48,10 +48,26 @@ spec:
                     values:
                       - server
               topologyKey: kubernetes.io/hostname
+      initContainers:
+        - command:
+            - sh
+            - -c
+            - |
+              ollama serve &
+              sleep 5
+              ollama pull gemma4:e4b
+              ollama pull embeddinggemma:latest
+              kill -TERM $!
+              wait $!
+          image: ollama/ollama:0.32.10@sha256:fca3c9ebe39b5ea97fc7ce81fbd875af68500a90f4de37a29f43d5a5ce240023
+          name: init-models
+          volumeMounts:
+            - mountPath: /root/.ollama
+              name: ollama-data
       containers:
         - env:
             - name: OLLAMA_KEEP_ALIVE
-              value: 24h
+              value: "-1"
             - name: OLLAMA_HOST
               value: 0.0.0.0
             - name: OLLAMA_NUM_PARALLEL
@@ -59,7 +75,27 @@ spec:
             - name: OLLAMA_IGPU_ENABLE
               value: "0"
           image: ollama/ollama:0.32.10@sha256:fca3c9ebe39b5ea97fc7ce81fbd875af68500a90f4de37a29f43d5a5ce240023
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    while ! curl -s http://localhost:11434/ >/dev/null 2>&1 && ! wget -q --spider http://localhost:11434/ >/dev/null 2>&1; do sleep 2; done
+                    (curl -s -d '{"model": "gemma4:e4b"}' http://localhost:11434/api/generate || wget -qO- --post-data '{"model": "gemma4:e4b"}' http://localhost:11434/api/generate || true) >/dev/null 2>&1
+                    (curl -s -d '{"model": "embeddinggemma:latest"}' http://localhost:11434/api/generate || wget -qO- --post-data '{"model": "embeddinggemma:latest"}' http://localhost:11434/api/generate || true) >/dev/null 2>&1
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            initialDelaySeconds: 60
           name: main
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            initialDelaySeconds: 60
           resources:
             requests:
               cpu: 10m
