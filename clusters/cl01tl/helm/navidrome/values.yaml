@@ -2,7 +2,6 @@ navidrome:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -77,9 +76,23 @@ navidrome:
               gpu.intel.com/i915: 1
               cpu: 10m
               memory: 50Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4533
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4533
     feishin:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -99,9 +112,23 @@ navidrome:
             requests:
               cpu: 1m
               memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 9180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 9180
     audiomuse:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -142,9 +169,27 @@ navidrome:
             requests:
               cpu: 10m
               memory: 100Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 8000
+                initialDelaySeconds: 15
+                periodSeconds: 20
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 8000
+                initialDelaySeconds: 15
+                periodSeconds: 20
     audiomuse-worker:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -187,6 +232,25 @@ navidrome:
             requests:
               cpu: 50m
               memory: 200Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 8000
+                initialDelaySeconds: 15
+                periodSeconds: 20
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 8000
+                initialDelaySeconds: 15
+                periodSeconds: 20
   service:
     main:
       controller: main
@@ -205,7 +269,6 @@ navidrome:
       ports:
         http:
           port: 8000
-          targetPort: 8000
   serviceMonitor:
     main:
       selector:
@@ -216,17 +279,11 @@ navidrome:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: http
-          scheme: http
-          path: /metrics
-          interval: 30s
-          scrapeTimeout: 15s
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - navidrome.alexlebens.net
@@ -234,16 +291,10 @@ navidrome:
         - backendRefs:
             - name: navidrome-main
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
     feishin:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - feishin.alexlebens.net
@@ -251,10 +302,6 @@ navidrome:
         - backendRefs:
             - name: navidrome-feishin
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     data:
       forceRename: navidrome-data
@@ -265,17 +312,14 @@ navidrome:
         main:
           main:
             - path: /data
-              readOnly: false
           download-plugins:
             - path: /data
-              readOnly: false
     cache:
       type: emptyDir
       advancedMounts:
         main:
           main:
             - path: /cache
-              readOnly: false
     music:
       existingClaim: navidrome-music-nfs-storage
       advancedMounts:
@@ -344,6 +388,7 @@ postgres-18-cluster:
   backup:
     objectStore:
       index: 1
+      endpointURL: http://garage-cluster-a.garage-operator.svc.cluster.local:3900
     scheduledBackups:
       suspend: false
       schedule: "0 15 14 * * *"

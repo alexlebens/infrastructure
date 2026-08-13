@@ -3,6 +3,9 @@ metrics-server:
     repository: registry.k8s.io/metrics-server/metrics-server
     tag: v0.9.0@sha256:d9862115e7c7881280d3d75ca26bda8ffc0fc213315979575bf23ce9826205c0
   replicas: 2
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
   defaultArgs:
     - --cert-dir=/tmp
     - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
@@ -17,3 +20,10 @@ metrics-server:
     requests:
       cpu: 10m
       memory: 60Mi
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: metrics-server
+          topologyKey: kubernetes.io/hostname
