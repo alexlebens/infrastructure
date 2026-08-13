@@ -2,39 +2,98 @@ omni-tools:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
           image:
             repository: iib0011/omni-tools
             tag: 0.6.0@sha256:ceb5acc317daf387634f7f212cefe4722fd1243ad1cba74203f25254195b6c69
+          env:
+            - name: TZ
+              value: America/Chicago
           resources:
             requests:
               cpu: 10m
               memory: 10Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          envFrom:
+            - secretRef:
+                name: omni-tools-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:80
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
-          targetPort: 80
+        oauth:
+          port: 4180
+        oauth-metrics:
+          port: 44180
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: omni-tools
+          app.kubernetes.io/instance: omni-tools
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - omni-tools.alexlebens.net
       rules:
         - backendRefs:
             - name: omni-tools
-              port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
+              port: 4180
