@@ -28,6 +28,8 @@ kube-prometheus-stack:
                 basic_auth:
                   username: ntfy-alertmanager
                   password_file: /etc/alertmanager/secrets/alertmanager-ntfy-config/ntfy_password
+    ingress:
+      servicePort: 4180 # Needed for httproute to select the service's port, why??
     route:
       main:
         enabled: true
@@ -37,10 +39,8 @@ kube-prometheus-stack:
           - name: traefik-gateway
             namespace: traefik
     service:
-      port: 4180
-      targetPort: 4180
       additionalPorts:
-        - name: http-web
+        - name: oauth-proxy
           port: 9093
           targetPort: 9093
         - name: oauth-metrics
@@ -124,15 +124,15 @@ kube-prometheus-stack:
           argocd.argoproj.io/hook: PreSync
   prometheus:
     service:
-      port: 4180
-      targetPort: 4180
       additionalPorts:
-        - name: http-web
+        - name: oauth-proxy
           port: 9090
           targetPort: 9090
         - name: oauth-metrics
           port: 44180
           targetPort: 44180
+    ingress:
+      servicePort: 4180 # Needed for httproute to select the service's port, why??
     route:
       main:
         enabled: true
@@ -147,13 +147,6 @@ kube-prometheus-stack:
           path: /metrics
     prometheusSpec:
       externalUrl: https://prometheus.alexlebens.net
-      additionalAlertManagerConfigs:
-        - path_prefix: /
-          scheme: http
-          apiVersion: v2
-          static_configs:
-            - targets:
-                - kube-prometheus-stack-alertmanager.kube-prometheus-stack.svc:9093
       ruleSelectorNilUsesHelmValues: false
       serviceMonitorSelectorNilUsesHelmValues: false
       podMonitorSelectorNilUsesHelmValues: false
