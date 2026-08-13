@@ -25,14 +25,39 @@ ollama:
                       values:
                         - server
                 topologyKey: kubernetes.io/hostname
+      initContainers:
+        init-models:
+          image:
+            repository: ollama/ollama
+            tag: 0.32.10@sha256:fca3c9ebe39b5ea97fc7ce81fbd875af68500a90f4de37a29f43d5a5ce240023
+          command:
+            - sh
+            - -c
+            - |
+              ollama serve &
+              sleep 5
+              ollama pull gemma4:e4b
+              ollama pull embeddinggemma:latest
+              kill -TERM $!
+              wait $!
       containers:
         main:
           image:
             repository: ollama/ollama
             tag: 0.32.10@sha256:fca3c9ebe39b5ea97fc7ce81fbd875af68500a90f4de37a29f43d5a5ce240023
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    while ! curl -s http://localhost:11434/ >/dev/null 2>&1 && ! wget -q --spider http://localhost:11434/ >/dev/null 2>&1; do sleep 2; done
+                    (curl -s -d '{"model": "gemma4:e4b"}' http://localhost:11434/api/generate || wget -qO- --post-data '{"model": "gemma4:e4b"}' http://localhost:11434/api/generate || true) >/dev/null 2>&1
+                    (curl -s -d '{"model": "embeddinggemma:latest"}' http://localhost:11434/api/generate || wget -qO- --post-data '{"model": "embeddinggemma:latest"}' http://localhost:11434/api/generate || true) >/dev/null 2>&1
           env:
             - name: OLLAMA_KEEP_ALIVE
-              value: 24h
+              value: -1
             - name: OLLAMA_HOST
               value: 0.0.0.0
             - name: OLLAMA_NUM_PARALLEL
@@ -43,9 +68,25 @@ ollama:
             requests:
               cpu: 10m
               memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 11434
+                initialDelaySeconds: 60
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 11434
+                initialDelaySeconds: 60
     web:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -156,7 +197,6 @@ ollama:
       ports:
         http:
           port: 11434
-          targetPort: 11434
     headless:
       controller: server
       type: ClusterIP
@@ -164,7 +204,6 @@ ollama:
       ports:
         http:
           port: 11434
-          targetPort: 11434
     web:
       controller: web
       ports:
@@ -176,17 +215,13 @@ ollama:
       ports:
         http:
           port: 11434
-          targetPort: 11434
         stats:
           port: 8404
-          targetPort: 8404
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - ollama.alexlebens.net
@@ -194,10 +229,6 @@ ollama:
         - backendRefs:
             - name: ollama-web
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     web-data:
       forceRename: ollama-web-data
@@ -208,7 +239,6 @@ ollama:
         web:
           main:
             - path: /app/backend/data
-              readOnly: false
     router-config:
       type: configMap
       name: ollama-router
@@ -227,6 +257,7 @@ postgres-18-cluster:
   backup:
     objectStore:
       index: 1
+      endpointURL: http://garage-cluster-a.garage-operator.svc.cluster.local:3900
     scheduledBackups:
       suspend: false
       schedule: "0 5 15 * * *"
