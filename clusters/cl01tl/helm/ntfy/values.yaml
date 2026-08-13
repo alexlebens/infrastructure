@@ -2,7 +2,6 @@ ntfy:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -49,6 +48,10 @@ ntfy:
               value: :9090
             - name: NTFY_LOG_LEVEL
               value: info
+          resources:
+            requests:
+              cpu: 10m
+              memory: 40Mi
           probes:
             liveness:
               enabled: true
@@ -61,20 +64,13 @@ ntfy:
                 periodSeconds: 60
                 successThreshold: 1
                 timeoutSeconds: 30
-          resources:
-            requests:
-              cpu: 10m
-              memory: 40Mi
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
-          targetPort: 80
         metrics:
           port: 9090
-          targetPort: 9090
   serviceMonitor:
     main:
       selector:
@@ -84,16 +80,11 @@ ntfy:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 3m
-          scrapeTimeout: 1m
-          path: /metrics
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - ntfy.alexlebens.net
@@ -101,10 +92,6 @@ ntfy:
         - backendRefs:
             - name: ntfy
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   configMaps:
     templates:
       enabled: true
@@ -134,35 +121,17 @@ postgres-18-cluster:
   backup:
     objectStore:
       index: 1
+      endpointURL: http://garage-cluster-a.garage-operator.svc.cluster.local:3900
     scheduledBackups:
       suspend: false
       schedule: "0 15 14 * * *"
-rclone-ntfy-attachments-remote:
-  cronJob:
-    suspend: false
-    schedule: 0 1 * * *
-  rclone:
-    source:
-      bucketName: ntfy-attachments
-    destination:
-      bucketName: ntfy-attachments
-  ntfy:
-    externalSecret:
-      urlPath: /cl01tl/ntfy/config
-      urlProperty: internal-endpoint
-      topicPath: /cl01tl/ntfy/topics
-      topicProperty: rclone
-      tokenPath: /cl01tl/ntfy/users/cl01tl
-      tokenProperty: token
-  secret:
-    externalSecret:
-      source:
-        credentials:
-          path: /garage/home-infra/ntfy-attachments
-        config:
-          path: /garage/config
+garage-bucket-ntfy-assets:
+  bucketName: ntfy-assets
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: true
+        schedule: 0 0 * * *
       destination:
-        credentials:
-          path: /garage/home-infra/ntfy-attachments
-        config:
-          path: /garage/config
+        bucketName: ntfy-assets
