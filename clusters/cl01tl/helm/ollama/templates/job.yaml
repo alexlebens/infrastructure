@@ -14,6 +14,7 @@ metadata:
     "argocd.argoproj.io/hook-delete-policy": BeforeHookCreation,HookSucceeded
 spec:
   ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 900
   backoffLimit: 3
   template:
     metadata:
@@ -29,8 +30,24 @@ spec:
             - |
               echo ">> Warming up models on both Ollama instances..."
               for HOST in "ollama-server-0.ollama-headless:11434" "ollama-server-1.ollama-headless:11434"; do
+                echo ">> Waiting for $HOST to become ready..."
+                MAX_ATTEMPTS=60
+                ATTEMPT=0
+                until wget -qO- -T 5 "http://$HOST/" >/dev/null 2>&1; do
+                  ATTEMPT=$((ATTEMPT + 1))
+                  if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+                    echo ">> ERROR: Timed out waiting for $HOST after $MAX_ATTEMPTS attempts."
+                    exit 1
+                  fi
+                  echo "   $HOST is not ready yet (attempt $ATTEMPT/$MAX_ATTEMPTS), retrying in 5s..."
+                  sleep 5
+                done
+                echo ">> $HOST is ready!"
+
                 echo ">> Warming up gemma4:e4b on $HOST..."
-                wget -qO- --post-data '{"model": "gemma4:e4b", "keep_alive": -1}' "http://$HOST/api/generate" >/dev/null 2>&1 || true
+                wget -qO- -T 300 --post-data '{"model": "gemma4:e4b", "keep_alive": -1}' "http://$HOST/api/generate" >/dev/null 2>&1 || true
+
                 echo ">> Warming up embeddinggemma:latest on $HOST..."
-                wget -qO- --post-data '{"model": "embeddinggemma:latest", "keep_alive": -1}' "http://$HOST/api/embed" >/dev/null 2>&1 || true              done
+                wget -qO- -T 300 --post-data '{"model": "embeddinggemma:latest", "keep_alive": -1}' "http://$HOST/api/embed" >/dev/null 2>&1 || true
+              done
               echo ">> All models warmed up successfully!"
