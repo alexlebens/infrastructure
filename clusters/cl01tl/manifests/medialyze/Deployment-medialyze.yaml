@@ -47,7 +47,15 @@ spec:
             - name: MEDIA_HOST_DIR
               value: /media
           image: ghcr.io/frederikemmer/medialyze:0.17.0@sha256:f6d9cadbf82426ca0ae4f7ff87da64f1ff7390c1e9f043ab0179853ac4bec940
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
           name: main
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
           resources:
             requests:
               cpu: 5m
@@ -58,6 +66,38 @@ spec:
             - mountPath: /media
               name: media
               readOnly: true
+        - env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:8080
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_SET_XAUTHREQUEST
+              value: "true"
+            - name: OAUTH2_PROXY_PASS_USER_HEADERS
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: '*'
+          envFrom:
+            - secretRef:
+                name: medialyze-oauth-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+          name: oauth
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4180
       volumes:
         - name: data
           persistentVolumeClaim:
