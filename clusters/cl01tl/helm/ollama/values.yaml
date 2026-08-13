@@ -45,20 +45,6 @@ ollama:
           image:
             repository: ollama/ollama
             tag: 0.32.10@sha256:fca3c9ebe39b5ea97fc7ce81fbd875af68500a90f4de37a29f43d5a5ce240023
-          lifecycle:
-            postStart:
-              exec:
-                command:
-                  - sh
-                  - -c
-                  - |
-                    exec > /proc/1/fd/1 2>&1
-                    echo ">> [postStart] Waiting for Ollama to become ready..."
-                    while ! curl -s http://localhost:11434/ >/dev/null 2>&1 && ! wget -q --spider http://localhost:11434/ >/dev/null 2>&1; do sleep 2; done
-                    echo ">> [postStart] Ollama is ready. Warming up model gemma4:e4b..."
-                    (curl -s -d '{"model": "gemma4:e4b"}' http://localhost:11434/api/generate || wget -qO- --post-data '{"model": "gemma4:e4b"}' http://localhost:11434/api/generate || true)
-                    echo ""
-                    echo ">> [postStart] Model warmup complete!"
           env:
             - name: OLLAMA_KEEP_ALIVE
               value: -1
