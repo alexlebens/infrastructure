@@ -82,9 +82,13 @@ spec:
                   - sh
                   - -c
                   - |
+                    exec > /proc/1/fd/1 2>&1
+                    echo ">> [postStart] Waiting for Ollama to become ready..."
                     while ! curl -s http://localhost:11434/ >/dev/null 2>&1 && ! wget -q --spider http://localhost:11434/ >/dev/null 2>&1; do sleep 2; done
-                    (curl -s -d '{"model": "gemma4:e4b"}' http://localhost:11434/api/generate || wget -qO- --post-data '{"model": "gemma4:e4b"}' http://localhost:11434/api/generate || true) >/dev/null 2>&1
-                    (curl -s -d '{"model": "embeddinggemma:latest"}' http://localhost:11434/api/generate || wget -qO- --post-data '{"model": "embeddinggemma:latest"}' http://localhost:11434/api/generate || true) >/dev/null 2>&1
+                    echo ">> [postStart] Ollama is ready. Warming up model gemma4:e4b..."
+                    (curl -s -d '{"model": "gemma4:e4b"}' http://localhost:11434/api/generate || wget -qO- --post-data '{"model": "gemma4:e4b"}' http://localhost:11434/api/generate || true)
+                    echo ""
+                    echo ">> [postStart] Model warmup complete!"
           livenessProbe:
             httpGet:
               path: /
