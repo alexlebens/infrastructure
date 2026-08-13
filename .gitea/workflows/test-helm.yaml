@@ -271,8 +271,8 @@ jobs:
             esac
 
             echo ""
-            echo ">> Rendering into '${NAMESPACE}' namespace ..."
-            helm template "${CHART}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --api-versions "${API_VERSIONS}" > "rendered-raw/${CHART}.yaml"
+            echo ">> Rendering and validating into '${NAMESPACE}' namespace ..."
+            helm template "${CHART}" "${CHART_PATH}" --include-crds --namespace "${NAMESPACE}" --api-versions "${API_VERSIONS}" --validate > "rendered-raw/${CHART}.yaml"
 
             SPLIT_FOLDER="rendered-split/${CHART}/"
             cat "rendered-raw/${CHART}.yaml" | yq '... comments=""' | yq 'select(. != null)' | yq -s '"'"${SPLIT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"'
@@ -285,6 +285,20 @@ jobs:
             echo ""
             echo ">> Split templates created successfully for ${CHART}"
 
+          done
+
+          echo ""
+          echo "----"
+
+      - name: Server-Side API Validation
+        run: |
+          echo "FAILED_STAGE=Server-Side API Validation" >> $GITHUB_ENV
+          for CHART in ${CHANGED_CHARTS}; do
+            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
+            echo ""
+            echo ">> Running server-side dry-run for: ${CHART}"
+
+            kubectl apply --dry-run=server -f "rendered-raw/${CHART}.yaml"
           done
 
           echo ""
