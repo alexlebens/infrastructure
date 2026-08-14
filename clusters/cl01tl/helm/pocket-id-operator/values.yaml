@@ -14,7 +14,6 @@ pocket-id-operator:
     enabled: false
 pocket-id-instance:
   instance:
-    name: pocket-id
     spec:
       encryptionKey:
         valueFrom:
@@ -34,19 +33,19 @@ pocket-id-instance:
           - "10.244.0.0/16"
       s3:
         bucket: pocket-id-assets
-        region: us-east-1
-        endpoint: http://garage-main.garage:3900
+        region: garage
+        endpoint: http://garage-cluster-a.garage-operator.svc.cluster.local:3900
         forcePathStyle: true
         accessKeyId:
           valueFrom:
             secretKeyRef:
-              name: pocket-id-s3
-              key: access-key
+              name: pocket-id-assets-key
+              key: access-key-id
         secretAccessKey:
           valueFrom:
             secretKeyRef:
-              name: pocket-id-s3
-              key: secret-key
+              name: pocket-id-assets-key
+              key: secret-access-key
       databaseUrl:
         valueFrom:
           secretKeyRef:
@@ -122,63 +121,20 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 5 14 * * *"
-rclone-pocket-id-assets-remote:
-  cronJob:
-    suspend: false
-    schedule: 30 6 * * 3
-  rclone:
-    source:
-      bucketName: pocket-id-assets
-    destination:
-      bucketName: pocket-id-assets
-  ntfy:
-    externalSecret:
-      urlPath: /cl01tl/ntfy/config
-      urlProperty: internal-endpoint
-      topicPath: /cl01tl/ntfy/topics
-      topicProperty: rclone
-      tokenPath: /cl01tl/ntfy/users/cl01tl
-      tokenProperty: token
-  secret:
-    externalSecret:
-      source:
-        credentials:
-          path: /garage/home-infra/pocket-id-assets
-        config:
-          path: /garage/config
+garage-bucket-pocket-id-assets:
+  bucketName: pocket-id-assets
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 30 6 * * 3
       destination:
-        credentials:
-          path: /garage/home-infra/pocket-id-assets
-        config:
-          path: /garage/config
-rclone-pocket-id-assets-external:
-  nameOverride: pocket-id-assets-external-rclone
-  cronJob:
-    suspend: false
-    schedule: 0 6 * * 3
-  rclone:
-    source:
-      bucketName: pocket-id-assets
-    destination:
-      bucketName: pocket-id-assets-bcb0bc04dac3e3fd
-  ntfy:
-    externalSecret:
-      urlPath: /cl01tl/ntfy/config
-      urlProperty: internal-endpoint
-      topicPath: /cl01tl/ntfy/topics
-      topicProperty: rclone
-      tokenPath: /cl01tl/ntfy/users/cl01tl
-      tokenProperty: token
-  secret:
-    externalSecret:
-      source:
-        credentials:
-          path: /garage/home-infra/pocket-id-assets
-        config:
-          path: /garage/config
+        bucketName: pocket-id-assets
+    secondary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 6 * * 3
       destination:
-        credentials:
-          path: /backblaze/home-infra/pocket-id-assets
-        config:
-          path: /backblaze/config
-          endpointProperty: ENDPOINT
+        bucketName: pocket-id-assets-bcb0bc04dac3e3fd
