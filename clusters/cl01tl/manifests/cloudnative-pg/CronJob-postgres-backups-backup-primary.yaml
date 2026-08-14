@@ -5,17 +5,17 @@ metadata:
   namespace: cloudnative-pg
   labels:
     app.kubernetes.io/name: postgres-backups-backup-primary
-    helm.sh/chart: garage-bucket-postgres-backups-0.3.5
+    helm.sh/chart: garage-bucket-postgres-backups-0.3.7
     app.kubernetes.io/instance: cloudnative-pg
     app.kubernetes.io/part-of: cloudnative-pg
-    app.kubernetes.io/version: "v0.7.3"
+    app.kubernetes.io/version: "v0.7.4"
     app.kubernetes.io/managed-by: Helm
 spec:
   schedule: "0 0 * * *"
   timeZone: "America/Chicago"
   suspend: true
   concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
@@ -57,62 +57,7 @@ spec:
                 - /bin/sh
                 - -c
               args:
-                - |
-                  set -o pipefail
-
-                  # --- Sync Phase ---
-                  rclone sync \
-                    "src:postgres-backups" \
-                    "dest:postgres-backups" \
-                    --s3-no-check-bucket \
-                    --verbose 2>&1 | tee /tmp/rclone-sync.log
-
-                  sync_res=$?
-                  STATS=$(grep "Transferred:" /tmp/rclone-sync.log | tail -n 2)
-                  DATA_TRANS=$(echo "$STATS" | head -n 1 | sed 's/.*Transferred:[ \t]*//')
-                  if [ -z "$DATA_TRANS" ]; then DATA_TRANS="Unknown"; fi
-
-                  if [ $sync_res -eq 0 ]; then
-                    if [ -n "${NTFY_TOKEN:-}" ]; then
-                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Backup Success - postgres-backups" --post-data "Job transferred: $DATA_TRANS" "$NTFY_URL"
-                    else
-                      wget -qO- --header "Title: Backup Success - postgres-backups" --post-data "Job transferred: $DATA_TRANS" "$NTFY_URL"
-                    fi
-                  else
-                    if [ -n "${NTFY_TOKEN:-}" ]; then
-                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Backup Failed - postgres-backups" --header "Priority: urgent" --post-data "Job failed, transferred: $DATA_TRANS" "$NTFY_URL"
-                    else
-                      wget -qO- --header "Title: Backup Failed - postgres-backups" --header "Priority: urgent" --post-data "Job failed, transferred: $DATA_TRANS" "$NTFY_URL"
-                    fi
-                    exit $sync_res
-                  fi
-
-                  # --- Prune Phase ---
-                  rclone delete \
-                    "dest:postgres-backups" \
-                    --min-age "30d" \
-                    --verbose 2>&1 | tee /tmp/rclone-prune.log
-
-                  prune_res=$?
-                  STATS=$(grep "Deleted:" /tmp/rclone-prune.log | tail -n 1)
-                  FILES_PRUNED=$(echo "$STATS" | sed 's/.*Deleted:[ \t]*//')
-                  if [ -z "$FILES_PRUNED" ]; then FILES_PRUNED="0 files"; fi
-
-                  if [ $prune_res -eq 0 ]; then
-                    if [ -n "${NTFY_TOKEN:-}" ]; then
-                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Prune Success - postgres-backups" --post-data "Job pruned: $FILES_PRUNED" "$NTFY_URL"
-                    else
-                      wget -qO- --header "Title: Prune Success - postgres-backups" --post-data "Job pruned: $FILES_PRUNED" "$NTFY_URL"
-                    fi
-                  else
-                    if [ -n "${NTFY_TOKEN:-}" ]; then
-                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Prune Failed - postgres-backups" --header "Priority: urgent" --post-data "Job failed, pruned: $FILES_PRUNED" "$NTFY_URL"
-                    else
-                      wget -qO- --header "Title: Prune Failed - postgres-backups" --header "Priority: urgent" --post-data "Job failed, pruned: $FILES_PRUNED" "$NTFY_URL"
-                    fi
-                  fi
-
-                  exit $prune_res
+                - "set -o pipefail\n\n# --- Sync Phase ---\nrclone sync \\\n  \"src:postgres-backups\" \\\n  \"dest:postgres-backups\" \\\n  --s3-no-check-bucket \\\n  --verbose 2>&1 | tee /tmp/rclone-sync.log\n\nsync_res=$?\nSTATS=$(grep \"Transferred:\" /tmp/rclone-sync.log | tail -n 2)\nDATA_TRANS=$(echo \"$STATS\" | head -n 1 | sed 's/.*Transferred:[ \\t]*//')\nif [ -z \"$DATA_TRANS\" ]; then DATA_TRANS=\"Unknown\"; fi\n\nif [ $sync_res -eq 0 ]; then\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: ✅ Backup - postgres-backups - primary\" --header \"Priority: 3\" --post-data \"Job for primary transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: ✅ Backup - postgres-backups - primary\" --header \"Priority: 3\" --post-data \"Job for primary transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  fi\nelse\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: \U0001F6A8 Backup - postgres-backups - primary\" --header \"Priority: 4\" --post-data \"Job for primary failed, transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: \U0001F6A8 Backup - postgres-backups - primary\" --header \"Priority: 4\" --post-data \"Job for primary failed, transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  fi\n  exit $sync_res\nfi\n\n# --- Prune Phase ---\nrclone delete \\\n  \"dest:postgres-backups\" \\\n  --min-age \"30d\" \\\n  --verbose 2>&1 | tee /tmp/rclone-prune.log\n\nprune_res=$?\nSTATS=$(grep \"Deleted:\" /tmp/rclone-prune.log | tail -n 1)\nFILES_PRUNED=$(echo \"$STATS\" | sed 's/.*Deleted:[ \\t]*//')\nif [ -z \"$FILES_PRUNED\" ]; then FILES_PRUNED=\"0 files\"; fi\n\nif [ $prune_res -eq 0 ]; then\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: ✅ Prune - postgres-backups - primary\" --header \"Priority: 3\" --post-data \"Job for primary pruned: $FILES_PRUNED\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: ✅ Prune - postgres-backups - primary\" --header \"Priority: 3\" --post-data \"Job for primary pruned: $FILES_PRUNED\" \"$NTFY_URL\"\n  fi\nelse\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: \U0001F6A8 Prune - postgres-backups - primary\" --header \"Priority: 4\" --post-data \"Job for primary failed, pruned: $FILES_PRUNED\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: \U0001F6A8 Prune - postgres-backups - primary\" --header \"Priority: 4\" --post-data \"Job for primary failed, pruned: $FILES_PRUNED\" \"$NTFY_URL\"\n  fi\nfi\n\nexit $prune_res\n"
               env:
                 - name: RCLONE_CONFIG_SRC_TYPE
                   value: "s3"

@@ -5,17 +5,17 @@ metadata:
   namespace: karakeep
   labels:
     app.kubernetes.io/name: karakeep-assets-backup-secondary
-    helm.sh/chart: garage-bucket-karakeep-assets-0.3.5
+    helm.sh/chart: garage-bucket-karakeep-assets-0.3.7
     app.kubernetes.io/instance: karakeep
     app.kubernetes.io/part-of: karakeep
-    app.kubernetes.io/version: "v0.7.3"
+    app.kubernetes.io/version: "v0.7.4"
     app.kubernetes.io/managed-by: Helm
 spec:
   schedule: "0 0 * * *"
   timeZone: "America/Chicago"
   suspend: false
   concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
@@ -57,35 +57,7 @@ spec:
                 - /bin/sh
                 - -c
               args:
-                - |
-                  set -o pipefail
-
-                  # --- Sync Phase ---
-                  rclone sync \
-                    "src:karakeep-assets" \
-                    "dest:karakeep-assets-bcb0bc04dac3e3fd" \
-                    --s3-no-check-bucket \
-                    --verbose 2>&1 | tee /tmp/rclone-sync.log
-
-                  sync_res=$?
-                  STATS=$(grep "Transferred:" /tmp/rclone-sync.log | tail -n 2)
-                  DATA_TRANS=$(echo "$STATS" | head -n 1 | sed 's/.*Transferred:[ \t]*//')
-                  if [ -z "$DATA_TRANS" ]; then DATA_TRANS="Unknown"; fi
-
-                  if [ $sync_res -eq 0 ]; then
-                    if [ -n "${NTFY_TOKEN:-}" ]; then
-                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Backup Success - karakeep-assets" --post-data "Job transferred: $DATA_TRANS" "$NTFY_URL"
-                    else
-                      wget -qO- --header "Title: Backup Success - karakeep-assets" --post-data "Job transferred: $DATA_TRANS" "$NTFY_URL"
-                    fi
-                  else
-                    if [ -n "${NTFY_TOKEN:-}" ]; then
-                      wget -qO- --header "Authorization: Bearer $NTFY_TOKEN" --header "Title: Backup Failed - karakeep-assets" --header "Priority: urgent" --post-data "Job failed, transferred: $DATA_TRANS" "$NTFY_URL"
-                    else
-                      wget -qO- --header "Title: Backup Failed - karakeep-assets" --header "Priority: urgent" --post-data "Job failed, transferred: $DATA_TRANS" "$NTFY_URL"
-                    fi
-                    exit $sync_res
-                  fi
+                - "set -o pipefail\n\n# --- Sync Phase ---\nrclone sync \\\n  \"src:karakeep-assets\" \\\n  \"dest:karakeep-assets-bcb0bc04dac3e3fd\" \\\n  --s3-no-check-bucket \\\n  --verbose 2>&1 | tee /tmp/rclone-sync.log\n\nsync_res=$?\nSTATS=$(grep \"Transferred:\" /tmp/rclone-sync.log | tail -n 2)\nDATA_TRANS=$(echo \"$STATS\" | head -n 1 | sed 's/.*Transferred:[ \\t]*//')\nif [ -z \"$DATA_TRANS\" ]; then DATA_TRANS=\"Unknown\"; fi\n\nif [ $sync_res -eq 0 ]; then\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: ✅ Backup - karakeep-assets - secondary\" --header \"Priority: 3\" --post-data \"Job for secondary transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: ✅ Backup - karakeep-assets - secondary\" --header \"Priority: 3\" --post-data \"Job for secondary transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  fi\nelse\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: \U0001F6A8 Backup - karakeep-assets - secondary\" --header \"Priority: 4\" --post-data \"Job for secondary failed, transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: \U0001F6A8 Backup - karakeep-assets - secondary\" --header \"Priority: 4\" --post-data \"Job for secondary failed, transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  fi\n  exit $sync_res\nfi\n"
               env:
                 - name: RCLONE_CONFIG_SRC_TYPE
                   value: "s3"
