@@ -35,8 +35,27 @@ spec:
       dnsPolicy: ClusterFirst
       containers:
         - image: gotenberg/gotenberg:8.35.0@sha256:a16a14e1f18a71405624bc028e90d4ef50ea774c352b303639c10bf7b141f760
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
           name: gotenberg
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
         - env:
+            - name: PAPERLESS_TIME_ZONE
+              value: America/Chicago
+            - name: PAPERLESS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-key
+                  name: paperless-ngx-key
+            - name: PAPERLESS_URL
+              value: https://paperless-ngx.alexlebens.net
+            - name: PAPERLESS_ALLOWED_HOSTS
+              value: paperless-ngx.paperless-ngx
             - name: PAPERLESS_REDIS
               value: redis://paperless-ngx-valkey.paperless-ngx:6379
             - name: PAPERLESS_DBHOST
@@ -70,15 +89,6 @@ spec:
               value: http://localhost:9998
             - name: PAPERLESS_TIKA_GOTENBERG_ENDPOINT
               value: http://localhost:3000/
-            - name: PAPERLESS_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: secret-key
-                  name: paperless-ngx-key
-            - name: PAPERLESS_URL
-              value: https://paperless-ngx.alexlebens.net
-            - name: PAPERLESS_ALLOWED_HOSTS
-              value: paperless-ngx.paperless-ngx
             - name: PAPERLESS_ADMIN_USER
               valueFrom:
                 secretKeyRef:
@@ -98,16 +108,14 @@ spec:
             - name: PAPERLESS_APPS
               value: allauth.socialaccount.providers.openid_connect
             - name: PAPERLESS_LOGOUT_REDIRECT_URL
-              value: https://authentik.alexlebens.net/application/o/paperless-ngx/end-session/
+              value: https://paperless-ngx.alexlebens.net
             - name: PAPERLESS_SOCIALACCOUNT_PROVIDERS
               valueFrom:
                 secretKeyRef:
                   key: PAPERLESS_SOCIALACCOUNT_PROVIDERS
-                  name: paperless-ngx-oidc-authentik
+                  name: paperless-ngx-oidc-secret
             - name: PAPERLESS_SOCIALACCOUNT_DEFAULT_PERMISSIONS
               value: '["view_uisettings", "view_savedview", "add_uisettings", "change_uisettings", "delete_uisettings"]'
-            - name: PAPERLESS_TIME_ZONE
-              value: America/Chicago
             - name: PAPERLESS_AI_ENABLED
               value: "true"
             - name: PAPERLESS_AI_LLM_BACKEND
@@ -117,11 +125,25 @@ spec:
             - name: PAPERLESS_AI_LLM_ENDPOINT
               value: http://ollama-router.ollama:11434
           image: ghcr.io/paperless-ngx/paperless-ngx:3.0.5@sha256:65a4cabf0169ea7fbd90ab7bb28ba3f8b5909613635acda1a03ad606f34b456b
+          livenessProbe:
+            httpGet:
+              path: /accounts/login/
+              port: 8000
           name: main
+          readinessProbe:
+            httpGet:
+              path: /accounts/login/
+              port: 8000
           resources:
             requests:
               cpu: 10m
               memory: 600Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /accounts/login/
+              port: 8000
+            periodSeconds: 10
           volumeMounts:
             - mountPath: /usr/src/paperless/consume
               name: consume
@@ -132,7 +154,15 @@ spec:
             - mountPath: /usr/src/paperless/media
               name: media
         - image: apache/tika:3.3.1.0@sha256:90b7fa1dc018434075fce9e1d9b88b1e3d0ea6979d0cf86e116c79a8073ae973
+          livenessProbe:
+            httpGet:
+              path: /tika
+              port: 9998
           name: tika
+          readinessProbe:
+            httpGet:
+              path: /tika
+              port: 9998
       volumes:
         - name: consume
           persistentVolumeClaim:
