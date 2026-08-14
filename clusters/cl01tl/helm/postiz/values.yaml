@@ -2,7 +2,6 @@ postiz:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -83,41 +82,6 @@ postiz:
         http:
           port: 80
           targetPort: 5000
-  route:
-    spotlight:
-      kind: HTTPRoute
-      parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
-      hostnames:
-        - postiz-spotlight.alexlebens.net
-      rules:
-        - backendRefs:
-            - name: postiz-spotlight
-              port: 8969
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
-    temporal:
-      kind: HTTPRoute
-      parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
-      hostnames:
-        - postiz-temporal.alexlebens.net
-      rules:
-        - backendRefs:
-            - name: postiz-temporal-web
-              port: 8080
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     config:
       forceRename: postiz-config
@@ -128,7 +92,6 @@ postiz:
         main:
           main:
             - path: /config
-              readOnly: false
     uploads:
       forceRename: postiz-uploads
       storageClass: ceph-block
@@ -138,17 +101,12 @@ postiz:
         main:
           main:
             - path: /uploads
-              readOnly: false
 temporal:
   server:
-    image:
-      repository: temporalio/server
-      tag: 1.31.2@sha256:b5ecdb8282bededae2a10c36e8d862e27d0bc2d247fc73c5416025997ab4a1da
     metrics:
       serviceMonitor:
         enabled: true
     config:
-      logLevel: "debug,info"
       persistence:
         datastores:
           default:
@@ -181,8 +139,6 @@ temporal:
           - name: default
             retention: 30d
     frontend:
-      ingress:
-        enabled: false
       metrics:
         serviceMonitor:
           enabled: true
@@ -215,9 +171,6 @@ temporal:
           cpu: 10m
           memory: 50Mi
   admintools:
-    image:
-      repository: temporalio/admin-tools
-      tag: 1.31.2@sha256:dbc5fcd6ee8f0f4d808bf765af9a87dea9d8a283abfdcfbd2fc148496ba66107
     resources:
       requests:
         cpu: 10m
@@ -234,6 +187,14 @@ cloudflared:
   probe:
     enabled: true
     targetUrl: https://postiz.alexlebens.dev
+valkey:
+  valkey:
+    auth:
+      enabled: true
+      usersExistingSecret: postiz-valkey-config
+      aclUsers:
+        default:
+          permissions: "~* &* +@all"
 postgres-18-cluster:
   mode: recovery
   cluster:
@@ -254,14 +215,6 @@ postgres-18-cluster:
     - name: temporal_visibility
       ensure: present
       owner: app
-valkey:
-  valkey:
-    auth:
-      enabled: true
-      usersExistingSecret: postiz-valkey-config
-      aclUsers:
-        default:
-          permissions: "~* &* +@all"
 volsync-target-config:
   pvcTarget: postiz-config
   local:
