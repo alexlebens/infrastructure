@@ -2,7 +2,6 @@ plex:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       annotations:
         prometheus.io/probe-module: http_401
@@ -34,6 +33,30 @@ plex:
               gpu.intel.com/i915: 1
               cpu: 10m
               memory: 100Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /identity
+                  port: 32400
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /identity
+                  port: 32400
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /identity
+                  port: 32400
+                failureThreshold: 30
+                periodSeconds: 10
   service:
     main:
       controller: main
@@ -44,14 +67,11 @@ plex:
       ports:
         http:
           port: 32400
-          targetPort: 32400
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - plex.alexlebens.net
@@ -59,10 +79,6 @@ plex:
         - backendRefs:
             - name: plex
               port: 32400
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     config:
       forceRename: plex-config
@@ -73,14 +89,12 @@ plex:
         main:
           main:
             - path: /config
-              readOnly: false
     transcode:
       type: emptyDir
       advancedMounts:
         main:
           main:
             - path: /transcode
-              readOnly: false
     media:
       existingClaim: plex-nfs-storage
       advancedMounts:
