@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: postiz-main
+  name: postiz
   labels:
     app.kubernetes.io/controller: main
     app.kubernetes.io/instance: postiz
@@ -73,41 +73,49 @@ spec:
             - name: NEXT_PUBLIC_UPLOAD_DIRECTORY
               value: /uploads
             - name: NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME
-              value: Authentik
+              value: AlexAuth
             - name: NEXT_PUBLIC_POSTIZ_OAUTH_LOGO_URL
-              value: https://cdn.jsdelivr.net/gh/selfhst/icons/png/authentik.png
+              value: https://web-assets.alexlebens.dev/logo/logo-round-auth.png
             - name: POSTIZ_GENERIC_OAUTH
               value: "true"
             - name: POSTIZ_OAUTH_URL
-              value: https://auth.alexlebens.dev
+              value: https://pocket-id.alexlebens.dev
             - name: POSTIZ_OAUTH_AUTH_URL
-              value: https://auth.alexlebens.dev/application/o/authorize/
+              value: https://pocket-id.alexlebens.dev/authorize
             - name: POSTIZ_OAUTH_TOKEN_URL
-              value: https://auth.alexlebens.dev/application/o/token/
+              value: https://pocket-id.alexlebens.dev/api/oidc/token
             - name: POSTIZ_OAUTH_USERINFO_URL
-              value: https://auth.alexlebens.dev/application/o/userinfo/
+              value: https://pocket-id.alexlebens.dev/api/oidc/userinfo
             - name: POSTIZ_OAUTH_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  key: client
-                  name: postiz-oidc-authentik
+                  key: clientId
+                  name: postiz-oidc-secret
             - name: POSTIZ_OAUTH_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  key: secret
-                  name: postiz-oidc-authentik
+                  key: clientSecret
+                  name: postiz-oidc-secret
             - name: POSTIZ_OAUTH_SCOPE
               value: openid profile email
-            - name: NEXT_PUBLIC_SENTRY_DSN
-              value: http://key@postiz-spotlight.postiz:8969/1
-            - name: SENTRY_SPOTLIGHT
-              value: http://postiz-spotlight.postiz:8969/stream
           image: ghcr.io/gitroomhq/postiz-app:v2.23.0@sha256:785f97312f66a347fb96cdccc4ded5a33ced69a672c89a9adc8054e7d6a21dc5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
           name: main
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
           resources:
             requests:
               cpu: 100m
               memory: 1000Mi
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
           volumeMounts:
             - mountPath: /config
               name: config
