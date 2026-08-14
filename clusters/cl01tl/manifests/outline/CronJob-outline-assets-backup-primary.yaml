@@ -1,13 +1,13 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: kaneo-assets-backup-secondary
-  namespace: kaneo
+  name: outline-assets-backup-primary
+  namespace: outline
   labels:
-    app.kubernetes.io/name: kaneo-assets-backup-secondary
-    helm.sh/chart: garage-bucket-kaneo-assets-0.3.7
-    app.kubernetes.io/instance: kaneo
-    app.kubernetes.io/part-of: kaneo
+    app.kubernetes.io/name: outline-assets-backup-primary
+    helm.sh/chart: garage-bucket-outline-assets-0.3.7
+    app.kubernetes.io/instance: outline
+    app.kubernetes.io/part-of: outline
     app.kubernetes.io/version: "v0.7.4"
     app.kubernetes.io/managed-by: Helm
 spec:
@@ -24,7 +24,7 @@ spec:
       template:
         metadata:
           labels:
-            app.kubernetes.io/name: kaneo-assets-backup-secondary
+            app.kubernetes.io/name: outline-assets-backup-primary
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false
@@ -57,7 +57,7 @@ spec:
                 - /bin/sh
                 - -c
               args:
-                - "set -o pipefail\n\n# --- Sync Phase ---\nrclone sync \\\n  \"src:kaneo-assets\" \\\n  \"dest:kaneo-asssets-47edc3f232f2797f\" \\\n  --s3-no-check-bucket \\\n  --verbose 2>&1 | tee /tmp/rclone-sync.log\n\nsync_res=$?\nSTATS=$(grep \"Transferred:\" /tmp/rclone-sync.log | tail -n 2)\nDATA_TRANS=$(echo \"$STATS\" | head -n 1 | sed 's/.*Transferred:[ \\t]*//')\nif [ -z \"$DATA_TRANS\" ]; then DATA_TRANS=\"Unknown\"; fi\n\nif [ $sync_res -eq 0 ]; then\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: ✅ Backup - kaneo-assets - secondary\" --header \"Priority: 3\" --post-data \"Job for secondary transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: ✅ Backup - kaneo-assets - secondary\" --header \"Priority: 3\" --post-data \"Job for secondary transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  fi\nelse\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: \U0001F6A8 Backup - kaneo-assets - secondary\" --header \"Priority: 4\" --post-data \"Job for secondary failed, transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: \U0001F6A8 Backup - kaneo-assets - secondary\" --header \"Priority: 4\" --post-data \"Job for secondary failed, transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  fi\n  exit $sync_res\nfi\n"
+                - "set -o pipefail\n\n# --- Sync Phase ---\nrclone sync \\\n  \"src:outline-assets\" \\\n  \"dest:outline-assets\" \\\n  --s3-no-check-bucket \\\n  --verbose 2>&1 | tee /tmp/rclone-sync.log\n\nsync_res=$?\nSTATS=$(grep \"Transferred:\" /tmp/rclone-sync.log | tail -n 2)\nDATA_TRANS=$(echo \"$STATS\" | head -n 1 | sed 's/.*Transferred:[ \\t]*//')\nif [ -z \"$DATA_TRANS\" ]; then DATA_TRANS=\"Unknown\"; fi\n\nif [ $sync_res -eq 0 ]; then\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: ✅ Backup - outline-assets - primary\" --header \"Priority: 3\" --post-data \"Job for primary transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: ✅ Backup - outline-assets - primary\" --header \"Priority: 3\" --post-data \"Job for primary transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  fi\nelse\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: \U0001F6A8 Backup - outline-assets - primary\" --header \"Priority: 4\" --post-data \"Job for primary failed, transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: \U0001F6A8 Backup - outline-assets - primary\" --header \"Priority: 4\" --post-data \"Job for primary failed, transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  fi\n  exit $sync_res\nfi\n"
               env:
                 - name: RCLONE_CONFIG_SRC_TYPE
                   value: "s3"
@@ -66,52 +66,52 @@ spec:
                 - name: RCLONE_CONFIG_SRC_ENDPOINT
                   valueFrom:
                     secretKeyRef:
-                      name: kaneo-assets-key
+                      name: outline-assets-key
                       key: endpoint
                 - name: RCLONE_CONFIG_SRC_REGION
                   valueFrom:
                     secretKeyRef:
-                      name: kaneo-assets-key
+                      name: outline-assets-key
                       key: region
                 - name: RCLONE_CONFIG_SRC_ENV_AUTH
                   value: "false"
                 - name: RCLONE_CONFIG_SRC_ACCESS_KEY_ID
                   valueFrom:
                     secretKeyRef:
-                      name: kaneo-assets-key
+                      name: outline-assets-key
                       key: access-key-id
                 - name: RCLONE_CONFIG_SRC_SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: kaneo-assets-key
+                      name: outline-assets-key
                       key: secret-access-key
                 - name: RCLONE_CONFIG_DEST_TYPE
                   value: "s3"
                 - name: RCLONE_CONFIG_DEST_PROVIDER
                   value: "Other"
                 - name: RCLONE_CONFIG_DEST_ENDPOINT
-                  value: "s3.us-east-005.backblazeb2.com"
+                  value: "https://garage-ps10rp.boreal-beaufort.ts.net:3900"
                 - name: RCLONE_CONFIG_DEST_REGION
-                  value: "us-east-005"
+                  value: "us-east-1"
                 - name: RCLONE_CONFIG_DEST_ENV_AUTH
                   value: "false"
                 - name: RCLONE_CONFIG_DEST_ACCESS_KEY_ID
                   valueFrom:
                     secretKeyRef:
-                      name: kaneo-assets-secret-backup-secondary
+                      name: outline-assets-secret-backup-primary
                       key: AWS_ACCESS_KEY_ID
                 - name: RCLONE_CONFIG_DEST_SECRET_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: kaneo-assets-secret-backup-secondary
+                      name: outline-assets-secret-backup-primary
                       key: AWS_SECRET_ACCESS_KEY
                 - name: NTFY_URL
                   valueFrom:
                     secretKeyRef:
-                      name: kaneo-assets-secret-backup-ntfy
+                      name: outline-assets-secret-backup-ntfy
                       key: ntfy-url
                 - name: NTFY_TOKEN
                   valueFrom:
                     secretKeyRef:
-                      name: kaneo-assets-secret-backup-ntfy
+                      name: outline-assets-secret-backup-ntfy
                       key: ntfy-token

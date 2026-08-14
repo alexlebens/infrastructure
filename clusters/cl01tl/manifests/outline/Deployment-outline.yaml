@@ -91,49 +91,76 @@ spec:
             - name: REDIS_URL
               value: redis://outline-valkey.outline:6379
             - name: FILE_STORAGE
-              value: local
+              value: s3
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: access-key-id
+                  name: outline-assets-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-access-key
+                  name: outline-assets-key
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: region
+                  name: outline-assets-key
+            - name: AWS_S3_UPLOAD_BUCKET_NAME
+              value: outline-assets
+            - name: AWS_S3_UPLOAD_BUCKET_URL
+              value: https://s3-a.alexlebens.net
+            - name: AWS_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: AWS_S3_ACL
+              value: private
             - name: FILE_STORAGE_UPLOAD_MAX_SIZE
               value: "26214400"
             - name: FORCE_HTTPS
               value: "false"
             - name: ENABLE_UPDATES
               value: "false"
-            - name: WEB_CONCURRENCY
-              value: "1"
-            - name: FILE_STORAGE_IMPORT_MAX_SIZE
-              value: "5.12e+06"
-            - name: LOG_LEVEL
-              value: info
-            - name: DEFAULT_LANGUAGE
-              value: en_US
             - name: RATE_LIMITER_ENABLED
-              value: "false"
-            - name: DEVELOPMENT_UNSAFE_INLINE_CSP
               value: "false"
             - name: OIDC_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  key: client
-                  name: outline-oidc-authentik
+                  key: clientId
+                  name: outline-oidc-secret
             - name: OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  key: secret
-                  name: outline-oidc-authentik
+                  key: clientSecret
+                  name: outline-oidc-secret
             - name: OIDC_ISSUER_URL
-              value: https://auth.alexlebens.dev/application/o/outline
+              value: https://pocket-id.alexlebens.dev
             - name: OIDC_USERNAME_CLAIM
               value: email
             - name: OIDC_DISPLAY_NAME
-              value: Authentik
+              value: AlexAuth
             - name: OIDC_SCOPES
               value: openid profile email
           image: outlinewiki/outline:1.9.2@sha256:32d76719c378931dd65d93945930ca380d8376a0337d98a991fcc12b266f33cf
+          livenessProbe:
+            httpGet:
+              path: /_health
+              port: 3000
           name: main
+          readinessProbe:
+            httpGet:
+              path: /_health
+              port: 3000
           resources:
             requests:
               cpu: 10m
               memory: 500Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /_health
+              port: 3000
+            periodSeconds: 10
           volumeMounts:
             - mountPath: /var/lib/outline/data
               name: data

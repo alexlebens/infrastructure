@@ -37,6 +37,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       terminationGracePeriodSeconds: 10
       serviceAccountName: openbao
+      shareProcessNamespace: true
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -137,6 +138,39 @@ spec:
             preStop:
               exec:
                 command: ["/bin/sh", "-c", "sleep 5 && kill -SIGTERM $(pidof bao)"]
+        - command:
+            - /bin/sh
+            - -c
+            - |
+              apk add --no-cache logrotate procps
+              cat <<'EOF' > /etc/logrotate.d/openbao
+              /openbao/audit/*.log {
+                  daily
+                  maxsize 10G
+                  rotate 30
+                  maxage 30
+                  missingok
+                  compress
+                  delaycompress
+                  notifempty
+                  create 0600 vault vault
+                  sharedscripts
+                  postrotate
+                      pkill -HUP -f "openbao server" || pkill -HUP -f "vault server" || true
+                  endscript
+              }
+              EOF
+              echo "0 * * * * /usr/sbin/logrotate -v /etc/logrotate.d/openbao" > /etc/crontabs/root
+              exec crond -f -l 2
+          image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+          name: logrotate
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          volumeMounts:
+            - mountPath: /openbao/audit
+              name: audit
   volumeClaimTemplates:
     - apiVersion: v1
       kind: PersistentVolumeClaim
