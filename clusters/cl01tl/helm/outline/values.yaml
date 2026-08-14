@@ -66,7 +66,30 @@ outline:
             - name: REDIS_URL
               value: redis://outline-valkey.outline:6379
             - name: FILE_STORAGE
-              value: local
+              value: s3
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: outline-assets-key
+                  key: access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: outline-assets-key
+                  key: secret-access-key
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: outline-assets-key
+                  key: region
+            - name: AWS_S3_UPLOAD_BUCKET_NAME
+              value: outline-assets
+            - name: AWS_S3_UPLOAD_BUCKET_URL
+              value: https://s3-a.alexlebens.net
+            - name: AWS_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: AWS_S3_ACL
+              value: private
             - name: FILE_STORAGE_UPLOAD_MAX_SIZE
               value: "26214400"
             - name: FORCE_HTTPS
@@ -138,16 +161,34 @@ postgres-18-cluster:
     scheduledBackup:
       suspend: false
       schedule: "0 10 15 * * *"
-volsync-target-data:
-  pvcTarget: outline-data
-  moverSecurityContext:
-    fsGroup: 1001
-  local:
+garage-bucket-outline-assets:
+  bucketName: outline-assets
+  cors:
     enabled: true
-    schedule: 20 8 * * *
-  remote:
-    enabled: true
-    schedule: 20 10 * * 3
-  external:
-    enabled: true
-    schedule: 20 9 * * 3
+    policy: |
+      {
+        "CORSRules": [
+          {
+            "AllowedOrigins": ["https://outline.alexlebens.dev"],
+            "AllowedHeaders": ["*"],
+            "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+            "MaxAgeSeconds": 3000,
+            "ExposeHeaders": ["ETag"]
+          }
+        ]
+      }
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: outline-assets
+    secondary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: outline-assets-2ac99fb083071f74
