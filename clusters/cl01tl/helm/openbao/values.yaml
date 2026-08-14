@@ -168,7 +168,7 @@ openbao:
       tag: 0.4.0@sha256:4b12aedcac7e4867401dc0259c385dd46ccc66f407dd2e7c195b2552920bfbed
     s3CredentialsSecret: openbao-snapshot-secret
     config:
-      s3Host: garage-main.garage:3900
+      s3Host: garage-cluster-a.garage-operator.svc.cluster.local:3900
       s3Bucket: openbao-backups
       s3Uri: s3://openbao-backups
       s3ExpireDays: "30"
@@ -224,70 +224,26 @@ unseal:
             requests:
               cpu: 1m
               memory: 10Mi
-rclone-openbao-backups-remote:
-  nameOverride: openbao-backups-remote-rclone
-  cronJob:
-    suspend: false
-    schedule: 30 6 * * 4
-  rclone:
-    source:
-      bucketName: openbao-backups
-    destination:
-      bucketName: openbao-backups
-  prune:
-    enabled: true
-    ageToPrune: 90d
-  ntfy:
-    externalSecret:
-      urlPath: /cl01tl/ntfy/config
-      urlProperty: internal-endpoint
-      topicPath: /cl01tl/ntfy/topics
-      topicProperty: rclone
-      tokenPath: /cl01tl/ntfy/users/cl01tl
-      tokenProperty: token
-  secret:
-    externalSecret:
-      source:
-        credentials:
-          path: /garage/home-infra/openbao-backups
-        config:
-          path: /garage/config
+garage-bucket-openbao-backups:
+  bucketName: openbao-backups
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: true
+        schedule: 30 6 * * 4
       destination:
-        credentials:
-          path: /garage/home-infra/openbao-backups
-        config:
-          path: /garage/config
-rclone-openbao-backups-external:
-  nameOverride: openbao-backups-external-rclone
-  cronJob:
-    suspend: false
-    schedule: 0 6 * * 4
-  rclone:
-    source:
-      bucketName: openbao-backups
-    destination:
-      bucketName: openbao-backups-038053cd180284dc
-  prune:
-    enabled: true
-    ageToPrune: 90d
-  ntfy:
-    externalSecret:
-      urlPath: /cl01tl/ntfy/config
-      urlProperty: internal-endpoint
-      topicPath: /cl01tl/ntfy/topics
-      topicProperty: rclone
-      tokenPath: /cl01tl/ntfy/users/cl01tl
-      tokenProperty: token
-  secret:
-    externalSecret:
-      source:
-        credentials:
-          path: /garage/home-infra/openbao-backups
-        config:
-          path: /garage/config
+        bucketName: openbao-backups
+      prune:
+        enabled: true
+        ageToPrune: 90d
+    secondary:
+      enabled: true
+      cronJob:
+        suspend: true
+        schedule: 0 6 * * 4
       destination:
-        credentials:
-          path: /backblaze/home-infra/openbao-backups
-        config:
-          path: /backblaze/config
-          endpointProperty: ENDPOINT
+        bucketName: openbao-backups-038053cd180284dc
+      prune:
+        enabled: true
+        ageToPrune: 90d
