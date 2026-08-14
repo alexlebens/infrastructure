@@ -2,7 +2,6 @@ paperless-ngx:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -10,6 +9,17 @@ paperless-ngx:
             repository: ghcr.io/paperless-ngx/paperless-ngx
             tag: 3.0.5@sha256:65a4cabf0169ea7fbd90ab7bb28ba3f8b5909613635acda1a03ad606f34b456b
           env:
+            - name: PAPERLESS_TIME_ZONE
+              value: America/Chicago
+            - name: PAPERLESS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-ngx-key
+                  key: secret-key
+            - name: PAPERLESS_URL
+              value: https://paperless-ngx.alexlebens.net
+            - name: PAPERLESS_ALLOWED_HOSTS
+              value: paperless-ngx.paperless-ngx
             - name: PAPERLESS_REDIS
               value: redis://paperless-ngx-valkey.paperless-ngx:6379
             - name: PAPERLESS_DBHOST
@@ -43,15 +53,6 @@ paperless-ngx:
               value: http://localhost:9998
             - name: PAPERLESS_TIKA_GOTENBERG_ENDPOINT
               value: http://localhost:3000/
-            - name: PAPERLESS_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: paperless-ngx-key
-                  key: secret-key
-            - name: PAPERLESS_URL
-              value: https://paperless-ngx.alexlebens.net
-            - name: PAPERLESS_ALLOWED_HOSTS
-              value: paperless-ngx.paperless-ngx
             - name: PAPERLESS_ADMIN_USER
               valueFrom:
                 secretKeyRef:
@@ -71,16 +72,14 @@ paperless-ngx:
             - name: PAPERLESS_APPS
               value: allauth.socialaccount.providers.openid_connect
             - name: PAPERLESS_LOGOUT_REDIRECT_URL
-              value: https://authentik.alexlebens.net/application/o/paperless-ngx/end-session/
+              value: https://paperless-ngx.alexlebens.net
             - name: PAPERLESS_SOCIALACCOUNT_PROVIDERS
               valueFrom:
                 secretKeyRef:
-                  name: paperless-ngx-oidc-authentik
+                  name: paperless-ngx-oidc-secret
                   key: PAPERLESS_SOCIALACCOUNT_PROVIDERS
             - name: PAPERLESS_SOCIALACCOUNT_DEFAULT_PERMISSIONS
               value: '["view_uisettings", "view_savedview", "add_uisettings", "change_uisettings", "delete_uisettings"]'
-            - name: PAPERLESS_TIME_ZONE
-              value: America/Chicago
             - name: PAPERLESS_AI_ENABLED
               value: true
             - name: PAPERLESS_AI_LLM_BACKEND
@@ -93,17 +92,70 @@ paperless-ngx:
             requests:
               cpu: 10m
               memory: 600Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /accounts/login/
+                  port: 8000
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /accounts/login/
+                  port: 8000
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /accounts/login/
+                  port: 8000
+                failureThreshold: 30
+                periodSeconds: 10
         gotenberg:
           image:
             repository: gotenberg/gotenberg
             tag: 8.35.0@sha256:a16a14e1f18a71405624bc028e90d4ef50ea774c352b303639c10bf7b141f760
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 3000
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 3000
         tika:
           image:
             repository: apache/tika
             tag: 3.3.1.0@sha256:90b7fa1dc018434075fce9e1d9b88b1e3d0ea6979d0cf86e116c79a8073ae973
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /tika
+                  port: 9998
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /tika
+                  port: 9998
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -112,9 +164,7 @@ paperless-ngx:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - paperless-ngx.alexlebens.net
@@ -122,10 +172,6 @@ paperless-ngx:
         - backendRefs:
             - name: paperless-ngx
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     data:
       forceRename: paperless-ngx-data
@@ -171,6 +217,7 @@ postgres-18-cluster:
   backup:
     objectStore:
       index: 1
+      endpointURL: http://garage-cluster-a.garage-operator.svc.cluster.local:3900
     scheduledBackups:
       suspend: false
       schedule: "0 15 15 * * *"
