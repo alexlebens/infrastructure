@@ -138,13 +138,6 @@ rook-ceph-cluster:
       devicePathFilter: "/dev/disk/by-partlabel/r-csi-disk"
       config:
         osdsPerDevice: "1"
-  route:
-    dashboard:
-      host:
-        name: ceph.alexlebens.net
-      parentRefs:
-        - name: traefik-gateway
-          namespace: traefik
   cephBlockPools:
     - name: ceph-blockpool
       spec:
@@ -215,3 +208,75 @@ rook-ceph-cluster:
     name: ceph-blockpool-snapshot
     isDefault: true
   cephObjectStores: []
+ceph-dashboard-oauth-proxy:
+  fullnameOverride: ceph-dashboard-oauth-proxy
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          envFrom:
+            - secretRef:
+                name: ceph-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://rook-ceph-mgr-dashboard.rook-ceph:7000
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
+  service:
+    main:
+      ports:
+        http:
+          port: 4180
+        metrics:
+          port: 44180
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: ceph-dashboard-oauth-proxy
+          app.kubernetes.io/instance: ceph-dashboard-oauth-proxy
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - ceph.alexlebens.net
+      rules:
+        - backendRefs:
+            - name: ceph-dashboard-oauth-proxy
+              port: 4180
