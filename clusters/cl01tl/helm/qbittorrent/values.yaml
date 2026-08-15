@@ -76,7 +76,7 @@ qbittorrent:
             - name: FIREWALL_OUTBOUND_SUBNETS
               value: 127.0.0.0/8,192.168.1.0/24,10.244.0.0/16,10.96.0.0/12,10.0.0.0/8
             - name: FIREWALL_INPUT_PORTS
-              value: 8080,9022,9999
+              value: 8080,9022,9999,4180,44180
             - name: BLOCK_MALICIOUS
               value: "off"
           securityContext:
@@ -156,6 +156,43 @@ qbittorrent:
                   port: 8080
                 periodSeconds: 5
                 failureThreshold: 30
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          envFrom:
+            - secretRef:
+                name: qbittorrent-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:8080
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
         exporter:
           image:
             repository: esanchezm/prometheus-qbittorrent-exporter
@@ -261,17 +298,17 @@ qbittorrent:
             - name: QUI__OIDC_ENABLED
               value: true
             - name: QUI__OIDC_ISSUER
-              value: https://auth.alexlebens.dev/application/o/qui/
+              value: https://pocket-id.alexlebens.dev
             - name: QUI__OIDC_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: qui-oidc-authentik
-                  key: client
+                  name: qui-oidc-secret
+                  key: clientId
             - name: QUI__OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: qui-oidc-authentik
-                  key: secret
+                  name: qui-oidc-secret
+                  key: clientSecret
             - name: QUI__OIDC_REDIRECT_URL
               value: https://qui.alexlebens.net/api/auth/oidc/callback
             - name: QUI__OIDC_DISABLE_BUILT_IN_LOGIN
@@ -291,6 +328,10 @@ qbittorrent:
           port: 9999
         metrics:
           port: 9022
+        oauth:
+          port: 4180
+        oauth-metrics:
+          port: 44180
     qbit-manage:
       controller: qbit-manage
       ports:
@@ -314,6 +355,7 @@ qbittorrent:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
+        - port: oauth-metrics
     apprise:
       selector:
         matchLabels:
@@ -341,7 +383,7 @@ qbittorrent:
       rules:
         - backendRefs:
             - name: qbittorrent
-              port: 8080
+              port: 4180
     qui:
       kind: HTTPRoute
       parentRefs:
