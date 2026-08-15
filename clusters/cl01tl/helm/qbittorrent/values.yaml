@@ -2,7 +2,6 @@ qbittorrent:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -77,7 +76,7 @@ qbittorrent:
             - name: FIREWALL_OUTBOUND_SUBNETS
               value: 127.0.0.0/8,192.168.1.0/24,10.244.0.0/16,10.96.0.0/12,10.0.0.0/8
             - name: FIREWALL_INPUT_PORTS
-              value: 8080,9022,9999
+              value: 8080,9022,9999,4180,44180
             - name: BLOCK_MALICIOUS
               value: "off"
           securityContext:
@@ -86,6 +85,11 @@ qbittorrent:
               add:
                 - NET_ADMIN
                 - SYS_MODULE
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              devic.es/tun: "1"
           probes:
             readiness:
               enabled: true
@@ -100,11 +104,6 @@ qbittorrent:
                 periodSeconds: 30
                 successThreshold: 1
                 timeoutSeconds: 15
-          resources:
-            limits:
-              devic.es/tun: "1"
-            requests:
-              devic.es/tun: "1"
       containers:
         qbittorrent:
           image:
@@ -121,6 +120,10 @@ qbittorrent:
               value: "002"
             - name: WEBUI_PORT
               value: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1000Mi
           probes:
             liveness:
               enabled: true
@@ -153,10 +156,43 @@ qbittorrent:
                   port: 8080
                 periodSeconds: 5
                 failureThreshold: 30
-          resources:
-            requests:
-              cpu: 100m
-              memory: 1000Mi
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          envFrom:
+            - secretRef:
+                name: qbittorrent-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:8080
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
         exporter:
           image:
             repository: esanchezm/prometheus-qbittorrent-exporter
@@ -182,7 +218,6 @@ qbittorrent:
             - tail -F /config/qBittorrent/logs/qbittorrent.log
     qbit-manage:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         automountServiceAccountToken: true
@@ -201,7 +236,6 @@ qbittorrent:
           image:
             repository: ghcr.io/stuffanthings/qbit_manage
             tag: v4.11.0@sha256:d888d415075dc6fb6843f77465c6eb5688e6d78f15d7bd6a00da1cdd99a92120
-            pullPolicy: IfNotPresent
           env:
             - name: TZ
               value: America/Chicago
@@ -243,7 +277,6 @@ qbittorrent:
                   key: ntfy-url
     qui:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -264,17 +297,17 @@ qbittorrent:
             - name: QUI__OIDC_ENABLED
               value: true
             - name: QUI__OIDC_ISSUER
-              value: https://auth.alexlebens.dev/application/o/qui/
+              value: https://pocket-id.alexlebens.dev
             - name: QUI__OIDC_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: qui-oidc-authentik
-                  key: client
+                  name: qui-oidc-secret
+                  key: clientId
             - name: QUI__OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: qui-oidc-authentik
-                  key: secret
+                  name: qui-oidc-secret
+                  key: clientSecret
             - name: QUI__OIDC_REDIRECT_URL
               value: https://qui.alexlebens.net/api/auth/oidc/callback
             - name: QUI__OIDC_DISABLE_BUILT_IN_LOGIN
@@ -283,6 +316,29 @@ qbittorrent:
             requests:
               cpu: 10m
               memory: 70Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz/liveness
+                  port: 7476
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz/readiness
+                  port: 7476
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz/liveness
+                  port: 7476
+                failureThreshold: 30
   service:
     main:
       controller: main
@@ -290,13 +346,14 @@ qbittorrent:
       ports:
         http:
           port: 8080
-          targetPort: 8080
         health:
           port: 9999
-          targetPort: 9999
         metrics:
           port: 9022
-          targetPort: 9022
+        oauth:
+          port: 4180
+        oauth-metrics:
+          port: 44180
     qbit-manage:
       controller: qbit-manage
       ports:
@@ -311,7 +368,6 @@ qbittorrent:
           targetPort: 7476
         metrics:
           port: 9074
-          targetPort: 9074
   serviceMonitor:
     main:
       selector:
@@ -321,9 +377,7 @@ qbittorrent:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 30s
-          scrapeTimeout: 15s
-          path: /metrics
+        - port: oauth-metrics
     apprise:
       selector:
         matchLabels:
@@ -332,9 +386,6 @@ qbittorrent:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: apprise
-          interval: 30s
-          scrapeTimeout: 15s
-          path: /metrics
     qui:
       selector:
         matchLabels:
@@ -343,33 +394,22 @@ qbittorrent:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 30s
-          scrapeTimeout: 15s
-          path: /metrics
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - qbittorrent.alexlebens.net
       rules:
         - backendRefs:
             - name: qbittorrent
-              port: 8080
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
+              port: 4180
     qui:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - qui.alexlebens.net
@@ -377,21 +417,7 @@ qbittorrent:
         - backendRefs:
             - name: qbittorrent-qui
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
-    update-script:
-      enabled: true
-      type: configMap
-      name: gluetun-update-script
-      defaultMode: 0755
-      advancedMounts:
-        main:
-          gluetun:
-            - path: /gluetun/update.sh
-              subPath: update.sh
     config-data:
       forceRename: qbittorrent-config-data
       storageClass: ceph-filesystem
@@ -401,17 +427,14 @@ qbittorrent:
         main:
           init-lockfile:
             - path: /config/qBittorrent
-              readOnly: false
           qbittorrent:
             - path: /config/qBittorrent
-              readOnly: false
           log-streamer:
             - path: /config/qBittorrent
               readOnly: true
         qbit-manage:
           qbit-manage:
             - path: /qbittorrent/qBittorrent
-              readOnly: false
     qbit-manage-config:
       enabled: true
       type: custom
@@ -425,14 +448,12 @@ qbittorrent:
         qbit-manage:
           init-copy-config:
             - path: /tmp/config.yml
-              readOnly: true
-              mountPropagation: None
               subPath: config.yml
+              readOnly: true
           qbit-manage:
             - path: /tmp/config.yml
-              readOnly: true
-              mountPropagation: None
               subPath: config.yml
+              readOnly: true
     qbit-manage-config-data:
       forceRename: qbittorrent-qbit-manage-config-data
       storageClass: ceph-block
@@ -442,10 +463,8 @@ qbittorrent:
         qbit-manage:
           init-copy-config:
             - path: /app/config
-              readOnly: false
           qbit-manage:
             - path: /app/config
-              readOnly: false
     qbit-manage-config-var:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
@@ -454,7 +473,6 @@ qbittorrent:
         qbit-manage:
           qbit-manage:
             - path: /app/var
-              readOnly: false
     qui-config-data:
       forceRename: qbittorrent-qui-config-data
       storageClass: ceph-block
@@ -464,7 +482,6 @@ qbittorrent:
         qui:
           qui:
             - path: /config
-              readOnly: false
     storage:
       type: persistentVolumeClaim
       existingClaim: qbittorrent-nfs-storage
@@ -472,11 +489,9 @@ qbittorrent:
         main:
           qbittorrent:
             - path: /mnt/store
-              readOnly: false
         qbit-manage:
           qbit-manage:
             - path: /mnt/store
-              readOnly: false
 volsync-target-config:
   pvcTarget: qbittorrent-config-data
   moverSecurityContext:
