@@ -41,11 +41,25 @@ spec:
             - name: TZ
               value: America/Chicago
           image: ghcr.io/linuxserver/prowlarr:2.5.2.5491-ls156@sha256:1295cff29d10b486c0d8324d1559a552140a5932bf8b3d87e398654414f63f92
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 9696
           name: main
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 9696
           resources:
             requests:
               cpu: 10m
               memory: 200Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /ping
+              port: 9696
+            periodSeconds: 5
           volumeMounts:
             - mountPath: /config
               name: config
@@ -82,15 +96,21 @@ spec:
               value: S256
             - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
               value: "true"
-            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
-              value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: '*'
           envFrom:
             - secretRef:
                 name: prowlarr-oauth-proxy
           image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
           name: oauth
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4180
       volumes:
         - name: config
           persistentVolumeClaim:
