@@ -11,11 +11,12 @@ ceph-csi-drivers:
         priorityClassName: system-cluster-critical
   drivers:
     rbd:
-      enabled: true
       name: rook-ceph.rbd.csi.ceph.com
       snapshotPolicy: volumeSnapshot
+    nvmeof:
+      enabled: false
+      name: rook-ceph.nvmeof.csi.ceph.com
     cephfs:
-      enabled: true
       name: rook-ceph.cephfs.csi.ceph.com
       snapshotPolicy: volumeSnapshot
       kernelMountOptions:
@@ -23,25 +24,13 @@ ceph-csi-drivers:
     nfs:
       enabled: false
       name: rook-ceph.nfs.csi.ceph.com
-    nvmeof:
-      enabled: false
-      name: rook-ceph.nvmeof.csi.ceph.com
 rook-ceph:
-  crds:
-    enabled: true
-  resources:
-    limits:
-      memory: 1000Mi
-    requests:
-      cpu: 200m
-      memory: 100Mi
   ceph-csi-operator:
     controllerManager:
       manager:
         env:
           csiServiceAccountPrefix: "ceph-csi-operator-"
   csi:
-    installCsiOperator: true
     serviceMonitor:
       enabled: true
   enableDiscoveryDaemon: true
@@ -67,10 +56,6 @@ rook-ceph-cluster:
     repository: quay.io/ceph/ceph
     tag: v20.2.3@sha256:d195020de02512030118e772cef7859e92904e91eb4cb21acb503f8b94118137
   cephClusterSpec:
-    cephConfig:
-      osd:
-        bluestore_slow_ops_warn_lifetime: "60"
-        bluestore_slow_ops_warn_threshold: "10"
     csi:
       readAffinity:
         enabled: true
@@ -79,7 +64,7 @@ rook-ceph-cluster:
         - name: pg_autoscaler
           enabled: true
         - name: rook
-          enabled: false
+          enabled: true
         - name: volumes
           enabled: true
     dashboard:
@@ -108,42 +93,28 @@ rook-ceph-cluster:
               - matchExpressions:
                   - key: node-role.kubernetes.io/rook-mon-node
                     operator: Exists
-                  - key: node-role.kubernetes.io/control-plane
-                    operator: Exists
         tolerations:
-          - key: node-role.kubernetes.io/rook-mon-node
-            operator: Exists
           - key: node-role.kubernetes.io/control-plane
             operator: Exists
     resources:
       mgr:
         limits:
-          memory: 2000Mi
+          memory: 1000Mi
         requests:
           cpu: 100m
           memory: 200Mi
       mon:
         limits:
-          memory: 4000Mi
+          memory: 2000Mi
         requests:
           cpu: 100m
-          memory: 500Mi
+          memory: 400Mi
       osd:
         limits:
           memory: 8000Mi
         requests:
           cpu: 500m
           memory: 2000Mi
-      prepareosd:
-        requests:
-          cpu: 100m
-          memory: 200Mi
-      mgr-sidecar:
-        limits:
-          memory: 2000Mi
-        requests:
-          cpu: 100m
-          memory: 40Mi
       crashcollector:
         limits:
           memory: 1000Mi
@@ -151,12 +122,6 @@ rook-ceph-cluster:
           cpu: 1m
           memory: 10Mi
       logcollector:
-        limits:
-          memory: 1000Mi
-        requests:
-          cpu: 1m
-          memory: 10Mi
-      cleanup:
         limits:
           memory: 1000Mi
         requests:
@@ -173,17 +138,6 @@ rook-ceph-cluster:
       devicePathFilter: "/dev/disk/by-partlabel/r-csi-disk"
       config:
         osdsPerDevice: "1"
-  route:
-    dashboard:
-      host:
-        name: ceph.alexlebens.net
-        path: "/"
-        pathType: PathPrefix
-      parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
-          namespace: traefik
   cephBlockPools:
     - name: ceph-blockpool
       spec:
@@ -249,10 +203,80 @@ rook-ceph-cluster:
     enabled: true
     name: ceph-filesystem-snapshot
     isDefault: false
-    deletionPolicy: Delete
   cephBlockPoolsVolumeSnapshotClass:
     enabled: true
     name: ceph-blockpool-snapshot
     isDefault: true
-    deletionPolicy: Delete
   cephObjectStores: []
+ceph-dashboard-oauth-proxy:
+  fullnameOverride: ceph-dashboard-oauth-proxy
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          envFrom:
+            - secretRef:
+                name: ceph-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://rook-ceph-mgr-dashboard.rook-ceph:7000
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
+  service:
+    main:
+      ports:
+        http:
+          port: 4180
+        metrics:
+          port: 44180
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: ceph-dashboard-oauth-proxy
+          app.kubernetes.io/instance: ceph-dashboard-oauth-proxy
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - ceph.alexlebens.net
+      rules:
+        - backendRefs:
+            - name: ceph-dashboard-oauth-proxy
+              port: 4180

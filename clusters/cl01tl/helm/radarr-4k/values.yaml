@@ -26,22 +26,30 @@ radarr-4k:
             requests:
               cpu: 10m
               memory: 220Mi
-        metrics:
-          image:
-            repository: ghcr.io/onedr0p/exportarr
-            tag: v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
-          args: ["radarr"]
-          env:
-            - name: URL
-              value: http://localhost
-            - name: CONFIG
-              value: /config/config.xml
-            - name: PORT
-              value: 9793
-            - name: ENABLE_ADDITIONAL_METRICS
-              value: false
-            - name: ENABLE_UNKNOWN_QUEUE_ITEMS
-              value: false
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 7878
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 7878
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 7878
+                failureThreshold: 30
+                periodSeconds: 5
         oauth:
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
@@ -66,6 +74,37 @@ radarr-4k:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
+        metrics:
+          image:
+            repository: ghcr.io/onedr0p/exportarr
+            tag: v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
+          args: ["radarr"]
+          env:
+            - name: URL
+              value: http://localhost
+            - name: CONFIG
+              value: /config/config.xml
+            - name: PORT
+              value: 9793
+            - name: ENABLE_ADDITIONAL_METRICS
+              value: false
+            - name: ENABLE_UNKNOWN_QUEUE_ITEMS
+              value: false
   service:
     main:
       ports:
