@@ -2,7 +2,6 @@ qbittorrent:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -86,6 +85,11 @@ qbittorrent:
               add:
                 - NET_ADMIN
                 - SYS_MODULE
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              devic.es/tun: "1"
           probes:
             readiness:
               enabled: true
@@ -100,11 +104,6 @@ qbittorrent:
                 periodSeconds: 30
                 successThreshold: 1
                 timeoutSeconds: 15
-          resources:
-            limits:
-              devic.es/tun: "1"
-            requests:
-              devic.es/tun: "1"
       containers:
         qbittorrent:
           image:
@@ -121,6 +120,10 @@ qbittorrent:
               value: "002"
             - name: WEBUI_PORT
               value: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1000Mi
           probes:
             liveness:
               enabled: true
@@ -153,10 +156,6 @@ qbittorrent:
                   port: 8080
                 periodSeconds: 5
                 failureThreshold: 30
-          resources:
-            requests:
-              cpu: 100m
-              memory: 1000Mi
         exporter:
           image:
             repository: esanchezm/prometheus-qbittorrent-exporter
@@ -182,7 +181,6 @@ qbittorrent:
             - tail -F /config/qBittorrent/logs/qbittorrent.log
     qbit-manage:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         automountServiceAccountToken: true
@@ -243,7 +241,6 @@ qbittorrent:
                   key: ntfy-url
     qui:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -290,13 +287,10 @@ qbittorrent:
       ports:
         http:
           port: 8080
-          targetPort: 8080
         health:
           port: 9999
-          targetPort: 9999
         metrics:
           port: 9022
-          targetPort: 9022
     qbit-manage:
       controller: qbit-manage
       ports:
@@ -311,7 +305,6 @@ qbittorrent:
           targetPort: 7476
         metrics:
           port: 9074
-          targetPort: 9074
   serviceMonitor:
     main:
       selector:
@@ -321,9 +314,6 @@ qbittorrent:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 30s
-          scrapeTimeout: 15s
-          path: /metrics
     apprise:
       selector:
         matchLabels:
@@ -332,9 +322,6 @@ qbittorrent:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: apprise
-          interval: 30s
-          scrapeTimeout: 15s
-          path: /metrics
     qui:
       selector:
         matchLabels:
@@ -343,16 +330,11 @@ qbittorrent:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 30s
-          scrapeTimeout: 15s
-          path: /metrics
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - qbittorrent.alexlebens.net
@@ -360,16 +342,10 @@ qbittorrent:
         - backendRefs:
             - name: qbittorrent
               port: 8080
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
     qui:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - qui.alexlebens.net
@@ -377,21 +353,7 @@ qbittorrent:
         - backendRefs:
             - name: qbittorrent-qui
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
-    update-script:
-      enabled: true
-      type: configMap
-      name: gluetun-update-script
-      defaultMode: 0755
-      advancedMounts:
-        main:
-          gluetun:
-            - path: /gluetun/update.sh
-              subPath: update.sh
     config-data:
       forceRename: qbittorrent-config-data
       storageClass: ceph-filesystem
@@ -401,17 +363,14 @@ qbittorrent:
         main:
           init-lockfile:
             - path: /config/qBittorrent
-              readOnly: false
           qbittorrent:
             - path: /config/qBittorrent
-              readOnly: false
           log-streamer:
             - path: /config/qBittorrent
               readOnly: true
         qbit-manage:
           qbit-manage:
             - path: /qbittorrent/qBittorrent
-              readOnly: false
     qbit-manage-config:
       enabled: true
       type: custom
@@ -425,14 +384,12 @@ qbittorrent:
         qbit-manage:
           init-copy-config:
             - path: /tmp/config.yml
-              readOnly: true
-              mountPropagation: None
               subPath: config.yml
+              readOnly: true
           qbit-manage:
             - path: /tmp/config.yml
-              readOnly: true
-              mountPropagation: None
               subPath: config.yml
+              readOnly: true
     qbit-manage-config-data:
       forceRename: qbittorrent-qbit-manage-config-data
       storageClass: ceph-block
@@ -442,10 +399,8 @@ qbittorrent:
         qbit-manage:
           init-copy-config:
             - path: /app/config
-              readOnly: false
           qbit-manage:
             - path: /app/config
-              readOnly: false
     qbit-manage-config-var:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
@@ -454,7 +409,6 @@ qbittorrent:
         qbit-manage:
           qbit-manage:
             - path: /app/var
-              readOnly: false
     qui-config-data:
       forceRename: qbittorrent-qui-config-data
       storageClass: ceph-block
@@ -464,7 +418,6 @@ qbittorrent:
         qui:
           qui:
             - path: /config
-              readOnly: false
     storage:
       type: persistentVolumeClaim
       existingClaim: qbittorrent-nfs-storage
@@ -472,11 +425,9 @@ qbittorrent:
         main:
           qbittorrent:
             - path: /mnt/store
-              readOnly: false
         qbit-manage:
           qbit-manage:
             - path: /mnt/store
-              readOnly: false
 volsync-target-config:
   pvcTarget: qbittorrent-config-data
   moverSecurityContext:
