@@ -47,11 +47,25 @@ spec:
             - name: PGID
               value: "1000"
           image: ghcr.io/linuxserver/radarr:6.3.0.10514-ls313@sha256:a45b5ab0f850f39edb4cc9c95bbd967b52ddc3d4574a4dfb45561177db6c88f4
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 7878
           name: main
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 7878
           resources:
             requests:
               cpu: 100m
               memory: 600Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /ping
+              port: 7878
+            periodSeconds: 5
           volumeMounts:
             - mountPath: /config
               name: config
@@ -97,7 +111,15 @@ spec:
             - secretRef:
                 name: radarr-oauth-proxy
           image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
           name: oauth
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4180
       volumes:
         - name: config
           persistentVolumeClaim:

@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: web-assets-web-assets-local-rclone
+  labels:
+    app.kubernetes.io/instance: web-assets
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: web-assets-local-rclone
+    app.kubernetes.io/version: v1.75.0
+    helm.sh/chart: rclone-web-assets-local-1.2.0
+  namespace: web-assets
+spec:
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+      - web-assets
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: web-assets
+      app.kubernetes.io/name: web-assets-local-rclone
+  podMetricsEndpoints:
+    - interval: 10s
+      path: /metrics
+      port: rc-sync
+      relabelings:
+        - action: drop
+          regex: Succeeded|Failed
+          sourceLabels:
+            - __meta_kubernetes_pod_phase
+      scrapeTimeout: 5s
