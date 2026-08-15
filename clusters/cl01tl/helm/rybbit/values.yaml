@@ -2,7 +2,6 @@ rybbit:
   controllers:
     backend:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -67,6 +66,10 @@ rybbit:
                 secretKeyRef:
                   name: rybbit-config
                   key: mapbox-token
+          resources:
+            requests:
+              cpu: 10m
+              memory: 200Mi
           probes:
             liveness:
               enabled: true
@@ -80,13 +83,8 @@ rybbit:
                 periodSeconds: 30
                 successThreshold: 1
                 timeoutSeconds: 5
-          resources:
-            requests:
-              cpu: 10m
-              memory: 200Mi
     client:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -104,9 +102,16 @@ rybbit:
             requests:
               cpu: 10m
               memory: 100Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 3002
     clickhouse:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -126,6 +131,10 @@ rybbit:
                 secretKeyRef:
                   name: rybbit-clickhouse-config
                   key: clickhouse-password
+          resources:
+            requests:
+              cpu: 40m
+              memory: 300Mi
           probes:
             liveness:
               enabled: true
@@ -139,10 +148,6 @@ rybbit:
                 periodSeconds: 30
                 successThreshold: 1
                 timeoutSeconds: 5
-          resources:
-            requests:
-              cpu: 40m
-              memory: 300Mi
   configMaps:
     config:
       enabled: true
@@ -203,22 +208,18 @@ rybbit:
       ports:
         http:
           port: 3001
-          targetPort: 3001
     client:
       controller: client
       ports:
         http:
           port: 3002
-          targetPort: 3002
     clickhouse:
       controller: clickhouse
       ports:
         http:
           port: 8123
-          targetPort: 8123
         metrics:
           port: 9363
-          targetPort: 9363
   serviceMonitor:
     main:
       selector:
@@ -228,9 +229,6 @@ rybbit:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 30s
-          scrapeTimeout: 10s
-          path: /metrics
   persistence:
     clickhouse:
       forceRename: clickhouse-data
@@ -241,7 +239,6 @@ rybbit:
         clickhouse:
           main:
             - path: /var/lib/clickhouse
-              readOnly: false
     clickhouse-config:
       enabled: true
       type: configMap
@@ -250,25 +247,20 @@ rybbit:
         clickhouse:
           main:
             - path: /etc/clickhouse-server/config.d/network.xml
-              readOnly: true
-              mountPropagation: None
               subPath: network.xml
+              readOnly: true
             - path: /etc/clickhouse-server/config.d/enable_json.xml
-              readOnly: true
-              mountPropagation: None
               subPath: enable_json.xml
+              readOnly: true
             - path: /etc/clickhouse-server/config.d/logging_rules.xml
-              readOnly: true
-              mountPropagation: None
               subPath: logging_rules.xml
+              readOnly: true
             - path: /etc/clickhouse-server/config.d/user_logging.xml
-              readOnly: true
-              mountPropagation: None
               subPath: user_logging.xml
-            - path: /etc/clickhouse-server/config.d/metrics.xml
               readOnly: true
-              mountPropagation: None
+            - path: /etc/clickhouse-server/config.d/metrics.xml
               subPath: metrics.xml
+              readOnly: true
 cloudflared:
   probe:
     enabled: true
