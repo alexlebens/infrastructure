@@ -75,7 +75,7 @@ spec:
             - name: FIREWALL_OUTBOUND_SUBNETS
               value: 127.0.0.0/8,192.168.1.0/24,10.244.0.0/16,10.96.0.0/12,10.0.0.0/8
             - name: FIREWALL_INPUT_PORTS
-              value: 8080,9022,9999
+              value: 8080,9022,9999,4180,44180
             - name: BLOCK_MALICIOUS
               value: "off"
           image: ghcr.io/qdm12/gluetun:latest@sha256:725d3e51091dde4ca43e3e3f26e2e6d3d0ccc66821e92d505c3da04958f7d472
@@ -109,10 +109,6 @@ spec:
                 - NET_ADMIN
                 - SYS_MODULE
             privileged: true
-          volumeMounts:
-            - mountPath: /gluetun/update.sh
-              name: update-script
-              subPath: update.sh
         - command:
             - /bin/sh
             - -c
@@ -157,6 +153,34 @@ spec:
             - mountPath: /config/qBittorrent
               name: config-data
               readOnly: true
+        - env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:8080
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: '*'
+          envFrom:
+            - secretRef:
+                name: qbittorrent-oauth-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+          name: oauth
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4180
         - env:
             - name: TZ
               value: America/Chicago
@@ -208,7 +232,3 @@ spec:
         - name: storage
           persistentVolumeClaim:
             claimName: qbittorrent-nfs-storage
-        - configMap:
-            defaultMode: 493
-            name: gluetun-update-script
-          name: update-script
