@@ -2,7 +2,6 @@ prowlarr:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -20,6 +19,30 @@ prowlarr:
             requests:
               cpu: 10m
               memory: 200Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 9696
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 9696
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 9696
+                failureThreshold: 30
+                periodSeconds: 5
         metrics:
           image:
             repository: ghcr.io/onedr0p/exportarr
@@ -65,6 +88,21 @@ prowlarr:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
   service:
     main:
       ports:
@@ -73,7 +111,6 @@ prowlarr:
           targetPort: 9696
         metrics:
           port: 9792
-          targetPort: 9792
         oauth:
           port: 4180
         oauth-metrics:
