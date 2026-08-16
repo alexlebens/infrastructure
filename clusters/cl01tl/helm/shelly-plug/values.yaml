@@ -2,7 +2,6 @@ shelly-plug:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       initContainers:
         init-fetch-repo:
@@ -43,13 +42,24 @@ shelly-plug:
             requests:
               cpu: 1m
               memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 80
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 80
   service:
     main:
-      controller: main
       ports:
         metrics:
           port: 80
-          targetPort: 80
   serviceMonitor:
     main:
       selector:
@@ -59,9 +69,6 @@ shelly-plug:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 30s
-          scrapeTimeout: 10s
-          path: /metrics
   persistence:
     script:
       storageClass: ceph-block
@@ -71,7 +78,5 @@ shelly-plug:
         main:
           init-fetch-repo:
             - path: /var/www/html
-              readOnly: false
           main:
             - path: /var/www/html
-              readOnly: false
