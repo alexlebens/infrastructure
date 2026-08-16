@@ -2,7 +2,6 @@ trek:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -30,21 +29,25 @@ trek:
             - name: APP_URL
               value: https://trek.alexlebens.dev
             - name: OIDC_ISSUER
-              value: https://auth.alexlebens.dev/application/o/trek/
+              value: https://pocket-id.alexlebens.dev
             - name: OIDC_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: trek-oidc-authentik
-                  key: OIDC_CLIENT_ID
+                  name: trek-oidc-secret
+                  key: clientId
             - name: OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: trek-oidc-authentik
-                  key: OIDC_CLIENT_SECRET
+                  name: trek-oidc-secret
+                  key: clientSecret
             - name: OIDC_DISPLAY_NAME
-              value: Authentik
+              value: AlexAuth
+            - name: OIDC_ADMIN_CLAIM
+              value: groups
+            - name: OIDC_ADMIN_VALUE
+              value: admin
             - name: OIDC_SCOPE
-              value: "openid email profile"
+              value: "openid email profile groups"
             - name: ADMIN_EMAIL
               valueFrom:
                 secretKeyRef:
@@ -67,13 +70,8 @@ trek:
                 httpGet:
                   path: /api/health
                   port: 3000
-                initialDelaySeconds: 15
-                periodSeconds: 10
-                timeoutSeconds: 5
-                failureThreshold: 3
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -88,7 +86,6 @@ trek:
         main:
           main:
             - path: /app/data
-              readOnly: false
     uploads:
       forceRename: trek-uploads
       storageClass: ceph-block
@@ -98,7 +95,6 @@ trek:
         main:
           main:
             - path: /app/uploads
-              readOnly: false
 cloudflared:
   probe:
     enabled: true
