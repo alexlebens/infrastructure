@@ -50,26 +50,44 @@ spec:
               value: "true"
             - name: SSO_SIGNUPS_MATCH_EMAIL
               value: "true"
+            - name: SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION
+              value: "true"
             - name: SSO_AUTHORITY
-              value: https://auth.alexlebens.dev/application/o/vaultwarden/
+              value: https://pocket-id.alexlebens.dev
             - name: SSO_SCOPES
-              value: email profile offline_access
+              value: openid email profile offline_access
+            - name: SSO_PKCE
+              value: "true"
             - name: SSO_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  key: SSO_CLIENT_ID
-                  name: vaultwarden-oidc-authentik
+                  key: clientId
+                  name: vaultwarden-oidc-secret
             - name: SSO_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  key: SSO_CLIENT_SECRET
-                  name: vaultwarden-oidc-authentik
+                  key: clientSecret
+                  name: vaultwarden-oidc-secret
           image: ghcr.io/dani-garcia/vaultwarden:1.37.1@sha256:ebdfe70701c60ac0c28c697e787cea767d7972940b786037b29fe0d507f821e8
+          livenessProbe:
+            httpGet:
+              path: /alive
+              port: 80
           name: main
+          readinessProbe:
+            httpGet:
+              path: /alive
+              port: 80
           resources:
             requests:
               cpu: 10m
               memory: 30Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /alive
+              port: 80
+            periodSeconds: 5
           volumeMounts:
             - mountPath: /data
               name: config
