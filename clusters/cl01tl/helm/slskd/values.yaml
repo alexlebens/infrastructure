@@ -2,7 +2,6 @@ slskd:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         automountServiceAccountToken: true
@@ -79,6 +78,11 @@ slskd:
               add:
                 - NET_ADMIN
                 - SYS_MODULE
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              devic.es/tun: "1"
           probes:
             readiness:
               enabled: true
@@ -93,11 +97,6 @@ slskd:
                 periodSeconds: 30
                 successThreshold: 1
                 timeoutSeconds: 15
-          resources:
-            limits:
-              devic.es/tun: "1"
-            requests:
-              devic.es/tun: "1"
       containers:
         main:
           image:
@@ -118,13 +117,26 @@ slskd:
             requests:
               cpu: 100m
               memory: 400Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 5030
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 5030
   service:
     main:
-      controller: main
       ports:
         http:
           port: 5030
-          targetPort: 5030
   serviceMonitor:
     main:
       selector:
@@ -136,14 +148,11 @@ slskd:
         - port: http
           interval: 3m
           scrapeTimeout: 1m
-          path: /metrics
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - slskd.alexlebens.net
@@ -151,10 +160,6 @@ slskd:
         - backendRefs:
             - name: slskd
               port: 5030
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     slskd-config:
       type: custom
@@ -168,13 +173,11 @@ slskd:
         main:
           main:
             - path: /config/slskd.yml
-              readOnly: true
-              mountPropagation: None
               subPath: slskd.yml
+              readOnly: true
     data:
       existingClaim: slskd-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /mnt/store
-              readOnly: false
