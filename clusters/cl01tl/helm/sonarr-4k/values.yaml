@@ -3,7 +3,6 @@ sonarr-4k:
     main:
       type: deployment
       strategy: Recreate
-      revisionHistoryLimit: 3
       pod:
         securityContext:
           fsGroup: 1000
@@ -24,6 +23,30 @@ sonarr-4k:
             requests:
               cpu: 10m
               memory: 200Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 8989
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 8989
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 8989
+                failureThreshold: 30
+                periodSeconds: 5
         metrics:
           image:
             repository: ghcr.io/onedr0p/exportarr
@@ -64,6 +87,21 @@ sonarr-4k:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
   service:
     main:
       ports:
@@ -72,7 +110,6 @@ sonarr-4k:
           targetPort: 8989
         metrics:
           port: 9794
-          targetPort: 9794
         oauth:
           port: 4180
         oauth-metrics:

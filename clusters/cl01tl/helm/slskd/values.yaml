@@ -2,7 +2,6 @@ slskd:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         automountServiceAccountToken: true
@@ -79,6 +78,11 @@ slskd:
               add:
                 - NET_ADMIN
                 - SYS_MODULE
+          resources:
+            limits:
+              devic.es/tun: "1"
+            requests:
+              devic.es/tun: "1"
           probes:
             readiness:
               enabled: true
@@ -93,11 +97,6 @@ slskd:
                 periodSeconds: 30
                 successThreshold: 1
                 timeoutSeconds: 15
-          resources:
-            limits:
-              devic.es/tun: "1"
-            requests:
-              devic.es/tun: "1"
       containers:
         main:
           image:
@@ -118,13 +117,73 @@ slskd:
             requests:
               cpu: 100m
               memory: 400Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 5030
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 5030
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          envFrom:
+            - secretRef:
+                name: slskd-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:5030
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
   service:
     main:
-      controller: main
       ports:
         http:
           port: 5030
-          targetPort: 5030
+        oauth:
+          port: 4180
+        oauth-metrics:
+          port: 44180
   serviceMonitor:
     main:
       selector:
@@ -136,25 +195,19 @@ slskd:
         - port: http
           interval: 3m
           scrapeTimeout: 1m
-          path: /metrics
+        - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - slskd.alexlebens.net
       rules:
         - backendRefs:
             - name: slskd
-              port: 5030
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
+              port: 4180
   persistence:
     slskd-config:
       type: custom
@@ -168,13 +221,11 @@ slskd:
         main:
           main:
             - path: /config/slskd.yml
-              readOnly: true
-              mountPropagation: None
               subPath: slskd.yml
+              readOnly: true
     data:
       existingClaim: slskd-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /mnt/store
-              readOnly: false

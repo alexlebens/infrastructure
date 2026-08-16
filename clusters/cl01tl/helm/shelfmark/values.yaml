@@ -2,7 +2,6 @@ shelfmark:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -85,6 +84,30 @@ shelfmark:
               value: true
             - name: USE_CF_BYPASS
               value: true
+            - name: AUTH_METHOD
+              value: oidc
+            - name: OIDC_DISCOVERY_URL
+              value: https://pocket-id.alexlebens.dev/.well-known/openid-configuration
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: shelfmark-oidc-secret
+                  key: clientId
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: shelfmark-oidc-secret
+                  key: clientSecret
+            - name: OIDC_AUTO_PROVISION
+              value: true
+            - name: OIDC_AUTO_REDIRECT
+              value: true
+            - name: OIDC_BUTTON_LABEL
+              value: "Sign in with AlexAuth"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 140Mi
           probes:
             liveness:
               enabled: true
@@ -93,15 +116,6 @@ shelfmark:
                 httpGet:
                   path: /api/health
                   port: 8084
-                failureThreshold: 5
-                initialDelaySeconds: 30
-                periodSeconds: 30
-                successThreshold: 1
-                timeoutSeconds: 5
-          resources:
-            requests:
-              cpu: 10m
-              memory: 140Mi
   service:
     main:
       ports:
@@ -112,9 +126,7 @@ shelfmark:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - shelfmark.alexlebens.net
@@ -122,10 +134,6 @@ shelfmark:
         - backendRefs:
             - name: shelfmark
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     config:
       forceRename: shelfmark
@@ -136,28 +144,24 @@ shelfmark:
         main:
           main:
             - path: /config
-              readOnly: false
     ingest:
       existingClaim: shelfmark-import-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /ingest
-              readOnly: false
     audiobooks:
       existingClaim: shelfmark-audiobooks-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /audiobooks
-              readOnly: false
     downloads:
       existingClaim: shelfmark-downloads-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /mnt/store/Torrent
-              readOnly: false
 volsync-target-config:
   pvcTarget: shelfmark
   moverSecurityContext:
