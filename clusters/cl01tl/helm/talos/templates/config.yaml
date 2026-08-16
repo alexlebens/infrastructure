@@ -44,9 +44,11 @@ data:
 
             if [ $? -ne 0 ]; then
                 echo ">> Detected error, will send message to ntfy";
-
                 ERROR=true;
                 MESSAGE="Error deleting file from '${TARGET}'";
+
+            else
+                PRUNED_COUNT=$((PRUNED_COUNT + 1));
 
             fi;
         done;
@@ -55,9 +57,14 @@ data:
         echo "";
         echo ">> No backups to remove";
 
-        exit 0;
-
     fi;
+
+    echo "";
+    echo ">> Calculating total objects in repository ...";
+    TOTAL_OBJECTS=$(s3cmd ls --no-check-certificate "${BUCKET}/cl01tl/etcd/" | \
+        awk '$4 !~ /\/$/ {count++} END {print count+0}');
+
+    echo ">> Total objects in ${BUCKET}/cl01tl/etcd/: ${TOTAL_OBJECTS}";
 
     MAX_RETRIES=5;
     SUCCESS=false;
@@ -71,14 +78,11 @@ data:
     for i in $(seq 1 "$MAX_RETRIES"); do
         if apk update >/dev/null 2>&1; then
             echo ">> Attempt $i: Repositories are reachable";
-
             SUCCESS=true;
-
             break;
 
         else
             echo ">> Attempt $i: Connection failed, retrying in 5 seconds ...";
-
             sleep 5;
 
         fi;
@@ -86,22 +90,18 @@ data:
 
     if [ "$SUCCESS" = false ]; then
         echo ">> ERROR: Could not connect to apk repositories after $MAX_RETRIES attempts, exiting ...";
-
         exit 1;
 
     fi
 
     if ! command -v curl >/dev/null 2>&1; then
         echo ">> Command curl could not be found, installing";
-
         apk add --no-cache -q curl;
-
         if [ $? -eq 0 ]; then
             echo ">> Installation successful";
 
         else
             echo ">> Installation failed with exit code $?";
-
             exit 1;
 
         fi;
@@ -117,29 +117,25 @@ data:
             -H "Authorization: Bearer ${NTFY_TOKEN}" \
             -H "X-Priority: 5" \
             -H "X-Tags: warning" \
-            -H "X-Title: Talos Backup Prune Failed for ${TARGET}" \
+            -H "X-Title: 🚨 Talos Backup Prune Failed for ${TARGET}" \
             -d "$MESSAGE" \
             ${NTFY_ENDPOINT}/${NTFY_TOPIC}
         );
-
         echo ">> HTTP Status Code: $HTTP_STATUS";
-
         exit 1;
 
     else
-        MESSAGE="Pruned $(echo "$FILES" | wc -l) files"
-
+        MESSAGE="Pruned ${PRUNED_COUNT} files, now ${TOTAL_OBJECTS} objects in bucket";
         HTTP_STATUS=$(curl \
             --silent \
             --write-out '%{http_code}' \
             -H "Authorization: Bearer ${NTFY_TOKEN}" \
             -H "X-Priority: 3" \
             -H "X-Tags: completed" \
-            -H "X-Title: Talos Backup Prune Success for ${TARGET}" \
+            -H "X-Title: ✅ Talos Backup Prune Success for ${TARGET}" \
             -d "$MESSAGE" \
             ${NTFY_ENDPOINT}/${NTFY_TOPIC}
         );
-
         echo ">> HTTP Status Code: $HTTP_STATUS";
 
     fi;
