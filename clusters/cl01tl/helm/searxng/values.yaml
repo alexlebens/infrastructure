@@ -1,38 +1,7 @@
 searxng:
   controllers:
-    api:
-      type: deployment
-      replicas: 1
-      strategy: Recreate
-      pod:
-        automountServiceAccountToken: true
-      containers:
-        main:
-          image:
-            repository: searxng/searxng
-            tag: latest@sha256:892cf809341915a4b7710d3c9045005b4c377d51335a089b6d4da0b28750788d
-          env:
-            - name: SEARXNG_BASE_URL
-              value: http://searxng-api.searxng:8080
-            - name: SEARXNG_QUERY_URL
-              value: http://searxng-api.searxng:8080/search?q=<query>
-            - name: SEARXNG_HOSTNAME
-              value: searxng-api.searxng
-            - name: ENABLE_RAG_WEB_SEARCH
-              value: true
-            - name: RAG_WEB_SEARCH_ENGINE
-              value: searxng
-            - name: RAG_WEB_SEARCH_RESULT_COUNT
-              value: 3
-            - name: RAG_WEB_SEARCH_CONCURRENT_REQUESTS
-              value: 10
-          resources:
-            requests:
-              cpu: 1m
-              memory: 120Mi
     browser:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -71,6 +40,35 @@ searxng:
           image:
             repository: valkey/valkey
             tag: 9.1.1-alpine@sha256:ee91f7a174ac4d6a6b0685b3a60e321f0a9dbbb691f9b0e285be2ba1d1be8328
+    api:
+      type: deployment
+      strategy: Recreate
+      pod:
+        automountServiceAccountToken: true
+      containers:
+        main:
+          image:
+            repository: searxng/searxng
+            tag: latest@sha256:892cf809341915a4b7710d3c9045005b4c377d51335a089b6d4da0b28750788d
+          env:
+            - name: SEARXNG_BASE_URL
+              value: http://searxng-api.searxng:8080
+            - name: SEARXNG_QUERY_URL
+              value: http://searxng-api.searxng:8080/search?q=<query>
+            - name: SEARXNG_HOSTNAME
+              value: searxng-api.searxng
+            - name: ENABLE_RAG_WEB_SEARCH
+              value: true
+            - name: RAG_WEB_SEARCH_ENGINE
+              value: searxng
+            - name: RAG_WEB_SEARCH_RESULT_COUNT
+              value: 3
+            - name: RAG_WEB_SEARCH_CONCURRENT_REQUESTS
+              value: 10
+          resources:
+            requests:
+              cpu: 1m
+              memory: 120Mi
   serviceAccount:
     searxng:
       enabled: true
@@ -81,7 +79,6 @@ searxng:
       ports:
         mail:
           port: 8080
-          targetPort: 8080
     browser:
       controller: browser
       ports:
@@ -97,9 +94,6 @@ searxng:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: mail
-          interval: 30s
-          scrapeTimeout: 15s
-          path: /metrics
           basicAuth:
             password:
               name: searxng-browser-metrics-credentials
@@ -111,9 +105,7 @@ searxng:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - searxng.alexlebens.net
@@ -121,10 +113,6 @@ searxng:
         - backendRefs:
             - name: searxng-browser
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     config:
       type: custom
@@ -139,7 +127,6 @@ searxng:
           main:
             - path: /etc/searxng/
               readOnly: true
-              mountPropagation: None
     api-data:
       forceRename: searxng-api-data
       storageClass: ceph-block
@@ -149,7 +136,6 @@ searxng:
         api:
           main:
             - path: /etc/searxng
-              readOnly: false
     browser-data:
       forceRename: searxng-browser-data
       storageClass: ceph-block
@@ -159,10 +145,8 @@ searxng:
         browser:
           main:
             - path: /etc/searxng
-              readOnly: false
           debug:
             - path: /etc/searxng
-              readOnly: false
     valkey-data:
       storageClass: ceph-block
       accessMode: ReadWriteOnce
@@ -171,7 +155,6 @@ searxng:
         browser:
           valkey:
             - path: /data
-              readOnly: false
 volsync-target-data:
   pvcTarget: searxng-browser-data
   local:
