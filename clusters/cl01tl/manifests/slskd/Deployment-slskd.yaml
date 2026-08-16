@@ -133,7 +133,15 @@ spec:
             - name: SLSKD_CONFIG
               value: /config/slskd.yml
           image: slskd/slskd:0.26.0@sha256:ecd4026d4f8fb504e2cc55323efa2c1f5b56d20d3686b018249cc36b48ea17a6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5030
           name: main
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5030
           resources:
             requests:
               cpu: 100m
@@ -142,10 +150,43 @@ spec:
             - mountPath: /mnt/store
               name: data
             - mountPath: /config/slskd.yml
-              mountPropagation: None
               name: slskd-config
               readOnly: true
               subPath: slskd.yml
+        - env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:5030
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: '*'
+          envFrom:
+            - secretRef:
+                name: slskd-oauth-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+          name: oauth
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4180
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
       volumes:
         - name: data
           persistentVolumeClaim:
