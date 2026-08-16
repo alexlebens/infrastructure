@@ -2,7 +2,6 @@ tdarr:
   controllers:
     server:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -23,7 +22,7 @@ tdarr:
             - name: UMASK_SET
               value: "002"
             - name: ffmpegVersion
-              value: "6"
+              value: "7"
             - name: internalNode
               value: "false"
             - name: inContainer
@@ -79,7 +78,7 @@ tdarr:
             - name: UMASK_SET
               value: "002"
             - name: ffmpegVersion
-              value: "6"
+              value: "7"
             - name: inContainer
               value: "true"
             - name: nodeName
@@ -103,20 +102,16 @@ tdarr:
       ports:
         http:
           port: 8266
-          targetPort: 8266
     web:
       controller: server
       ports:
         http:
           port: 8265
-          targetPort: 8265
   route:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - tdarr.alexlebens.net
@@ -124,10 +119,6 @@ tdarr:
         - backendRefs:
             - name: tdarr-web
               port: 8265
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     config:
       forceRename: tdarr-config
@@ -138,7 +129,6 @@ tdarr:
         server:
           main:
             - path: /app/configs
-              readOnly: false
     server:
       forceRename: tdarr-server
       storageClass: ceph-block
@@ -148,14 +138,12 @@ tdarr:
         server:
           main:
             - path: /app/server
-              readOnly: false
     server-cache:
       type: emptyDir
       advancedMounts:
         server:
           main:
             - path: /tcache
-              readOnly: false
     media:
       existingClaim: tdarr-nfs-storage
       advancedMounts:
