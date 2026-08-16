@@ -1,21 +1,20 @@
 etcd-backup:
+  defaultPodOptions:
+    automountServiceAccountToken: true
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
   controllers:
     local:
       type: cronjob
-      pod:
-        automountServiceAccountToken: true
-        nodeSelector:
-          node-role.kubernetes.io/control-plane: ""
-        tolerations:
-          - key: node-role.kubernetes.io/control-plane
-            operator: Exists
-            effect: NoSchedule
       cronjob:
         suspend: false
         timeZone: America/Chicago
         schedule: 0 2 * * *
         backoffLimit: 3
-        parallelism: 1
       containers:
         backup:
           image:
@@ -34,24 +33,12 @@ etcd-backup:
                 - ALL
             seccompProfile:
               type: RuntimeDefault
+          envFrom:
+            - secretRef:
+                name: talos-etcd-backup-local-config
           env:
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-local-config
-                  key: AWS_ACCESS_KEY_ID
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-local-config
-                  key: AWS_SECRET_ACCESS_KEY
-            - name: AWS_REGION
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-local-config
-                  key: AWS_REGION
             - name: CUSTOM_S3_ENDPOINT
-              value: http://garage-main.garage:3900
+              value: http://garage-cluster-a.garage-operator.svc.cluster.local:3900
             - name: BUCKET
               valueFrom:
                 secretKeyRef:
@@ -61,11 +48,6 @@ etcd-backup:
               value: "cl01tl/etcd"
             - name: CLUSTER_NAME
               value: "cl01tl"
-            - name: AGE_X25519_PUBLIC_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-local-config
-                  key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
               value: "false"
         s3-prune:
@@ -89,20 +71,11 @@ etcd-backup:
               value: "2419200"
     remote:
       type: cronjob
-      pod:
-        automountServiceAccountToken: true
-        nodeSelector:
-          node-role.kubernetes.io/control-plane: ""
-        tolerations:
-          - key: node-role.kubernetes.io/control-plane
-            operator: Exists
-            effect: NoSchedule
       cronjob:
         suspend: false
         timeZone: America/Chicago
         schedule: 0 3 * * *
         backoffLimit: 3
-        parallelism: 1
       containers:
         backup:
           image:
@@ -121,22 +94,10 @@ etcd-backup:
                 - ALL
             seccompProfile:
               type: RuntimeDefault
+          envFrom:
+            - secretRef:
+                name: talos-etcd-backup-remote-config
           env:
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-remote-config
-                  key: AWS_ACCESS_KEY_ID
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-remote-config
-                  key: AWS_SECRET_ACCESS_KEY
-            - name: AWS_REGION
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-remote-config
-                  key: AWS_REGION
             - name: CUSTOM_S3_ENDPOINT
               value: https://garage-ps10rp.boreal-beaufort.ts.net:3900
             - name: BUCKET
@@ -148,11 +109,6 @@ etcd-backup:
               value: "cl01tl/etcd"
             - name: CLUSTER_NAME
               value: "cl01tl"
-            - name: AGE_X25519_PUBLIC_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-remote-config
-                  key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
               value: "false"
         s3-prune:
@@ -176,20 +132,11 @@ etcd-backup:
               value: "2419200"
     external:
       type: cronjob
-      pod:
-        automountServiceAccountToken: true
-        nodeSelector:
-          node-role.kubernetes.io/control-plane: ""
-        tolerations:
-          - key: node-role.kubernetes.io/control-plane
-            operator: Exists
-            effect: NoSchedule
       cronjob:
         suspend: false
         timeZone: America/Chicago
         schedule: 0 4 * * *
         backoffLimit: 3
-        parallelism: 1
       containers:
         backup:
           image:
@@ -208,22 +155,10 @@ etcd-backup:
                 - ALL
             seccompProfile:
               type: RuntimeDefault
+          envFrom:
+            - secretRef:
+                name: talos-etcd-backup-external-config
           env:
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-external-config
-                  key: AWS_ACCESS_KEY_ID
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-external-config
-                  key: AWS_SECRET_ACCESS_KEY
-            - name: AWS_REGION
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-external-config
-                  key: AWS_REGION
             - name: CUSTOM_S3_ENDPOINT
               value: https://s3.us-east-005.backblazeb2.com
             - name: BUCKET
@@ -235,11 +170,6 @@ etcd-backup:
               value: "cl01tl/etcd"
             - name: CLUSTER_NAME
               value: "cl01tl"
-            - name: AGE_X25519_PUBLIC_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: talos-etcd-backup-external-config
-                  key: AGE_X25519_PUBLIC_KEY
             - name: USE_PATH_STYLE
               value: "false"
         s3-prune:
@@ -271,17 +201,14 @@ etcd-backup:
           backup:
             - path: /var/run/secrets/talos.dev
               readOnly: true
-              mountPropagation: None
         remote:
           backup:
             - path: /var/run/secrets/talos.dev
               readOnly: true
-              mountPropagation: None
         external:
           backup:
             - path: /var/run/secrets/talos.dev
               readOnly: true
-              mountPropagation: None
     prune-script:
       enabled: true
       type: configMap
@@ -312,9 +239,8 @@ etcd-backup:
         local:
           s3-prune:
             - path: /root/.s3cfg
-              readOnly: true
-              mountPropagation: None
               subPath: .s3cfg
+              readOnly: true
     etcd-backup-remote-config:
       type: custom
       volumeSpec:
@@ -327,9 +253,8 @@ etcd-backup:
         remote:
           s3-prune:
             - path: /root/.s3cfg
-              readOnly: true
-              mountPropagation: None
               subPath: .s3cfg
+              readOnly: true
     etcd-backup-external-config:
       type: custom
       volumeSpec:
@@ -342,9 +267,8 @@ etcd-backup:
         external:
           s3-prune:
             - path: /root/.s3cfg
-              readOnly: true
-              mountPropagation: None
               subPath: .s3cfg
+              readOnly: true
     tmp:
       type: emptyDir
       medium: Memory
@@ -352,15 +276,12 @@ etcd-backup:
         local:
           backup:
             - path: /tmp
-              readOnly: false
         remote:
           backup:
             - path: /tmp
-              readOnly: false
         external:
           backup:
             - path: /tmp
-              readOnly: false
     talos:
       type: emptyDir
       medium: Memory
@@ -368,35 +289,31 @@ etcd-backup:
         local:
           backup:
             - path: /.talos
-              readOnly: false
         remote:
           backup:
             - path: /.talos
-              readOnly: false
         external:
           backup:
             - path: /.talos
-              readOnly: false
 etcd-defrag:
   global:
     fullnameOverride: etcd-defrag
+  defaultPodOptions:
+    automountServiceAccountToken: true
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
   controllers:
     defrag-1:
       type: cronjob
-      pod:
-        automountServiceAccountToken: true
-        nodeSelector:
-          node-role.kubernetes.io/control-plane: ""
-        tolerations:
-          - key: node-role.kubernetes.io/control-plane
-            operator: Exists
-            effect: NoSchedule
       cronjob:
         suspend: false
         timeZone: America/Chicago
         schedule: 0 0 * * 0
         backoffLimit: 3
-        parallelism: 1
       containers:
         main:
           image:
@@ -412,20 +329,11 @@ etcd-defrag:
               value: /tmp/.talos/config
     defrag-2:
       type: cronjob
-      pod:
-        automountServiceAccountToken: true
-        nodeSelector:
-          node-role.kubernetes.io/control-plane: ""
-        tolerations:
-          - key: node-role.kubernetes.io/control-plane
-            operator: Exists
-            effect: NoSchedule
       cronjob:
         suspend: false
         timeZone: America/Chicago
         schedule: 10 0 * * 0
         backoffLimit: 3
-        parallelism: 1
       containers:
         main:
           image:
@@ -441,20 +349,11 @@ etcd-defrag:
               value: /tmp/.talos/config
     defrag-3:
       type: cronjob
-      pod:
-        automountServiceAccountToken: true
-        nodeSelector:
-          node-role.kubernetes.io/control-plane: ""
-        tolerations:
-          - key: node-role.kubernetes.io/control-plane
-            operator: Exists
-            effect: NoSchedule
       cronjob:
         suspend: false
         timeZone: America/Chicago
         schedule: 20 0 * * 0
         backoffLimit: 3
-        parallelism: 1
       containers:
         main:
           image:
@@ -490,3 +389,5 @@ etcd-defrag:
           main:
             - path: /tmp/.talos/
               readOnly: true
+garage-bucket-talos-backups:
+  bucketName: talos-backups

@@ -2,7 +2,6 @@ apiVersion: tailscale.com/v1alpha1
 kind: DNSConfig
 metadata:
   name: ts-dns
-  namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/name: ts-dns
     {{- include "custom.labels" . | nindent 4 }}
@@ -12,3 +11,16 @@ spec:
       repo: tailscale/k8s-nameserver
       # renovate: datasource=docker depName=tailscale/k8s-nameserver
       tag: v1.102.2
+    service:
+      clusterIP: "10.97.20.219"
+    replicas: 2
+    pod:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: ts-dns
+                topologyKey: kubernetes.io/hostname
