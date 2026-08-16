@@ -23,32 +23,6 @@ argocd:
           type: oidc
           id: pocket-id
       timeout.reconciliation: 3600s
-      resource.exclusions: |
-        - apiGroups:
-          - cilium.io
-          kinds:
-          - CiliumEndpoint
-          - CiliumIdentity
-          clusters:
-          - "*"
-        - apiGroups:
-          - cert-manager.io
-          kinds:
-          - CertificateRequest
-          clusters:
-          - "*"
-        - apiGroups:
-          - metrics.k8s.io
-          kinds:
-          - "*"
-          clusters:
-          - "*"
-        - apiGroups:
-          - ""
-          kinds:
-          - Event
-          clusters:
-          - "*"
     params:
       server.insecure: true
       controller.diff.server.side: true
@@ -109,53 +83,31 @@ argocd:
     readinessProbe:
       enabled: true
   redis-ha:
-    enabled: true
+    enabled: false
+  redis:
     image:
       repository: redis
       tag: 8.10.0-alpine@sha256:5cca2f8a01ef2264c52dac86f14ec6a5abe973a93331e1b62522cfc5e63e4691
     exporter:
       enabled: true
-      image: ghcr.io/oliver006/redis_exporter
-      tag: v1.82.0@sha256:6a97d4dd743b533e1f950c677b87d880e44df363c61af3f406fc9e53ed65ee03
+      image:
+        repository: ghcr.io/oliver006/redis_exporter
+        tag: v1.82.0@sha256:6a97d4dd743b533e1f950c677b87d880e44df363c61af3f406fc9e53ed65ee03
+    readinessProbe:
+      enabled: true
+    livenessProbe:
+      enabled: true
+    resources:
+      requests:
+        cpu: 500m
+        memory: 100Mi
+    metrics:
+      enabled: true
       serviceMonitor:
         enabled: true
-    persistentVolume:
-      enabled: false
-    redis:
-      resources:
-        requests:
-          cpu: 1000m
-          memory: 100Mi
-    haproxy:
-      image:
-        repository: haproxy
-        tag: 3.4.3-alpine@sha256:fe709fdaf6f2db6f9c2f0bea51a63920cba7ba44bea1a97961611adfa19ac096
-      hardAntiAffinity: false
-      resources:
-        requests:
-          cpu: 5m
-          memory: 100Mi
-      metrics:
-        serviceMonitor:
-          enabled: true
-    auth: false
-    prometheusRule:
-      enabled: true
-      interval: 30s
-      rules:
-        - alert: RedisPodDown
-          expr: |
-            redis_up{job="{{ include "redis-ha.fullname" . }}"} == 0
-          for: 5m
-          labels:
-            severity: critical
-          annotations:
-            description: Redis pod {{ "{{ $labels.pod }}" }} is down
-            summary: Redis pod {{ "{{ $labels.pod }}" }} is down
   redisSecretInit:
     enabled: false
   server:
-    replicas: 2
     resources:
       requests:
         cpu: 10m
@@ -172,7 +124,6 @@ argocd:
       hostnames:
         - argocd.alexlebens.net
   repoServer:
-    replicas: 2
     resources:
       requests:
         cpu: 1m
@@ -188,7 +139,6 @@ argocd:
       serviceMonitor:
         enabled: true
   applicationSet:
-    replicas: 2
     resources:
       requests:
         cpu: 10m
