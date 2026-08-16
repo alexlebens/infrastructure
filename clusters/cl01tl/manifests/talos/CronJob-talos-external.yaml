@@ -19,7 +19,6 @@ spec:
   failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
-      parallelism: 1
       backoffLimit: 3
       template:
         metadata:
@@ -46,21 +45,6 @@ spec:
             - command:
                 - /talos-backup
               env:
-                - name: AWS_ACCESS_KEY_ID
-                  valueFrom:
-                    secretKeyRef:
-                      key: AWS_ACCESS_KEY_ID
-                      name: talos-etcd-backup-external-config
-                - name: AWS_SECRET_ACCESS_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      key: AWS_SECRET_ACCESS_KEY
-                      name: talos-etcd-backup-external-config
-                - name: AWS_REGION
-                  valueFrom:
-                    secretKeyRef:
-                      key: AWS_REGION
-                      name: talos-etcd-backup-external-config
                 - name: CUSTOM_S3_ENDPOINT
                   value: https://s3.us-east-005.backblazeb2.com
                 - name: BUCKET
@@ -72,13 +56,11 @@ spec:
                   value: cl01tl/etcd
                 - name: CLUSTER_NAME
                   value: cl01tl
-                - name: AGE_X25519_PUBLIC_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      key: AGE_X25519_PUBLIC_KEY
-                      name: talos-etcd-backup-external-config
                 - name: USE_PATH_STYLE
                   value: "false"
+              envFrom:
+                - secretRef:
+                    name: talos-etcd-backup-external-config
               image: ghcr.io/siderolabs/talos-backup:v0.1.0-beta.3-10-gb9fd478@sha256:7fc186ff37a3137f470082cb609bf1dc3bcece13dd9a6421ec09cfdf4f33ae6c
               name: backup
               securityContext:
@@ -93,7 +75,6 @@ spec:
                   type: RuntimeDefault
               volumeMounts:
                 - mountPath: /var/run/secrets/talos.dev
-                  mountPropagation: None
                   name: secret
                   readOnly: true
                 - mountPath: /.talos
@@ -120,7 +101,6 @@ spec:
               name: s3-prune
               volumeMounts:
                 - mountPath: /root/.s3cfg
-                  mountPropagation: None
                   name: etcd-backup-external-config
                   readOnly: true
                   subPath: .s3cfg

@@ -1,0 +1,2370 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: tailscale
+  namespace: grafana-operator
+  labels:
+    app.kubernetes.io/name: tailscale
+    app.kubernetes.io/instance: tailscale-operator
+    app.kubernetes.io/part-of: tailscale-operator
+spec:
+  instanceSelector:
+    matchLabels:
+      app: grafana-main
+  folderUID: grafana-folder-service
+  resyncPeriod: 6h
+  json: |-
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": false,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 2,
+      "links": [],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "id": 28,
+          "title": "Summary",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Number of tailscaled instances currently reporting metrics. A sudden drop usually means scrape failures, stopped daemons, or machines that can no longer reach Prometheus.",
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "short"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 4,
+            "x": 0,
+            "y": 1
+          },
+          "id": 2,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "count(\n  tailscaled_health_messages{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n)\n",
+              "instant": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Tailscale Machines",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Advertised routes are routes machines offer to the tailnet. Approved routes are routes the control plane allows clients to use. A gap means subnet routing is configured but not fully enabled.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#73BF69",
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "unit": "short"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 4,
+            "x": 4,
+            "y": 1
+          },
+          "id": 3,
+          "options": {
+            "displayLabels": ["percent"],
+            "legend": {
+              "displayMode": "table",
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "values": ["percent"]
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "sort": "desc",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  tailscaled_advertised_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n)\n",
+              "instant": true,
+              "legendFormat": "Advertised",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  tailscaled_approved_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n)\n",
+              "instant": true,
+              "legendFormat": "Approved",
+              "refId": "B"
+            }
+          ],
+          "title": "Advertised / Approved Routes",
+          "type": "piechart"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Inbound traffic split by path over the last hour. DERP-heavy traffic can indicate failed direct connectivity, restrictive NAT, or firewall changes.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#73BF69",
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "unit": "bps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 4,
+            "x": 8,
+            "y": 1
+          },
+          "id": 4,
+          "options": {
+            "displayLabels": ["percent"],
+            "legend": {
+              "displayMode": "table",
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "values": ["percent"]
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "sort": "desc",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  increase(\n    tailscaled_inbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (path)\n",
+              "instant": true,
+              "legendFormat": "{{ path }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Paths Distribution Inbound [1h]",
+          "type": "piechart"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Outbound traffic split by path over the last hour. A high DERP share is useful when investigating latency or relay dependency.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#73BF69",
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "unit": "bps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 4,
+            "x": 12,
+            "y": 1
+          },
+          "id": 5,
+          "options": {
+            "displayLabels": ["percent"],
+            "legend": {
+              "displayMode": "table",
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "values": ["percent"]
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "sort": "desc",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (path)\n",
+              "instant": true,
+              "legendFormat": "{{ path }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Paths Distribution Outbound [1h]",
+          "type": "piechart"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Inbound and outbound traffic over the last hour. Large asymmetry can help identify machines acting as gateways, subnet routers, or unexpectedly chatty clients.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#73BF69",
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "unit": "bps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 4,
+            "x": 16,
+            "y": 1
+          },
+          "id": 6,
+          "options": {
+            "displayLabels": ["percent"],
+            "legend": {
+              "displayMode": "table",
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "values": ["percent"]
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "sort": "desc",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  rate(\n    tailscaled_inbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n)\n",
+              "instant": true,
+              "legendFormat": "Inbound",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  rate(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n)\n",
+              "instant": true,
+              "legendFormat": "Outbound",
+              "refId": "B"
+            }
+          ],
+          "title": "Inbound vs Outbound Traffic [1h]",
+          "type": "piechart"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Dropped outbound packets grouped by reason over the last hour. Non-zero values are worth correlating with route approval, ACLs, and path changes.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#73BF69",
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "unit": "pps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 4,
+            "x": 20,
+            "y": 1
+          },
+          "id": 7,
+          "options": {
+            "displayLabels": ["percent"],
+            "legend": {
+              "displayMode": "table",
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "values": ["percent"]
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "sort": "desc",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (reason)\n",
+              "instant": true,
+              "legendFormat": "{{ reason }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Dropped Packets by Reason [1h]",
+          "type": "piechart"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Highest inbound-traffic machines over the last hour. Use this to spot subnet routers, gateways, or unexpected traffic concentration, then drill into the machine row.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "footer": {
+                  "reducers": []
+                },
+                "inspect": false
+              },
+              "links": [
+                {
+                  "targetBlank": true,
+                  "title": "Go To Machine",
+                  "type": "dashboard",
+                  "url": "/d/tailscaled-mixin-over-k12e/tailscale-machine?var-tailscale_machine=${__data.fields.Tailscale Machine}"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              },
+              "unit": "Bps"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 6
+          },
+          "id": 8,
+          "options": {
+            "cellHeight": "sm",
+            "enablePagination": true,
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": true,
+                "displayName": "Inbound Traffic (Bps)"
+              }
+            ]
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "topk(\n  20,\n  sum(\n    rate(\n      tailscaled_inbound_bytes_total{\n        cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n      }[1h]\n    )\n  ) by (tailscale_machine)\n)\n",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Top 20 Machines by Inbound Traffic (1h)",
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "includeByName": {
+                  "Value": true,
+                  "tailscale_machine": true
+                },
+                "indexByName": {
+                  "Value": 1,
+                  "tailscale_machine": 0
+                },
+                "renameByName": {
+                  "Value": "Inbound Traffic (Bps)",
+                  "tailscale_machine": "Tailscale Machine"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Machines where advertised routes exceed approved routes. These machines are offering routes that clients cannot use until the routes are approved.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "footer": {
+                  "reducers": []
+                },
+                "inspect": false
+              },
+              "links": [
+                {
+                  "targetBlank": true,
+                  "title": "Go To Machine",
+                  "type": "dashboard",
+                  "url": "/d/tailscaled-mixin-over-k12e/tailscale-machine?var-tailscale_machine=${__data.fields.Tailscale Machine}"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              },
+              "unit": "short"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 6
+          },
+          "id": 9,
+          "options": {
+            "cellHeight": "sm",
+            "enablePagination": true,
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": true,
+                "displayName": "Unapproved Routes"
+              }
+            ]
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  tailscaled_advertised_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n) by (tailscale_machine)\n-\nsum(\n  tailscaled_approved_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n) by (tailscale_machine)\n> 0\n",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Machines with Unapproved Routes",
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "includeByName": {
+                  "Value": true,
+                  "tailscale_machine": true
+                },
+                "indexByName": {
+                  "Value": 1,
+                  "tailscale_machine": 0
+                },
+                "renameByName": {
+                  "Value": "Unapproved Routes",
+                  "tailscale_machine": "Tailscale Machine"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Machines with outbound packet drops in the last hour. Investigate persistent values with path, route, and ACL changes for the same machine.",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "footer": {
+                  "reducers": []
+                },
+                "inspect": false
+              },
+              "links": [
+                {
+                  "targetBlank": true,
+                  "title": "Go To Machine",
+                  "type": "dashboard",
+                  "url": "/d/tailscaled-mixin-over-k12e/tailscale-machine?var-tailscale_machine=${__data.fields.Tailscale Machine}"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              },
+              "unit": "percent"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Dropped Packets"
+                },
+                "properties": [
+                  {
+                    "id": "max",
+                    "value": 100
+                  },
+                  {
+                    "id": "min",
+                    "value": 0
+                  },
+                  {
+                    "id": "unit",
+                    "value": "percent"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 6
+          },
+          "id": 10,
+          "options": {
+            "cellHeight": "sm",
+            "enablePagination": true,
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": true,
+                "displayName": "Dropped Packets"
+              }
+            ]
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (tailscale_machine)\n/\nsum(\n  increase(\n    tailscaled_outbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (tailscale_machine)\n* 100\n> 0\n",
+              "format": "table",
+              "instant": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Machines with Dropped Packets (1h)",
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "includeByName": {
+                  "Value": true,
+                  "tailscale_machine": true
+                },
+                "indexByName": {
+                  "Value": 1,
+                  "tailscale_machine": 0
+                },
+                "renameByName": {
+                  "Value": "Dropped Packets",
+                  "tailscale_machine": "Tailscale Machine"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 14
+          },
+          "id": 29,
+          "title": "Network Summary",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Health messages grouped by type across selected machines. Spikes usually point to daemon warnings, network path degradation, or local host issues that need machine-level drilldown.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 0,
+            "y": 15
+          },
+          "id": 12,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  tailscaled_health_messages{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n) by (type)\n",
+              "legendFormat": "{{ type }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Health Messages by Type",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Outbound packet drops grouped by reason. Use this with the affected-machine table to identify whether drops are isolated to one host or broad across the fleet.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "pps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 12,
+            "y": 15
+          },
+          "id": 13,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[$__rate_interval]\n  )\n) by (reason)\n",
+              "legendFormat": "{{ reason }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Outbound Dropped Packets by Reason",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Inbound traffic grouped by direct and relay paths. Changes in path mix can explain latency shifts even when total traffic is stable.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "bps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 0,
+            "y": 20
+          },
+          "id": 14,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  increase(\n    tailscaled_inbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "legendFormat": "{{ path }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Inbound Bytes by Path",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Inbound packet rate by path. Compare with bytes by path to distinguish many small control packets from large data transfers.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "pps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 12,
+            "y": 20
+          },
+          "id": 15,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  increase(\n    tailscaled_inbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "legendFormat": "{{ path }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Inbound Packets by Path",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Outbound traffic grouped by direct and relay paths. A rising DERP line often means direct peer connectivity is failing or becoming less reliable.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "bps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 0,
+            "y": 25
+          },
+          "id": 16,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "legendFormat": "{{ path }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Outbound Bytes by Path",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Outbound packet rate by path. Sustained DERP packet volume can indicate relay dependency even when bandwidth is modest.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "pps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 12,
+            "y": 25
+          },
+          "id": 17,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "legendFormat": "{{ path }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Outbound Packets by Path",
+          "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 30
+          },
+          "id": 30,
+          "repeat": "tailscale_machine",
+          "title": "Tailscale Machine $tailscale_machine",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Advertised versus approved routes for the selected machine. A mismatch means the machine is offering routes that are not active for clients.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#73BF69",
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "unit": "short"
+            }
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 8,
+            "x": 0,
+            "y": 31
+          },
+          "id": 19,
+          "options": {
+            "displayLabels": ["percent"],
+            "legend": {
+              "displayMode": "table",
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "values": ["percent"]
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "sort": "desc",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  tailscaled_advertised_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n  }\n)\n",
+              "instant": true,
+              "legendFormat": "Advertised",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  tailscaled_approved_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n  }\n)\n",
+              "instant": true,
+              "legendFormat": "Approved",
+              "refId": "B"
+            }
+          ],
+          "title": "Advertised / Approved Routes",
+          "type": "piechart"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "DERP versus direct outbound traffic for the selected machine over the last hour. High DERP usage can explain latency and is often caused by NAT, firewall, or connectivity changes.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#73BF69",
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "unit": "bps"
+            }
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 8,
+            "x": 8,
+            "y": 31
+          },
+          "id": 20,
+          "options": {
+            "displayLabels": ["percent"],
+            "legend": {
+              "displayMode": "table",
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "values": ["percent"]
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "sort": "desc",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  rate(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n,\n      path=\"derp\"\n    }[1h]\n  )\n)\n",
+              "instant": true,
+              "legendFormat": "DERP",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  rate(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n,\n      path!=\"derp\"\n    }[1h]\n  )\n)\n",
+              "instant": true,
+              "legendFormat": "Non-DERP",
+              "refId": "B"
+            }
+          ],
+          "title": "DERP vs Non-DERP Outbound Traffic [1h]",
+          "type": "piechart"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Dropped outbound packets by reason for the selected machine over the last hour. Non-zero values should be checked against health messages and route state.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#73BF69",
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                }
+              },
+              "unit": "pps"
+            }
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 8,
+            "x": 16,
+            "y": 31
+          },
+          "id": 21,
+          "options": {
+            "displayLabels": ["percent"],
+            "legend": {
+              "displayMode": "table",
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "values": ["percent"]
+            },
+            "pieType": "pie",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "sort": "desc",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[1h]\n  )\n) by (reason)\n",
+              "instant": true,
+              "legendFormat": "{{ reason }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Dropped Packets by Reason [1h]",
+          "type": "piechart"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Health messages by type for the selected machine. Persistent or new message types are often the first signal of local daemon or network-path problems.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 0,
+            "y": 35
+          },
+          "id": 22,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  tailscaled_health_messages{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n  }\n) by (type)\n",
+              "legendFormat": "{{ type }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Health Messages by Type",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Outbound packet drops by reason for the selected machine. Use this to verify whether packet loss is transient or tied to a specific drop reason.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 12,
+            "y": 35
+          },
+          "id": 23,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[$__rate_interval]\n  )\n) by (reason)\n",
+              "legendFormat": "{{ reason }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Outbound Dropped Packets by Reason",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Inbound traffic by path for the selected machine. A move from direct to DERP usually indicates peer-to-peer connectivity regression.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "Bps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 0,
+            "y": 40
+          },
+          "id": 24,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  increase(\n    tailscaled_inbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "legendFormat": "{{ path }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Inbound Bytes by Path",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Inbound packets by path for the selected machine. Compare with byte volume to understand packet size and control-plane chatter.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "pps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 12,
+            "y": 40
+          },
+          "id": 25,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  increase(\n    tailscaled_inbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "legendFormat": "{{ path }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Inbound Packets by Path",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Outbound traffic by path for the selected machine. High DERP traffic can point to relay dependency and higher expected latency.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "Bps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 0,
+            "y": 45
+          },
+          "id": 26,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "legendFormat": "{{ path }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Outbound Bytes by Path",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "description": "Outbound packets by path for the selected machine. Sustained relay packet rate is a useful signal when troubleshooting latency or firewall behavior.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "axisSoftMin": 0,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "pps"
+            }
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 12,
+            "y": 45
+          },
+          "id": 27,
+          "options": {
+            "annotations": {
+              "clustering": -1,
+              "multiLane": false
+            },
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "enableFacetedFilter": false,
+              "overflow": "ellipsis",
+              "placement": "right",
+              "showLegend": true,
+              "sortBy": "Mean",
+              "sortDesc": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "13.1.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "$datasource"
+              },
+              "exemplar": false,
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "legendFormat": "{{ path }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Outbound Packets by Path",
+          "type": "timeseries"
+        }
+      ],
+      "preload": true,
+      "refresh": "",
+      "schemaVersion": 42,
+      "tags": ["service", "tailscale", "network"],
+      "templating": {
+        "list": [
+          {
+            "allowCustomValue": true,
+            "current": {
+              "text": "default",
+              "value": "default"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "label": "Data source",
+            "multi": false,
+            "name": "datasource",
+            "options": [],
+            "query": "prometheus",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "type": "datasource"
+          },
+          {
+            "allowCustomValue": true,
+            "current": {
+              "text": "",
+              "value": ""
+            },
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "hide": 2,
+            "includeAll": false,
+            "label": "Cluster",
+            "multi": false,
+            "name": "cluster",
+            "options": [],
+            "query": "label_values(tailscaled_health_messages, cluster)",
+            "refresh": 2,
+            "regex": "",
+            "regexApplyTo": "value",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          },
+          {
+            "allowCustomValue": true,
+            "current": {
+              "text": "",
+              "value": ""
+            },
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "hide": 0,
+            "includeAll": true,
+            "label": "job",
+            "multi": true,
+            "name": "job",
+            "options": [],
+            "query": "label_values(tailscaled_health_messages{cluster=\"$cluster\"}, job)",
+            "refresh": 2,
+            "regex": "",
+            "regexApplyTo": "value",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          },
+          {
+            "allowCustomValue": true,
+            "current": {
+              "text": "",
+              "value": ""
+            },
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "label": "Tailscale Machine",
+            "multi": true,
+            "name": "tailscale_machine",
+            "options": [],
+            "query": "label_values(tailscaled_health_messages{cluster=\"$cluster\", job=~\"$job\"}, tailscale_machine)",
+            "refresh": 2,
+            "regex": "",
+            "regexApplyTo": "value",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {
+        "from": "now-7d",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Tailscale",
+      "weekStart": "",
+      "uid": "tailscaled-mixin-over-k12e",
+      "id": 3897231890161664
+    }
