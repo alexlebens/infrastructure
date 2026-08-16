@@ -40,6 +40,49 @@ searxng:
           image:
             repository: valkey/valkey
             tag: 9.1.1-alpine@sha256:ee91f7a174ac4d6a6b0685b3a60e321f0a9dbbb691f9b0e285be2ba1d1be8328
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.3@sha256:10a1165743a192e1940b4708fb9647027185ce11a681a1c5519b442ff7f1f561
+          envFrom:
+            - secretRef:
+                name: searxng-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:8080
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
     api:
       type: deployment
       strategy: Recreate
@@ -74,17 +117,20 @@ searxng:
       enabled: true
       staticToken: true
   service:
+    browser:
+      controller: browser
+      ports:
+        http:
+          port: 8080
+        oauth:
+          port: 4180
+        oauth-metrics:
+          port: 44180
     api:
       controller: api
       ports:
         mail:
           port: 8080
-    browser:
-      controller: browser
-      ports:
-        mail:
-          port: 80
-          targetPort: 8080
   serviceMonitor:
     main:
       selector:
@@ -93,7 +139,7 @@ searxng:
           app.kubernetes.io/instance: searxng-browser
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
-        - port: mail
+        - port: http
           basicAuth:
             password:
               name: searxng-browser-metrics-credentials
@@ -101,6 +147,7 @@ searxng:
             username:
               name: searxng-browser-metrics-credentials
               key: metrics-username
+        - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
@@ -112,7 +159,7 @@ searxng:
       rules:
         - backendRefs:
             - name: searxng-browser
-              port: 80
+              port: 4180
   persistence:
     config:
       type: custom
