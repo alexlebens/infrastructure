@@ -2,7 +2,6 @@ s3-exporter:
   controllers:
     backblaze:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -15,22 +14,22 @@ s3-exporter:
             - name: S3_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: backblaze-s3-exporter-credentials
+                  name: backblaze
                   key: ENDPOINT
             - name: S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: backblaze-s3-exporter-credentials
+                  name: backblaze
                   key: AWS_ACCESS_KEY_ID
             - name: S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: backblaze-s3-exporter-credentials
+                  name: backblaze
                   key: AWS_SECRET_ACCESS_KEY
             - name: S3_REGION
               valueFrom:
                 secretKeyRef:
-                  name: backblaze-s3-exporter-credentials
+                  name: backblaze
                   key: AWS_REGION
             - name: LOG_LEVEL
               value: info
@@ -42,7 +41,6 @@ s3-exporter:
               memory: 20Mi
     garage-local:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -53,21 +51,24 @@ s3-exporter:
             - name: S3_NAME
               value: garage-local
             - name: S3_ENDPOINT
-              value: http://garage-main.garage:3900
+              valueFrom:
+                secretKeyRef:
+                  name: garage-cluster-a
+                  key: ENDPOINT
             - name: S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: garage-s3-exporter-credentials
+                  name: garage-cluster-a
                   key: AWS_ACCESS_KEY_ID
             - name: S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: garage-s3-exporter-credentials
+                  name: garage-cluster-a
                   key: AWS_SECRET_ACCESS_KEY
             - name: S3_REGION
               valueFrom:
                 secretKeyRef:
-                  name: garage-s3-exporter-credentials
+                  name: garage-cluster-a
                   key: ACCESS_REGION
             - name: LOG_LEVEL
               value: debug
@@ -79,7 +80,6 @@ s3-exporter:
               memory: 20Mi
     garage-remote:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -90,21 +90,24 @@ s3-exporter:
             - name: S3_NAME
               value: garage-remote
             - name: S3_ENDPOINT
-              value: https://garage-ps10rp.boreal-beaufort.ts.net:3900
+              valueFrom:
+                secretKeyRef:
+                  name: garage-remote
+                  key: ENDPOINT
             - name: S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: garage-s3-exporter-credentials
+                  name: garage-remote
                   key: AWS_ACCESS_KEY_ID
             - name: S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: garage-s3-exporter-credentials
+                  name: garage-remote
                   key: AWS_SECRET_ACCESS_KEY
             - name: S3_REGION
               valueFrom:
                 secretKeyRef:
-                  name: garage-s3-exporter-credentials
+                  name: garage-remote
                   key: ACCESS_REGION
             - name: LOG_LEVEL
               value: debug
@@ -120,19 +123,16 @@ s3-exporter:
       ports:
         metrics:
           port: 9655
-          targetPort: 9655
     garage-local:
       controller: garage-local
       ports:
         metrics:
           port: 9655
-          targetPort: 9655
     garage-remote:
       controller: garage-remote
       ports:
         metrics:
           port: 9655
-          targetPort: 9655
   serviceMonitor:
     backblaze:
       selector:
@@ -145,7 +145,6 @@ s3-exporter:
         - port: metrics
           interval: 12h
           scrapeTimeout: 5m
-          path: /metrics
     garage-local:
       selector:
         matchLabels:
@@ -157,7 +156,6 @@ s3-exporter:
         - port: metrics
           interval: 5m
           scrapeTimeout: 2m
-          path: /metrics
     garage-remote:
       selector:
         matchLabels:
@@ -169,4 +167,3 @@ s3-exporter:
         - port: metrics
           interval: 5m
           scrapeTimeout: 2m
-          path: /metrics
