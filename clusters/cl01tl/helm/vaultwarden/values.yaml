@@ -2,7 +2,6 @@ vaultwarden:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -25,31 +24,57 @@ vaultwarden:
               value: true
             - name: SSO_SIGNUPS_MATCH_EMAIL
               value: true
+            - name: SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION
+              value: true
             - name: SSO_AUTHORITY
-              value: https://auth.alexlebens.dev/application/o/vaultwarden/
+              value: https://pocket-id.alexlebens.dev
             - name: SSO_SCOPES
-              value: "email profile offline_access"
+              value: "openid email profile offline_access"
+            - name: SSO_PKCE
+              value: true
             - name: SSO_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: vaultwarden-oidc-authentik
-                  key: SSO_CLIENT_ID
+                  name: vaultwarden-oidc-secret
+                  key: clientId
             - name: SSO_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: vaultwarden-oidc-authentik
-                  key: SSO_CLIENT_SECRET
+                  name: vaultwarden-oidc-secret
+                  key: clientSecret
           resources:
             requests:
               cpu: 10m
               memory: 30Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /alive
+                  port: 80
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /alive
+                  port: 80
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /alive
+                  port: 80
+                failureThreshold: 30
+                periodSeconds: 5
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
-          targetPort: 80
   persistence:
     config:
       forceRename: vaultwarden-data
@@ -60,7 +85,6 @@ vaultwarden:
         main:
           main:
             - path: /data
-              readOnly: false
 cloudflared:
   probe:
     enabled: true

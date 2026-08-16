@@ -2,7 +2,6 @@ unpoller:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -43,13 +42,26 @@ unpoller:
             requests:
               cpu: 10m
               memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /metrics
+                  port: 9130
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /metrics
+                  port: 9130
   service:
     main:
-      controller: main
       ports:
         metrics:
           port: 9130
-          targetPort: 9130
   serviceMonitor:
     main:
       selector:
@@ -59,6 +71,4 @@ unpoller:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 30s
-          scrapeTimeout: 10s
-          path: /metrics
+          interval: 5m
