@@ -4,13 +4,18 @@ traefik:
   ingressClass:
     enabled: false
   gateway:
-    enabled: true
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-issuer
     listeners:
       web:
         port: 8000
         hostname: "*.alexlebens.net"
+        protocol: HTTP
+        namespacePolicy:
+          from: All
+      web-s3:
+        port: 8000
+        hostname: "*.s3.alexlebens.net"
         protocol: HTTP
         namespacePolicy:
           from: All
@@ -21,9 +26,17 @@ traefik:
         namespacePolicy:
           from: All
         certificateRefs:
-          - group: ""
-            kind: Secret
-            name: websecure-gateway-cert
+          - name: websecure-gateway-cert
+            namespace: traefik
+        mode: Terminate
+      websecure-s3:
+        port: 8443
+        hostname: "*.s3.alexlebens.net"
+        protocol: HTTPS
+        namespacePolicy:
+          from: All
+        certificateRefs:
+          - name: websecure-s3-gateway-cert
             namespace: traefik
         mode: Terminate
   ingressRoute:
@@ -31,12 +44,9 @@ traefik:
       enabled: true
       matchRule: (Host(`traefik-cl01tl.alexlebens.net`) && (PathPrefix(`/api/`) || PathPrefix(`/dashboard/`)))
       entryPoints: ["websecure"]
-  updateStrategy:
-    type: RollingUpdate
   providers:
     kubernetesCRD:
       allowCrossNamespace: true
-      allowEmptyServices: true
     kubernetesIngress:
       enabled: false
     kubernetesGateway:
@@ -66,14 +76,7 @@ traefik:
   global:
     checkNewVersion: false
   ports:
-    traefik:
-      expose:
-        default: false
     web:
-      port: 8000
-      expose:
-        default: true
-      exposedPort: 80
       http:
         redirections:
           entryPoint:
@@ -93,10 +96,6 @@ traefik:
           - 192.168.0.0/16
           - fc00::/7
     websecure:
-      port: 8443
-      expose:
-        default: true
-      exposedPort: 443
       transport:
         respondingTimeouts:
           readTimeout: 600s
@@ -113,6 +112,9 @@ traefik:
           allowEncodedPercent: true
           allowEncodedQuestionMark: true
           allowEncodedHash: true
+      http3:
+        enabled: true
+        advertisedPort: 443
       forwardedHeaders:
         trustedIPs:
           - 10.0.0.0/8
@@ -125,23 +127,16 @@ traefik:
           - 172.16.0.0/16
           - 192.168.0.0/16
           - fc00::/7
-    metrics:
-      expose:
-        default: false
   service:
-    enabled: true
-    type: LoadBalancer
     annotations:
       lbipam.cilium.io/ips: "10.234.0.31"
       external-dns.alpha.kubernetes.io/hostname: traefik-cl01tl.alexlebens.net
-  resources:
-    requests:
-      cpu: 10m
-      memory: 100Mi
+    spec:
+      type: LoadBalancer
 traefik-crds:
   enabled: true
   traefik: true
-  gatewayAPI: false
+  gatewayAPI: true
   gatewayAPIExperimental: false
   hub: false
   deleteOnUninstall: false
