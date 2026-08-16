@@ -2,7 +2,6 @@ unpackerr:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -57,13 +56,26 @@ unpackerr:
             requests:
               cpu: 10m
               memory: 10Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /metrics
+                  port: 5656
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /metrics
+                  port: 5656
   service:
     main:
-      controller: main
       ports:
         metrics:
           port: 5656
-          targetPort: 5656
   serviceMonitor:
     main:
       selector:
@@ -73,9 +85,7 @@ unpackerr:
       serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
       endpoints:
         - port: metrics
-          interval: 1m
-          scrapeTimeout: 30s
-          path: /metrics
+          interval: 5m
   persistence:
     storage:
       existingClaim: unpackerr-nfs-storage
@@ -83,4 +93,3 @@ unpackerr:
         main:
           main:
             - path: /mnt/store
-              readOnly: false
