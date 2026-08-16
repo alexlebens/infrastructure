@@ -2,7 +2,6 @@ apiVersion: tailscale.com/v1alpha1
 kind: DNSConfig
 metadata:
   name: ts-dns
-  namespace: tailscale-operator
   labels:
     app.kubernetes.io/name: ts-dns
     app.kubernetes.io/instance: tailscale-operator
@@ -12,3 +11,16 @@ spec:
     image:
       repo: tailscale/k8s-nameserver
       tag: v1.102.2
+    service:
+      clusterIP: "10.97.20.219"
+    replicas: 2
+    pod:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: ts-dns
+                topologyKey: kubernetes.io/hostname
