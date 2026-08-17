@@ -14,7 +14,7 @@ app.kubernetes.io/part-of: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-NFS names
+Secret names
 */}}
 {{- define "custom.cloudflareSecretName" -}}
 cert-manager-cloudflare-api-token
