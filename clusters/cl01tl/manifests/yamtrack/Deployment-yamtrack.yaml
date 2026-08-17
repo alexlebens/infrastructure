@@ -47,7 +47,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   key: SOCIALACCOUNT_PROVIDERS
-                  name: yamtrack-oidc-authentik
+                  name: yamtrack-oidc-secret
             - name: SECRET
               valueFrom:
                 secretKeyRef:
@@ -81,8 +81,22 @@ spec:
                   key: port
                   name: yamtrack-postgresql-18-cluster-app
           image: ghcr.io/fuzzygrim/yamtrack:0.26.1@sha256:2c4c8ef6b73ba00aeb3e7cda5a34751f01448034a23d2fbcc98e48e44d377bb8
+          livenessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
           name: main
+          readinessProbe:
+            httpGet:
+              path: /health/
+              port: 8000
           resources:
             requests:
               cpu: 10m
               memory: 380Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /health/
+              port: 8000
+            periodSeconds: 5
