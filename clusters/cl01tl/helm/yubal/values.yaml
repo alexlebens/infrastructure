@@ -2,7 +2,6 @@ yubal:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       pod:
         securityContext:
@@ -30,7 +29,6 @@ yubal:
               memory: 200Mi
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -39,9 +37,7 @@ yubal:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - yubal.alexlebens.net
@@ -49,10 +45,6 @@ yubal:
         - backendRefs:
             - name: yubal
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
   persistence:
     config:
       forceRename: yubal
@@ -63,14 +55,12 @@ yubal:
         main:
           main:
             - path: /app/config
-              readOnly: false
     music:
       existingClaim: yubal-nfs-storage
       advancedMounts:
         main:
           main:
             - path: /app/data
-              readOnly: false
 volsync-target-config:
   pvcTarget: yubal
   local:
