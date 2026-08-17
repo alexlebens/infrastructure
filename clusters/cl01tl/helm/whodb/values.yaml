@@ -2,7 +2,6 @@ whodb:
   controllers:
     main:
       type: deployment
-      replicas: 1
       containers:
         main:
           image:
@@ -17,9 +16,30 @@ whodb:
             requests:
               cpu: 1m
               memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8080
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8080
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8080
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -28,9 +48,7 @@ whodb:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - whodb.alexlebens.net
@@ -38,7 +56,3 @@ whodb:
         - backendRefs:
             - name: whodb
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
