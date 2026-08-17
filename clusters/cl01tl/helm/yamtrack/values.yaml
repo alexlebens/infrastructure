@@ -2,7 +2,6 @@ yamtrack:
   controllers:
     main:
       type: deployment
-      replicas: 1
       strategy: Recreate
       containers:
         main:
@@ -21,7 +20,7 @@ yamtrack:
             - name: SOCIALACCOUNT_PROVIDERS
               valueFrom:
                 secretKeyRef:
-                  name: yamtrack-oidc-authentik
+                  name: yamtrack-oidc-secret
                   key: SOCIALACCOUNT_PROVIDERS
             - name: SECRET
               valueFrom:
@@ -59,9 +58,32 @@ yamtrack:
             requests:
               cpu: 10m
               memory: 380Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health/
+                  port: 8000
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health/
+                  port: 8000
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health/
+                  port: 8000
+                failureThreshold: 30
+                periodSeconds: 5
   service:
     main:
-      controller: main
       ports:
         http:
           port: 80
@@ -70,9 +92,7 @@ yamtrack:
     main:
       kind: HTTPRoute
       parentRefs:
-        - group: gateway.networking.k8s.io
-          kind: Gateway
-          name: traefik-gateway
+        - name: traefik-gateway
           namespace: traefik
       hostnames:
         - yamtrack.alexlebens.net
@@ -80,10 +100,6 @@ yamtrack:
         - backendRefs:
             - name: yamtrack
               port: 80
-          matches:
-            - path:
-                type: PathPrefix
-                value: /
 postgres-18-cluster:
   mode: recovery
   recovery:
