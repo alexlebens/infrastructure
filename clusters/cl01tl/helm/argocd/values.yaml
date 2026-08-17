@@ -1,4 +1,14 @@
 argocd:
+  global:
+    tolerations:
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 30
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 30
   configs:
     cm:
       admin.enabled: true
@@ -26,6 +36,7 @@ argocd:
     params:
       server.insecure: true
       controller.diff.server.side: true
+      applicationsetcontroller.enable.leader.election: true
     rbac:
       policy.csv: |
         g, platform-admin, role:admin
@@ -71,6 +82,8 @@ argocd:
                 The application [{{`{{$labels.name}}`}} has not been synchronized for over 12 hours which means that the
                 state of this cloud has drifted away from the state inside Git.
   dex:
+    replicas: 2
+    podAntiAffinity: "soft"
     metrics:
       enabled: true
       serviceMonitor:
@@ -109,6 +122,8 @@ argocd:
   redisSecretInit:
     enabled: false
   server:
+    replicas: 2
+    podAntiAffinity: "soft"
     resources:
       requests:
         cpu: 10m
@@ -125,6 +140,8 @@ argocd:
       hostnames:
         - argocd.alexlebens.net
   repoServer:
+    replicas: 2
+    podAntiAffinity: "soft"
     resources:
       requests:
         cpu: 1m
@@ -140,6 +157,8 @@ argocd:
       serviceMonitor:
         enabled: true
   applicationSet:
+    replicas: 2
+    podAntiAffinity: "soft"
     resources:
       requests:
         cpu: 10m
