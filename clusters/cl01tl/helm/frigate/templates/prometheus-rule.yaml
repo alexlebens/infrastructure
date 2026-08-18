@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: frigate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: frigate
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: frigate
+      rules:
+        - alert: FrigateCameraDown
+          expr: frigate_camera_fps == 0
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: Frigate camera {{ `{{ $labels.camera }}` }} is down
+            description: "Camera {{ `{{ $labels.camera }}` }} in Frigate is receiving 0 FPS."
+        - alert: FrigateDown
+          expr: absent(up{job=~".*frigate.*"} == 1)
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Frigate is down
+            description: "Frigate has disappeared from Prometheus service discovery."
