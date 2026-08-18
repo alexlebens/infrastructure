@@ -42,9 +42,10 @@ services:
     image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
     container_name: garage
     environment:
-      RUST_LOG: trace
+      RUST_LOG: info
     env_file:
-      - .env
+      - path: .env
+        required: false
     restart: always
     networks:
       internal: null
@@ -54,23 +55,23 @@ services:
       - data:/var/lib/garage/data
 
   garage-ui:
-    image: khairul169/garage-webui:1.1.0@sha256:17c793551873155065bf9a022dabcde874de808a1f26e648d4b82e168806439c
+    image: noooste/garage-ui:v0.12.1@sha256:0b68a9237da67a705f9bdb9127c8d56f38df7810f844bd6c25c3cd0d19d89795
     container_name: garage-ui
-    environment:
-      API_BASE_URL: http://garage:3903
-      S3_ENDPOINT_URL: http://garage:3900
+    env_file:
+      - path: .env
+        required: false
     labels:
       traefik.enable: true
       traefik.docker.network: internal
       traefik.http.routers.garage-webui.entrypoints: web-secure
       traefik.http.routers.garage-webui.rule: Host(`garage-ui.lebens-home.net`)
       traefik.http.routers.garage-webui.service: garage-webui
-      traefik.http.services.garage-webui.loadbalancer.server.port: 3009
+      traefik.http.services.garage-webui.loadbalancer.server.port: 8080
     restart: always
     networks:
       internal: null
     volumes:
-      - ${PWD}/garage.toml:/etc/garage.toml:ro
+      - ./config.yaml:/app/config.yaml
 
 networks:
   internal:
