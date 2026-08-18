@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: cloudflared
     app.kubernetes.io/version: 2026.8.2
-    helm.sh/chart: cloudflared-4.2.2
+    helm.sh/chart: cloudflared-4.3.0
   namespace: vaultwarden
 spec:
   revisionHistoryLimit: 3
@@ -38,6 +38,18 @@ spec:
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - cloudflared
+                topologyKey: kubernetes.io/hostname
+              weight: 100
       containers:
         - args:
             - tunnel
