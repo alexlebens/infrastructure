@@ -332,9 +332,14 @@ jobs:
                   echo ">> Standard Rendering ..."
               esac
 
+              local VALUES_ARGS=()
+              if [ -f "values.yaml" ]; then
+                VALUES_ARGS+=("-f" "values.yaml")
+              fi
+
               echo ">> Formating rendered template ..."
               local TEMPLATE
-              if ! TEMPLATE=$(helm template "${CHART_NAME}" ./ --namespace "${NAMESPACE}" --include-crds --api-versions "${API_VERSIONS}"); then
+              if ! TEMPLATE=$(helm template "${CHART_NAME}" ./ "${VALUES_ARGS[@]}" --namespace "${NAMESPACE}" --include-crds --api-versions "${API_VERSIONS}"); then
                 echo "${DIR}" > "${MAIN_DIR}/.failed_chart_${DIR}"
                 return 1
               fi
