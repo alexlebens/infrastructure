@@ -1,0 +1,164 @@
+reactive-resume:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/amruthpillai/reactive-resume
+            tag: 5.2.5
+          env:
+            - name: APP_URL
+              value: https://resume.alexlebens.net
+            - name: PORT
+              value: "3000"
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: reactive-resume-key
+                  key: auth-secret
+            - name: ENCRYPTION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: reactive-resume-key
+                  key: encryption-secret
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: reactive-resume-postgresql-18-cluster-app
+                  key: uri
+            - name: REDIS_URL
+              value: redis://reactive-resume-valkey.reactive-resume:6379
+            - name: S3_BUCKET
+              value: reactive-resume-assets
+            - name: S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: S3_ENDPOINT
+              value: https://a.s3.alexlebens.net
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: reactive-resume-assets-key
+                  key: region
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: reactive-resume-assets-key
+                  key: access-key-id
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: reactive-resume-assets-key
+                  key: secret-access-key
+            - name: OAUTH_PROVIDER_NAME
+              value: AlexAuth
+            - name: OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: reactive-resume-oidc-secret
+                  key: clientId
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: reactive-resume-oidc-secret
+                  key: clientSecret
+            - name: OAUTH_DISCOVERY_URL
+              value: https://auth.alexlebens.dev/.well-known/openid-configuration
+            - name: OAUTH_SCOPES
+              value: openid profile email
+          probes:
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3000
+                initialDelaySeconds: 10
+                periodSeconds: 10
+                failureThreshold: 30
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3000
+                periodSeconds: 30
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3000
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 150Mi
+  service:
+    main:
+      ports:
+        http:
+          port: 80
+          targetPort: 3000
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - resume.alexlebens.net
+      rules:
+        - backendRefs:
+            - name: reactive-resume
+              port: 80
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 20 18 * * *"
+garage-bucket-reactive-resume-assets:
+  bucketName: reactive-resume-assets
+  cors:
+    enabled: true
+    policy: |
+      {
+        "CORSRules": [
+          {
+            "AllowedOrigins": ["https://resume.alexlebens.net"],
+            "AllowedHeaders": ["*"],
+            "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+            "MaxAgeSeconds": 3000,
+            "ExposeHeaders": ["ETag"]
+          }
+        ]
+      }
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: reactive-resume-assets
+    secondary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: reactive-resume-assets-61758b59b4c7c893
