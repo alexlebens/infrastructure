@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reactive-resume
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: reactive-resume
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: reactive-resume
+    helm.sh/chart: reactive-resume-5.1.0
+  namespace: reactive-resume
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: reactive-resume
+      app.kubernetes.io/instance: reactive-resume
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: reactive-resume
+        app.kubernetes.io/name: reactive-resume
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: reactive-resume
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: APP_URL
+              value: https://resume.alexlebens.net
+            - name: PORT
+              value: "3000"
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: auth-secret
+                  name: reactive-resume-key
+            - name: ENCRYPTION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: encryption-secret
+                  name: reactive-resume-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: reactive-resume-postgresql-18-cluster-app
+            - name: REDIS_URL
+              value: redis://reactive-resume-valkey.reactive-resume:6379
+            - name: S3_BUCKET
+              value: reactive-resume-assets
+            - name: S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: S3_ENDPOINT
+              value: https://a.s3.alexlebens.net
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: region
+                  name: reactive-resume-assets-key
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: access-key-id
+                  name: reactive-resume-assets-key
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-access-key
+                  name: reactive-resume-assets-key
+            - name: OAUTH_PROVIDER_NAME
+              value: AlexAuth
+            - name: OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: reactive-resume-oidc-secret
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: reactive-resume-oidc-secret
+            - name: OAUTH_DISCOVERY_URL
+              value: https://auth.alexlebens.dev/.well-known/openid-configuration
+            - name: OAUTH_SCOPES
+              value: openid profile email
+          image: ghcr.io/amruthpillai/reactive-resume:5.2.5
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /api/health
+              port: 3000
+            periodSeconds: 30
+            timeoutSeconds: 5
+          name: main
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /api/health
+              port: 3000
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 150Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10

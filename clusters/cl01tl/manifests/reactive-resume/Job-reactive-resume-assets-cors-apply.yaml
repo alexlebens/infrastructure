@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: reactive-resume-assets-cors-apply
+  namespace: reactive-resume
+  labels:
+    app.kubernetes.io/name: reactive-resume-assets-cors-apply
+    helm.sh/chart: garage-bucket-reactive-resume-assets-0.3.10
+    app.kubernetes.io/instance: reactive-resume
+    app.kubernetes.io/part-of: reactive-resume
+    app.kubernetes.io/version: "v0.7.5"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "0"
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    metadata:
+      name: reactive-resume-assets-cors-apply
+      labels:
+        app.kubernetes.io/name: reactive-resume-assets-cors-apply
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: aws-cli
+          image: "amazon/aws-cli:2.27.51@sha256:3960aa7002208c9d26cdca90a16416c6f75da95b522da5bed212ef9bf4a804cb"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo ">> Applying CORS configuration to reactive-resume-assets bucket..."
+              aws s3api put-bucket-cors \
+                --bucket reactive-resume-assets \
+                --cors-configuration file:///etc/config/cors.json \
+                --endpoint-url http://garage-cluster-a.garage-operator.svc.cluster.local:3900 \
+                --region garage
+              echo ">> Done!"
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: reactive-resume-assets-key
+                  key: access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: reactive-resume-assets-key
+                  key: secret-access-key
+          volumeMounts:
+            - name: config
+              mountPath: /etc/config
+      volumes:
+        - name: config
+          configMap:
+            name: reactive-resume-assets-cors
