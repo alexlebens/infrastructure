@@ -1,0 +1,58 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argocd-valkey
+  labels:
+    helm.sh/chart: valkey-0.11.0
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/version: "9.1.1"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: valkey
+spec:
+  groups:
+    - name: argocd-valkey
+      rules:
+        - alert: ValkeyDown
+          annotations:
+            description: Valkey instance {{ $labels.instance }} is down.
+            summary: Valkey instance {{ $labels.instance }} down
+          expr: |
+            redis_up{service="argocd-valkey-metrics"} == 0
+          for: 2m
+          labels:
+            severity: error
+        - alert: ValkeyMemoryHigh
+          annotations:
+            description: |
+              Valkey instance {{ $labels.instance }} is using {{ $value }}% of its available memory.
+            summary: Valkey instance {{ $labels.instance }} is using too much memory
+          expr: |
+            redis_memory_used_bytes{service="argocd-valkey-metrics"} * 100
+            /
+            redis_memory_max_bytes{service="argocd-valkey-metrics"}
+            > 90 <= 100
+          for: 2m
+          labels:
+            severity: error
+        - alert: ValkeyKeyEviction
+          annotations:
+            description: |
+              Valkey instance {{ $labels.instance }} has evicted {{ $value }} keys in the last 5 minutes.
+            summary: Valkey instance {{ $labels.instance }} has evicted keys
+          expr: |
+            increase(redis_evicted_keys_total{service="argocd-valkey-metrics"}[5m]) > 0
+          for: 1s
+          labels:
+            severity: error
+        - alert: ValkeyBgSaveFailed
+          annotations:
+            description: |
+              Valkey instance {{ $labels.instance }} failed to write its RDB file to disk.
+              This usually indicates storage exhaustion or permission issues, and causes Valkey to stop accepting writes.
+            summary: Valkey instance {{ $labels.instance }} background save failed
+          expr: |
+            redis_rdb_last_bgsave_status{service="argocd-valkey-metrics"} == 0
+          for: 5m
+          labels:
+            severity: critical
