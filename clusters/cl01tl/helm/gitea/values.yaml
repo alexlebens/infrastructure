@@ -116,6 +116,14 @@ gitea:
         DEFAULT_INTERVAL: 10m
       repo-archive:
         ENABLED: false
+      storage:
+        STORAGE_TYPE: minio
+        MINIO_ENDPOINT: garage-cluster-b.garage-operator:3900
+        MINIO_BUCKET: gitea-assets
+        MINIO_LOCATION: garage
+        MINIO_USE_SSL: false
+        MINIO_INSECURE_SKIP_VERIFY: false
+        MINIO_BASE_PATH: /
     additionalConfigFromEnvs:
       - name: GITEA__DATABASE__CONNSTR
         valueFrom:
@@ -142,6 +150,16 @@ gitea:
           secretKeyRef:
             name: gitea-meilisearch-key
             key: ISSUE_INDEXER_CONN_STR
+      - name: GITEA__STORAGE__MINIO_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: gitea-s3-secret
+            key: GITEA__STORAGE__MINIO_ACCESS_KEY_ID
+      - name: GITEA__STORAGE__MINIO_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: gitea-s3-secret
+            key: GITEA__STORAGE__MINIO_SECRET_ACCESS_KEY
   valkey:
     enabled: false
   valkey-cluster:
@@ -406,3 +424,23 @@ volsync-target-storage:
     enabled: false
   remote:
     enabled: false
+garage-bucket-gitea-assets:
+  bucketName: gitea-assets
+  garageCluster:
+    name: garage-cluster-b
+    namespace: garage-operator
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: gitea-assets
+    secondary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: gitea-assets-6670d003410bb125
