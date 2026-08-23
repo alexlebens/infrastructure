@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: garage-ui-cluster-b
+  namespace: garage-operator
+  labels:
+    helm.sh/chart: garage-ui-cluster-b-0.12.1
+    app.kubernetes.io/name: garage-ui-cluster-b
+    app.kubernetes.io/instance: garage-operator
+    app.kubernetes.io/version: "v0.12.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: garage-ui-cluster-b
+      app.kubernetes.io/instance: garage-operator
+  template:
+    metadata:
+      annotations:
+        checksum/config: 4ef44377b4d07e9d45feeda26b012deeb37cf9b7a6850494d541801acaa41b6c
+      labels:
+        app.kubernetes.io/name: garage-ui-cluster-b
+        app.kubernetes.io/instance: garage-operator
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: garage-ui-cluster-b
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
+          image: "noooste/garage-ui:v0.12.1"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: GARAGE_UI_GARAGE_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: garage-operator-token
+                  key: admin-token
+            - name: GARAGE_UI_AUTH_JWT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: garage-ui-cluster-b-jwt-key
+                  key: jwt-key.pem
+            - name: GARAGE_UI_AUTH_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: garage-cluster-b-ui-oidc
+                  key: clientSecret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: garage-ui-cluster-b-config
