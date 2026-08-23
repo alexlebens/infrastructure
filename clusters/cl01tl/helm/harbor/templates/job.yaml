@@ -1,0 +1,44 @@
+# apiVersion: batch/v1
+# kind: Job
+# metadata:
+#   name: harbor-pvc-to-s3-migration
+#   namespace: harbor
+# spec:
+#   template:
+#     spec:
+#       restartPolicy: OnFailure
+#       containers:
+#         - name: rclone
+#           image: rclone/rclone:1.75.0
+#           command:
+#             - rclone
+#             - sync
+#             - /storage
+#             - :s3:harbor-registry
+#             - --s3-provider=Other
+#             - --s3-endpoint=http://garage-cluster-b.garage-operator:3900
+#             - --s3-access-key-id=$(ACCESS_KEY)
+#             - --s3-secret-access-key=$(SECRET_KEY)
+#             - --s3-force-path-style=true
+#             - -P
+#             - --transfers=16
+#             - --checkers=32
+#           env:
+#             - name: ACCESS_KEY
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: harbor-registry-s3-secret
+#                   key: REGISTRY_STORAGE_S3_ACCESSKEY
+#             - name: SECRET_KEY
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: harbor-registry-s3-secret
+#                   key: REGISTRY_STORAGE_S3_SECRETKEY
+#           volumeMounts:
+#             - name: registry-data
+#               mountPath: /storage
+#               readOnly: true
+#       volumes:
+#         - name: registry-data
+#           persistentVolumeClaim:
+#             claimName: harbor-registry
