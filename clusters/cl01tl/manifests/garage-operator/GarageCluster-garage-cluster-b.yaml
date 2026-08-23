@@ -1,0 +1,54 @@
+apiVersion: garage.rajsingh.info/v1beta2
+kind: GarageCluster
+metadata:
+  name: garage-cluster-b
+  namespace: garage-operator
+  labels:
+    app.kubernetes.io/name: garage-cluster-b
+    app.kubernetes.io/instance: garage-operator
+    app.kubernetes.io/part-of: garage-operator
+spec:
+  image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
+  replication:
+    factor: 3
+  blocks:
+    compressionLevel: "none"
+  storage:
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - garage-cluster-b
+            topologyKey: kubernetes.io/hostname
+    replicas: 3
+    metadata:
+      size: 10Gi
+      storageClassName: local-path
+    data:
+      size: 150Gi
+      storageClassName: local-path
+    resources:
+      requests:
+        cpu: 20m
+        memory: 150Mi
+  s3Api:
+    region: garage
+    rootDomain: ".b.s3.alexlebens.net"
+  webApi:
+    rootDomain: ".b.s3.alexlebens.net"
+  network:
+    rpcSecretRef:
+      name: garage-operator-token
+      key: rpc-secret
+  admin:
+    metricsRequireToken: true
+    adminTokenSecretRef:
+      name: garage-operator-token
+      key: admin-token
+    metricsTokenSecretRef:
+      name: garage-operator-token
+      key: metrics-token
