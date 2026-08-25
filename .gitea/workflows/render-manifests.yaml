@@ -5,6 +5,12 @@ on:
     - cron: "0 15 * * *"
 
   workflow_dispatch:
+    inputs:
+      clear_cache:
+        description: "Clear and rebuild Helm cache"
+        type: boolean
+        default: false
+        required: false
 
   pull_request:
     branches:
@@ -23,6 +29,7 @@ env:
   MANIFEST_DIR: /workspace/alexlebens/infrastructure/infrastructure-manifests
   HELM_VERSION: "v4.2.4"
   KUBECTL_VERSION: "v1.36.3"
+  HELM_CACHE_VERSION: "v2"
 
 jobs:
   render-manifests:
@@ -52,15 +59,17 @@ jobs:
 
       - name: Cache Helm Dependencies
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        if: github.event.inputs.clear_cache != 'true'
         with:
           path: |
             ~/.cache/helm
             ~/.config/helm
           key:
-            helm-cache-${{ runner.os }}-${{ hashFiles('infrastructure/clusters/cl01tl/helm/**/Chart.yaml',
+            helm-cache-${{ env.HELM_CACHE_VERSION }}-${{ runner.os }}-${{
+            hashFiles('infrastructure/clusters/cl01tl/helm/**/Chart.yaml',
             'infrastructure/clusters/cl01tl/helm/**/Chart.lock') }}
           restore-keys: |
-            helm-cache-${{ runner.os }}-
+            helm-cache-${{ env.HELM_CACHE_VERSION }}-${{ runner.os }}-
 
       - name: Set Up Kubectl
         uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
@@ -243,7 +252,7 @@ jobs:
                   echo ">> Ignoring OCI repo: ${REPO_URL}"
 
                 elif [[ -n "${REPO_NAME}" && -n "${REPO_URL}" ]]; then
-                  helm repo add "${REPO_NAME}" "${REPO_URL}"
+                  helm repo add "${REPO_NAME}" "${REPO_URL}" --force-update
 
                 fi
 
