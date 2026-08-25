@@ -12,3 +12,10 @@ Selector labels
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/part-of: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Hostname
+*/}}
+{{- define "custom.chatHostname" -}}
+chat.alexlebens.dev
+{{- end -}}
