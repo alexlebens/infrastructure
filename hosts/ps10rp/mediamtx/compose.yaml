@@ -1,0 +1,33 @@
+---
+services:
+  tailscale-audio:
+    image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
+    container_name: tailscale-audio
+    cap_add:
+      - net_admin
+      - sys_module
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_HOSTNAME=audio-ps10rp
+      - TS_AUTHKEY=${TS_AUTHKEY}
+    network_mode: service:audio-streamer
+    restart: always
+    volumes:
+      - tailscale:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+  audio-streamer:
+    image: bluenviron/mediamtx:1.20.1@sha256:1b029d11049be75630e9b73bb0d5f47b08a7db4eaee89a80bf8f53bc40e56414
+    container_name: audio-streamer
+    privileged: true
+    devices:
+      - /dev/snd:/dev/snd
+    environment:
+      - MTX_PATHS_MIC_RUNONINIT=ffmpeg -hide_banner -loglevel error -f alsa -i plughw:CARD=A28,DEV=0 -c:a aac -b:a 128k
+        -f rtsp rtsp://127.0.0.1:8554/mic
+      - MTX_PATHS_MIC_RUNONINITRESTART=yes
+    restart: unless-stopped
+
+volumes:
+  tailscale:

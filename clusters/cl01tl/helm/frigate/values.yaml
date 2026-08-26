@@ -137,7 +137,7 @@ frigate:
         - name: traefik-gateway
           namespace: traefik
       hostnames:
-        - frigate.alexlebens.net
+        - frigate.alexlebens.dev
       rules:
         - backendRefs:
             - name: frigate
@@ -190,9 +190,11 @@ frigate:
           go2rtc:
             streams:
               tapo_c200:
-                - rtsp://{FRIGATE_TAPO_USER}:{FRIGATE_TAPO_PASSWORD}@it06cm.alexlebens.net:554/stream1
+                - rtsp://{FRIGATE_TAPO_USER}:{FRIGATE_TAPO_PASSWORD}@it06cm.alexlebens.dev:554/stream1
               tapo_c200_sub:
-                - rtsp://{FRIGATE_TAPO_USER}:{FRIGATE_TAPO_PASSWORD}@it06cm.alexlebens.net:554/stream2
+                - rtsp://{FRIGATE_TAPO_USER}:{FRIGATE_TAPO_PASSWORD}@it06cm.alexlebens.dev:554/stream2
+              ps10rp_audio:
+                - rtsp://audio-ps10rp.boreal-beaufort.ts.net:8554/mic
 
           cameras:
             tapo_c200:
@@ -205,9 +207,35 @@ frigate:
                     roles:
                       - detect
               detect:
+                enabled: true
                 width: 640
                 height: 360
                 fps: 5
+              motion:
+                enabled: true
+                improve_contrast: true
+                threshold: 30
+                contour_area: 30
+              audio:
+                enabled: false
+            ps10rp_audio:
+              ffmpeg:
+                inputs:
+                  - path: rtsp://127.0.0.1:8554/ps10rp_audio
+                    roles:
+                      - audio
+                      - record
+              detect:
+                enabled: false
+              audio:
+                enabled: true
+                listen:
+                  - speech
+                  - scream
+                  - yell
+                  - bark
+                  - dog
+                min_volume: 500
   persistence:
     config:
       forceRename: frigate-config
