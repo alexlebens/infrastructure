@@ -1,10 +1,10 @@
 apiVersion: monitoring.coreos.com/v1
 kind: Probe
 metadata:
-  name: blackbox-cl01tl-{{ $.Release.Namespace }}-http-2xx
-  namespace: {{ $.Release.Namespace }}
+  name: blackbox-cl01tl-{{ .Release.Name }}-http-2xx
+  namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: blackbox-cl01tl-{{ $.Release.Namespace }}-http-2xx
+    app.kubernetes.io/name: blackbox-cl01tl-{{ .Release.Name }}-http-2xx
     {{- include "custom.labels" $ | nindent 4 }}
 spec:
   prober:
@@ -13,7 +13,8 @@ spec:
   targets:
     staticConfig:
       static:
-        - http://pocket-id-instance.{{ $.Release.Namespace }}:1411
+        - http://garage-ui-cluster-a.{{ .Release.Namespace }}:80
+        - http://garage-ui-cluster-b.{{ .Release.Namespace }}:80
 
 {{- range $prober := list "ps08rp" "ps09rp" }}
 ---
@@ -32,5 +33,6 @@ spec:
   targets:
     staticConfig:
       static:
-        - {{ index $.Values "pocket-id-instance" "instance" "spec" "appUrl" }}
+        - https://a-ui.s3{{ include "custom.domain" $ }}
+        - https://b-ui.s3{{ include "custom.domain" $ }}
 {{- end }}
