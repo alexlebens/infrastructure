@@ -1,21 +1,3 @@
 {{/*
-Common labels
+Common helpers provided by common-helpers library chart.
 */}}
-{{- define "custom.labels" -}}
-{{ include "custom.selectorLabels" $ }}
-{{- end }}
-
-{{/*
-Selector labels
-*/}}
-{{- define "custom.selectorLabels" -}}
-app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/part-of: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-NFS names
-*/}}
-{{- define "custom.storageNfsName" -}}
-sonarr-nfs-storage
-{{- end -}}
