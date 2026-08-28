@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://cdn.jsdelivr.net/gh/selfhst/icons/png/kubernetes.png" width="120" alt="Infrastructure Logo" />
-  <h1>alexlebens.net Infrastructure</h1>
-  <p><em>GitOps-defined infrastructure and cluster configurations for the alexlebens.net domain.</em></p>
+  <h1>alexlebens.dev Infrastructure</h1>
+  <p><em>GitOps-defined infrastructure and cluster configurations for the alexlebens.dev domain.</em></p>
 </div>
 
 ---
@@ -23,7 +23,7 @@ infrastructure-as-code for my personal homelab environments.
 
 This is the primary cluster environment.
 
-![Stack-cl01tl Badge](https://argocd.alexlebens.net/api/badge?name=stack-cl01tl&revision=true&showAppName=true)
+![Stack-cl01tl Badge](https://argocd.alexlebens.dev/api/badge?name=stack-cl01tl&revision=true&showAppName=true)
 
 - **Deployment Mechanism**: Managed via the `stack-cl01tl` App-of-Apps Application.
 - **Dashboard**: Configurations sync automatically via ArgoCD.
