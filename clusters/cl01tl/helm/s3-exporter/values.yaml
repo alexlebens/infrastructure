@@ -39,7 +39,7 @@ s3-exporter:
             requests:
               cpu: 1m
               memory: 20Mi
-    garage-local:
+    garage-cluster-a:
       type: deployment
       strategy: Recreate
       containers:
@@ -49,7 +49,7 @@ s3-exporter:
             tag: 1.0.2@sha256:75fc839c5f12cdbf20babab534959c96356b4483743e730409132bbda6944505
           env:
             - name: S3_NAME
-              value: garage-local
+              value: garage-cluster-a
             - name: S3_ENDPOINT
               valueFrom:
                 secretKeyRef:
@@ -69,6 +69,45 @@ s3-exporter:
               valueFrom:
                 secretKeyRef:
                   name: garage-cluster-a
+                  key: ACCESS_REGION
+            - name: LOG_LEVEL
+              value: debug
+            - name: S3_FORCE_PATH_STYLE
+              value: true
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+    garage-cluster-b:
+      type: deployment
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: molu8bits/s3bucket_exporter
+            tag: 1.0.2@sha256:75fc839c5f12cdbf20babab534959c96356b4483743e730409132bbda6944505
+          env:
+            - name: S3_NAME
+              value: garage-cluster-b
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: garage-cluster-b
+                  key: ENDPOINT
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: garage-cluster-b
+                  key: AWS_ACCESS_KEY_ID
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: garage-cluster-b
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: garage-cluster-b
                   key: ACCESS_REGION
             - name: LOG_LEVEL
               value: debug
@@ -123,8 +162,13 @@ s3-exporter:
       ports:
         metrics:
           port: 9655
-    garage-local:
-      controller: garage-local
+    garage-cluster-a:
+      controller: garage-cluster-a
+      ports:
+        metrics:
+          port: 9655
+    garage-cluster-b:
+      controller: garage-cluster-b
       ports:
         metrics:
           port: 9655
@@ -145,13 +189,24 @@ s3-exporter:
         - port: metrics
           interval: 12h
           scrapeTimeout: 5m
-    garage-local:
+    garage-cluster-a:
       selector:
         matchLabels:
           app.kubernetes.io/name: s3-exporter
           app.kubernetes.io/instance: s3-exporter
-          app.kubernetes.io/service: s3-exporter-garage-local
-      serviceName: s3-exporter-garage-local
+          app.kubernetes.io/service: s3-exporter-garage-cluster-a
+      serviceName: s3-exporter-garage-cluster-a
+      endpoints:
+        - port: metrics
+          interval: 12h
+          scrapeTimeout: 5m
+    garage-cluster-b:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: s3-exporter
+          app.kubernetes.io/instance: s3-exporter
+          app.kubernetes.io/service: s3-exporter-garage-cluster-b
+      serviceName: s3-exporter-garage-cluster-b
       endpoints:
         - port: metrics
           interval: 12h

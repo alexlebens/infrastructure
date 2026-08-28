@@ -52,6 +52,26 @@ jellyfin:
                 values:
                   - plex
           topologyKey: kubernetes.io/hostname
+  extraContainers:
+    - name: jellyfin-exporter
+      image: ghcr.io/rebelcore/jellyfin_exporter:latest
+      env:
+        - name: JELLYFIN_BASE_URL
+          value: http://127.0.0.1:8096
+        - name: JELLYFIN_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: jellyfin-metrics
+              key: token
+        - name: PORT
+          value: "9594"
+      ports:
+        - containerPort: 9594
+          name: metrics
+      resources:
+        requests:
+          cpu: 1m
+          memory: 10Mi
   jellyfin:
     env:
       - name: TZ
@@ -72,6 +92,7 @@ jellyfin:
     enabled: true
     serviceMonitor:
       enabled: true
+      port: 9594
 meilisearch:
   environment:
     MEILI_NO_ANALYTICS: true
