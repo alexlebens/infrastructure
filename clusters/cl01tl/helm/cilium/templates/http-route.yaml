@@ -21,3 +21,23 @@ spec:
           requestRedirect:
             scheme: https
             statusCode: 301
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hubble-ui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: hubble-ui
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: cilium-gateway
+      namespace: kube-system
+  hostnames:
+    - hubble{{ include "custom.domain" . }}
+  rules:
+    - backendRefs:
+        - name: hubble-ui
+          port: 80
