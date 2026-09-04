@@ -39,8 +39,8 @@ done
 CHARTS=$(echo "${CHARTS}" | xargs)
 
 if [ -z "${CHARTS}" ]; then
-  echo "Error: --chart, --charts, or CHART/CHARTS environment variable is required." >&2
-  exit 1
+  echo ">> No charts specified. Skipping repository addition."
+  exit 0
 fi
 
 if [ -d "${MAIN_DIR}" ]; then
