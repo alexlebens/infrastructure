@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.check-dir-changes.outputs.matrix }}
+      dirs: ${{ steps.check-dir-changes.outputs.dirs }}
       changes-detected: ${{ steps.check-dir-changes.outputs.changes-detected }}
     steps:
       - name: Checkout
@@ -32,6 +33,7 @@ jobs:
         id: check-dir-changes
         # Step Outputs:
         #   - changes-detected: 'true' | 'false'
+        #   - dirs: space-separated compose directories
         #   - matrix: JSON array of compose directories
         env:
           BASE_BRANCH: ${{ env.BASE_BRANCH }}
@@ -45,12 +47,14 @@ jobs:
     if: |
       needs.detect-changes.result == 'success' &&
       needs.detect-changes.outputs.changes-detected == 'true'
-    strategy:
-      matrix:
-        compose: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
+    # Gitea 1.27 cannot evaluate dynamic expressions in strategy.matrix (Gitea Issue #25179, merged in 28.0.0).
+    # Uncomment when Gitea runner supports server-side dynamic matrix evaluation:
+    # strategy:
+    #   matrix:
+    #     compose: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
     env:
-      COMPOSE: ${{ matrix.compose }}
-      FAILED_SERVICE: ${{ matrix.compose }}
+      COMPOSE_DIRS: ${{ needs.detect-changes.outputs.dirs }}
+      FAILED_SERVICE: ""
       FAILED_STAGE: "Initialization"
     steps:
       - name: Checkout
@@ -61,11 +65,13 @@ jobs:
       - name: -- Validate Docker Compose Config
         run: |
           echo "FAILED_STAGE=Docker Compose Config" >> $GITHUB_ENV
-          echo ">> Validating docker compose config for ${{ matrix.compose }} ..."
-          docker compose --project-directory "${{ matrix.compose }}" config --quiet
-
-          echo ""
-          echo "----"
+          for COMPOSE in ${COMPOSE_DIRS}; do
+            echo "FAILED_SERVICE=${COMPOSE}" >> $GITHUB_ENV
+            echo ">> Validating docker compose config for ${COMPOSE} ..."
+            docker compose --project-directory "${COMPOSE}" config --quiet
+            echo ""
+            echo "----"
+          done
 
       - name: Set Up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -81,11 +87,13 @@ jobs:
       - name: -- Lint Docker Compose (dclint)
         run: |
           echo "FAILED_STAGE=DCLint" >> $GITHUB_ENV
-          echo ">> Linting with dclint for ${{ matrix.compose }} ..."
-          npx -y dclint@${{ env.DCLINT_VERSION }} "${{ matrix.compose }}"
-
-          echo ""
-          echo "----"
+          for COMPOSE in ${COMPOSE_DIRS}; do
+            echo "FAILED_SERVICE=${COMPOSE}" >> $GITHUB_ENV
+            echo ">> Linting with dclint for ${COMPOSE} ..."
+            npx -y dclint@${{ env.DCLINT_VERSION }} "${COMPOSE}"
+            echo ""
+            echo "----"
+          done
 
       - name: Cache Trivy
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
@@ -99,11 +107,13 @@ jobs:
       - name: -- Trivy Security Scan
         run: |
           echo "FAILED_STAGE=Trivy Security Scan" >> $GITHUB_ENV
-          echo ">> Scanning ${{ matrix.compose }} with Trivy ..."
-          trivy config "${{ matrix.compose }}" --severity HIGH,CRITICAL --exit-code 1
-
-          echo ""
-          echo "----"
+          for COMPOSE in ${COMPOSE_DIRS}; do
+            echo "FAILED_SERVICE=${COMPOSE}" >> $GITHUB_ENV
+            echo ">> Scanning ${COMPOSE} with Trivy ..."
+            trivy config "${COMPOSE}" --severity HIGH,CRITICAL --exit-code 1
+            echo ""
+            echo "----"
+          done
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -111,7 +121,7 @@ jobs:
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
-          title: "🚨 Docker Compose Failure - ${{ env.FAILED_SERVICE }}"
+          title: "🚨 Docker Compose Failure - ${{ env.FAILED_SERVICE || 'Validation' }}"
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: rotating_light,action,failed

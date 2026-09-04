@@ -86,6 +86,7 @@ if [ -n "${VALID_COMPOSE}" ]; then
   if [ -n "${GITHUB_OUTPUT}" ]; then
     echo "changes-detected=true" >> "${GITHUB_OUTPUT}"
     echo "matrix=${COMPOSE_JSON}" >> "${GITHUB_OUTPUT}"
+    echo "dirs=${VALID_COMPOSE}" >> "${GITHUB_OUTPUT}"
     echo "compose-dir-csv=${CHANGED_COMPOSE_CSV}" >> "${GITHUB_OUTPUT}"
     echo "compose-dir<<EOF" >> "${GITHUB_OUTPUT}"
     for D in ${VALID_COMPOSE}; do
@@ -103,6 +104,7 @@ else
   if [ -n "${GITHUB_OUTPUT}" ]; then
     echo "changes-detected=false" >> "${GITHUB_OUTPUT}"
     echo "matrix=[]" >> "${GITHUB_OUTPUT}"
+    echo "dirs=" >> "${GITHUB_OUTPUT}"
     echo "compose-dir-csv=" >> "${GITHUB_OUTPUT}"
     echo "compose-dir=" >> "${GITHUB_OUTPUT}"
   fi

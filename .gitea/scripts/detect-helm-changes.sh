@@ -87,6 +87,8 @@ if [ -n "${VALID_CHARTS}" ]; then
   if [ -n "${GITHUB_OUTPUT}" ]; then
     echo "changes-detected=true" >> "${GITHUB_OUTPUT}"
     echo "matrix=${CHARTS_JSON}" >> "${GITHUB_OUTPUT}"
+    echo "charts=${VALID_CHARTS}" >> "${GITHUB_OUTPUT}"
+    echo "charts-csv=$(echo "${VALID_CHARTS}" | tr ' ' ',')" >> "${GITHUB_OUTPUT}"
   fi
 else
   echo ""
@@ -97,5 +99,7 @@ else
   if [ -n "${GITHUB_OUTPUT}" ]; then
     echo "changes-detected=false" >> "${GITHUB_OUTPUT}"
     echo "matrix=[]" >> "${GITHUB_OUTPUT}"
+    echo "charts=" >> "${GITHUB_OUTPUT}"
+    echo "charts-csv=" >> "${GITHUB_OUTPUT}"
   fi
 fi

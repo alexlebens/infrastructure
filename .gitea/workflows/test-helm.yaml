@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.check-dir-changes.outputs.matrix }}
+      charts: ${{ steps.check-dir-changes.outputs.charts }}
       changes-detected: ${{ steps.check-dir-changes.outputs.changes-detected }}
     steps:
       - name: Checkout
@@ -36,6 +37,7 @@ jobs:
         id: check-dir-changes
         # Step Outputs:
         #   - changes-detected: 'true' | 'false'
+        #   - charts: space-separated chart names
         #   - matrix: JSON array of chart names
         env:
           CLUSTER: ${{ env.CLUSTER }}
@@ -50,12 +52,14 @@ jobs:
     if: |
       needs.detect-changes.result == 'success' &&
       needs.detect-changes.outputs.changes-detected == 'true'
-    strategy:
-      matrix:
-        chart: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
+    # Gitea 1.27 cannot evaluate dynamic expressions in strategy.matrix (Gitea Issue #25179, merged in 28.0.0).
+    # Uncomment when Gitea runner supports server-side dynamic matrix evaluation:
+    # strategy:
+    #   matrix:
+    #     chart: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
     env:
-      CHART: ${{ matrix.chart }}
-      FAILED_CHART: ${{ matrix.chart }}
+      CHARTS: ${{ needs.detect-changes.outputs.charts }}
+      FAILED_CHART: ""
       FAILED_STAGE: "Initialization"
     steps:
       - name: Checkout
@@ -71,27 +75,32 @@ jobs:
           cache: true
 
       - name: Add Repositories
-        env:
-          CHART: ${{ matrix.chart }}
-        run: ./.gitea/scripts/helm-add-repos.sh
+        run: |
+          ./.gitea/scripts/helm-add-repos.sh \
+            --cluster "${CLUSTER}" \
+            --charts "${CHARTS}"
 
       - name: -- Build Helm Dependencies
         run: |
           echo "FAILED_STAGE=Build Helm Dependencies" >> $GITHUB_ENV
-          echo ">> Building helm dependencies for ${{ matrix.chart }} ..."
-          helm dependency build "clusters/${CLUSTER}/helm/${{ matrix.chart }}" --skip-refresh
-
-          echo ""
-          echo "----"
+          for CHART in ${CHARTS}; do
+            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
+            echo ">> Building helm dependencies for ${CHART} ..."
+            helm dependency build "clusters/${CLUSTER}/helm/${CHART}" --skip-refresh
+            echo ""
+            echo "----"
+          done
 
       - name: -- Lint Helm Chart
         run: |
           echo "FAILED_STAGE=Lint Helm Chart" >> $GITHUB_ENV
-          echo ">> Linting helm chart ${{ matrix.chart }} ..."
-          helm lint "clusters/${CLUSTER}/helm/${{ matrix.chart }}" --namespace "default"
-
-          echo ""
-          echo "----"
+          for CHART in ${CHARTS}; do
+            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
+            echo ">> Linting helm chart ${CHART} ..."
+            helm lint "clusters/${CLUSTER}/helm/${CHART}" --namespace "default"
+            echo ""
+            echo "----"
+          done
 
       - name: Set Up Kubectl
         uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
@@ -122,10 +131,12 @@ jobs:
       - name: -- Render Templates
         env:
           API_VERSIONS: ${{ steps.get-api-versions.outputs.api-versions }}
-          CHART: ${{ matrix.chart }}
         run: |
           echo "FAILED_STAGE=Render Templates" >> $GITHUB_ENV
-          ./.gitea/scripts/helm-render-templates.sh
+          for CHART in ${CHARTS}; do
+            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
+            ./.gitea/scripts/helm-render-templates.sh --chart "${CHART}"
+          done
 
       - name: Cache Trivy
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
@@ -138,22 +149,26 @@ jobs:
 
       - name: -- Security Scan (Trivy)
         env:
-          CHART: ${{ matrix.chart }}
           CLUSTER: ${{ env.CLUSTER }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
           PUBLIC_URL: ${{ vars.PUBLIC_URL }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           echo "FAILED_STAGE=Trivy Security Scan" >> $GITHUB_ENV
-          ./.gitea/scripts/trivy-scan.sh
+          for CHART in ${CHARTS}; do
+            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
+            ./.gitea/scripts/trivy-scan.sh --chart "${CHART}"
+          done
 
       - name: -- Server-Side API Validation
         env:
-          CHART: ${{ matrix.chart }}
           IGNORE_ERRORS: "garage-bucket,GarageBucket"
         run: |
           echo "FAILED_STAGE=Server-Side API Validation" >> $GITHUB_ENV
-          ./.gitea/scripts/kubectl-validate-server-side.sh
+          for CHART in ${CHARTS}; do
+            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
+            ./.gitea/scripts/kubectl-validate-server-side.sh --chart "${CHART}"
+          done
 
       - name: Cache ArgoCD CLI
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
@@ -172,10 +187,12 @@ jobs:
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
           PUBLIC_URL: ${{ vars.PUBLIC_URL }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          CHART: ${{ matrix.chart }}
         run: |
           echo "FAILED_STAGE=ArgoCD App Diff" >> $GITHUB_ENV
-          ./.gitea/scripts/argocd-app-diff.sh
+          for CHART in ${CHARTS}; do
+            echo "FAILED_CHART=${CHART}" >> $GITHUB_ENV
+            ./.gitea/scripts/argocd-app-diff.sh --chart "${CHART}"
+          done
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -183,7 +200,7 @@ jobs:
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ secrets.NTFY_TOPIC }}"
-          title: "🚨 Helm Chart Failure - ${{ env.FAILED_CHART }}"
+          title: "🚨 Helm Chart Failure - ${{ env.FAILED_CHART || 'Validation' }}"
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: rotating_light,action,failed
