@@ -52,7 +52,7 @@ pushd "${MAIN_DIR}" > /dev/null
 
 if [[ "${RENDER_ALL}" == "true" ]]; then
   echo ">> Full render requested, discovering all chart paths under clusters/${CLUSTER}/helm ..."
-  RENDER_DIR=$(find "clusters/${CLUSTER}/helm" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort -u)
+  RENDER_DIR=$(find "clusters/${CLUSTER}/helm" -mindepth 1 -maxdepth 1 -type d | awk -F/ '{print $NF}' | sort -u)
 else
   echo ">> Checking for changes from ${DIFF_TARGET} ..."
   if [ -n "${DIFF_TARGET}" ]; then
