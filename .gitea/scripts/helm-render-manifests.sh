@@ -82,28 +82,7 @@ else
 fi
 
 # Add required Helm repositories
-echo ""
-echo ">> Adding repositories for chart dependencies ..."
-for DIR in ${RENDER_DIR}; do
-  CHART_PATH="${MAIN_DIR}/clusters/${CLUSTER}/helm/${DIR}"
-  if [ -f "${CHART_PATH}/Chart.yaml" ]; then
-    helm dependency list --max-col-width 120 "${CHART_PATH}" 2> /dev/null \
-      | tail -n +2 \
-      | awk 'NF > 0 { print $1, $3 }' \
-      | while read -r REPO_NAME REPO_URL; do
-        if [[ "${REPO_URL}" == oci://* ]]; then
-          continue
-        elif [[ -n "${REPO_NAME}" && -n "${REPO_URL}" ]]; then
-          helm repo add "${REPO_NAME}" "${REPO_URL}" --force-update >/dev/null 2>&1 || true
-        fi
-      done || true
-  fi
-done
-
-if [ "$(helm repo list 2>/dev/null | wc -l)" -gt 1 ]; then
-  echo ">> Updating Helm repository cache ..."
-  helm repo update >/dev/null 2>&1 || true
-fi
+"${SCRIPT_DIR}/helm-add-repos.sh" --main-dir "${MAIN_DIR}" --cluster "${CLUSTER}" --charts "${RENDER_DIR}"
 
 # Set up fail tracking directory
 FAIL_DIR="$(mktemp -d)"
@@ -126,8 +105,7 @@ render_chart() {
   echo ">> Rendering chart: ${DIR} ..."
 
   pushd "${CHART_PATH}" > /dev/null
-  helm dependency update --skip-refresh > /dev/null 2>&1 || helm dependency build --skip-refresh > /dev/null 2>&1 || true
-  helm lint . --namespace "${DIR}" > /dev/null 2>&1 || true
+  helm dependency build --skip-refresh > /dev/null 2>&1 || helm dependency update --skip-refresh > /dev/null 2>&1 || true
   popd > /dev/null
 
   # Determine namespace
@@ -179,7 +157,14 @@ render_chart() {
     fi
   done
 
-  echo ">> Manifests for ${DIR} rendered successfully to ${OUTPUT_FOLDER}"
+  echo ">> Manifests for ${DIR} rendered successfully"
+  for file in "${OUTPUT_FOLDER}"/*; do
+    if [ -f "${file}" ]; then
+      echo "  - $(basename "${file}")"
+    fi
+  done
+  echo ""
+  echo ""
 }
 
 export -f render_chart

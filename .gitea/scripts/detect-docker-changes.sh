@@ -70,7 +70,7 @@ done
 VALID_COMPOSE=$(echo "${VALID_COMPOSE}" | xargs)
 
 if [ -n "${VALID_COMPOSE}" ]; then
-  COMPOSE_JSON=$(printf '%s\n' ${VALID_COMPOSE} | jq -R . | jq -s -c .)
+  COMPOSE_JSON=$(printf '%s\n' ${VALID_COMPOSE} | jq -R -s -c 'split("\n") | map(select(length > 0))')
 
   echo ""
   echo ">> Compose directories to lint:"

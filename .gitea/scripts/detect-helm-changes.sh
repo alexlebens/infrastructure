@@ -76,7 +76,7 @@ done
 VALID_CHARTS=$(echo "${VALID_CHARTS}" | xargs)
 
 if [ -n "${VALID_CHARTS}" ]; then
-  CHARTS_JSON=$(printf '%s\n' ${VALID_CHARTS} | jq -R . | jq -s -c .)
+  CHARTS_JSON=$(printf '%s\n' ${VALID_CHARTS} | jq -R -s -c 'split("\n") | map(select(length > 0))')
 
   echo ""
   echo ">> Charts to test:"
