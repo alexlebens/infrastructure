@@ -93,17 +93,17 @@ fi
 # Build Markdown Report
 TAG="<!-- trivy-scan-${CHART} -->"
 MARKDOWN_REPORT="${TAG}
-### 🛡️ Trivy Security Scan: \`${CHART}\`"
+### Trivy Security Scan: \`${CHART}\`"
 
 if [ "${TOTAL_FINDINGS}" -eq 0 ]; then
-  STATUS_TEXT="✅ **Passed** — No security misconfigurations detected."
+  STATUS_TEXT="**Passed** — No security misconfigurations detected."
   MARKDOWN_REPORT="${MARKDOWN_REPORT}
 ${STATUS_TEXT}"
 else
   if [ "${CRITICAL_COUNT}" -gt 0 ]; then
-    STATUS_TEXT="❌ **Failed Gate** — Found ${CRITICAL_COUNT} Critical misconfiguration(s) requiring resolution."
+    STATUS_TEXT="**Failed Gate** — Found ${CRITICAL_COUNT} Critical misconfiguration(s) requiring resolution."
   else
-    STATUS_TEXT="⚠️ **Passed Gate with Advisories** (0 Critical, ${HIGH_COUNT} High, ${MEDIUM_COUNT} Medium, ${LOW_COUNT} Low)"
+    STATUS_TEXT="**Passed Gate with Advisories** (0 Critical, ${HIGH_COUNT} High, ${MEDIUM_COUNT} Medium, ${LOW_COUNT} Low)"
   fi
 
   TABLE_ROWS=$(jq -r '
@@ -166,11 +166,11 @@ fi
 # Severity Gate Check
 if [ "${FAIL_ON}" = "CRITICAL" ] && [ "${CRITICAL_COUNT}" -gt 0 ]; then
   echo ""
-  echo ">> ❌ Security check failed: ${CRITICAL_COUNT} CRITICAL misconfiguration(s) detected in ${CHART}." >&2
+  echo ">> Security check failed: ${CRITICAL_COUNT} CRITICAL misconfiguration(s) detected in ${CHART}." >&2
   exit 1
 elif [ "${FAIL_ON}" = "HIGH" ] && [ $(( CRITICAL_COUNT + HIGH_COUNT )) -gt 0 ]; then
   echo ""
-  echo ">> ❌ Security check failed: $(( CRITICAL_COUNT + HIGH_COUNT )) HIGH/CRITICAL misconfiguration(s) detected in ${CHART}." >&2
+  echo ">> Security check failed: $(( CRITICAL_COUNT + HIGH_COUNT )) HIGH/CRITICAL misconfiguration(s) detected in ${CHART}." >&2
   exit 1
 fi
 

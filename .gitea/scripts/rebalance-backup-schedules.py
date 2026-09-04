@@ -319,7 +319,7 @@ def build_markdown_summary(table_rows: list[dict], changed_count: int) -> str:
       "",
       f"- **Total Managed Targets**: {len(table_rows)}",
       f"- **Files Modified**: {changed_count}",
-      "- **Daily Window**: `05:00 – 12:20 UTC` (~11:00 PM – 06:20 AM US/Chicago)",
+      "- **Daily Window**: `05:00 - 12:20 UTC` (~11:00 PM - 06:20 AM US/Chicago)",
       "- **Spacing Interval**: 5 minutes per slot (0 concurrent intra-app collisions)",
       "",
       "| Application | Target | Engine | Frequency | Schedule (UTC) | US/Chicago (CST) | Status |",
