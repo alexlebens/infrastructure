@@ -1,0 +1,87 @@
+name: rebalance-backup-schedules
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "0 4 1 * *"
+
+env:
+  CLUSTER: "cl01tl"
+  BRANCH_NAME: "auto/rebalance-backup-schedules"
+
+jobs:
+  rebalance-schedules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+          fetch-depth: 0
+
+      - name: Rebalance Backup Schedules
+        id: rebalance
+        run: |
+          python3 ./.gitea/scripts/rebalance-backup-schedules.py \
+            --cluster "${CLUSTER}" \
+            --interval-minutes 5
+
+      - name: Git Sync & Gitea Pull Request
+        id: gitea-pr
+        if: steps.rebalance.outputs.changes-detected == 'true'
+        env:
+          WORK_DIR: "."
+          ADD_PATH: "clusters/${{ env.CLUSTER }}/helm"
+          BASE_BRANCH: "main"
+          HEAD_BRANCH: ${{ env.BRANCH_NAME }}
+          FORCE_PUSH: "true"
+          COMMIT_MSG: "chore(backups): rebalance backup schedules for volsync and postgres"
+          TITLE: "Automated Backup Schedule Rebalance"
+          BODY: |
+            This PR rebalances and staggers backup schedules across Volsync and Postgres clusters.
+
+            ### Highlights
+            - Staggers daily backups into off-peak US/Chicago morning hours (05:00 - 12:20 UTC).
+            - Distributes weekly remote/external backups across all 7 days of the week.
+            - Eliminates backup collisions between databases and PVC snapshots.
+          ASSIGNEE: "alexlebens"
+          GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GITEA_URL: ${{ gitea.server_url }}
+          REPOSITORY: ${{ gitea.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
+        run: ./.gitea/scripts/pr-gitea.py
+
+      - name: ntfy PR Created/Updated
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if:
+          steps.gitea-pr.outputs.pull-request-operation == 'created' || steps.gitea-pr.outputs.pull-request-operation ==
+          'updated'
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ secrets.NTFY_TOPIC }}"
+          title: "🟢 PR: Backup Schedules Rebalanced"
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,successfully,completed
+          details: "Rebalanced backup schedules across Volsync and Postgres clusters."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View PR", "url": "${{ steps.gitea-pr.outputs.pull-request-url }}", "clear":
+            true}]'
+
+      - name: ntfy Failure
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ secrets.NTFY_TOPIC }}"
+          title: "🚨 Backup Rebalancer Failure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: rotating_light,action,failed
+          details: "Workflow manage-backups failed during execution."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"

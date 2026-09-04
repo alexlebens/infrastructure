@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Parse optional command-line flags
 CHART="${CHART:-}"
 CLUSTER="${CLUSTER:-cl01tl}"
@@ -93,17 +95,17 @@ fi
 # Build Markdown Report
 TAG="<!-- trivy-scan-${CHART} -->"
 MARKDOWN_REPORT="${TAG}
-### 🛡️ Trivy Security Scan: \`${CHART}\`"
+### Trivy Security Scan: \`${CHART}\`"
 
 if [ "${TOTAL_FINDINGS}" -eq 0 ]; then
-  STATUS_TEXT="✅ **Passed** — No security misconfigurations detected."
+  STATUS_TEXT="**Passed** — No security misconfigurations detected."
   MARKDOWN_REPORT="${MARKDOWN_REPORT}
 ${STATUS_TEXT}"
 else
   if [ "${CRITICAL_COUNT}" -gt 0 ]; then
-    STATUS_TEXT="❌ **Failed Gate** — Found ${CRITICAL_COUNT} Critical misconfiguration(s) requiring resolution."
+    STATUS_TEXT="**Failed Gate** — Found ${CRITICAL_COUNT} Critical misconfiguration(s) requiring resolution."
   else
-    STATUS_TEXT="⚠️ **Passed Gate with Advisories** (0 Critical, ${HIGH_COUNT} High, ${MEDIUM_COUNT} Medium, ${LOW_COUNT} Low)"
+    STATUS_TEXT="**Passed Gate with Advisories** (0 Critical, ${HIGH_COUNT} High, ${MEDIUM_COUNT} Medium, ${LOW_COUNT} Low)"
   fi
 
   TABLE_ROWS=$(jq -r '
@@ -141,36 +143,18 @@ REPO="${GITHUB_REPOSITORY:-${GITEA_REPOSITORY:-}}"
 
 if [ -n "${GITEA_TOKEN}" ] && [ -n "${PR_NUMBER}" ] && [ -n "${SERVER_URL}" ] && [ -n "${REPO}" ]; then
   echo ">> Publishing Trivy advisory to PR #${PR_NUMBER} ..."
-
-  COMMENTS_URL="${SERVER_URL}/api/v1/repos/${REPO}/issues/${PR_NUMBER}/comments"
-
-  # Look for an existing comment matching this chart's tag to update in-place
-  EXISTING_COMMENT_ID=$(curl -s -H "Authorization: token ${GITEA_TOKEN}" "${COMMENTS_URL}" \
-    | jq -r ".[] | select(.body | contains(\"${TAG}\")) | .id" | head -n 1 || true)
-
-  if [ -n "${EXISTING_COMMENT_ID}" ] && [ "${EXISTING_COMMENT_ID}" != "null" ]; then
-    echo ">> Updating existing PR comment #${EXISTING_COMMENT_ID} ..."
-    curl -s -X PATCH "${SERVER_URL}/api/v1/repos/${REPO}/issues/comments/${EXISTING_COMMENT_ID}" \
-      -H "Authorization: token ${GITEA_TOKEN}" \
-      -H "Content-Type: application/json" \
-      -d "$(jq -n --arg body "${MARKDOWN_REPORT}" '{body: $body}')" > /dev/null
-  else
-    echo ">> Creating new PR comment ..."
-    curl -s -X POST "${COMMENTS_URL}" \
-      -H "Authorization: token ${GITEA_TOKEN}" \
-      -H "Content-Type: application/json" \
-      -d "$(jq -n --arg body "${MARKDOWN_REPORT}" '{body: $body}')" > /dev/null
-  fi
+  source "${SCRIPT_DIR}/helper_pr-comment-upsert.sh"
+  upsert_pr_comment "${TAG}" "${MARKDOWN_REPORT}"
 fi
 
 # Severity Gate Check
 if [ "${FAIL_ON}" = "CRITICAL" ] && [ "${CRITICAL_COUNT}" -gt 0 ]; then
   echo ""
-  echo ">> ❌ Security check failed: ${CRITICAL_COUNT} CRITICAL misconfiguration(s) detected in ${CHART}." >&2
+  echo ">> Security check failed: ${CRITICAL_COUNT} CRITICAL misconfiguration(s) detected in ${CHART}." >&2
   exit 1
 elif [ "${FAIL_ON}" = "HIGH" ] && [ $(( CRITICAL_COUNT + HIGH_COUNT )) -gt 0 ]; then
   echo ""
-  echo ">> ❌ Security check failed: $(( CRITICAL_COUNT + HIGH_COUNT )) HIGH/CRITICAL misconfiguration(s) detected in ${CHART}." >&2
+  echo ">> Security check failed: $(( CRITICAL_COUNT + HIGH_COUNT )) HIGH/CRITICAL misconfiguration(s) detected in ${CHART}." >&2
   exit 1
 fi
 

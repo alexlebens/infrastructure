@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Parse optional command-line flags
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -40,28 +42,9 @@ GITHUB_OUTPUT="${GITHUB_OUTPUT:-}"
 
 echo ">> Target branch for diff is: ${BASE_BRANCH}"
 
-if [ "${EVENT_NAME}" = "pull_request" ]; then
-  echo ""
-  echo ">> Checking for changes in a pull request ..."
-  # If the PR was automerged before this step runs, origin/main might already
-  # include our changes, causing the standard diff to be empty.
-  if git diff --name-only "${BASE_BRANCH}" 2>/dev/null | grep -q . ; then
-    DIFF_TARGET="${BASE_BRANCH}"
-  else
-    echo ">> Diff against ${BASE_BRANCH} is empty (likely already merged). Falling back to HEAD^1..HEAD"
-    DIFF_TARGET="HEAD^1..HEAD"
-  fi
-else
-  BEFORE="${EVENT_BEFORE}"
-  if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-    DIFF_TARGET="HEAD^1..HEAD"
-  else
-    DIFF_TARGET="${BEFORE}..HEAD"
-  fi
-
-  echo ""
-  echo ">> Checking for changes from a push (Diff target: ${DIFF_TARGET}) ..."
-fi
+# Resolve diff target using shared helper
+source "${SCRIPT_DIR}/helper_resolve-diff-target.sh"
+resolve_diff_target
 
 # Find changed charts
 RAW_CHARTS=$( (git diff --name-only "${DIFF_TARGET}" | grep -E "^clusters/${CLUSTER}/helm/" || true) | awk -F '/' '{print $4}' | sort -u)
@@ -87,6 +70,7 @@ if [ -n "${VALID_CHARTS}" ]; then
   if [ -n "${GITHUB_OUTPUT}" ]; then
     echo "changes-detected=true" >> "${GITHUB_OUTPUT}"
     echo "matrix=${CHARTS_JSON}" >> "${GITHUB_OUTPUT}"
+    echo "charts=${VALID_CHARTS}" >> "${GITHUB_OUTPUT}"
   fi
 else
   echo ""
@@ -97,5 +81,6 @@ else
   if [ -n "${GITHUB_OUTPUT}" ]; then
     echo "changes-detected=false" >> "${GITHUB_OUTPUT}"
     echo "matrix=[]" >> "${GITHUB_OUTPUT}"
+    echo "charts=" >> "${GITHUB_OUTPUT}"
   fi
 fi

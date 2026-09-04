@@ -3,6 +3,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Source shared helpers
+source "${SCRIPT_DIR}/helper_helm-namespace.sh"
+source "${SCRIPT_DIR}/helper_helm-render.sh"
+
 # Parse optional command-line flags
 MAIN_DIR="${MAIN_DIR:-infrastructure}"
 MANIFEST_DIR="${MANIFEST_DIR:-infrastructure-manifests}"
@@ -102,60 +106,16 @@ render_chart() {
   fi
 
   mkdir -p "${OUTPUT_FOLDER}"
-  echo ">> Rendering chart: ${DIR} ..."
 
-  pushd "${CHART_PATH}" > /dev/null
-  helm dependency build --skip-refresh > /dev/null 2>&1 || helm dependency update --skip-refresh > /dev/null 2>&1 || true
-  popd > /dev/null
-
-  # Determine namespace
-  local NAMESPACE="${DIR}"
-  case "${DIR}" in
-    "stack")
-      NAMESPACE="argocd"
-      ;;
-    "cilium" | "coredns" | "metrics-server")
-      NAMESPACE="kube-system"
-      ;;
-  esac
-
-  local VALUES_ARGS=()
-  if [ -f "${CHART_PATH}/values.yaml" ]; then
-    VALUES_ARGS+=("-f" "${CHART_PATH}/values.yaml")
-  fi
-
-  local HELM_ARGS=("${DIR}" "${CHART_PATH}" "${VALUES_ARGS[@]}" --include-crds --namespace "${NAMESPACE}")
+  local RENDER_ARGS=(--chart "${DIR}" --chart-path "${CHART_PATH}" --split-output-dir "${OUTPUT_FOLDER}" --build-deps --cleanup-raw)
   if [ -n "${API_VERSIONS}" ]; then
-    HELM_ARGS+=(--api-versions "${API_VERSIONS}")
+    RENDER_ARGS+=(--api-versions "${API_VERSIONS}")
   fi
 
-  local RAW_FILE
-  RAW_FILE="$(mktemp)"
-  if ! helm template "${HELM_ARGS[@]}" > "${RAW_FILE}" 2>/dev/null; then
-    echo ">> Failed helm template for ${DIR}" >&2
+  if ! render_helm_chart "${RENDER_ARGS[@]}"; then
     touch "${FAIL_DIR}/failed_${DIR}"
-    rm -f "${RAW_FILE}"
     return 1
   fi
-
-  # Split manifests into output folder
-  set -o pipefail
-  if ! cat "${RAW_FILE}" \
-    | yq '... comments=""' \
-    | yq 'select(. != null)' \
-    | yq -s '"'"${OUTPUT_FOLDER}"'" + .kind + "-" + .metadata.name + ".yaml"' >/dev/null 2>&1; then
-    echo ">> Failed yq splitting for ${DIR}" >&2
-    touch "${FAIL_DIR}/failed_${DIR}"
-    rm -f "${RAW_FILE}"
-    return 1
-  fi
-  rm -f "${RAW_FILE}"
-
-  for file in "${OUTPUT_FOLDER}"/*; do
-    if [ -f "${file}" ]; then
-      yq -i '... comments=""' "${file}" >/dev/null 2>&1 || true
-    fi
-  done
 
   echo ">> Manifests for ${DIR} rendered successfully"
   for file in "${OUTPUT_FOLDER}"/*; do
@@ -167,7 +127,7 @@ render_chart() {
   echo ""
 }
 
-export -f render_chart
+export -f render_chart render_helm_chart resolve_namespace
 export MAIN_DIR MANIFEST_DIR CLUSTER API_VERSIONS FAIL_DIR
 
 echo ""
