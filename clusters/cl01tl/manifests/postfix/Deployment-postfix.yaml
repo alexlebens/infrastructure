@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postfix
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: postfix
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postfix
+    helm.sh/chart: postfix-5.1.0
+  namespace: postfix
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: postfix
+      app.kubernetes.io/instance: postfix
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: postfix
+        app.kubernetes.io/name: postfix
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: postfix
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: RELAYHOST
+              value: '[smtp.gmail.com]:587'
+            - name: POSTFIX_smtp_tls_security_level
+              value: verify
+            - name: POSTFIX_smtp_tls_CAfile
+              value: /etc/ssl/certs/ca-certificates.crt
+            - name: POSTFIX_smtp_tls_mandatory_protocols
+              value: '>=TLSv1.2'
+            - name: POSTFIX_smtp_tls_mandatory_ciphers
+              value: high
+            - name: POSTFIX_mynetworks
+              value: 127.0.0.0/8,10.244.0.0/16
+            - name: POSTFIX_smtpd_client_message_rate_limit
+              value: "30"
+            - name: POSTFIX_smtpd_client_recipient_rate_limit
+              value: "60"
+            - name: POSTFIX_smtpd_recipient_limit
+              value: "50"
+            - name: POSTFIX_disable_vrfy_command
+              value: "yes"
+            - name: POSTFIX_smtpd_helo_required
+              value: "yes"
+            - name: ALLOWED_SENDER_DOMAINS
+              value: alexlebens.dev gmail.com
+            - name: ALLOW_EMPTY_SENDER_DOMAINS
+              value: "true"
+            - name: POSTFIX_message_size_limit
+              value: "26214400"
+          envFrom:
+            - secretRef:
+                name: postfix-credentials
+          image: bokysan/postfix:5.1.0-alpine@sha256:6e761312e833947f77af755072c0e77b67d298d127595470a79e9454008dd594
+          livenessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            tcpSocket:
+              port: 587
+          name: main
+          readinessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            tcpSocket:
+              port: 587
+          resources:
+            requests:
+              cpu: 5m
+              memory: 32Mi
