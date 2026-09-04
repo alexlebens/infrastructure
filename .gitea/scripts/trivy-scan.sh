@@ -11,6 +11,9 @@ FAIL_ON="${FAIL_ON:-CRITICAL}"
 GITEA_TOKEN="${GITEA_TOKEN:-}"
 PR_NUMBER="${PR_NUMBER:-}"
 
+MAIN_DIR="${MAIN_DIR:-.}"
+IGNORE_FILE="${IGNORE_FILE:-}"
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --chart)
@@ -21,8 +24,16 @@ while [[ $# -gt 0 ]]; do
       CLUSTER="$2"
       shift 2
       ;;
+    --main-dir)
+      MAIN_DIR="$2"
+      shift 2
+      ;;
     --manifest)
       MANIFEST_FILE="$2"
+      shift 2
+      ;;
+    --ignorefile)
+      IGNORE_FILE="$2"
       shift 2
       ;;
     --fail-on)
@@ -38,7 +49,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: $0 [--chart <chart>] [--cluster <cluster>] [--manifest <file>] [--fail-on <CRITICAL|HIGH>] [--gitea-token <token>] [--pr-number <num>]"
+      echo "Usage: $0 [--chart <chart>] [--cluster <cluster>] [--main-dir <dir>] [--manifest <file>] [--ignorefile <file>] [--fail-on <CRITICAL|HIGH>] [--gitea-token <token>] [--pr-number <num>]"
       echo "Runs Trivy misconfiguration scan on rendered manifests, publishes advisory summary and PR comments, and enforces severity gate."
       exit 0
       ;;
@@ -61,6 +72,16 @@ if [ ! -f "${MANIFEST_FILE}" ]; then
   exit 1
 fi
 
+# Detect ignore file if not explicitly set
+if [ -z "${IGNORE_FILE}" ]; then
+  CHART_IGNORE="${MAIN_DIR}/clusters/${CLUSTER}/helm/${CHART}/.trivyignore"
+  if [ -n "${CHART}" ] && [ -f "${CHART_IGNORE}" ]; then
+    IGNORE_FILE="${CHART_IGNORE}"
+  elif [ -f "${MAIN_DIR}/.trivyignore" ]; then
+    IGNORE_FILE="${MAIN_DIR}/.trivyignore"
+  fi
+fi
+
 REPORT_JSON="$(mktemp)"
 
 cleanup() {
@@ -71,7 +92,12 @@ trap cleanup EXIT
 echo ">> Running Trivy scan for: ${CHART:-$(basename "${MANIFEST_FILE}")} ..."
 
 # Generate machine-readable JSON in a single pass
-trivy config "${MANIFEST_FILE}" --format json > "${REPORT_JSON}" 2>/dev/null || true
+if [ -n "${IGNORE_FILE}" ] && [ -f "${IGNORE_FILE}" ]; then
+  echo ">> Using ignore file: ${IGNORE_FILE}"
+  trivy config --ignorefile "${IGNORE_FILE}" "${MANIFEST_FILE}" --format json > "${REPORT_JSON}" 2>/dev/null || true
+else
+  trivy config "${MANIFEST_FILE}" --format json > "${REPORT_JSON}" 2>/dev/null || true
+fi
 
 # Parse findings from JSON report in a single pass
 read -r CRITICAL_COUNT HIGH_COUNT MEDIUM_COUNT LOW_COUNT < <(jq -r '
