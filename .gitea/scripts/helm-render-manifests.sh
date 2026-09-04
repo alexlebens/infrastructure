@@ -3,6 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Source shared helpers
+source "${SCRIPT_DIR}/helm-namespace.sh"
+
 # Parse optional command-line flags
 MAIN_DIR="${MAIN_DIR:-infrastructure}"
 MANIFEST_DIR="${MANIFEST_DIR:-infrastructure-manifests}"
@@ -109,15 +112,8 @@ render_chart() {
   popd > /dev/null
 
   # Determine namespace
-  local NAMESPACE="${DIR}"
-  case "${DIR}" in
-    "stack")
-      NAMESPACE="argocd"
-      ;;
-    "cilium" | "coredns" | "metrics-server")
-      NAMESPACE="kube-system"
-      ;;
-  esac
+  local NAMESPACE
+  NAMESPACE=$(resolve_namespace "${DIR}")
 
   local VALUES_ARGS=()
   if [ -f "${CHART_PATH}/values.yaml" ]; then
@@ -167,7 +163,7 @@ render_chart() {
   echo ""
 }
 
-export -f render_chart
+export -f render_chart resolve_namespace
 export MAIN_DIR MANIFEST_DIR CLUSTER API_VERSIONS FAIL_DIR
 
 echo ""

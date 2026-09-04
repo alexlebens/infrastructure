@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source shared helpers
+source "${SCRIPT_DIR}/helm-namespace.sh"
+
 # Parse optional command-line flags
 CHART="${CHART:-}"
 CLUSTER="${CLUSTER:-cl01tl}"
@@ -65,15 +70,7 @@ if [ ! -d "${CHART_PATH}" ] || [ ! -f "${CHART_PATH}/Chart.yaml" ]; then
 fi
 
 # Determine namespace
-NAMESPACE="${CHART}"
-case "${CHART}" in
-  "stack")
-    NAMESPACE="argocd"
-    ;;
-  "cilium" | "coredns" | "metrics-server")
-    NAMESPACE="kube-system"
-    ;;
-esac
+NAMESPACE=$(resolve_namespace "${CHART}")
 
 VALUES_ARGS=()
 if [ -f "${CHART_PATH}/values.yaml" ]; then

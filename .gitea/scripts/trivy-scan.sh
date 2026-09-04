@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Parse optional command-line flags
 CHART="${CHART:-}"
 CLUSTER="${CLUSTER:-cl01tl}"
@@ -141,26 +143,8 @@ REPO="${GITHUB_REPOSITORY:-${GITEA_REPOSITORY:-}}"
 
 if [ -n "${GITEA_TOKEN}" ] && [ -n "${PR_NUMBER}" ] && [ -n "${SERVER_URL}" ] && [ -n "${REPO}" ]; then
   echo ">> Publishing Trivy advisory to PR #${PR_NUMBER} ..."
-
-  COMMENTS_URL="${SERVER_URL}/api/v1/repos/${REPO}/issues/${PR_NUMBER}/comments"
-
-  # Look for an existing comment matching this chart's tag to update in-place
-  EXISTING_COMMENT_ID=$(curl -s -H "Authorization: token ${GITEA_TOKEN}" "${COMMENTS_URL}" \
-    | jq -r ".[] | select(.body | contains(\"${TAG}\")) | .id" | head -n 1 || true)
-
-  if [ -n "${EXISTING_COMMENT_ID}" ] && [ "${EXISTING_COMMENT_ID}" != "null" ]; then
-    echo ">> Updating existing PR comment #${EXISTING_COMMENT_ID} ..."
-    curl -s -X PATCH "${SERVER_URL}/api/v1/repos/${REPO}/issues/comments/${EXISTING_COMMENT_ID}" \
-      -H "Authorization: token ${GITEA_TOKEN}" \
-      -H "Content-Type: application/json" \
-      -d "$(jq -n --arg body "${MARKDOWN_REPORT}" '{body: $body}')" > /dev/null
-  else
-    echo ">> Creating new PR comment ..."
-    curl -s -X POST "${COMMENTS_URL}" \
-      -H "Authorization: token ${GITEA_TOKEN}" \
-      -H "Content-Type: application/json" \
-      -d "$(jq -n --arg body "${MARKDOWN_REPORT}" '{body: $body}')" > /dev/null
-  fi
+  source "${SCRIPT_DIR}/pr-comment-upsert.sh"
+  upsert_pr_comment "${TAG}" "${MARKDOWN_REPORT}"
 fi
 
 # Severity Gate Check
