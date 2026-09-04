@@ -43,7 +43,7 @@ GITHUB_OUTPUT="${GITHUB_OUTPUT:-}"
 echo ">> Target branch for diff is: ${BASE_BRANCH}"
 
 # Resolve diff target using shared helper
-source "${SCRIPT_DIR}/resolve-diff-target.sh"
+source "${SCRIPT_DIR}/helper_resolve-diff-target.sh"
 resolve_diff_target
 
 # Find changed charts

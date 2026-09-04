@@ -183,7 +183,7 @@ ${DIFF_CONTENT}
 No diff detected (live cluster matches local changes)."
   fi
 
-  source "${SCRIPT_DIR}/pr-comment-upsert.sh"
+  source "${SCRIPT_DIR}/helper_pr-comment-upsert.sh"
   upsert_pr_comment "${TAG}" "${COMMENT_BODY}"
 fi
 

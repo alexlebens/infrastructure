@@ -143,7 +143,7 @@ REPO="${GITHUB_REPOSITORY:-${GITEA_REPOSITORY:-}}"
 
 if [ -n "${GITEA_TOKEN}" ] && [ -n "${PR_NUMBER}" ] && [ -n "${SERVER_URL}" ] && [ -n "${REPO}" ]; then
   echo ">> Publishing Trivy advisory to PR #${PR_NUMBER} ..."
-  source "${SCRIPT_DIR}/pr-comment-upsert.sh"
+  source "${SCRIPT_DIR}/helper_pr-comment-upsert.sh"
   upsert_pr_comment "${TAG}" "${MARKDOWN_REPORT}"
 fi
 

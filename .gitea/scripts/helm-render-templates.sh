@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source shared helpers
-source "${SCRIPT_DIR}/helm-namespace.sh"
+source "${SCRIPT_DIR}/helper_helm-namespace.sh"
 
 # Parse optional command-line flags
 CHART="${CHART:-}"
