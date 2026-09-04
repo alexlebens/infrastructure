@@ -179,7 +179,14 @@ render_chart() {
     fi
   done
 
-  echo ">> Manifests for ${DIR} rendered successfully to ${OUTPUT_FOLDER}"
+  echo ">> Manifests for ${DIR} rendered successfully"
+  for file in "${OUTPUT_FOLDER}"/*; do
+    if [ -f "${file}" ]; then
+      echo "  - $(basename "${file}")"
+    fi
+  done
+  echo ""
+  echo ""
 }
 
 export -f render_chart
