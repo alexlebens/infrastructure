@@ -76,6 +76,8 @@ done
 VALID_CHARTS=$(echo "${VALID_CHARTS}" | xargs)
 
 if [ -n "${VALID_CHARTS}" ]; then
+  CHARTS_JSON=$(printf '%s\n' ${VALID_CHARTS} | jq -R . | jq -s -c .)
+
   echo ""
   echo ">> Charts to test:"
   echo "${VALID_CHARTS}"
@@ -84,7 +86,7 @@ if [ -n "${VALID_CHARTS}" ]; then
   echo "----"
   if [ -n "${GITHUB_OUTPUT}" ]; then
     echo "changes-detected=true" >> "${GITHUB_OUTPUT}"
-    echo "chart-dir=${VALID_CHARTS}" >> "${GITHUB_OUTPUT}"
+    echo "matrix=${CHARTS_JSON}" >> "${GITHUB_OUTPUT}"
   fi
 else
   echo ""
@@ -94,5 +96,6 @@ else
   echo "----"
   if [ -n "${GITHUB_OUTPUT}" ]; then
     echo "changes-detected=false" >> "${GITHUB_OUTPUT}"
+    echo "matrix=[]" >> "${GITHUB_OUTPUT}"
   fi
 fi

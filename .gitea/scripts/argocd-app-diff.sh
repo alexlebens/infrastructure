@@ -148,13 +148,13 @@ fi
 # Publish to Action UI Summary
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
-    echo "### 🐙 ArgoCD Diff: \`${CHART}\`"
+    echo "### ArgoCD Diff: \`${CHART}\`"
     if [ "${DIFF_FOUND}" = "true" ]; then
       echo '```diff'
       cat "${DIFF_FILE}"
       echo '```'
     else
-      echo "✅ No diff detected (live cluster matches local changes)."
+      echo "No diff detected (live cluster matches local changes)."
     fi
     echo ""
   } >> "${GITHUB_STEP_SUMMARY}"
@@ -171,14 +171,14 @@ if [ -n "${GITEA_TOKEN}" ] && [ -n "${PR_NUMBER}" ] && [ -n "${SERVER_URL}" ] &&
   if [ "${DIFF_FOUND}" = "true" ]; then
     DIFF_CONTENT=$(cat "${DIFF_FILE}")
     COMMENT_BODY="${TAG}
-### 🐙 ArgoCD Diff: \`${CHART}\`
+### ArgoCD Diff: \`${CHART}\`
 \`\`\`diff
 ${DIFF_CONTENT}
 \`\`\`"
   else
     COMMENT_BODY="${TAG}
-### 🐙 ArgoCD Diff: \`${CHART}\`
-✅ No diff detected (live cluster matches local changes)."
+### ArgoCD Diff: \`${CHART}\`
+No diff detected (live cluster matches local changes)."
   fi
 
   COMMENTS_URL="${SERVER_URL}/api/v1/repos/${REPO}/issues/${PR_NUMBER}/comments"
