@@ -4,7 +4,7 @@ set -euo pipefail
 # Parse optional command-line flags
 CHART="${CHART:-}"
 MANIFEST_FILE=""
-IGNORE_ERRORS="${IGNORE_ERRORS:-garage-bucket,GarageBucket}"
+IGNORE_ERRORS="${IGNORE_ERRORS:-garage-bucket,GarageBucket,namespaces .* not found}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

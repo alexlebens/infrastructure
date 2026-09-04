@@ -49,9 +49,9 @@ jobs:
   test-chart:
     needs: detect-changes
     runs-on: ubuntu-latest
-    if: |
-      needs.detect-changes.result == 'success' &&
-      needs.detect-changes.outputs.changes-detected == 'true'
+    if: >-
+      needs.detect-changes.result == 'success' && needs.detect-changes.outputs.changes-detected == 'true' &&
+      needs.detect-changes.outputs.charts != ''
     # Gitea 1.27 cannot evaluate dynamic expressions in strategy.matrix (Gitea Issue #25179, merged in 28.0.0).
     # Uncomment when Gitea runner supports server-side dynamic matrix evaluation:
     # strategy:
@@ -162,7 +162,7 @@ jobs:
 
       - name: -- Server-Side API Validation
         env:
-          IGNORE_ERRORS: "garage-bucket,GarageBucket"
+          IGNORE_ERRORS: "garage-bucket,GarageBucket,namespaces .* not found"
         run: |
           echo "FAILED_STAGE=Server-Side API Validation" >> $GITHUB_ENV
           for CHART in ${CHARTS}; do

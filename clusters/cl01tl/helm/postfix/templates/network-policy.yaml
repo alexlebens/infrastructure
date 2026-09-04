@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postfix
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: postfix
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postfix
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: audiobookshelf
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: audiobookshelf
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: grimmory
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grimmory
+      ports:
+        - protocol: TCP
+          port: 25
+        - protocol: TCP
+          port: 587
