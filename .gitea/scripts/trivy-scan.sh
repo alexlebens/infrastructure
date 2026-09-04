@@ -60,31 +60,35 @@ if [ ! -f "${MANIFEST_FILE}" ]; then
 fi
 
 REPORT_JSON="$(mktemp)"
-REPORT_TABLE="$(mktemp)"
 
 cleanup() {
-  rm -f "${REPORT_JSON:-}" "${REPORT_TABLE:-}"
+  rm -f "${REPORT_JSON:-}"
 }
 trap cleanup EXIT
 
 echo ">> Running Trivy scan for: ${CHART:-$(basename "${MANIFEST_FILE}")} ..."
 
-# Generate human-readable table and machine-readable JSON
-trivy config "${MANIFEST_FILE}" --format table > "${REPORT_TABLE}" 2>&1 || true
+# Generate machine-readable JSON in a single pass
 trivy config "${MANIFEST_FILE}" --format json > "${REPORT_JSON}" 2>/dev/null || true
 
-# Print table to console for live job logs
-cat "${REPORT_TABLE}"
-
-# Parse findings from JSON report
-CRITICAL_COUNT=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "CRITICAL")] | length' "${REPORT_JSON}" 2>/dev/null || echo 0)
-HIGH_COUNT=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "HIGH")] | length' "${REPORT_JSON}" 2>/dev/null || echo 0)
-MEDIUM_COUNT=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "MEDIUM")] | length' "${REPORT_JSON}" 2>/dev/null || echo 0)
-LOW_COUNT=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "LOW")] | length' "${REPORT_JSON}" 2>/dev/null || echo 0)
+# Parse findings from JSON report in a single pass
+read -r CRITICAL_COUNT HIGH_COUNT MEDIUM_COUNT LOW_COUNT < <(jq -r '
+  [.Results[]?.Misconfigurations[]?] as $m |
+  [
+    ($m | map(select(.Severity == "CRITICAL")) | length),
+    ($m | map(select(.Severity == "HIGH")) | length),
+    ($m | map(select(.Severity == "MEDIUM")) | length),
+    ($m | map(select(.Severity == "LOW")) | length)
+  ] | @tsv' "${REPORT_JSON}" 2>/dev/null || echo "0 0 0 0")
 TOTAL_FINDINGS=$(( CRITICAL_COUNT + HIGH_COUNT + MEDIUM_COUNT + LOW_COUNT ))
 
 echo ""
 echo ">> Summary for ${CHART}: ${CRITICAL_COUNT} Critical, ${HIGH_COUNT} High, ${MEDIUM_COUNT} Medium, ${LOW_COUNT} Low (${TOTAL_FINDINGS} total)"
+
+if [ "${TOTAL_FINDINGS}" -gt 0 ]; then
+  echo ">> Misconfigurations detected:"
+  jq -r '.Results[]?.Misconfigurations[]? | "  - [\(.Severity)] \(.ID): \(.Title // .Message)"' "${REPORT_JSON}" 2>/dev/null || true
+fi
 
 # Build Markdown Report
 TAG="<!-- trivy-scan-${CHART} -->"
