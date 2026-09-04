@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source shared helpers
 source "${SCRIPT_DIR}/helper_helm-namespace.sh"
+source "${SCRIPT_DIR}/helper_helm-render.sh"
 
 # Parse optional command-line flags
 CHART="${CHART:-}"
@@ -69,57 +70,22 @@ if [ ! -d "${CHART_PATH}" ] || [ ! -f "${CHART_PATH}/Chart.yaml" ]; then
   exit 1
 fi
 
-# Determine namespace
-NAMESPACE=$(resolve_namespace "${CHART}")
-
-VALUES_ARGS=()
-if [ -f "${CHART_PATH}/values.yaml" ]; then
-  VALUES_ARGS+=("-f" "${CHART_PATH}/values.yaml")
-fi
-
-HELM_ARGS=("${CHART}" "${CHART_PATH}" "${VALUES_ARGS[@]}" --include-crds --namespace "${NAMESPACE}")
-if [ -n "${API_VERSIONS}" ]; then
-  HELM_ARGS+=(--api-versions "${API_VERSIONS}")
-fi
-
-echo ">> Rendering chart '${CHART}' into '${NAMESPACE}' namespace ..."
-
-RAW_FILE="${RAW_OUTPUT_DIR}/${CHART}.yaml"
+# Build render arguments
+RENDER_ARGS=(--chart "${CHART}" --chart-path "${CHART_PATH}")
 
 if [ "${SKIP_RAW}" = false ]; then
-  mkdir -p "${RAW_OUTPUT_DIR}"
-  helm template "${HELM_ARGS[@]}" > "${RAW_FILE}"
-  echo ">> Raw template saved to ${RAW_FILE}"
-else
-  RAW_FILE=$(mktemp)
-  helm template "${HELM_ARGS[@]}" > "${RAW_FILE}"
+  RENDER_ARGS+=(--raw-output-file "${RAW_OUTPUT_DIR}/${CHART}.yaml")
 fi
 
-# Split into individual manifest files
 if [ "${SKIP_SPLIT}" = false ]; then
-  SPLIT_DIR="${SPLIT_OUTPUT_DIR:-rendered-split/${CHART}/}"
-  [[ "${SPLIT_DIR}" != */ ]] && SPLIT_DIR="${SPLIT_DIR}/"
-
-  mkdir -p "${SPLIT_DIR}"
-  echo ">> Splitting manifests into ${SPLIT_DIR} ..."
-
-  cat "${RAW_FILE}" \
-    | yq '... comments=""' \
-    | yq 'select(. != null)' \
-    | yq -s '"'"${SPLIT_DIR}"'" + .kind + "-" + .metadata.name + ".yaml"'
-
-  for file in "${SPLIT_DIR}"*; do
-    if [ -f "${file}" ]; then
-      yq -i '... comments=""' "${file}"
-    fi
-  done
-
-  echo ">> Split templates created successfully for ${CHART}"
+  RENDER_ARGS+=(--split-output-dir "${SPLIT_OUTPUT_DIR:-rendered-split/${CHART}/}")
 fi
 
-if [ "${SKIP_RAW}" = true ]; then
-  rm -f "${RAW_FILE}"
+if [ -n "${API_VERSIONS}" ]; then
+  RENDER_ARGS+=(--api-versions "${API_VERSIONS}")
 fi
+
+render_helm_chart "${RENDER_ARGS[@]}"
 
 echo ""
 echo "----"
