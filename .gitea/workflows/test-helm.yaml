@@ -18,6 +18,7 @@ env:
   ARGOCD_VERSION: "v3.5.2"
   KUBECTL_VERSION: "v1.36.3"
   YQ_VERSION: "v4.53.3"
+  TRIVY_VERSION: "v0.74.0"
 
 jobs:
   detect-changes:
@@ -125,6 +126,26 @@ jobs:
         run: |
           echo "FAILED_STAGE=Render Templates" >> $GITHUB_ENV
           ./.gitea/scripts/render-helm-template.sh
+
+      - name: Cache Trivy
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.local/bin/trivy
+          key: ${{ runner.os }}-trivy-${{ env.TRIVY_VERSION }}
+
+      - name: Set Up Trivy
+        run: ./.gitea/scripts/install-trivy.sh
+
+      - name: -- Security Scan (Trivy)
+        env:
+          CHART: ${{ matrix.chart }}
+          CLUSTER: ${{ env.CLUSTER }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "FAILED_STAGE=Trivy Security Scan" >> $GITHUB_ENV
+          ./.gitea/scripts/trivy-scan.sh
 
       - name: -- Server-Side API Validation
         env:

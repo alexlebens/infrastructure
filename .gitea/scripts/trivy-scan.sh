@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Parse optional command-line flags
+CHART="${CHART:-}"
+CLUSTER="${CLUSTER:-cl01tl}"
+MANIFEST_FILE=""
+FAIL_ON="${FAIL_ON:-CRITICAL}"
+GITEA_TOKEN="${GITEA_TOKEN:-}"
+PR_NUMBER="${PR_NUMBER:-}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --chart)
+      CHART="$2"
+      shift 2
+      ;;
+    --cluster)
+      CLUSTER="$2"
+      shift 2
+      ;;
+    --manifest)
+      MANIFEST_FILE="$2"
+      shift 2
+      ;;
+    --fail-on)
+      FAIL_ON="$2"
+      shift 2
+      ;;
+    --gitea-token)
+      GITEA_TOKEN="$2"
+      shift 2
+      ;;
+    --pr-number)
+      PR_NUMBER="$2"
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: $0 [--chart <chart>] [--cluster <cluster>] [--manifest <file>] [--fail-on <CRITICAL|HIGH>] [--gitea-token <token>] [--pr-number <num>]"
+      echo "Runs Trivy misconfiguration scan on rendered manifests, publishes advisory summary and PR comments, and enforces severity gate."
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ -z "${CHART}" ] && [ -z "${MANIFEST_FILE}" ]; then
+  echo "Error: --chart (or CHART env var) or --manifest is required." >&2
+  exit 1
+fi
+
+MANIFEST_FILE="${MANIFEST_FILE:-rendered-raw/${CHART}.yaml}"
+
+if [ ! -f "${MANIFEST_FILE}" ]; then
+  echo "Error: Manifest file '${MANIFEST_FILE}' not found." >&2
+  exit 1
+fi
+
+REPORT_JSON="$(mktemp)"
+REPORT_TABLE="$(mktemp)"
+
+cleanup() {
+  rm -f "${REPORT_JSON:-}" "${REPORT_TABLE:-}"
+}
+trap cleanup EXIT
+
+echo ">> Running Trivy scan for: ${CHART:-$(basename "${MANIFEST_FILE}")} ..."
+
+# Generate human-readable table and machine-readable JSON
+trivy config "${MANIFEST_FILE}" --format table > "${REPORT_TABLE}" 2>&1 || true
+trivy config "${MANIFEST_FILE}" --format json > "${REPORT_JSON}" 2>/dev/null || true
+
+# Print table to console for live job logs
+cat "${REPORT_TABLE}"
+
+# Parse findings from JSON report
+CRITICAL_COUNT=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "CRITICAL")] | length' "${REPORT_JSON}" 2>/dev/null || echo 0)
+HIGH_COUNT=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "HIGH")] | length' "${REPORT_JSON}" 2>/dev/null || echo 0)
+MEDIUM_COUNT=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "MEDIUM")] | length' "${REPORT_JSON}" 2>/dev/null || echo 0)
+LOW_COUNT=$(jq '[.Results[]?.Misconfigurations[]? | select(.Severity == "LOW")] | length' "${REPORT_JSON}" 2>/dev/null || echo 0)
+TOTAL_FINDINGS=$(( CRITICAL_COUNT + HIGH_COUNT + MEDIUM_COUNT + LOW_COUNT ))
+
+echo ""
+echo ">> Summary for ${CHART}: ${CRITICAL_COUNT} Critical, ${HIGH_COUNT} High, ${MEDIUM_COUNT} Medium, ${LOW_COUNT} Low (${TOTAL_FINDINGS} total)"
+
+# Build Markdown Report
+TAG="<!-- trivy-scan-${CHART} -->"
+MARKDOWN_REPORT="${TAG}
+### 🛡️ Trivy Security Scan: \`${CHART}\`"
+
+if [ "${TOTAL_FINDINGS}" -eq 0 ]; then
+  STATUS_TEXT="✅ **Passed** — No security misconfigurations detected."
+  MARKDOWN_REPORT="${MARKDOWN_REPORT}
+${STATUS_TEXT}"
+else
+  if [ "${CRITICAL_COUNT}" -gt 0 ]; then
+    STATUS_TEXT="❌ **Failed Gate** — Found ${CRITICAL_COUNT} Critical misconfiguration(s) requiring resolution."
+  else
+    STATUS_TEXT="⚠️ **Passed Gate with Advisories** (0 Critical, ${HIGH_COUNT} High, ${MEDIUM_COUNT} Medium, ${LOW_COUNT} Low)"
+  fi
+
+  TABLE_ROWS=$(jq -r '
+    [
+      .Results[]? as $r |
+      ($r.Misconfigurations // [])[]? |
+      "| " +
+      (if .Severity == "CRITICAL" then "🔴 **CRITICAL**"
+       elif .Severity == "HIGH" then "🟠 **HIGH**"
+       elif .Severity == "MEDIUM" then "🟡 **MEDIUM**"
+       else "⚪ " + .Severity end) +
+      " | [`" + .ID + "`](" + (.PrimaryURL // ("https://avd.aquasec.com/appshield/" + (.ID | ascii_downcase))) + ") | `" +
+      ($r.Target // .Title // "manifest") + "` | " +
+      ((.Title // .Message // "") | gsub("\r?\n"; " ") | gsub("\\|"; "/")) + " |"
+    ] | join("\n")
+  ' "${REPORT_JSON}" 2>/dev/null || true)
+
+  MARKDOWN_REPORT="${MARKDOWN_REPORT}
+${STATUS_TEXT}
+
+| Severity | Rule ID | Resource | Message |
+| :--- | :--- | :--- | :--- |
+${TABLE_ROWS}"
+fi
+
+# Publish to Action UI Summary
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+  echo "" >> "${GITHUB_STEP_SUMMARY}"
+  echo "${MARKDOWN_REPORT}" >> "${GITHUB_STEP_SUMMARY}"
+fi
+
+# Publish to Gitea PR Comment
+SERVER_URL="${PUBLIC_URL:-${GITHUB_SERVER_URL:-${GITEA_SERVER_URL:-}}}"
+REPO="${GITHUB_REPOSITORY:-${GITEA_REPOSITORY:-}}"
+
+if [ -n "${GITEA_TOKEN}" ] && [ -n "${PR_NUMBER}" ] && [ -n "${SERVER_URL}" ] && [ -n "${REPO}" ]; then
+  echo ">> Publishing Trivy advisory to PR #${PR_NUMBER} ..."
+
+  COMMENTS_URL="${SERVER_URL}/api/v1/repos/${REPO}/issues/${PR_NUMBER}/comments"
+
+  # Look for an existing comment matching this chart's tag to update in-place
+  EXISTING_COMMENT_ID=$(curl -s -H "Authorization: token ${GITEA_TOKEN}" "${COMMENTS_URL}" \
+    | jq -r ".[] | select(.body | contains(\"${TAG}\")) | .id" | head -n 1 || true)
+
+  if [ -n "${EXISTING_COMMENT_ID}" ] && [ "${EXISTING_COMMENT_ID}" != "null" ]; then
+    echo ">> Updating existing PR comment #${EXISTING_COMMENT_ID} ..."
+    curl -s -X PATCH "${SERVER_URL}/api/v1/repos/${REPO}/issues/comments/${EXISTING_COMMENT_ID}" \
+      -H "Authorization: token ${GITEA_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d "$(jq -n --arg body "${MARKDOWN_REPORT}" '{body: $body}')" > /dev/null
+  else
+    echo ">> Creating new PR comment ..."
+    curl -s -X POST "${COMMENTS_URL}" \
+      -H "Authorization: token ${GITEA_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d "$(jq -n --arg body "${MARKDOWN_REPORT}" '{body: $body}')" > /dev/null
+  fi
+fi
+
+# Severity Gate Check
+if [ "${FAIL_ON}" = "CRITICAL" ] && [ "${CRITICAL_COUNT}" -gt 0 ]; then
+  echo ""
+  echo ">> ❌ Security check failed: ${CRITICAL_COUNT} CRITICAL misconfiguration(s) detected in ${CHART}." >&2
+  exit 1
+elif [ "${FAIL_ON}" = "HIGH" ] && [ $(( CRITICAL_COUNT + HIGH_COUNT )) -gt 0 ]; then
+  echo ""
+  echo ">> ❌ Security check failed: $(( CRITICAL_COUNT + HIGH_COUNT )) HIGH/CRITICAL misconfiguration(s) detected in ${CHART}." >&2
+  exit 1
+fi
+
+echo ""
+echo ">> Trivy scan passed gate for ${CHART}."
+echo "----"
