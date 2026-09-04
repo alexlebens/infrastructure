@@ -134,12 +134,23 @@ jobs:
           PARALLEL_JOBS: "5"
         run: ./infrastructure/.gitea/scripts/helm-render-manifests.sh
 
+      - name: Prepare Manifest PR Content
+        id: pr-content
+        if: steps.check-dir-changes.outputs.changes-detected == 'true'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
+          IS_AUTOMERGE: ${{ steps.mode.outputs.is-automerge }}
+          CHANGED_CHARTS: ${{ steps.check-dir-changes.outputs.render-dir-csv }}
+        run: ./infrastructure/.gitea/scripts/pr-prepare-manifest-content.sh
+
       - name: Git Sync & Gitea Pull Request
         id: gitea-pr
         if: steps.check-dir-changes.outputs.changes-detected == 'true'
         env:
-          MANIFEST_DIR: ${{ env.MANIFEST_DIR }}
-          CLUSTER: ${{ env.CLUSTER }}
+          WORK_DIR: ${{ env.MANIFEST_DIR }}
           BASE_BRANCH: ${{ env.BASE_BRANCH }}
           HEAD_BRANCH: ${{ steps.mode.outputs.branch-name }}
           IS_AUTOMERGE: ${{ steps.mode.outputs.is-automerge }}
@@ -147,11 +158,10 @@ jobs:
           GITEA_TOKEN: ${{ secrets.BOT_TOKEN }}
           GITEA_URL: ${{ gitea.server_url }}
           REPOSITORY: ${{ gitea.repository }}
-          EVENT_NAME: ${{ github.event_name }}
-          ACTOR: ${{ github.actor }}
-          SHA: ${{ github.sha }}
-          REF_NAME: ${{ github.ref_name }}
-        run: ./infrastructure/.gitea/scripts/gitea-manifests-pr.py
+          COMMIT_MSG: ${{ steps.pr-content.outputs.commit-msg }}
+          TITLE: ${{ steps.pr-content.outputs.title }}
+          BODY: ${{ steps.pr-content.outputs.body }}
+        run: ./infrastructure/.gitea/scripts/pr-gitea.py
 
       - name: ntfy Created
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -165,7 +175,7 @@ jobs:
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Rendered Charts: ${{ steps.gitea-pr.outputs.changed-charts-csv }}"
+          details: "Rendered Charts: ${{ steps.check-dir-changes.outputs.render-dir-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View PR", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository }}/pulls/${{
@@ -183,7 +193,7 @@ jobs:
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Rendered Charts: ${{ steps.gitea-pr.outputs.changed-charts-csv }}"
+          details: "Rendered Charts: ${{ steps.check-dir-changes.outputs.render-dir-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View PR", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository }}/pulls/${{
@@ -199,7 +209,7 @@ jobs:
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Rendered Charts: ${{ steps.gitea-pr.outputs.changed-charts-csv }}"
+          details: "Rendered Charts: ${{ steps.check-dir-changes.outputs.render-dir-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View PR", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository }}/pulls/${{

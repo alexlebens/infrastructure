@@ -5,7 +5,6 @@ Automates, balances, and staggers backup cron schedules across Helm charts
 in clusters/<cluster>/helm/*/values.yaml for Volsync and Postgres.
 Operates within an off-peak window (post-midnight to early morning US/Chicago time),
 guaranteeing no collisions between database backups and storage snapshots.
-Uses only the Python standard library.
 """
 
 from __future__ import annotations
