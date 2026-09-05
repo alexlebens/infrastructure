@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://web-assets.alexlebens.dev/logo/logo.svg" width="120" alt="Infrastructure Logo" />
+  <img src="https://web-assets.alexlebens.dev/logo/logo.png" width="120" alt="Infrastructure Logo" />
   <h1>alexlebens.dev Infrastructure</h1>
   <p><em>GitOps-defined infrastructure and cluster configurations for my homelab and personal systems.</em></p>
 </div>
