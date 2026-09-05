@@ -157,6 +157,12 @@ def main():
       default=os.getenv("UPDATE_COMMENT", ""),
       help="Optional comment markdown to post to PR when updating an existing pull request.",
   )
+  parser.add_argument(
+      "--update-body",
+      action="store_true",
+      default=os.getenv("UPDATE_BODY", "false").lower() == "true",
+      help="Whether to overwrite the PR body when updating an existing pull request (default: false).",
+  )
 
   args = parser.parse_args()
 
@@ -310,7 +316,7 @@ def main():
 
       patch_url = f"{gitea_url}/api/v1/repos/{repo}/pulls/{existing_pr_number}"
       patch_payload = {}
-      if pr_body:
+      if args.update_body and pr_body:
         patch_payload["body"] = pr_body
       if title:
         patch_payload["title"] = title
