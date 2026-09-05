@@ -92,7 +92,7 @@ APP_PATH=$(argocd app get "${ARGOCD_APP_NAME}" \
   --server "${ARGOCD_SERVER_INTERNAL}" \
   --plaintext \
   --auth-token "${ARGOCD_AUTH_TOKEN}" \
-  -o json | jq -r '.spec.source.path // empty')
+  -o json 2>/dev/null | jq -r '.spec.source.path // empty' 2>/dev/null || true)
 
 LOCAL_CHART_PATH="clusters/${CLUSTER}/helm/${CHART}"
 
