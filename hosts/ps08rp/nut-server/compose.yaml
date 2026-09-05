@@ -1,0 +1,59 @@
+---
+name: nut-server
+services:
+  nut-server:
+    image: instantlinux/nut-upsd:2.8.2@sha256:293bc928fcf9a1ef4c6bc9171ee6a2a53bb7e774780447fa0d2aa8000b0e3fdf
+    container_name: nut-server
+    restart: always
+    privileged: true
+    ports:
+      - '0.0.0.0:3493:3493/tcp'
+      - '0.0.0.0:9199:9199/tcp'
+    environment:
+      - TZ=America/Chicago
+      - NAME=eaton5px
+      - DESCRIPTION=Eaton 5PX 1500RT G2
+      - DRIVER=usbhid-ups
+      - PORT=auto
+      - VENDORID=0463
+      - API_USER=admin
+      - API_PASSWORD=${NUT_ADMIN_PASSWORD:-adminpass}
+      - SERVER_PASSWORD=${NUT_SERVER_PASSWORD:-serverpass}
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+      - ./config:/etc/nut/local:ro
+
+  tailscale-nut:
+    image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
+    container_name: tailscale-nut
+    depends_on:
+      nut-server:
+        condition: service_started
+    volumes:
+      - tailscale:/var/lib/tailscale
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_ENABLE_METRICS=true
+      - TS_HOSTNAME=nut-ps08rp
+    network_mode: service:nut-server
+    restart: always
+    cap_add:
+      - net_admin
+      - sys_module
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+  nut-exporter:
+    image: ghcr.io/druggeri/nut_exporter:v3.3.0@sha256:276460d141c732772f8b1fcd785a7de272473e6d39fd85c32b163efc2999cb9a
+    container_name: nut-exporter
+    depends_on:
+      nut-server:
+        condition: service_started
+    restart: always
+    network_mode: service:nut-server
+    environment:
+      - NUT_EXPORTER_SERVER=127.0.0.1
+      - NUT_EXPORTER_PORT=3493
+
+volumes:
+  tailscale:
