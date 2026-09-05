@@ -72,22 +72,29 @@ if [ ! -f "${MANIFEST_FILE}" ]; then
   exit 1
 fi
 
-# Detect ignore file if not explicitly set
-if [ -z "${IGNORE_FILE}" ]; then
-  CHART_IGNORE="${MAIN_DIR}/clusters/${CLUSTER}/helm/${CHART}/.trivyignore"
-  if [ -n "${CHART}" ] && [ -f "${CHART_IGNORE}" ]; then
-    IGNORE_FILE="${CHART_IGNORE}"
-  elif [ -f "${MAIN_DIR}/.trivyignore" ]; then
-    IGNORE_FILE="${MAIN_DIR}/.trivyignore"
-  fi
-fi
-
 REPORT_JSON="$(mktemp)"
+COMBINED_IGNORE=""
 
 cleanup() {
-  rm -f "${REPORT_JSON:-}"
+  rm -f "${REPORT_JSON:-}" "${COMBINED_IGNORE:-}"
 }
 trap cleanup EXIT
+
+# Detect and combine ignore files if not explicitly set
+if [ -z "${IGNORE_FILE}" ]; then
+  CHART_IGNORE="${MAIN_DIR}/clusters/${CLUSTER}/helm/${CHART}/.trivyignore"
+  GLOBAL_IGNORE="${MAIN_DIR}/.trivyignore"
+
+  if [ -f "${GLOBAL_IGNORE}" ] && [ -n "${CHART}" ] && [ -f "${CHART_IGNORE}" ]; then
+    COMBINED_IGNORE="$(mktemp)"
+    cat "${GLOBAL_IGNORE}" "${CHART_IGNORE}" > "${COMBINED_IGNORE}"
+    IGNORE_FILE="${COMBINED_IGNORE}"
+  elif [ -n "${CHART}" ] && [ -f "${CHART_IGNORE}" ]; then
+    IGNORE_FILE="${CHART_IGNORE}"
+  elif [ -f "${GLOBAL_IGNORE}" ]; then
+    IGNORE_FILE="${GLOBAL_IGNORE}"
+  fi
+fi
 
 echo ">> Running Trivy scan for: ${CHART:-$(basename "${MANIFEST_FILE}")} ..."
 
