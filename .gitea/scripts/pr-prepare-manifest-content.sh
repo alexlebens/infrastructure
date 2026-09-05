@@ -74,10 +74,22 @@ if [[ "${IS_AUTOMERGE}" == "true" ]]; then
 _This PR is expected to be automerged._"
 fi
 
+NOW_UTC="$(date -u +'%Y-%m-%d %H:%M UTC')"
+UPDATE_COMMENT=$(cat << EOF
+### Update Details (${NOW_UTC})
+- **Trigger**: \`${EVENT_NAME}\` by \`@${ACTOR}\`
+- **Commit**: \`${SHA_SHORT}\` (on \`${REF_NAME}\`)
+- **Charts Updated**: \`${CHANGED_CHARTS}\`
+EOF
+)
+
 echo ">> Generated PR Title: ${TITLE}"
 echo ">> Generated Commit Message: ${COMMIT_MSG}"
 echo ">> Generated PR Body:"
 echo "${BODY}"
+echo ""
+echo ">> Generated Update Comment:"
+echo "${UPDATE_COMMENT}"
 echo ""
 
 if [[ -n "${GITHUB_OUTPUT}" ]]; then
@@ -85,5 +97,8 @@ if [[ -n "${GITHUB_OUTPUT}" ]]; then
   echo "commit-msg=${COMMIT_MSG}" >> "${GITHUB_OUTPUT}"
   echo "body<<EOF" >> "${GITHUB_OUTPUT}"
   echo "${BODY}" >> "${GITHUB_OUTPUT}"
+  echo "EOF" >> "${GITHUB_OUTPUT}"
+  echo "update-comment<<EOF" >> "${GITHUB_OUTPUT}"
+  echo "${UPDATE_COMMENT}" >> "${GITHUB_OUTPUT}"
   echo "EOF" >> "${GITHUB_OUTPUT}"
 fi
