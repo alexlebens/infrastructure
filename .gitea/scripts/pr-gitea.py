@@ -152,6 +152,11 @@ def main():
       default=os.getenv("COMMIT_MSG", "chore: automated update"),
       help="Git commit message.",
   )
+  parser.add_argument(
+      "--update-comment",
+      default=os.getenv("UPDATE_COMMENT", ""),
+      help="Optional comment markdown to post to PR when updating an existing pull request.",
+  )
 
   args = parser.parse_args()
 
@@ -173,6 +178,7 @@ def main():
   repo = args.repo
   title = args.title
   commit_msg = args.commit_msg
+  update_comment = args.update_comment
 
   if not head_branch:
     print("Error: --head-branch or HEAD_BRANCH is required.", file=sys.stderr)
@@ -325,6 +331,20 @@ def main():
       else:
         pr_operation = "updated"
         pr_number = str(existing_pr_number)
+
+      if update_comment:
+        print(f">> Posting update comment to PR #{existing_pr_number} ...")
+        comment_url = f"{gitea_url}/api/v1/repos/{repo}/issues/{existing_pr_number}/comments"
+        comment_status, _ = gitea_api_request(
+            comment_url, token, method="POST", data={"body": update_comment}
+        )
+        if comment_status in (200, 201):
+          print(f">> Update comment posted to PR #{existing_pr_number} successfully!")
+        else:
+          print(
+              f">> Warning: Failed to post comment to PR #{existing_pr_number} (HTTP"
+              f" {comment_status})."
+          )
 
   # If not updated, create a new PR
   if pr_operation == "none":
