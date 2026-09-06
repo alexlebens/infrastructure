@@ -1,0 +1,59 @@
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    target_label = "host"
+    replacement  = "ps10rp"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+}
+
+loki.source.docker "docker_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_logs.output
+  forward_to = [loki.process.process.receiver]
+}
+
+loki.source.journal "journal" {
+  max_age    = "12h"
+  path       = "/var/log/journal"
+  forward_to = [loki.process.process.receiver]
+  labels     = {
+    host = "ps10rp",
+    job  = "systemd-journal",
+  }
+}
+
+loki.process "process" {
+  forward_to = [loki.write.loki.receiver]
+
+  stage.drop {
+    older_than          = "1h"
+    drop_counter_reason = "too old"
+  }
+}
+
+loki.write "loki" {
+  endpoint {
+    url = "https://loki-cl01tl.boreal-beaufort.ts.net/loki/api/v1/push"
+  }
+}
