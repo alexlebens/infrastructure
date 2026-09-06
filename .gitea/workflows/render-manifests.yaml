@@ -136,19 +136,21 @@ jobs:
 
       - name: Prepare Manifest PR Content
         id: pr-content
-        if: steps.check-dir-changes.outputs.changes-detected == 'true'
+        if: steps.render-manifests.outputs.changes-detected == 'true'
         env:
           EVENT_NAME: ${{ github.event_name }}
           ACTOR: ${{ github.actor }}
           SHA: ${{ github.sha }}
           REF_NAME: ${{ github.ref_name }}
           IS_AUTOMERGE: ${{ steps.mode.outputs.is-automerge }}
-          CHANGED_CHARTS: ${{ steps.check-dir-changes.outputs.render-dir-csv }}
+          CHANGED_CHARTS: ${{ steps.render-manifests.outputs.changed-charts-csv }}
+          MANIFEST_DIR: ${{ env.MANIFEST_DIR }}
+          CLUSTER: ${{ env.CLUSTER }}
         run: ./infrastructure/.gitea/scripts/pr-prepare-manifest-content.sh
 
       - name: Git Sync & Gitea Pull Request
         id: gitea-pr
-        if: steps.check-dir-changes.outputs.changes-detected == 'true'
+        if: steps.render-manifests.outputs.changes-detected == 'true'
         env:
           WORK_DIR: ${{ env.MANIFEST_DIR }}
           BASE_BRANCH: ${{ env.BASE_BRANCH }}
@@ -176,7 +178,7 @@ jobs:
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Rendered Charts: ${{ steps.check-dir-changes.outputs.render-dir-csv }}"
+          details: "Rendered Charts: ${{ steps.render-manifests.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View PR", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository }}/pulls/${{
@@ -194,7 +196,7 @@ jobs:
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Rendered Charts: ${{ steps.check-dir-changes.outputs.render-dir-csv }}"
+          details: "Rendered Charts: ${{ steps.render-manifests.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View PR", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository }}/pulls/${{
@@ -210,7 +212,7 @@ jobs:
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Rendered Charts: ${{ steps.check-dir-changes.outputs.render-dir-csv }}"
+          details: "Rendered Charts: ${{ steps.render-manifests.outputs.changed-charts-csv }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View PR", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository }}/pulls/${{

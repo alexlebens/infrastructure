@@ -15,6 +15,7 @@ RENDER_ALL="${RENDER_ALL:-false}"
 RENDER_DIR="${RENDER_DIR:-}"
 API_VERSIONS="${API_VERSIONS:-}"
 PARALLEL_JOBS="${PARALLEL_JOBS:-5}"
+GITHUB_OUTPUT="${GITHUB_OUTPUT:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -46,8 +47,12 @@ while [[ $# -gt 0 ]]; do
       PARALLEL_JOBS="$2"
       shift 2
       ;;
+    --github-output)
+      GITHUB_OUTPUT="$2"
+      shift 2
+      ;;
     -h|--help)
-      echo "Usage: $0 [--main-dir <dir>] [--manifest-dir <dir>] [--cluster <cluster>] [--render-all <true|false>] [--render-dir <dirs>] [--api-versions <versions>] [--parallel-jobs <n>]"
+      echo "Usage: $0 [--main-dir <dir>] [--manifest-dir <dir>] [--cluster <cluster>] [--render-all <true|false>] [--render-dir <dirs>] [--api-versions <versions>] [--parallel-jobs <n>] [--github-output <file>]"
       echo "Orchestrates cleaning, repository setup, and parallel rendering of Helm charts into the manifest repository."
       exit 0
       ;;
@@ -67,6 +72,11 @@ fi
 
 if [ -z "${RENDER_DIR}" ]; then
   echo ">> No directories specified for rendering. Exiting."
+  if [ -n "${GITHUB_OUTPUT:-}" ]; then
+    echo "changes-detected=false" >> "${GITHUB_OUTPUT}"
+    echo "changed-charts-csv=" >> "${GITHUB_OUTPUT}"
+    echo "changed-charts=" >> "${GITHUB_OUTPUT}"
+  fi
   exit 0
 fi
 
@@ -146,3 +156,37 @@ fi
 echo ""
 echo ">> All charts rendered successfully."
 echo "----"
+
+# Detect charts that actually have rendered changes in the manifest repository
+CHANGED_CHARTS=""
+CHANGED_CHARTS_CSV=""
+if [ -d "${MANIFEST_DIR}/.git" ]; then
+  CHANGED_CHARTS=$(git -C "${MANIFEST_DIR}" -c core.quotepath=false status --porcelain -uall | (grep -oE "clusters/${CLUSTER}/manifests/[^/]+/" || true) | sed -E "s#clusters/${CLUSTER}/manifests/([^/]+)/#\1#" | sort -u)
+  if [ -n "${CHANGED_CHARTS}" ]; then
+    CHANGED_CHARTS_CSV=$(echo "${CHANGED_CHARTS}" | paste -sd, -)
+  fi
+fi
+
+if [ -n "${CHANGED_CHARTS}" ]; then
+  echo ">> Manifest Changes Detected in Charts:"
+  for C in ${CHANGED_CHARTS}; do
+    echo "  - ${C}"
+  done
+  echo ">> Changed Charts (CSV): ${CHANGED_CHARTS_CSV}"
+else
+  echo ">> No manifest changes detected in ${MANIFEST_DIR}."
+fi
+
+if [ -n "${GITHUB_OUTPUT:-}" ]; then
+  if [ -n "${CHANGED_CHARTS}" ]; then
+    echo "changes-detected=true" >> "${GITHUB_OUTPUT}"
+    echo "changed-charts-csv=${CHANGED_CHARTS_CSV}" >> "${GITHUB_OUTPUT}"
+    echo "changed-charts<<EOF" >> "${GITHUB_OUTPUT}"
+    echo "${CHANGED_CHARTS}" >> "${GITHUB_OUTPUT}"
+    echo "EOF" >> "${GITHUB_OUTPUT}"
+  else
+    echo "changes-detected=false" >> "${GITHUB_OUTPUT}"
+    echo "changed-charts-csv=" >> "${GITHUB_OUTPUT}"
+    echo "changed-charts=" >> "${GITHUB_OUTPUT}"
+  fi
+fi
