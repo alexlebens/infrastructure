@@ -8,6 +8,8 @@ SHA="${SHA:-${GITHUB_SHA:-HEAD}}"
 REF_NAME="${REF_NAME:-${GITHUB_REF_NAME:-main}}"
 IS_AUTOMERGE="${IS_AUTOMERGE:-false}"
 CHANGED_CHARTS="${CHANGED_CHARTS:-}"
+MANIFEST_DIR="${MANIFEST_DIR:-}"
+CLUSTER="${CLUSTER:-cl01tl}"
 GITHUB_OUTPUT="${GITHUB_OUTPUT:-}"
 
 while [[ $# -gt 0 ]]; do
@@ -36,8 +38,16 @@ while [[ $# -gt 0 ]]; do
       CHANGED_CHARTS="$2"
       shift 2
       ;;
+    --manifest-dir)
+      MANIFEST_DIR="$2"
+      shift 2
+      ;;
+    --cluster)
+      CLUSTER="$2"
+      shift 2
+      ;;
     -h|--help)
-      echo "Usage: $0 [--event-name <name>] [--actor <user>] [--sha <sha>] [--ref-name <branch>] [--is-automerge <true|false>] [--changed-charts <list>]"
+      echo "Usage: $0 [--event-name <name>] [--actor <user>] [--sha <sha>] [--ref-name <branch>] [--is-automerge <true|false>] [--changed-charts <list>] [--manifest-dir <dir>] [--cluster <cluster>]"
       echo "Generates PR title, commit message, and body markdown for manifest rendering workflows."
       exit 0
       ;;
@@ -47,6 +57,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [ -z "${CHANGED_CHARTS}" ] && [ -n "${MANIFEST_DIR}" ] && [ -d "${MANIFEST_DIR}/.git" ]; then
+  CHANGED_CHARTS=$(git -C "${MANIFEST_DIR}" -c core.quotepath=false status --porcelain -uall | (grep -oE "clusters/${CLUSTER}/manifests/[^/]+/" || true) | sed -E "s#clusters/${CLUSTER}/manifests/([^/]+)/#\1#" | sort -u | paste -sd, -)
+fi
 
 SHA_SHORT="${SHA:0:7}"
 
