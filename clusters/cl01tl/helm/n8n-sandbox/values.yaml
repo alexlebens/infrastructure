@@ -1,0 +1,54 @@
+n8n-sandbox:
+  auth:
+    existingSecret: n8n-sandbox-auth
+  networkPolicy:
+    enabled: true
+    api:
+      httpIngressFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: n8n
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: n8n
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-prometheus-stack
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+    runner:
+      ingressFrom:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-prometheus-stack
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+  monitoring:
+    serviceMonitor:
+      enabled: true
+  tls:
+    mode: certManager
+    certManager:
+      issuerRef:
+        name: n8n-sandbox-selfsigned-issuer
+  api:
+    persistence:
+      storageClass: ceph-block
+    resources:
+      requests:
+        cpu: 20m
+        memory: 128Mi
+  runner:
+    isolation: privileged
+    acknowledgePrivileged: true
+    dockerDataRoot:
+      persistence:
+        enabled: true
+        size: 20Gi
+        storageClass: ceph-block
+    resources:
+      requests:
+        cpu: 50m
+        memory: 512Mi
