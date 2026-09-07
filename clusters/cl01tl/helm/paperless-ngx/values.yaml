@@ -154,6 +154,49 @@ paperless-ngx:
                 httpGet:
                   path: /tika
                   port: 9998
+        paperless-gpt:
+          image:
+            repository: icereed/paperless-gpt
+            tag: v0.27.0@sha256:855d9df5bacb2bed60bd520f1ffe0d118695aef9f77d37466ae85823001f547d
+          env:
+            - name: PAPERLESS_BASE_URL
+              value: http://localhost:8000
+            - name: PAPERLESS_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-gpt-key
+                  key: token
+            - name: OLLAMA_HOST
+              value: http://ollama-router.ollama:11434
+            - name: LLM_PROVIDER
+              value: ollama
+            - name: LLM_MODEL
+              value: gemma4:e4b
+            - name: VISION_LLM_PROVIDER
+              value: ollama
+            - name: VISION_LLM_MODEL
+              value: gemma4:e4b
+            - name: USE_VISION_FOR_OCR
+              value: "true"
+            - name: AUTO_GENERATE_TITLE
+              value: "true"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 8080
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 8080
   service:
     main:
       ports:
@@ -220,6 +263,29 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 5 6 * * *"
+postgres-pgvector-cluster:
+  nameOverride: paperless-ngx-postgres-pgvector
+  mode: standalone
+  cluster:
+    image:
+      repository: ghcr.io/tensorchord/cloudnative-vectorchord
+      tag: 18.6-1.1.1
+    postgresql:
+      shared_preload_libraries:
+        - "vchord.so"
+    initdb:
+      postInitSQL:
+        - CREATE EXTENSION IF NOT EXISTS "vector";
+        - CREATE EXTENSION IF NOT EXISTS "vchord" CASCADE;
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 35 6 * * *"
 volsync-target-data:
   pvcTarget: paperless-ngx-data
   moverSecurityContext:
