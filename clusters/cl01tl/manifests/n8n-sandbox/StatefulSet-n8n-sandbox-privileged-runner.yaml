@@ -1,0 +1,139 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: n8n-sandbox-privileged-runner
+  labels:
+    helm.sh/chart: n8n-sandbox-0.6.3
+    app.kubernetes.io/name: n8n-sandbox
+    app.kubernetes.io/instance: n8n-sandbox
+    app.kubernetes.io/version: "1.3.2"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: privileged-runner
+spec:
+  serviceName: n8n-sandbox-privileged-runner
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: n8n-sandbox
+      app.kubernetes.io/instance: n8n-sandbox
+      app.kubernetes.io/component: privileged-runner
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: n8n-sandbox
+        app.kubernetes.io/instance: n8n-sandbox
+        app.kubernetes.io/component: privileged-runner
+    spec:
+      containers:
+        - name: runner
+          image: "n8nio/n8n-sandbox-service-runner-dind:1.3.2"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: control-grpc
+              containerPort: 9091
+          envFrom:
+            - configMapRef:
+                name: n8n-sandbox-privileged-runner-config
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: SANDBOX_RUNNER_ID
+              value: "$(POD_NAME)"
+            - name: SANDBOX_RUNNER_API_GRPC_ADDR
+              value: "n8n-sandbox-api:9090"
+            - name: SANDBOX_RUNNER_HTTP_BASE_URL
+              value: "https://$(POD_NAME).n8n-sandbox-privileged-runner.$(POD_NAMESPACE).svc.cluster.local:8080"
+            - name: SANDBOX_RUNNER_CONTROL_GRPC_ADVERTISE_ADDR
+              value: "$(POD_NAME).n8n-sandbox-privileged-runner.$(POD_NAMESPACE).svc.cluster.local:9091"
+            - name: SANDBOX_RUNNER_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-sandbox-auth
+                  key: runner-api-keys
+            - name: SANDBOX_RUNNER_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-sandbox-auth
+                  key: runner-registration-token
+            - name: SANDBOX_RUNNER_REGISTRATION_GRPC_CA_FILE
+              value: "/tls/runner-registration/ca.crt"
+            - name: SANDBOX_RUNNER_REGISTRATION_GRPC_CERT_FILE
+              value: "/tls/runner-registration/tls.crt"
+            - name: SANDBOX_RUNNER_REGISTRATION_GRPC_KEY_FILE
+              value: "/tls/runner-registration/tls.key"
+            - name: SANDBOX_RUNNER_CONTROL_GRPC_TLS_CERT_FILE
+              value: "/tls/runner-control/tls.crt"
+            - name: SANDBOX_RUNNER_CONTROL_GRPC_TLS_KEY_FILE
+              value: "/tls/runner-control/tls.key"
+            - name: SANDBOX_RUNNER_CONTROL_GRPC_TLS_CLIENT_CA_FILE
+              value: "/tls/runner-control/ca.crt"
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+              scheme: HTTPS
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: runner-registration-tls
+              mountPath: "/tls/runner-registration"
+              readOnly: true
+            - name: runner-control-tls
+              mountPath: "/tls/runner-control"
+              readOnly: true
+            - name: docker-data
+              mountPath: "/var/lib/docker"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 512Mi
+      volumes:
+        - name: runner-registration-tls
+          secret:
+            secretName: n8n-sandbox-runner-registration-tls
+        - name: runner-control-tls
+          secret:
+            secretName: n8n-sandbox-runner-control-tls
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: n8n-sandbox
+              app.kubernetes.io/instance: n8n-sandbox
+              app.kubernetes.io/component: privileged-runner
+  volumeClaimTemplates:
+    - metadata:
+        name: docker-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "ceph-block"
+        resources:
+          requests:
+            storage: "20Gi"

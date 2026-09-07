@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: n8n-sandbox-privileged-runner
+  labels:
+    helm.sh/chart: n8n-sandbox-0.6.3
+    app.kubernetes.io/name: n8n-sandbox
+    app.kubernetes.io/instance: n8n-sandbox
+    app.kubernetes.io/version: "1.3.2"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: privileged-runner
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: n8n-sandbox
+      app.kubernetes.io/instance: n8n-sandbox
+      app.kubernetes.io/component: privileged-runner
+  endpoints:
+    - port: http
+      path: "/metrics"
+      scheme: "https"
+      tlsConfig:
+        ca:
+          secret:
+            name: "n8n-sandbox-runner-control-tls"
+            key: "ca.crt"
+        serverName: "n8n-sandbox-privileged-runner.n8n-sandbox.svc.cluster.local"
+      interval: "30s"
