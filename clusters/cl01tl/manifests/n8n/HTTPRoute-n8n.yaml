@@ -1,0 +1,39 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: n8n
+  namespace: n8n
+  labels:
+    app.kubernetes.io/name: n8n
+    app.kubernetes.io/instance: n8n
+    app.kubernetes.io/part-of: n8n
+spec:
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - n8n.alexlebens.dev
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /webhook/
+        - path:
+            type: PathPrefix
+            value: /webhook-test/
+        - path:
+            type: PathPrefix
+            value: /webhook-waiting/
+        - path:
+            type: PathPrefix
+            value: /healthz
+      backendRefs:
+        - name: n8n-main
+          port: 5678
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: n8n-oauth2-proxy
+          port: 4180
