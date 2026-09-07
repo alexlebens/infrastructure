@@ -1,0 +1,121 @@
+n8n:
+  image:
+    repository: n8nio/n8n
+    tag: 2.37.10@sha256:307d6065be25619aa24cfc63a7c2f04ca56d084a08c05c8e9f189a89f353b1ec
+  queueMode:
+    workerReplicaCount: 1
+  persistence:
+    enabled: true
+    storageClassName: ceph-block
+    accessModes:
+      - ReadWriteOnce
+  config:
+    timezone: America/Chicago
+    extraEnv:
+      - name: WEBHOOK_URL
+        value: https://n8n.alexlebens.dev/
+      - name: N8N_DIAGNOSTICS_ENABLED
+        value: "false"
+      - name: N8N_VERSION_NOTIFICATIONS_ENABLED
+        value: "false"
+  secretRefs:
+    existingSecret: n8n-config-secret
+  database:
+    host: n8n-postgresql-18-cluster-rw.n8n
+    database: app
+    user: app
+    passwordSecret:
+      name: n8n-postgresql-18-cluster-app
+  redis:
+    host: n8n-valkey.n8n
+oauth2-proxy:
+  nameOverride: oauth2-proxy
+  fullnameOverride: n8n-oauth2-proxy
+  controllers:
+    main:
+      type: deployment
+      strategy: RollingUpdate
+      containers:
+        oauth:
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.4@sha256:b1b2021fe8f4004573e8d690dec6c7bb29cc44364572cf8510a05bf3a0ae2ded
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://n8n-main:5678
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+            - name: OAUTH2_PROXY_SKIP_AUTH_REGEX
+              value: "^/webhook/.*|^/webhook-test/.*|^/webhook-waiting/.*|^/healthz.*"
+          envFrom:
+            - secretRef:
+                name: n8n-oauth-proxy
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
+  service:
+    main:
+      ports:
+        http:
+          port: 4180
+        metrics:
+          port: 44180
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/service: n8n-oauth2-proxy
+          app.kubernetes.io/instance: n8n
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 15 6 * * *"
+volsync-target-data:
+  pvcTarget: n8n
+  local:
+    enabled: true
+    schedule: "30 10 * * *"
+  remote:
+    enabled: true
+    schedule: 55 10 * * 1
+  external:
+    enabled: true
+    schedule: 55 9 * * 1
