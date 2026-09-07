@@ -196,7 +196,8 @@ kube-prometheus-stack:
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
       maximumStartupDurationSeconds: 7200
-prometheus-blackbox-exporter:
+prometheus-blackbox-exporter-local:
+  fullnameOverride: kube-prometheus-stack-prometheus-blackbox-exporter
   revisionHistoryLimit: 3
   image:
     registry: quay.io
@@ -238,6 +239,29 @@ prometheus-blackbox-exporter:
         annotations:
           summary: "SSL Certificate for {{ $labels.instance }} expires soon"
           description: "The SSL certificate for {{ $labels.instance }} will expire in less than 7 days."
+prometheus-blackbox-exporter-cloudflare:
+  fullnameOverride: kube-prometheus-stack-prometheus-blackbox-exporter-cloudflare
+  revisionHistoryLimit: 3
+  image:
+    registry: quay.io
+    repository: prometheus/blackbox-exporter
+    tag: v0.28.0
+  configExistingSecretName: blackbox-exporter-config
+  dnsPolicy: "None"
+  dnsConfig:
+    nameservers:
+      - 1.1.1.1
+      - 1.0.0.1
+  resources:
+    requests:
+      cpu: 20m
+      memory: 50Mi
+  replicas: 2
+  serviceMonitor:
+    selfMonitor:
+      enabled: true
+  prometheusRule:
+    enabled: false
 ntfy-alertmanager:
   global:
     fullnameOverride: ntfy-alertmanager
