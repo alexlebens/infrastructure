@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: backrest-config-backup
+  namespace: backrest
+  labels:
+    app.kubernetes.io/name: backrest-config-backup
+    helm.sh/chart: volsync-target-config-2.3.0
+    app.kubernetes.io/instance: backrest
+    app.kubernetes.io/part-of: backrest
+    app.kubernetes.io/version: "2.3.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  groups:
+    - name: volsync.alerts
+      rules:
+        - alert: VolSyncBackupPodFailed
+          expr: |
+            kube_pod_status_phase{namespace="backrest", phase="Failed", pod=~"volsync-.*backrest-config-backup-.*"} == 1
+            * on(namespace, pod) group_left(owner_name)
+            kube_pod_owner{namespace="backrest", owner_kind="Job", owner_name=~"volsync-.*backrest-config-backup-.*"}
+          labels:
+            severity: critical
+          annotations:
+            summary: "VolSync backup pod failed in {{ $labels.namespace }}"
+            description: |
+              VolSync backup pod '{{ $labels.pod }}' for PVC 'backrest-config' failed.
+              Job: {{ $labels.owner_name }}
+              Namespace: {{ $labels.namespace }}

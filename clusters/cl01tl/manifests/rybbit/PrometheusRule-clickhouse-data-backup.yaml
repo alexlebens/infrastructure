@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: clickhouse-data-backup
+  namespace: rybbit
+  labels:
+    app.kubernetes.io/name: clickhouse-data-backup
+    helm.sh/chart: volsync-target-clickhouse-data-2.3.0
+    app.kubernetes.io/instance: rybbit
+    app.kubernetes.io/part-of: rybbit
+    app.kubernetes.io/version: "2.3.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  groups:
+    - name: volsync.alerts
+      rules:
+        - alert: VolSyncBackupPodFailed
+          expr: |
+            kube_pod_status_phase{namespace="rybbit", phase="Failed", pod=~"volsync-.*clickhouse-data-backup-.*"} == 1
+            * on(namespace, pod) group_left(owner_name)
+            kube_pod_owner{namespace="rybbit", owner_kind="Job", owner_name=~"volsync-.*clickhouse-data-backup-.*"}
+          labels:
+            severity: critical
+          annotations:
+            summary: "VolSync backup pod failed in {{ $labels.namespace }}"
+            description: |
+              VolSync backup pod '{{ $labels.pod }}' for PVC 'clickhouse-data' failed.
+              Job: {{ $labels.owner_name }}
+              Namespace: {{ $labels.namespace }}
