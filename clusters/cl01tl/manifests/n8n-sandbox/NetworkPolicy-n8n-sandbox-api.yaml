@@ -1,0 +1,45 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: n8n-sandbox-api
+  labels:
+    helm.sh/chart: n8n-sandbox-0.6.3
+    app.kubernetes.io/name: n8n-sandbox
+    app.kubernetes.io/instance: n8n-sandbox
+    app.kubernetes.io/version: "1.3.2"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: api
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: n8n-sandbox
+      app.kubernetes.io/instance: n8n-sandbox
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: n8n
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: n8n
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-prometheus-stack
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+    - ports:
+        - port: grpc
+          protocol: TCP
+      from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: n8n-sandbox
+              app.kubernetes.io/instance: n8n-sandbox
+              app.kubernetes.io/component: privileged-runner

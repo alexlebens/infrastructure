@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n-sandbox-api
+  labels:
+    helm.sh/chart: n8n-sandbox-0.6.3
+    app.kubernetes.io/name: n8n-sandbox
+    app.kubernetes.io/instance: n8n-sandbox
+    app.kubernetes.io/version: "1.3.2"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: n8n-sandbox
+      app.kubernetes.io/instance: n8n-sandbox
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: n8n-sandbox
+        app.kubernetes.io/instance: n8n-sandbox
+        app.kubernetes.io/component: api
+    spec:
+      securityContext:
+        fsGroup: 100
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: api
+          image: "n8nio/n8n-sandbox-service-api:1.3.2"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: grpc
+              containerPort: 9090
+          envFrom:
+            - configMapRef:
+                name: n8n-sandbox-api-config
+          env:
+            - name: SANDBOX_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-sandbox-auth
+                  key: api-keys
+            - name: SANDBOX_API_RUNNER_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-sandbox-auth
+                  key: runner-registration-token
+            - name: SANDBOX_API_RUNNER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-sandbox-auth
+                  key: runner-api-key
+            - name: SANDBOX_API_GRPC_TLS_CERT_FILE
+              value: "/tls/api-registration/tls.crt"
+            - name: SANDBOX_API_GRPC_TLS_KEY_FILE
+              value: "/tls/api-registration/tls.key"
+            - name: SANDBOX_API_GRPC_TLS_CLIENT_CA_FILE
+              value: "/tls/api-registration/ca.crt"
+            - name: SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_CA_FILE
+              value: "/tls/api-control-client/ca.crt"
+            - name: SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_CERT_FILE
+              value: "/tls/api-control-client/tls.crt"
+            - name: SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_KEY_FILE
+              value: "/tls/api-control-client/tls.key"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          volumeMounts:
+            - name: api-registration-tls
+              mountPath: "/tls/api-registration"
+              readOnly: true
+            - name: api-control-client-tls
+              mountPath: "/tls/api-control-client"
+              readOnly: true
+            - name: api-data
+              mountPath: "/tmp/sandbox-api"
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+      volumes:
+        - name: api-registration-tls
+          secret:
+            secretName: n8n-sandbox-api-registration-tls
+        - name: api-control-client-tls
+          secret:
+            secretName: n8n-sandbox-api-control-client-tls
+        - name: api-data
+          persistentVolumeClaim:
+            claimName: n8n-sandbox-api
