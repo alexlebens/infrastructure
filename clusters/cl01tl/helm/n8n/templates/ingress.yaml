@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-tailscale
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-tailscale
+    {{- include "custom.labels" . | nindent 4 }}
+    tailscale.com/proxy-class: default
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - {{ .Release.Name }}-cl01tl
+      secretName: {{ .Release.Name }}-cl01tl
+  rules:
+    - host: {{ .Release.Name }}-cl01tl
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-main
+                port:
+                  number: 5678
