@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: komodo-keys-backup
+  namespace: komodo
+  labels:
+    app.kubernetes.io/name: komodo-keys-backup
+    helm.sh/chart: volsync-target-keys-2.3.0
+    app.kubernetes.io/instance: komodo
+    app.kubernetes.io/part-of: komodo
+    app.kubernetes.io/version: "2.3.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  groups:
+    - name: volsync.alerts
+      rules:
+        - alert: VolSyncBackupPodFailed
+          expr: |
+            kube_pod_status_phase{namespace="komodo", phase="Failed", pod=~"volsync-.*komodo-keys-backup-.*"} == 1
+            * on(namespace, pod) group_left(owner_name)
+            kube_pod_owner{namespace="komodo", owner_kind="Job", owner_name=~"volsync-.*komodo-keys-backup-.*"}
+          labels:
+            severity: critical
+          annotations:
+            summary: "VolSync backup pod failed in {{ $labels.namespace }}"
+            description: |
+              VolSync backup pod '{{ $labels.pod }}' for PVC 'komodo-keys' failed.
+              Job: {{ $labels.owner_name }}
+              Namespace: {{ $labels.namespace }}
