@@ -42,13 +42,15 @@ spec:
         - env:
             - name: FERRETDB_LISTEN_ADDR
               value: 127.0.0.1:27017
-            - name: FERRETDB_POSTGRESQL_URL
-              value: postgres://app:$(POSTGRES_PASSWORD)@librechat-postgresql-18-rw:5432/app?sslmode=disable
-            - name: POSTGRES_PASSWORD
+            - name: DB_USERNAME
+              value: ferret
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   key: password
-                  name: librechat-postgresql-18-cluster-app
+                  name: librechat-postgresql-17-fdb-cluster-ferret
+            - name: FERRETDB_POSTGRESQL_URL
+              value: postgresql://$(DB_USERNAME):$(DB_PASSWORD)@librechat-postgresql-17-fdb-cluster-rw.librechat.svc.cluster.local:5432/ferretDB
           image: ghcr.io/ferretdb/ferretdb:2.7.0@sha256:5706414241eb84f0515512c37b46db0f1b1eac9e5ceb7e4c2523211c184b1985
           name: ferretdb
           resources:
@@ -60,8 +62,15 @@ spec:
               value: 0.0.0.0
             - name: PORT
               value: "3080"
+            - name: DB_USERNAME
+              value: ferret
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: librechat-postgresql-17-fdb-cluster-ferret
             - name: MONGO_URI
-              value: mongodb://127.0.0.1:27017/librechat
+              value: mongodb://$(DB_USERNAME):$(DB_PASSWORD)@127.0.0.1:27017/librechat
             - name: CONFIG_PATH
               value: /app/librechat.yaml
             - name: DOMAIN_CLIENT
