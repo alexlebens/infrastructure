@@ -17,8 +17,15 @@ librechat:
               value: "0.0.0.0"
             - name: PORT
               value: "3080"
+            - name: DB_USERNAME
+              value: ferret
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-postgresql-17-fdb-cluster-ferret
+                  key: password
             - name: MONGO_URI
-              value: "mongodb://127.0.0.1:27017/librechat"
+              value: "mongodb://$(DB_USERNAME):$(DB_PASSWORD)@127.0.0.1:27017/librechat"
             - name: CONFIG_PATH
               value: "/app/librechat.yaml"
             - name: DOMAIN_CLIENT
@@ -124,13 +131,15 @@ librechat:
           env:
             - name: FERRETDB_LISTEN_ADDR
               value: "127.0.0.1:27017"
-            - name: FERRETDB_POSTGRESQL_URL
-              value: "postgres://app:$(POSTGRES_PASSWORD)@librechat-postgresql-18-rw:5432/app?sslmode=disable"
-            - name: POSTGRES_PASSWORD
+            - name: DB_USERNAME
+              value: ferret
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: librechat-postgresql-18-cluster-app
+                  name: librechat-postgresql-17-fdb-cluster-ferret
                   key: password
+            - name: FERRETDB_POSTGRESQL_URL
+              value: postgresql://$(DB_USERNAME):$(DB_PASSWORD)@librechat-postgresql-17-fdb-cluster-rw.librechat.svc.cluster.local:5432/ferretDB
           resources:
             requests:
               cpu: 20m
@@ -311,7 +320,39 @@ librechat:
               subPath: config.yaml
               readOnly: true
 postgres-18-cluster:
+  nameOverride: librechat-postgresql-17-fdb
   mode: standalone
+  cluster:
+    image:
+      repository: ghcr.io/ferretdb/postgres-documentdb
+      tag: 17-0.107.0-ferretdb-2.7.0@sha256:2386795ec2aa7ae559304361979f1dc5708d383ee9020ae63dadc2940dfe58f7
+    postgresUID: 999
+    postgresGID: 999
+    postgresql:
+      parameters:
+        cron.database_name: "ferretDB"
+        documentdb.enableCompact: "true"
+        documentdb.enableLetAndCollationForQueryMatch: "true"
+        documentdb.enableNowSystemVariable: "true"
+        documentdb.enableSortbyIdPushDownToPrimaryKey: "true"
+        documentdb.enableSchemaValidation: "true"
+        documentdb.enableBypassDocumentValidation: "true"
+        documentdb.enableUserCrud: "true"
+        documentdb.maxUserLimit: "100"
+      pg_hba:
+        - host ferretDB postgres localhost trust
+        - host ferretDB ferret localhost trust
+      shared_preload_libraries:
+        - pg_cron
+        - pg_documentdb_core
+        - pg_documentdb
+    initdb:
+      database: ferretDB
+      owner: ferret
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS pg_cron;
+        - CREATE EXTENSION IF NOT EXISTS documentdb CASCADE;
+        - GRANT documentdb_admin_role TO ferret;
   recovery:
     objectStore:
       index: 1
