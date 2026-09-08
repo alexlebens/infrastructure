@@ -1,0 +1,166 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: librechat-main
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: librechat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: librechat
+    helm.sh/chart: librechat-5.1.0
+  namespace: librechat
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: librechat
+      app.kubernetes.io/instance: librechat
+  template:
+    metadata:
+      annotations:
+        checksum/configMaps: bae4fa64454c4c9d0bb3e5e6c51f4875e496f69e35774b4e554a863e9e39d62a
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: librechat
+        app.kubernetes.io/name: librechat
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: librechat
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: FERRETDB_LISTEN_ADDR
+              value: 127.0.0.1:27017
+            - name: FERRETDB_POSTGRESQL_URL
+              value: postgres://app:$(POSTGRES_PASSWORD)@librechat-postgresql-18-rw:5432/app?sslmode=disable
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: librechat-postgresql-18-app
+          image: ghcr.io/ferretdb/ferretdb:2.7.0@sha256:5706414241eb84f0515512c37b46db0f1b1eac9e5ceb7e4c2523211c184b1985
+          name: ferretdb
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+        - env:
+            - name: HOST
+              value: 0.0.0.0
+            - name: PORT
+              value: "3080"
+            - name: MONGO_URI
+              value: mongodb://127.0.0.1:27017/librechat
+            - name: CONFIG_PATH
+              value: /app/librechat.yaml
+            - name: DOMAIN_CLIENT
+              value: https://ai.alexlebens.dev
+            - name: DOMAIN_SERVER
+              value: https://ai.alexlebens.dev
+            - name: NO_INDEX
+              value: "true"
+            - name: CREDS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: creds-key
+                  name: librechat-secrets
+            - name: CREDS_IV
+              valueFrom:
+                secretKeyRef:
+                  key: creds-iv
+                  name: librechat-secrets
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: jwt-secret
+                  name: librechat-secrets
+            - name: JWT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: jwt-refresh-secret
+                  name: librechat-secrets
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: litellm-master-key
+                  name: librechat-secrets
+            - name: ALLOW_SOCIAL_LOGIN
+              value: "true"
+            - name: OPENID_ISSUER
+              value: https://auth.alexlebens.dev
+            - name: OPENID_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: librechat-oidc-secret
+            - name: OPENID_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: librechat-oidc-secret
+            - name: OPENID_CALLBACK_URL
+              value: /oauth/openid/callback
+            - name: OPENID_SCOPE
+              value: openid profile email
+            - name: OPENID_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: jwt-secret
+                  name: librechat-secrets
+            - name: OPENID_BUTTON_LABEL
+              value: Sign in with AlexAuth
+            - name: AWS_BUCKET_NAME
+              value: librechat-assets
+            - name: AWS_ENDPOINT_URL
+              value: https://a.s3.alexlebens.dev
+            - name: AWS_FORCE_PATH_STYLE
+              value: "true"
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: region
+                  name: librechat-assets-key
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: access-key-id
+                  name: librechat-assets-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-access-key
+                  name: librechat-assets-key
+          image: ghcr.io/danny-avila/librechat:v0.8.7@sha256:c5db3331b845e1f289f8d04c0c77936c4bbe372f76730a804abc1c37e44d23a9
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3080
+          name: librechat
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+          volumeMounts:
+            - mountPath: /app/librechat.yaml
+              name: librechat-config
+              readOnly: true
+              subPath: librechat.yaml
+      volumes:
+        - configMap:
+            name: librechat-config
+          name: librechat-config

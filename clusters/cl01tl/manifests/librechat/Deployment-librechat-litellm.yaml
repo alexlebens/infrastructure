@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: librechat-litellm
+  labels:
+    app.kubernetes.io/controller: litellm
+    app.kubernetes.io/instance: librechat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: librechat
+    helm.sh/chart: librechat-5.1.0
+  namespace: librechat
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: litellm
+      app.kubernetes.io/name: librechat
+      app.kubernetes.io/instance: librechat
+  template:
+    metadata:
+      annotations:
+        checksum/configMaps: bae4fa64454c4c9d0bb3e5e6c51f4875e496f69e35774b4e554a863e9e39d62a
+      labels:
+        app.kubernetes.io/controller: litellm
+        app.kubernetes.io/instance: librechat
+        app.kubernetes.io/name: librechat
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: librechat
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - args:
+            - --config
+            - /etc/litellm/config.yaml
+            - --port
+            - "4000"
+          env:
+            - name: PORT
+              value: "4000"
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: litellm-master-key
+                  name: librechat-secrets
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: gemini-api-key
+                  name: librechat-secrets
+          image: ghcr.io/berriai/litellm:v1.100.0@sha256:c8756e7b9a61fe45df2ccb5b781d388c3b2f3a21ef9e4956630caef20f9f03aa
+          livenessProbe:
+            httpGet:
+              path: /health/liveliness
+              port: 4000
+          name: litellm
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: 4000
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+          volumeMounts:
+            - mountPath: /etc/litellm/config.yaml
+              name: litellm-config
+              readOnly: true
+              subPath: config.yaml
+      volumes:
+        - configMap:
+            name: litellm-config
+          name: litellm-config
