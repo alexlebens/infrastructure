@@ -43,6 +43,20 @@ spec:
       size: 3
       affinity:
         antiAffinityTopologyKey: kubernetes.io/hostname
+      sidecars:
+        - env:
+            - name: MONGODB_URI
+              value: mongodb://librechat:$(DB_PASSWORD)@127.0.0.1:27017/admin?ssl=false
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: librechat-mongodb-user-secret
+          image: percona/mongodb_exporter:0.53.0
+          name: mongodb-exporter
+          ports:
+            - containerPort: 9216
+              name: metrics
       podDisruptionBudget:
         maxUnavailable: 1
       expose:
@@ -154,6 +168,9 @@ spec:
   users:
     - db: admin
       name: librechat
+      passwordSecretRef:
+        key: password
+        name: librechat-mongodb-user-secret
       roles:
         - db: librechat
           name: readWrite
