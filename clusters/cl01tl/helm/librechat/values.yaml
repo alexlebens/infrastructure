@@ -22,8 +22,8 @@ librechat:
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: librechat-mongodb-custom-user-secret
-                  key: librechat
+                  name: librechat-mongodb-user-secret
+                  key: password
             - name: MONGO_URI
               value: "mongodb://$(DB_USERNAME):$(DB_PASSWORD)@librechat-mongodb-rs0.librechat.svc.cluster.local:27017/librechat?replicaSet=rs0&authSource=admin"
             - name: CONFIG_PATH
@@ -312,6 +312,20 @@ librechat-mongodb:
           resources:
             requests:
               storage: 10Gi
+      sidecars:
+        - name: mongodb-exporter
+          image: percona/mongodb_exporter:0.53.0
+          ports:
+            - containerPort: 9216
+              name: metrics
+          env:
+            - name: MONGODB_URI
+              value: "mongodb://librechat:$(DB_PASSWORD)@127.0.0.1:27017/admin?ssl=false"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-mongodb-user-secret
+                  key: password
   backup:
     image:
       repository: percona/percona-backup-mongodb
@@ -334,6 +348,9 @@ librechat-mongodb:
   users:
     - name: librechat
       db: admin
+      passwordSecretRef:
+        name: librechat-mongodb-user-secret
+        key: password
       roles:
         - name: readWrite
           db: librechat
