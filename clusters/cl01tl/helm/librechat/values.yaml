@@ -299,6 +299,64 @@ librechat:
             - path: /etc/litellm/config.yaml
               subPath: config.yaml
               readOnly: true
+librechat-mongodb:
+  fullnameOverride: librechat-mongodb
+  image:
+    repository: percona/percona-server-mongodb
+    tag: 8.3.8
+  replsets:
+    rs0:
+      volumeSpec:
+        pvc:
+          storageClassName: local-path
+          resources:
+            requests:
+              storage: 10Gi
+      sidecars:
+        - name: mongodb-exporter
+          image: percona/mongodb_exporter:0.53.0
+          ports:
+            - containerPort: 9216
+              name: metrics
+          env:
+            - name: MONGODB_URI
+              value: "mongodb://librechat:$(DB_PASSWORD)@127.0.0.1:27017/admin?ssl=false"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-mongodb-custom-user-secret
+                  key: librechat
+  backup:
+    image:
+      repository: percona/percona-backup-mongodb
+      tag: 2.15.0
+    storages:
+      garage-s3:
+        type: s3
+        s3:
+          bucket: mongodb-backups
+          prefix: cl01tl/librechat
+          credentialsSecret: librechat-mongodb-backup-s3
+          endpointUrl: http://garage-cluster-a.garage-operator:3900
+          region: garage
+    tasks:
+      - name: daily-backup
+        enabled: true
+        schedule: "0 0 * * *"
+        storageName: garage-s3
+        compressionType: gzip
+  users:
+    - name: librechat
+      db: admin
+      roles:
+        - name: readWrite
+          db: librechat
+        - name: dbAdmin
+          db: librechat
+        - name: clusterMonitor
+          db: admin
+        - name: read
+          db: local
 garage-bucket-librechat-assets:
   bucketName: librechat-assets
   cors:
