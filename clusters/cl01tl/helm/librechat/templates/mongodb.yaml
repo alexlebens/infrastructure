@@ -1,0 +1,53 @@
+apiVersion: psmdb.percona.com/v1
+kind: PerconaServerMongoDB
+metadata:
+  name: {{ .Release.Name }}-mongodb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-mongodb
+    {{- include "custom.labels" . | nindent 4 }}
+  finalizers:
+    - percona.com/delete-psmdb-pods-in-order
+spec:
+  crVersion: "1.23.0"
+  image: "percona/percona-server-mongodb:8.3.8"
+  imagePullPolicy: IfNotPresent
+  updateStrategy: SmartUpdate
+  upgradeOptions:
+    apply: disabled
+  replsets:
+    - name: rs0
+      size: 3
+      affinity:
+        antiAffinityTopologyKey: kubernetes.io/hostname
+      volumeSpec:
+        persistentVolumeClaim:
+          storageClassName: local-path
+          resources:
+            requests:
+              storage: 10Gi
+  backup:
+    enabled: true
+    storages:
+      garage-s3:
+        type: s3
+        s3:
+          bucket: mongodb-backups
+          prefix: librechat
+          credentialsSecret: librechat-mongodb-backup-s3
+          endpointUrl: http://garage-cluster-a.garage-operator:3900
+          region: garage
+    tasks:
+      - name: daily-backup
+        enabled: true
+        schedule: "0 0 * * *"
+        storageName: garage-s3
+        compressionType: gzip
+  users:
+    - name: librechat
+      db: admin
+      roles:
+        - name: readWrite
+          db: librechat
+        - name: dbAdmin
+          db: librechat
