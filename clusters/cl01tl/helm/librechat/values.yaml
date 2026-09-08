@@ -1,0 +1,347 @@
+librechat:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+      containers:
+        librechat:
+          image:
+            repository: ghcr.io/danny-avila/librechat
+            tag: v0.8.7@sha256:c5db3331b845e1f289f8d04c0c77936c4bbe372f76730a804abc1c37e44d23a9
+          env:
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "3080"
+            - name: MONGO_URI
+              value: "mongodb://127.0.0.1:27017/librechat"
+            - name: CONFIG_PATH
+              value: "/app/librechat.yaml"
+            - name: DOMAIN_CLIENT
+              value: "https://ai.alexlebens.dev"
+            - name: DOMAIN_SERVER
+              value: "https://ai.alexlebens.dev"
+            - name: NO_INDEX
+              value: "true"
+            - name: CREDS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-secrets
+                  key: creds-key
+            - name: CREDS_IV
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-secrets
+                  key: creds-iv
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-secrets
+                  key: jwt-secret
+            - name: JWT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-secrets
+                  key: jwt-refresh-secret
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-secrets
+                  key: litellm-master-key
+            - name: ALLOW_SOCIAL_LOGIN
+              value: "true"
+            - name: OPENID_ISSUER
+              value: "https://auth.alexlebens.dev"
+            - name: OPENID_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-oidc-secret
+                  key: clientId
+            - name: OPENID_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-oidc-secret
+                  key: clientSecret
+            - name: OPENID_CALLBACK_URL
+              value: "/oauth/openid/callback"
+            - name: OPENID_SCOPE
+              value: "openid profile email"
+            - name: OPENID_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-secrets
+                  key: jwt-secret
+            - name: OPENID_BUTTON_LABEL
+              value: "Sign in with AlexAuth"
+            - name: AWS_BUCKET_NAME
+              value: librechat-assets
+            - name: AWS_ENDPOINT_URL
+              value: https://a.s3.alexlebens.dev
+            - name: AWS_FORCE_PATH_STYLE
+              value: "true"
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-assets-key
+                  key: region
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-assets-key
+                  key: access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-assets-key
+                  key: secret-access-key
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3080
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3080
+        ferretdb:
+          image:
+            repository: ghcr.io/ferretdb/ferretdb
+            tag: 2.7.0@sha256:5706414241eb84f0515512c37b46db0f1b1eac9e5ceb7e4c2523211c184b1985
+          env:
+            - name: FERRETDB_LISTEN_ADDR
+              value: "127.0.0.1:27017"
+            - name: FERRETDB_POSTGRESQL_URL
+              value: "postgres://app:$(POSTGRES_PASSWORD)@librechat-postgresql-18-rw:5432/app?sslmode=disable"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-postgresql-18-app
+                  key: password
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+    litellm:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+      containers:
+        litellm:
+          image:
+            repository: ghcr.io/berriai/litellm
+            tag: v1.100.0@sha256:c8756e7b9a61fe45df2ccb5b781d388c3b2f3a21ef9e4956630caef20f9f03aa
+          args:
+            - "--config"
+            - "/etc/litellm/config.yaml"
+            - "--port"
+            - "4000"
+          env:
+            - name: PORT
+              value: "4000"
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-secrets
+                  key: litellm-master-key
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-secrets
+                  key: gemini-api-key
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health/liveliness
+                  port: 4000
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health/readiness
+                  port: 4000
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 3080
+    litellm:
+      controller: litellm
+      ports:
+        http:
+          port: 4000
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - ai.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: librechat
+              port: 80
+  configMaps:
+    librechat-config:
+      forceRename: librechat-config
+      data:
+        librechat.yaml: |
+          version: 1.2.1
+          cache: true
+          fileStrategy: "s3"
+
+          endpoints:
+            custom:
+              - name: "LiteLLM"
+                apiKey: "${LITELLM_MASTER_KEY}"
+                baseURL: "http://librechat-litellm:4000/v1"
+                models:
+                  default: ["qwen3:14b", "gemma4:e4b", "gemma4:12b", "gemini-3.7-flash", "gemini-3.8-flash"]
+                  fetch: true
+                titleConvo: true
+                titleModel: "qwen3:14b"
+                modelDisplayLabel: "LiteLLM"
+
+          mcpServers:
+            paperless:
+              type: sse
+              url: "http://n8n-main.n8n.svc.cluster.local:5678/mcp/paperless"
+              timeout: 60000
+
+            trek:
+              type: sse
+              url: "http://trek.trek/mcp"
+              timeout: 60000
+
+    litellm-config:
+      forceRename: litellm-config
+      data:
+        config.yaml: |
+          model_list:
+            # --- qwen3:14b ---
+            - model_name: qwen3:14b
+              litellm_params:
+                model: ollama/qwen3:14b
+                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
+
+            # --- gemma4:e4b ---
+            - model_name: gemma4:e4b
+              litellm_params:
+                model: ollama/gemma4:e4b
+                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
+            - model_name: gemma4:e4b
+              litellm_params:
+                model: ollama/gemma4:e4b
+                api_base: http://ollama-server-0.ollama-headless.ollama.svc.cluster.local:11434
+            - model_name: gemma4:e4b
+              litellm_params:
+                model: ollama/gemma4:e4b
+                api_base: http://ollama-server-1.ollama-headless.ollama.svc.cluster.local:11434
+
+            # --- gemma4:12b ---
+            - model_name: gemma4:12b
+              litellm_params:
+                model: ollama/gemma4:12b
+                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
+
+            # --- Gemini ---
+            - model_name: gemini-3.7-flash
+              litellm_params:
+                model: gemini/gemini-3.7-flash
+                api_key: os.environ/GEMINI_API_KEY
+            - model_name: gemini-3.8-flash
+              litellm_params:
+                model: gemini/gemini-3.8-flash
+                api_key: os.environ/GEMINI_API_KEY
+
+          router_settings:
+            routing_strategy: "least-busy"
+            num_retries: 2
+            timeout: 120
+
+          litellm_settings:
+            drop_params: true
+            set_verbose: false
+            json_logs: true
+            ssl_verify: false
+  persistence:
+    librechat-config:
+      type: configMap
+      name: librechat-config
+      advancedMounts:
+        main:
+          librechat:
+            - path: /app/librechat.yaml
+              subPath: librechat.yaml
+              readOnly: true
+    litellm-config:
+      type: configMap
+      name: litellm-config
+      advancedMounts:
+        litellm:
+          litellm:
+            - path: /etc/litellm/config.yaml
+              subPath: config.yaml
+              readOnly: true
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 25 6 * * *"
+garage-bucket-librechat-assets:
+  bucketName: librechat-assets
+  cors:
+    enabled: true
+    policy: |
+      {
+        "CORSRules": [
+          {
+            "AllowedOrigins": ["https://ai.alexlebens.dev"],
+            "AllowedHeaders": ["*"],
+            "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+            "MaxAgeSeconds": 3000,
+            "ExposeHeaders": ["ETag"]
+          }
+        ]
+      }
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: librechat-assets
