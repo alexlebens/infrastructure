@@ -14,6 +14,15 @@ data:
     cache: true
     fileStrategy: "s3"
 
+    webSearch:
+      searchProvider: "searxng"
+      searxngInstanceUrl: "${SEARXNG_INSTANCE_URL}"
+      searxngSearchOptions:
+        engines: "google,bing,duckduckgo"
+        language: "en"
+      allowedAddresses:
+        - "searxng-api.searxng.svc.cluster.local:8080"
+
     mcpSettings:
       allowedAddresses:
         - "n8n-main.n8n.svc.cluster.local:5678"
@@ -25,11 +34,21 @@ data:
           apiKey: "${LITELLM_MASTER_KEY}"
           baseURL: "http://librechat-litellm:4000/v1"
           models:
-            default: ["qwen3:14b", "gemma4:e4b", "gemma4:12b", "gemini-3.7-flash", "gemini-3.8-flash"]
+            default: ["gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash"]
             fetch: true
           titleConvo: true
-          titleModel: "qwen3:14b"
+          titleModel: "gemini-3.5-flash-lite"
           modelDisplayLabel: "LiteLLM"
+
+        - name: "Ollama"
+          apiKey: "${OLLAMA_API_KEY}"
+          baseURL: "https://ollama-pd05wd.boreal-beaufort.ts.net/v1"
+          models:
+            default: ["qwen3:14b", "gemma4:e4b", "gemma4:12b"]
+            fetch: true
+          titleConvo: true
+          titleModel: "current_model"
+          modelDisplayLabel: "Ollama"
 
     mcpServers:
       paperless:
@@ -40,4 +59,15 @@ data:
       trek:
         type: sse
         url: "https://trek.alexlebens.dev/mcp"
+        requiresOAuth: true
         timeout: 60000
+
+      karakeep:
+        type: stdio
+        command: "npx"
+        args:
+          - "-y"
+          - "@karakeep/mcp"
+        env:
+          KARAKEEP_API_ADDR: "http://karakeep.karakeep.svc.cluster.local:3000"
+          KARAKEEP_API_KEY: "${KARAKEEP_API_KEY}"
