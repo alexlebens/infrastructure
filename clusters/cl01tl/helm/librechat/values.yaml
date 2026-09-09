@@ -63,8 +63,13 @@ librechat:
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:
+                  name: litellm-secrets
+                  key: master-key
+            - name: OLLAMA_API_KEY
+              valueFrom:
+                secretKeyRef:
                   name: librechat-secrets
-                  key: litellm-master-key
+                  key: ollama-api-key
             - name: ALLOW_SOCIAL_LOGIN
               value: "true"
             - name: OPENID_ISSUER
@@ -161,12 +166,12 @@ librechat:
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:
-                  name: librechat-secrets
-                  key: litellm-master-key
+                  name: litellm-secrets
+                  key: master-key
             - name: GEMINI_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: librechat-secrets
+                  name: litellm-secrets
                   key: gemini-api-key
           resources:
             requests:
@@ -248,11 +253,21 @@ librechat:
                 apiKey: "${LITELLM_MASTER_KEY}"
                 baseURL: "http://librechat-litellm:4000/v1"
                 models:
-                  default: ["qwen3:14b", "gemma4:e4b", "gemma4:12b", "gemini-3.7-flash", "gemini-3.8-flash"]
+                  default: ["gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash"]
+                  fetch: true
+                titleConvo: true
+                titleModel: "gemini-3.5-flash-lite"
+                modelDisplayLabel: "LiteLLM"
+
+              - name: "Ollama"
+                apiKey: "${OLLAMA_API_KEY}"
+                baseURL: "https://ollama-pd05wd.boreal-beaufort.ts.net/v1"
+                models:
+                  default: ["qwen3:14b", "gemma4:e4b", "gemma4:12b"]
                   fetch: true
                 titleConvo: true
                 titleModel: "qwen3:14b"
-                modelDisplayLabel: "LiteLLM"
+                modelDisplayLabel: "Ollama"
 
           mcpServers:
             paperless:
@@ -271,48 +286,11 @@ librechat:
       data:
         config.yaml: |
           model_list:
-            # --- qwen3:14b ---
-            - model_name: qwen3:14b
-              litellm_params:
-                model: ollama/qwen3:14b
-                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
-                num_predict: -1
-                timeout: 600
-                stream_timeout: 120
-
-            # --- gemma4:e4b ---
-            - model_name: gemma4:e4b
-              litellm_params:
-                model: ollama/gemma4:e4b
-                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
-                num_predict: -1
-                timeout: 600
-                stream_timeout: 120
-            - model_name: gemma4:e4b
-              litellm_params:
-                model: ollama/gemma4:e4b
-                api_base: http://ollama-server-0.ollama-headless.ollama.svc.cluster.local:11434
-                num_predict: -1
-                timeout: 600
-                stream_timeout: 120
-            - model_name: gemma4:e4b
-              litellm_params:
-                model: ollama/gemma4:e4b
-                api_base: http://ollama-server-1.ollama-headless.ollama.svc.cluster.local:11434
-                num_predict: -1
-                timeout: 600
-                stream_timeout: 120
-
-            # --- gemma4:12b ---
-            - model_name: gemma4:12b
-              litellm_params:
-                model: ollama/gemma4:12b
-                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
-                num_predict: -1
-                timeout: 600
-                stream_timeout: 120
-
             # --- Gemini ---
+            - model_name: gemini-3.5-flash-lite
+              litellm_params:
+                model: gemini/gemini-3.5-flash-lite
+                api_key: os.environ/GEMINI_API_KEY
             - model_name: gemini-3.7-flash
               litellm_params:
                 model: gemini/gemini-3.7-flash
