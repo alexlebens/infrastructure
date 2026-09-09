@@ -250,7 +250,7 @@ librechat:
 
           webSearch:
             searchProvider: "searxng"
-            searxngInstanceUrl: "http://searxng-api.searxng.svc.cluster.local:8080"
+            searxngInstanceUrl: "${SEARXNG_INSTANCE_URL}"
             searxngSearchOptions:
               engines: "google,bing,brave,startpage,qwant"
               language: "en"
@@ -260,11 +260,6 @@ librechat:
               - "10.0.0.0/8"
               - "172.16.0.0/12"
               - "192.168.0.0/16"
-
-          mcpSettings:
-            allowedAddresses:
-              - "n8n-main.n8n.svc.cluster.local:5678"
-              - "trek.alexlebens.dev:443"
 
           endpoints:
             custom:
@@ -288,25 +283,30 @@ librechat:
                 titleModel: "current_model"
                 modelDisplayLabel: "Ollama"
 
+          mcpSettings:
+            allowedAddresses:
+              - "n8n-main.n8n.svc.cluster.local:5678"
+              - "trek.alexlebens.dev:443"
+
           mcpServers:
             paperless:
-              type: sse
+              type: "sse"
               url: "http://n8n-main.n8n.svc.cluster.local:5678/mcp/paperless"
               timeout: 60000
 
             trek:
-              type: "stdio"
-              command: "npx"
-              args:
-                - "-y"
-                - "mcp-remote"
-                - "https://trek.alexlebens.dev/mcp"
-                - "3334"
-                - "--static-oauth-client-info"
-                - '{"client_id": "${TREK_MCP_CLIENT_ID}", "client_secret": "${TREK_MCP_CLIENT_SECRET}", "redirect_uris": ["http://localhost:3334/oauth/callback"]}'
+              type: "streamable-http"
+              url: "https://trek.alexlebens.dev/mcp"
+              requiresOAuth: true
+              oauth:
+                authorization_url: "https://trek.alexlebens.dev/oauth/authorize"
+                token_url: "https://trek.alexlebens.dev/oauth/token"
+                client_id: "${TREK_MCP_CLIENT_ID}"
+                client_secret: "${TREK_MCP_CLIENT_SECRET}"
+                redirect_uri: "https://ai.alexlebens.dev/api/mcp/trek/oauth/callback"
 
             karakeep:
-              type: stdio
+              type: "stdio"
               command: "npx"
               args:
                 - "-y"
