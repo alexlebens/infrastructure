@@ -46,9 +46,9 @@ services:
       - |
         set -e
         mkdir -p /var/lib/chrony
-        if [ ! -f /var/lib/chrony/nts.key ] || [ ! -f /var/lib/chrony/nts.crt ]; then
+        apk add --no-cache openssl
+        if [ ! -f /var/lib/chrony/nts.key ] || [ ! -f /var/lib/chrony/nts.crt ] || ! openssl x509 -in /var/lib/chrony/nts.crt -noout -text 2>/dev/null | grep -q "DNS:ps09rp.alexlebens.dev"; then
           echo "Generating NTS TLS certificate..."
-          apk add --no-cache openssl
           openssl req -x509 -newkey rsa:4096 \
             -keyout /var/lib/chrony/nts.key \
             -out /var/lib/chrony/nts.crt \
