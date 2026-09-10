@@ -5,14 +5,14 @@ services:
     image: dockurr/chrony:4.6.1@sha256:912631108d4ef9534aeeec82c15ef230f34de58b84573dd95e3237b276b29bcf
     container_name: chrony
     depends_on:
-      chrony-init:
-        condition: service_completed_successfully
+      chrony-certbot:
+        condition: service_healthy
     volumes:
       - chrony-data:/var/lib/chrony
     environment:
+      - ALLOW=192.168.0.0/16,10.0.0.0/8
       - ENABLE_NTS=true
       - ENABLE_SYSCLK=true
-      - ALLOW=192.168.0.0/16,10.0.0.0/8
       - NTP_SERVERS=time.cloudflare.com,ptbtime1.ptb.de
       - |
         NTP_DIRECTIVES=ntsserverkey /var/lib/chrony/nts.key
@@ -25,8 +25,8 @@ services:
       - '0.0.0.0:4460:4460/tcp'
     restart: unless-stopped
     cap_add:
-      - sys_time
       - net_bind_service
+      - sys_time
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -35,36 +35,69 @@ services:
       - /run:rw,noexec,nosuid,size=16M
       - /tmp:rw,noexec,nosuid,size=16M
 
-  chrony-init:
-    image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
-    container_name: chrony-init
+  chrony-certbot:
+    image: certbot/dns-cloudflare:v5.8.0@sha256:c45edb002b883da1a1235abb205dff474a7a1a459d878e8d5fdc7f9d83073aea
+    container_name: chrony-certbot
     volumes:
+      - certbot-etc:/etc/letsencrypt
       - chrony-data:/var/lib/chrony
-    command:
+    env_file:
+      - path: .env
+        required: false
+    entrypoint:
       - sh
       - -c
       - |
         set -e
-        mkdir -p /var/lib/chrony
-        apk add --no-cache openssl
-        if [ ! -f /var/lib/chrony/nts.key ] || [ ! -f /var/lib/chrony/nts.crt ] || ! openssl x509 -in /var/lib/chrony/nts.crt -noout -text 2>/dev/null | grep -q "DNS:ps09rp.alexlebens.dev"; then
-          echo "Generating NTS TLS certificate..."
-          openssl req -x509 -newkey rsa:4096 \
-            -keyout /var/lib/chrony/nts.key \
-            -out /var/lib/chrony/nts.crt \
-            -days 3650 -nodes \
-            -subj "/CN=ps09rp.alexlebens.dev" \
-            -addext "subjectAltName=DNS:ps09rp.alexlebens.dev,DNS:ps09rp"
+        trap "exit 0" TERM INT
+
+        copy_certs() {
+          cp -L /etc/letsencrypt/live/ps09rp.alexlebens.dev/fullchain.pem /var/lib/chrony/nts.crt
+          cp -L /etc/letsencrypt/live/ps09rp.alexlebens.dev/privkey.pem /var/lib/chrony/nts.key
+          chown -R 100:101 /var/lib/chrony
           chmod 600 /var/lib/chrony/nts.key
           chmod 644 /var/lib/chrony/nts.crt
-        else
-          echo "NTS certificate already exists, skipping generation"
-        fi
-        chown -R 100:101 /var/lib/chrony
-        chmod 700 /var/lib/chrony
-        echo "Done"
+          chmod 700 /var/lib/chrony
+        }
+
+        mkdir -p /var/lib/chrony /etc/letsencrypt
+
+        echo "dns_cloudflare_api_token = $${CLOUDFLARE_API_TOKEN}" > /tmp/cloudflare.ini
+        chmod 600 /tmp/cloudflare.ini
+
+        certbot certonly \
+          --dns-cloudflare \
+          --dns-cloudflare-credentials /tmp/cloudflare.ini \
+          --dns-cloudflare-propagation-seconds 20 \
+          --non-interactive \
+          --agree-tos \
+          --email alexanderlebens@gmail.com \
+          -d ps09rp.alexlebens.dev \
+          --keep-until-expiring
+
+        copy_certs
+        echo "Certificate ready"
+
+        while :; do
+          sleep 12h & wait $${!}
+          if certbot renew \
+            --dns-cloudflare \
+            --dns-cloudflare-credentials /tmp/cloudflare.ini \
+            --dns-cloudflare-propagation-seconds 20 \
+            --non-interactive; then
+            copy_certs
+          fi
+        done
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'test', '-f', '/var/lib/chrony/nts.crt']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 2s
     security_opt:
       - no-new-privileges:true
 
 volumes:
+  certbot-etc:
   chrony-data:
