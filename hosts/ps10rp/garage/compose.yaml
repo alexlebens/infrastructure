@@ -16,6 +16,10 @@ services:
     networks:
       internal: null
     restart: always
+    cap_drop:
+      - all
+    security_opt:
+      - no-new-privileges:true
 
   garage-ui:
     image: noooste/garage-ui:v0.12.1@sha256:0b68a9237da67a705f9bdb9127c8d56f38df7810f844bd6c25c3cd0d19d89795
@@ -35,6 +39,10 @@ services:
       traefik.http.routers.garage-webui.rule: Host(`garage-ui.lebens-home.net`)
       traefik.http.routers.garage-webui.service: garage-webui
       traefik.http.services.garage-webui.loadbalancer.server.port: 8080
+    cap_drop:
+      - all
+    security_opt:
+      - no-new-privileges:true
 
   tailscale-garage:
     image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
@@ -50,14 +58,17 @@ services:
     env_file:
       - path: .env
         required: false
-    networks:
-      internal: null
+    network_mode: service:garage
     restart: always
     cap_add:
       - net_admin
       - sys_module
+    cap_drop:
+      - all
     devices:
       - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - no-new-privileges:true
 
   tailscale-garage-ui:
     image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
@@ -78,8 +89,12 @@ services:
     cap_add:
       - net_admin
       - sys_module
+    cap_drop:
+      - all
     devices:
       - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - no-new-privileges:true
 
 networks:
   internal:
