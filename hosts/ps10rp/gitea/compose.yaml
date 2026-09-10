@@ -5,12 +5,12 @@ services:
     image: gitea/gitea:1.27.3@sha256:87a67ee09d3ae0d1df5fda5dcda3e2a1f9236a45b0a59025d6e00e46adc43bef
     container_name: gitea
     depends_on:
-      - postgresql
+      postgresql:
+        condition: service_healthy
     volumes:
       - gitea:/data
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
     environment:
+      - TZ=America/Chicago
       - GITEA__database__DB_TYPE=postgres
       - GITEA__database__HOST=gitea-postgres:5432
       - GITEA__database__NAME=gitea
@@ -19,7 +19,8 @@ services:
       - path: .env
         required: false
     networks:
-      internal: null
+      - internal
+      - db-isolated
     restart: always
     labels:
       traefik.enable: true
@@ -28,6 +29,8 @@ services:
       traefik.http.routers.gitea.rule: Host(`gitea.lebens-home.net`)
       traefik.http.routers.gitea.service: gitea
       traefik.http.services.gitea.loadbalancer.server.port: 3000
+    security_opt:
+      - no-new-privileges:true
 
   postgresql:
     image: postgres:18.1-alpine3.21@sha256:44d837eb4c2ed263474a95f0cc24745413c50924df60dd73ed6c4c3e36b84259
@@ -35,14 +38,23 @@ services:
     volumes:
       - postgresql18:/var/lib/postgresql
     environment:
+      - TZ=America/Chicago
       - POSTGRES_USER=gitea
       - POSTGRES_DB=gitea
     env_file:
       - path: .env
         required: false
     networks:
-      internal: null
+      - db-isolated
     restart: always
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
 
   tailscale-gitea:
     image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
@@ -50,7 +62,6 @@ services:
     volumes:
       - tailscale:/var/lib/tailscale
       - ${PWD}/serve.json:/config/serve.json
-
     environment:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_ENABLE_METRICS=true
@@ -64,13 +75,19 @@ services:
     cap_add:
       - net_admin
       - sys_module
+    cap_drop:
+      - all
     devices:
       - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - no-new-privileges:true
 
 networks:
   internal:
     name: internal
     external: true
+  db-isolated:
+    internal: true
 
 volumes:
   tailscale:
