@@ -1,24 +1,33 @@
 ---
+name: tailscale
 services:
   tailscale:
     image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
     container_name: tailscale-subnet
-    cap_add:
-      - net_admin
-      - sys_module
+    volumes:
+      - tailscale:/var/lib/tailscale
     environment:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_ENABLE_METRICS=true
       - TS_HOSTNAME=subnet-router-local-ps10rp
       - TS_ROUTES=192.168.5.0/24
       - TS_EXTRA_ARGS=--stateful-filtering=false --snat-subnet-routes=false
+    env_file:
+      - path: .env
+        required: false
     network_mode: host
-    privileged: true
     restart: always
-    volumes:
-      - tailscale:/var/lib/tailscale
+    cap_add:
+      - net_admin
+      - net_raw
+      - sys_module
+    cap_drop:
+      - all
     devices:
       - /dev/net/tun:/dev/net/tun
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   tailscale:
