@@ -4,24 +4,54 @@ services:
   chrony:
     image: dockurr/chrony:4.6.1@sha256:912631108d4ef9534aeeec82c15ef230f34de58b84573dd95e3237b276b29bcf
     container_name: chrony
+    depends_on:
+      chrony-init:
+        condition: service_completed_successfully
     volumes:
+      - ./chrony.conf:/etc/chrony/chrony.conf:ro
       - chrony-data:/var/lib/chrony
-    environment:
-      - NTP_SERVERS=time.cloudflare.com,time.netnod.se
-      - ENABLE_NTS=true
-      - TZ="America/Chicago"
-      - ALLOW=192.168.0.0/16,10.0.0.0/8
     ports:
       - '0.0.0.0:123:123/udp'
       - '0.0.0.0:4460:4460/tcp'
     restart: unless-stopped
     cap_add:
-      - SYS_TIME
+      - sys_time
+      - net_bind_service
     read_only: true
     security_opt:
       - no-new-privileges:true
     tmpfs:
       - /run:rw,noexec,nosuid,size=16M
+      - /tmp:rw,noexec,nosuid,size=16M
+      - /var/log/chrony:rw,noexec,nosuid,size=16M
+
+  chrony-init:
+    image: alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+    container_name: chrony-init
+    volumes:
+      - chrony-data:/var/lib/chrony
+    command:
+      - sh
+      - -c
+      - |
+        if [ ! -f /var/lib/chrony/nts.key ] || [ ! -f /var/lib/chrony/nts.crt ]; then
+          echo "Generating NTS TLS certificate..."
+          openssl req -x509 -newkey rsa:4096 \
+            -keyout /var/lib/chrony/nts.key \
+            -out /var/lib/chrony/nts.crt \
+            -days 3650 -nodes \
+            -subj "/CN=ps08rp.alexlebens.dev"
+          chmod 600 /var/lib/chrony/nts.key
+          echo "Done."
+        else
+          echo "NTS certificate already exists, skipping."
+        fi
+    cap_drop:
+      - all
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
       - /tmp:rw,noexec,nosuid,size=16M
 
 volumes:
