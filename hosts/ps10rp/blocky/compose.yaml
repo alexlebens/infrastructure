@@ -1,33 +1,34 @@
 ---
+name: blocky
 services:
+  blocky:
+    image: ghcr.io/0xerr0r/blocky:v0.35.0@sha256:4f165b63db0d76c96ecc47c7a8f57caeedc003a912bdce29abb0e283ce02e16b
+    container_name: blocky
+    volumes:
+      - ./config.yml:/app/config.yml
+    environment:
+      - TZ=America/Chicago
+    ports:
+      - '0.0.0.0:53:53/tcp'
+      - '0.0.0.0:53:53/udp'
+    restart: always
+
   tailscale-blocky:
     image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
     container_name: tailscale-blocky
-    cap_add:
-      - net_admin
-      - sys_module
+    volumes:
+      - tailscale:/var/lib/tailscale
     environment:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_ENABLE_METRICS=true
       - TS_HOSTNAME=blocky-ps10rp
     network_mode: service:blocky
     restart: always
-    volumes:
-      - tailscale:/var/lib/tailscale
+    cap_add:
+      - net_admin
+      - sys_module
     devices:
       - /dev/net/tun:/dev/net/tun
-
-  blocky:
-    image: ghcr.io/0xerr0r/blocky:v0.35.0@sha256:4f165b63db0d76c96ecc47c7a8f57caeedc003a912bdce29abb0e283ce02e16b
-    container_name: blocky
-    environment:
-      - TZ=America/Chicago
-    ports:
-      - 0.0.0.0:53:53/tcp
-      - 0.0.0.0:53:53/udp
-    restart: always
-    volumes:
-      - ./config.yml:/app/config.yml
 
 volumes:
   tailscale:
