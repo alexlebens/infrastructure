@@ -1,0 +1,210 @@
+apiVersion: psmdb.percona.com/v1
+kind: PerconaServerMongoDB
+metadata:
+  name: komodo-mongodb
+  namespace: komodo
+  labels:
+    app.kubernetes.io/name: komodo-mongodb
+    helm.sh/chart: komodo-mongodb-1.23.2
+    app.kubernetes.io/instance: komodo
+    app.kubernetes.io/version: "1.23.0"
+    app.kubernetes.io/managed-by: Helm
+  finalizers:
+    - percona.com/delete-psmdb-pods-in-order
+spec:
+  crVersion: 1.23.0
+  pause: false
+  unmanaged: false
+  enableVolumeExpansion: false
+  image: "percona/percona-server-mongodb:8.3.8"
+  imagePullPolicy: "Always"
+  unsafeFlags:
+    backupIfUnhealthy: false
+    mongosSize: false
+    replsetSize: false
+    terminationGracePeriod: false
+    tls: false
+  multiCluster:
+    enabled: false
+  secrets:
+    users: komodo-mongodb-secrets
+  updateStrategy: SmartUpdate
+  upgradeOptions:
+    versionServiceEndpoint: https://check.percona.com
+    apply: disabled
+    schedule: 0 2 * * *
+    setFCV: false
+  pmm:
+    enabled: false
+    image: "percona/pmm-client:3.8.1"
+    serverHost: monitoring-service
+  replsets:
+    - name: rs0
+      size: 3
+      affinity:
+        antiAffinityTopologyKey: kubernetes.io/hostname
+      sidecars:
+        - env:
+            - name: MONGODB_URI
+              value: mongodb://komodo:$(DB_PASSWORD)@127.0.0.1:27017/admin?ssl=false
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: komodo-mongodb-user-secret
+          image: percona/mongodb_exporter:0.53.0
+          name: mongodb-exporter
+          ports:
+            - containerPort: 9216
+              name: metrics
+      podDisruptionBudget:
+        maxUnavailable: 1
+      expose:
+        enabled: false
+        type: ClusterIP
+      resources:
+        limits:
+          cpu: 600m
+          memory: 1Gi
+        requests:
+          cpu: 300m
+          memory: 1Gi
+      volumeSpec:
+        persistentVolumeClaim:
+          resources:
+            requests:
+              storage: 10Gi
+          storageClassName: local-path
+      hidden:
+        enabled: false
+        size: 2
+        affinity:
+          antiAffinityTopologyKey: kubernetes.io/hostname
+        podDisruptionBudget:
+          maxUnavailable: 1
+        resources:
+          limits:
+            cpu: 600m
+            memory: 1Gi
+          requests:
+            cpu: 300m
+            memory: 1Gi
+        volumeSpec:
+          persistentVolumeClaim:
+            resources:
+              requests:
+                storage: 3Gi
+      nonvoting:
+        enabled: false
+        size: 3
+        affinity:
+          antiAffinityTopologyKey: kubernetes.io/hostname
+        podDisruptionBudget:
+          maxUnavailable: 1
+        resources:
+          limits:
+            cpu: 600m
+            memory: 1Gi
+          requests:
+            cpu: 300m
+            memory: 1Gi
+        volumeSpec:
+          persistentVolumeClaim:
+            resources:
+              requests:
+                storage: 3Gi
+      arbiter:
+        enabled: false
+        size: 1
+        affinity:
+          antiAffinityTopologyKey: kubernetes.io/hostname
+        resources:
+          limits:
+            cpu: 600m
+            memory: 1Gi
+          requests:
+            cpu: 300m
+            memory: 1Gi
+  sharding:
+    enabled: false
+    balancer:
+      enabled: true
+    configsvrReplSet:
+      size: 3
+      affinity:
+        antiAffinityTopologyKey: kubernetes.io/hostname
+      podDisruptionBudget:
+        maxUnavailable: 1
+      expose:
+        enabled: false
+        type: ClusterIP
+      resources:
+        limits:
+          cpu: 600m
+          memory: 1Gi
+        requests:
+          cpu: 300m
+          memory: 1Gi
+      volumeSpec:
+        persistentVolumeClaim:
+          resources:
+            requests:
+              storage: 3Gi
+    mongos:
+      size: 3
+      affinity:
+        antiAffinityTopologyKey: kubernetes.io/hostname
+      podDisruptionBudget:
+        maxUnavailable: 1
+      resources:
+        limits:
+          cpu: 600m
+          memory: 1Gi
+        requests:
+          cpu: 300m
+          memory: 1Gi
+      expose:
+        type: ClusterIP
+  users:
+    - db: admin
+      name: komodo
+      passwordSecretRef:
+        key: password
+        name: komodo-mongodb-user-secret
+      roles:
+        - db: komodo
+          name: readWrite
+        - db: komodo
+          name: dbAdmin
+        - db: admin
+          name: clusterMonitor
+        - db: local
+          name: read
+  backup:
+    enabled: true
+    image: "percona/percona-backup-mongodb:2.15.0"
+    storages:
+      garage-s3:
+        s3:
+          bucket: mongodb-backups
+          credentialsSecret: komodo-mongodb-backup-s3
+          endpointUrl: http://garage-cluster-a.garage-operator:3900
+          prefix: cl01tl/komodo
+          region: garage
+        type: s3
+    volumeMounts: []
+    pitr:
+      enabled: false
+    tasks:
+      - compressionType: gzip
+        enabled: true
+        name: daily-backup
+        schedule: 0 0 * * *
+        storageName: garage-s3
+  logcollector:
+    enabled: true
+    image: "percona/fluentbit:5.0.9-1"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 100M
