@@ -1,33 +1,46 @@
 ---
+name: node-exporter
 services:
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+    container_name: node-exporter
+    volumes:
+      - /:/rootfs:ro
+    command:
+      - --path.rootfs=/rootfs
+    restart: always
+    cap_drop:
+      - all
+    pid: host
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+
   tailscale-node-exporter:
     image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
     container_name: tailscale-node-exporter
-    cap_add:
-      - net_admin
-      - sys_module
+    volumes:
+      - tailscale:/var/lib/tailscale
+      - ${PWD}/serve.json:/config/serve.json:ro
     environment:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_ENABLE_METRICS=true
       - TS_HOSTNAME=node-exporter-ps10rp
       - TS_SERVE_CONFIG=/config/serve.json
+    env_file:
+      - path: .env
+        required: false
     network_mode: service:node-exporter
     restart: always
-    volumes:
-      - tailscale:/var/lib/tailscale
-      - ${PWD}/serve.json:/config/serve.json
+    cap_add:
+      - net_admin
+      - sys_module
+    cap_drop:
+      - all
     devices:
       - /dev/net/tun:/dev/net/tun
-
-  node-exporter:
-    image: quay.io/prometheus/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
-    container_name: node-exporter
-    command:
-      - --path.rootfs=/rootfs
-    pid: host
-    restart: always
-    volumes:
-      - /:/rootfs:ro
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   tailscale:
