@@ -1,33 +1,54 @@
 ---
+name: traefik
 services:
   tailscale-traefik:
     image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
     container_name: tailscale-traefik
-    cap_add:
-      - net_admin
-      - sys_module
+    volumes:
+      - tailscale:/var/lib/tailscale
+      - ${PWD}/serve.json:/config/serve.json:ro
     environment:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_ENABLE_METRICS=true
       - TS_HOSTNAME=traefik-ps10rp
-    #    - TS_SERVE_CONFIG=/config/serve.json
+      - TS_SERVE_CONFIG=/config/serve.json
+    env_file:
+      - path: .env
+        required: false
     network_mode: service:traefik
     restart: always
-    volumes:
-      - tailscale:/var/lib/tailscale
-      - ${PWD}/serve.json:/config/serve.json
+    cap_add:
+      - net_admin
+      - sys_module
+    cap_drop:
+      - all
     devices:
       - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - no-new-privileges:true
 
   traefik:
     image: ghcr.io/traefik/traefik:v3.7.13@sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259
     container_name: traefik
+    volumes:
+      - letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - '0.0.0.0:80:80'
+      - '0.0.0.0:443:443'
+    networks:
+      - internal
     command:
       - '--global.checkNewVersion=false'
       - '--global.sendAnonymousUsage=false'
       - '--api=true'
-      - '--api.insecure=false'
       - '--api.dashboard=true'
+      - '--api.insecure=false'
       - '--log.level=INFO'
       - '--providers.docker=true'
       - '--providers.docker.exposedbydefault=false'
@@ -54,28 +75,17 @@ services:
       - '--metrics.prometheus.addServicesLabels=true'
       - '--metrics.prometheus.entryPoint=metrics'
       - '--metrics.prometheus.manualRouting=true'
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    restart: always
     labels:
       traefik.enable: true
       traefik.docker.network: internal
-      traefik.http.routers.dashboard.entrypoints: web-secure
-      traefik.http.routers.dashboard.rule:
-        (Host(`traefik-ps10rp.lebens-home.net`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard/`)))
-      traefik.http.routers.dashboard.service: api@internal
-    networks:
-      internal: null
-    ports:
-      - 0.0.0.0:80:80
-      - 0.0.0.0:443:443
-    privileged: true
-    restart: always
-    volumes:
-      - letsencrypt:/letsencrypt
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    cap_add:
+      - net_bind_service
+    cap_drop:
+      - all
+    security_opt:
+      - no-new-privileges:true
 
 networks:
   internal:
