@@ -8,10 +8,34 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - CONTAINERS=1
+      - INFO=1
+      - VERSION=1
+      - PING=1
+      - EVENTS=1
       - POST=0
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - DISTRIBUTION=0
+      - EXEC=0
+      - GRPC=0
+      - IMAGES=0
+      - NETWORKS=0
+      - NODES=0
+      - PLUGINS=0
+      - SECRETS=0
+      - SERVICES=0
+      - SESSION=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=0
+      - VOLUMES=0
     network_mode: service:homepage
     restart: always
-    privileged: true
+    cap_drop:
+      - all
+    security_opt:
+      - no-new-privileges:true
 
   homepage:
     image: ghcr.io/gethomepage/homepage:v2.3.0@sha256:f820276654539cdc2cf0169f28188d135919a7984fad76d83d8d5ff1383f3705
@@ -19,6 +43,7 @@ services:
     volumes:
       - ${PWD}/homepage_config:/app/config
     environment:
+      - TZ=America/Chicago
       - HOMEPAGE_ALLOWED_HOSTS=www.lebens-home.net
     networks:
       - internal
@@ -30,6 +55,10 @@ services:
       traefik.http.routers.homepage.rule: Host(`www.lebens-home.net`)
       traefik.http.routers.homepage.service: homepage
       traefik.http.services.homepage.loadbalancer.server.port: 3000
+    cap_drop:
+      - all
+    security_opt:
+      - no-new-privileges:true
 
   tailscale-homepage:
     image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
@@ -41,7 +70,7 @@ services:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_ENABLE_METRICS=true
       - TS_HOSTNAME=home-ps10rp
-      - TS_SERVE_CONFIG=/config/serve.json
+      - TS_SERVE_CONFIG=/config/serve.json:ro
     env_file:
       - path: .env
         required: false
