@@ -1,9 +1,16 @@
 ---
 name: homepage
+
 services:
   dockerproxy:
     image: ghcr.io/tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
     container_name: homepage-dockerproxy
+    restart: unless-stopped
+    network_mode: service:homepage
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
@@ -30,61 +37,54 @@ services:
       - SYSTEM=0
       - TASKS=0
       - VOLUMES=0
-    network_mode: service:homepage
-    restart: always
-    cap_drop:
-      - all
-    security_opt:
-      - no-new-privileges:true
 
   homepage:
     image: ghcr.io/gethomepage/homepage:v2.3.0@sha256:f820276654539cdc2cf0169f28188d135919a7984fad76d83d8d5ff1383f3705
     container_name: homepage
+    restart: unless-stopped
+
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32M
     volumes:
-      - ${PWD}/homepage_config:/app/config
+      - ./homepage_config:/app/config:ro
     environment:
       - TZ=America/Chicago
       - HOMEPAGE_ALLOWED_HOSTS=www.lebens-home.net
     networks:
       - internal
-    restart: always
     labels:
-      traefik.enable: true
+      traefik.enable: 'true'
       traefik.docker.network: internal
       traefik.http.routers.homepage.entrypoints: web-secure
       traefik.http.routers.homepage.rule: Host(`www.lebens-home.net`)
       traefik.http.routers.homepage.service: homepage
-      traefik.http.services.homepage.loadbalancer.server.port: 3000
-    cap_drop:
-      - all
-    security_opt:
-      - no-new-privileges:true
+      traefik.http.services.homepage.loadbalancer.server.port: '3000'
 
   tailscale-homepage:
     image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
     container_name: tailscale-homepage
+    restart: unless-stopped
+    network_mode: service:homepage
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
     volumes:
       - tailscale:/var/lib/tailscale
-      - ${PWD}/serve.json:/config/serve.json
+      - ./serve.json:/config/serve.json:ro
     environment:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_ENABLE_METRICS=true
       - TS_HOSTNAME=home-ps10rp
-      - TS_SERVE_CONFIG=/config/serve.json:ro
+      - TS_SERVE_CONFIG=/config/serve.json
     env_file:
       - path: .env
         required: false
-    network_mode: service:homepage
-    restart: always
-    cap_add:
-      - net_admin
-      - sys_module
-    cap_drop:
-      - all
     devices:
       - /dev/net/tun:/dev/net/tun
-    security_opt:
-      - no-new-privileges:true
 
 networks:
   internal:
