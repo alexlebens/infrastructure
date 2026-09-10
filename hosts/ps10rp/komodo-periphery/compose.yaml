@@ -1,38 +1,47 @@
 ---
+name: komodo-periphery
 services:
+  komodo-periphery:
+    image: ghcr.io/moghtech/komodo-periphery:2.3.3@sha256:fa3f1a641a265216066676950d5eecdf506955a7bafe2f01996135ae93115cd5
+    container_name: komodo-periphery
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/proc:ro
+      - /etc/komodo:/etc/komodo
+      - keys:/config/keys
+    environment:
+      - TZ=America/Chicago
+    env_file:
+      - path: .komodo-env
+        required: false
+    restart: always
+    init: true
+    security_opt:
+      - no-new-privileges:true
+
   tailscale-komodo-periphery:
     image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
     container_name: tailscale-komodo-periphery
-    cap_add:
-      - net_admin
-      - sys_module
+    volumes:
+      - tailscale:/var/lib/tailscale
     environment:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_ENABLE_METRICS=true
       - TS_HOSTNAME=komodo-periphery-ps10rp
     env_file:
-      - .ts-env
+      - path: .env
+        required: false
     network_mode: service:komodo-periphery
     restart: always
-    volumes:
-      - tailscale:/var/lib/tailscale
+    cap_add:
+      - net_admin
+      - sys_module
+    cap_drop:
+      - all
     devices:
       - /dev/net/tun:/dev/net/tun
-
-  komodo-periphery:
-    image: ghcr.io/moghtech/komodo-periphery:2.3.3@sha256:fa3f1a641a265216066676950d5eecdf506955a7bafe2f01996135ae93115cd5
-    container_name: komodo-periphery
-    init: true
-    env_file:
-      - .komodo-env
-    environment:
-      - TZ=America/Chicago
-    restart: always
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /proc:/proc
-      - /etc/komodo:/etc/komodo
-      - keys:/config/keys
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   tailscale:

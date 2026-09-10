@@ -1,29 +1,11 @@
 ---
+name: ollama
 services:
-  tailscale-ollama:
-    image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
-    container_name: tailscale-ollama
-    cap_add:
-      - net_admin
-      - sys_module
-    environment:
-      - TS_STATE_DIR=/var/lib/tailscale
-      - TS_ENABLE_METRICS=true
-      - TS_HOSTNAME=ollama-pd05wd
-      - TS_SERVE_CONFIG=/config/serve.json
-    env_file:
-      - .ts-env
-    network_mode: service:ollama
-    restart: always
-    volumes:
-      - tailscale:/var/lib/tailscale
-      - ./serve.json:/config/serve.json
-    devices:
-      - /dev/net/tun:/dev/net/tun
-
   ollama:
     image: ollama/ollama:0.34.0@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
     container_name: ollama
+    volumes:
+      - ollama:/root/.ollama
     environment:
       - OLLAMA_KEEP_ALIVE=24h
       - OLLAMA_NUM_PARALLEL=1
@@ -38,8 +20,27 @@ services:
             - driver: nvidia
               capabilities: ['gpu']
               count: all
+
+  tailscale-ollama:
+    image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
+    container_name: tailscale-ollama
     volumes:
-      - ollama:/root/.ollama
+      - tailscale:/var/lib/tailscale
+      - ./serve.json:/config/serve.json
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_ENABLE_METRICS=true
+      - TS_HOSTNAME=ollama-pd05wd
+      - TS_SERVE_CONFIG=/config/serve.json
+    env_file:
+      - .ts-env
+    network_mode: service:ollama
+    restart: always
+    cap_add:
+      - net_admin
+      - sys_module
+    devices:
+      - /dev/net/tun:/dev/net/tun
 
 volumes:
   tailscale:

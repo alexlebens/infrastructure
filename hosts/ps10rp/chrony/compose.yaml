@@ -1,0 +1,28 @@
+---
+name: chrony
+services:
+  chrony:
+    image: dockurr/chrony:4.6.1@sha256:912631108d4ef9534aeeec82c15ef230f34de58b84573dd95e3237b276b29bcf
+    container_name: chrony
+    volumes:
+      - chrony-data:/var/lib/chrony
+    environment:
+      - NTP_SERVERS=time.cloudflare.com,pool.ntp.org
+      - ENABLE_NTS=true
+      - TZ="America/Chicago"
+      - ALLOW=192.168.0.0/16,10.0.0.0/8
+      - NOCLIENTLOG=true
+    ports:
+      - '0.0.0.0:123:123/udp'
+    restart: unless-stopped
+    cap_add:
+      - SYS_TIME
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /run:rw,noexec,nosuid,size=16M
+      - /tmp:rw,noexec,nosuid,size=16M
+
+volumes:
+  chrony-data:
