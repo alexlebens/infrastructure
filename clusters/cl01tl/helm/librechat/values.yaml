@@ -215,30 +215,6 @@ librechat:
                 periodSeconds: 10
                 timeoutSeconds: 5
                 failureThreshold: 3
-  service:
-    main:
-      controller: main
-      ports:
-        http:
-          port: 80
-          targetPort: 3080
-    litellm:
-      controller: litellm
-      ports:
-        http:
-          port: 4000
-  route:
-    main:
-      kind: HTTPRoute
-      parentRefs:
-        - name: traefik-gateway
-          namespace: traefik
-      hostnames:
-        - ai.alexlebens.dev
-      rules:
-        - backendRefs:
-            - name: librechat-main
-              port: 80
   configMaps:
     librechat-config:
       forceRename: librechat-config
@@ -326,7 +302,6 @@ librechat:
               env:
                 KARAKEEP_API_ADDR: "http://karakeep.karakeep.svc.cluster.local:3000"
                 KARAKEEP_API_KEY: "${KARAKEEP_API_KEY}"
-
     litellm-config:
       forceRename: litellm-config
       data:
@@ -357,7 +332,30 @@ librechat:
             json_logs: true
             ssl_verify: false
             sse_keepalive_ping_interval_seconds: 10
-
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+          targetPort: 3080
+    litellm:
+      controller: litellm
+      ports:
+        http:
+          port: 4000
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - ai.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: librechat-main
+              port: 80
   persistence:
     librechat-config:
       type: configMap
