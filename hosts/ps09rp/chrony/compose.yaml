@@ -32,6 +32,8 @@ services:
       - sh
       - -c
       - |
+        set -e
+        mkdir -p /var/lib/chrony
         if [ ! -f /var/lib/chrony/nts.key ] || [ ! -f /var/lib/chrony/nts.crt ]; then
           echo "Generating NTS TLS certificate..."
           apk add --no-cache openssl
@@ -40,13 +42,14 @@ services:
             -out /var/lib/chrony/nts.crt \
             -days 3650 -nodes \
             -subj "/CN=ps09rp.alexlebens.dev"
-          chmod 600 /var/lib/chrony/nts.key
-          echo "Done."
         else
-          echo "NTS certificate already exists, skipping."
+          echo "NTS certificate already exists, skipping generation"
         fi
-    cap_drop:
-      - all
+        chown -R 100:101 /var/lib/chrony
+        chmod 600 /var/lib/chrony/nts.key
+        chmod 644 /var/lib/chrony/nts.crt
+        chmod 700 /var/lib/chrony
+        echo "Done"
     security_opt:
       - no-new-privileges:true
 
