@@ -8,8 +8,14 @@ services:
       chrony-init:
         condition: service_completed_successfully
     volumes:
-      - ./chrony.conf:/etc/chrony/chrony.conf:ro
       - chrony-data:/var/lib/chrony
+    environment:
+      - NTP_SERVERS=time.cloudflare.com,ptbtime1.ptb.de
+      - ENABLE_NTS=true
+      - ENABLE_SYSCLK=true
+      - ALLOW=192.168.0.0/16,10.0.0.0/8
+      - NTP_DIRECTIVES=ntsserverkey /var/lib/chrony/nts.key,ntsservercert /var/lib/chrony/nts.crt,ntsdumpdir
+        /var/lib/chrony,rtcsync,makestep 1.0 3
     ports:
       - '0.0.0.0:123:123/udp'
       - '0.0.0.0:4460:4460/tcp'
@@ -41,7 +47,8 @@ services:
             -keyout /var/lib/chrony/nts.key \
             -out /var/lib/chrony/nts.crt \
             -days 3650 -nodes \
-            -subj "/CN=ps09rp.alexlebens.dev"
+            -subj "/CN=ps09rp.alexlebens.dev" \
+            -addext "subjectAltName=DNS:ps09rp.alexlebens.dev,DNS:ps09rp"
         else
           echo "NTS certificate already exists, skipping generation"
         fi
