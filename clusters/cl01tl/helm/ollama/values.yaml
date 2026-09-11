@@ -77,70 +77,102 @@ ollama:
                 initialDelaySeconds: 60
     router:
       type: deployment
-      replicas: 3
+      replicas: 2
       containers:
         main:
           image:
-            repository: haproxy
-            tag: 3.4.4-alpine@sha256:e37e968e65707ae577e3aaa09ee181b605dd8562beabe982dcd837f9fd5fdf83
+            repository: ghcr.io/berriai/litellm
+            tag: v1.100.1@sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf
+          args:
+            - "--config"
+            - "/etc/litellm/config.yaml"
+            - "--port"
+            - "11434"
           resources:
             requests:
-              cpu: 5m
-              memory: 20Mi
+              cpu: 20m
+              memory: 128Mi
           probes:
             liveness:
               enabled: true
               custom: true
               spec:
                 httpGet:
-                  path: /
-                  port: 8404
+                  path: /health/liveliness
+                  port: 11434
+                initialDelaySeconds: 30
+                periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 5
             readiness:
               enabled: true
               custom: true
               spec:
                 httpGet:
-                  path: /
-                  port: 8404
+                  path: /health/readiness
+                  port: 11434
+                initialDelaySeconds: 20
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
   configMaps:
     router:
       enabled: true
       forceRename: ollama-router
       data:
-        haproxy.cfg: |
-          global
-            log stdout format raw local0
+        config.yaml: |
+          model_list:
+            # Gemma 4:e4b
+            - model_name: gemma4:e4b
+              litellm_params:
+                model: ollama_chat/gemma4:e4b
+                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
+            - model_name: gemma4:e4b
+              litellm_params:
+                model: ollama_chat/gemma4:e4b
+                api_base: http://ollama-server.ollama.svc.cluster.local:11434
 
-          defaults
-            log global
-            mode tcp
-            option tcplog
-            timeout connect 5s
-            timeout client 10m
-            timeout server 10m
-            timeout tunnel 1h
+            # Embedding Gemma
+            - model_name: embeddinggemma:latest
+              litellm_params:
+                model: ollama/embeddinggemma:latest
+                api_base: http://ollama-server.ollama.svc.cluster.local:11434
+            - model_name: embeddinggemma:latest
+              litellm_params:
+                model: ollama/embeddinggemma:latest
+                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
 
-          frontend ollama
-            bind *:11434
-            default_backend ollama_servers
+            # Desktop models
+            - model_name: gemma4:12b
+              litellm_params:
+                model: ollama_chat/gemma4:12b
+                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
+            - model_name: qwen3:14b
+              litellm_params:
+                model: ollama_chat/qwen3:14b
+                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
+            - model_name: "*"
+              litellm_params:
+                model: ollama_chat/*
+                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
+            - model_name: "ollama/*"
+              litellm_params:
+                model: "ollama_chat/*"
+                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
 
-          backend ollama_servers
-            option httpchk GET /
-            server desktop ollama-pd05wd.boreal-beaufort.ts.net:443 ssl verify none sni str(ollama-pd05wd.boreal-beaufort.ts.net) check check-sni ollama-pd05wd.boreal-beaufort.ts.net inter 5s fall 2 rise 2 resolvers k8s
-            server-template cluster 3 ollama-headless.ollama.svc.cluster.local:11434 check backup resolvers k8s
+          router_settings:
+            routing_strategy: "least-busy"
+            num_retries: 2
+            timeout: 600
+            allowed_fails: 2
+            cooldown_time: 30
 
-          resolvers k8s
-            nameserver dns 10.96.0.10:53
-            accepted_payload_size 8192
-            hold valid 10s
-
-          frontend stats
-            bind *:8404
-            mode http
-            stats enable
-            stats uri /
-            stats refresh 5s
-            stats show-node
+          litellm_settings:
+            drop_params: true
+            set_verbose: false
+            json_logs: true
+            ssl_verify: false
+            sse_keepalive_ping_interval_seconds: 10
   service:
     server:
       controller: server
@@ -159,8 +191,6 @@ ollama:
       ports:
         http:
           port: 11434
-        stats:
-          port: 8404
   route:
     main:
       kind: HTTPRoute
@@ -180,6 +210,6 @@ ollama:
       advancedMounts:
         router:
           main:
-            - path: /usr/local/etc/haproxy/haproxy.cfg
-              subPath: haproxy.cfg
+            - path: /etc/litellm/config.yaml
+              subPath: config.yaml
               readOnly: true
