@@ -1,0 +1,147 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: librechat-valkey
+  labels:
+    helm.sh/chart: valkey-0.12.0
+    app.kubernetes.io/name: valkey
+    app.kubernetes.io/instance: librechat
+    app.kubernetes.io/version: "9.1.2"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  serviceName: librechat-valkey-headless
+  replicas: 3
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+      app.kubernetes.io/instance: librechat
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: valkey-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "ceph-block"
+        resources:
+          requests:
+            storage: "1Gi"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey
+        app.kubernetes.io/instance: librechat
+      annotations:
+        checksum/initconfig: "2acf7f162de4477579d0a8166929fa5e"
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: librechat-valkey
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: librechat-valkey-init
+          image: docker.io/valkey/valkey:9.1.2@sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          command: ["/scripts/init.sh"]
+          env:
+            - name: POD_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+          volumeMounts:
+            - name: valkey-data
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+      containers:
+        - name: librechat-valkey
+          image: docker.io/valkey/valkey:9.1.2@sha256:c123e3715db63d06d4ad6964884037aa0d5d4d703939b9929954112889708e1d
+          imagePullPolicy: IfNotPresent
+          command: ["valkey-server"]
+          args: ["/data/conf/valkey.conf"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          env:
+            - name: POD_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+            - name: VALKEY_LOG_LEVEL
+              value: "notice"
+          ports:
+            - name: tcp
+              containerPort: 6379
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+          startupProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          volumeMounts:
+            - name: valkey-data
+              mountPath: /data
+        - name: metrics
+          image: ghcr.io/oliver006/redis_exporter:v1.91.1@sha256:c67a432dba6b4ae30f471e3c77cf14a289133bbeeb89abb0bb03e6092efb2836
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - name: metrics
+              containerPort: 9121
+          startupProbe:
+            tcpSocket:
+              port: metrics
+          livenessProbe:
+            tcpSocket:
+              port: metrics
+          readinessProbe:
+            httpGet:
+              path: /
+              port: metrics
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10M
+          env:
+            - name: REDIS_ALIAS
+              value: librechat-valkey
+      volumes:
+        - name: scripts
+          configMap:
+            name: librechat-valkey-init-scripts
+            defaultMode: 0555
