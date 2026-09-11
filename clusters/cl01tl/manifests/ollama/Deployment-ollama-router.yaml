@@ -11,7 +11,7 @@ metadata:
   namespace: ollama
 spec:
   revisionHistoryLimit: 3
-  replicas: 3
+  replicas: 2
   strategy:
     type: Recreate
   selector:
@@ -22,7 +22,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/configMaps: 6c71a385e19b619af2a5bb0f3a3cdfba6bbd8abbc426d77c5f7bb6d3313dd4dc
+        checksum/configMaps: b919ee46fc9e390a9b04f7c60176a011d4e04da2f2251f192ac261f2679e58a4
       labels:
         app.kubernetes.io/controller: router
         app.kubernetes.io/instance: ollama
@@ -36,25 +36,38 @@ spec:
       hostPID: false
       dnsPolicy: ClusterFirst
       containers:
-        - image: haproxy:3.4.4-alpine@sha256:e37e968e65707ae577e3aaa09ee181b605dd8562beabe982dcd837f9fd5fdf83
+        - args:
+            - --config
+            - /etc/litellm/config.yaml
+            - --port
+            - "11434"
+          image: ghcr.io/berriai/litellm:v1.100.1@sha256:a3715fa7ad8387941ab697259bd2881d68931657247a41984f90fae6d11c62bf
           livenessProbe:
+            failureThreshold: 5
             httpGet:
-              path: /
-              port: 8404
+              path: /health/liveliness
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
           name: main
           readinessProbe:
+            failureThreshold: 3
             httpGet:
-              path: /
-              port: 8404
+              path: /health/readiness
+              port: 11434
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
           resources:
             requests:
-              cpu: 5m
-              memory: 20Mi
+              cpu: 20m
+              memory: 128Mi
           volumeMounts:
-            - mountPath: /usr/local/etc/haproxy/haproxy.cfg
+            - mountPath: /etc/litellm/config.yaml
               name: router-config
               readOnly: true
-              subPath: haproxy.cfg
+              subPath: config.yaml
       volumes:
         - configMap:
             name: ollama-router
