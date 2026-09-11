@@ -131,6 +131,21 @@ librechat:
                 secretKeyRef:
                   name: librechat-assets-key
                   key: secret-access-key
+            - name: USE_REDIS
+              value: "true"
+            - name: REDIS_URI
+              value: redis://librechat-valkey.librechat:6379
+            - name: SEARCH
+              value: "true"
+            - name: MEILI_HOST
+              value: http://librechat-meilisearch.librechat:7700
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-meilisearch-key
+                  key: MEILI_MASTER_KEY
+            - name: MEILI_NO_ANALYTICS
+              value: "true"
           resources:
             requests:
               cpu: 50m
@@ -462,3 +477,22 @@ garage-bucket-librechat-assets:
         schedule: 0 0 * * *
       destination:
         bucketName: librechat-assets
+meilisearch:
+  environment:
+    MEILI_NO_ANALYTICS: true
+    MEILI_ENV: production
+    MEILI_UPGRADE_DB: true
+    MEILI_EXPERIMENTAL_ENABLE_VECTOR_STORE: "true"
+    MEILI_EXPERIMENTAL_ENABLE_VECTOR_SEARCH: "true"
+  auth:
+    existingMasterKeySecret: librechat-meilisearch-key
+  persistence:
+    enabled: true
+    storageClass: ceph-block
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 1m
+      memory: 50Mi
+  serviceMonitor:
+    enabled: true
