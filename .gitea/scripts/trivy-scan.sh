@@ -145,15 +145,32 @@ else
     [
       .Results[]? as $r |
       ($r.Misconfigurations // [])[]? |
-      "| " +
-      (if .Severity == "CRITICAL" then "🔴 **CRITICAL**"
-       elif .Severity == "HIGH" then "🟠 **HIGH**"
-       elif .Severity == "MEDIUM" then "🟡 **MEDIUM**"
-       else "⚪ " + .Severity end) +
-      " | [`" + .ID + "`](" + (.PrimaryURL // ("https://avd.aquasec.com/appshield/" + (.ID | ascii_downcase))) + ") | `" +
-      ($r.Target // .Title // "manifest") + "` | " +
-      ((.Title // .Message // "") | gsub("\r?\n"; " ") | gsub("\\|"; "/")) + " |"
-    ] | join("\n")
+      {
+        target: ($r.Target // .Title // "manifest"),
+        misconfig: .
+      }
+    ]
+    | sort_by(
+        (if .misconfig.Severity == "CRITICAL" then 0
+         elif .misconfig.Severity == "HIGH" then 1
+         elif .misconfig.Severity == "MEDIUM" then 2
+         elif .misconfig.Severity == "LOW" then 3
+         else 4 end),
+        .target,
+        .misconfig.ID
+      )
+    | map(
+        .misconfig as $m |
+        "| " +
+        (if $m.Severity == "CRITICAL" then "🔴 **CRITICAL**"
+         elif $m.Severity == "HIGH" then "🟠 **HIGH**"
+         elif $m.Severity == "MEDIUM" then "🟡 **MEDIUM**"
+         else "⚪ " + $m.Severity end) +
+        " | [`" + $m.ID + "`](" + ($m.PrimaryURL // ("https://avd.aquasec.com/appshield/" + ($m.ID | ascii_downcase))) + ") | `" +
+        .target + "` | " +
+        (($m.Title // $m.Message // "") | gsub("\r?\n"; " ") | gsub("\\|"; "/")) + " |"
+      )
+    | join("\n")
   ' "${REPORT_JSON}" 2>/dev/null || true)
 
   MARKDOWN_REPORT="${MARKDOWN_REPORT}
