@@ -1,0 +1,33 @@
+{{- $probers := .Values.probers }}
+{{- range $categoryName, $probe := .Values.probes }}
+{{- $targetProbers := $probe.probers | default (keys $probers) }}
+{{- range $proberName := $targetProbers }}
+{{- $proberUrl := index $probers $proberName }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: blackbox-{{ $proberName }}-{{ $categoryName | replace "_" "-" }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: blackbox-{{ $proberName }}-{{ $categoryName | replace "_" "-" }}
+    probe.category: {{ $categoryName }}
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  prober:
+    url: {{ $proberUrl }}
+  module: {{ $probe.module }}
+  targets:
+    staticConfig:
+      labels:
+        probe_category: {{ $categoryName }}
+      static:
+{{- range $target := $probe.targets }}
+  {{- if kindIs "map" $target }}
+        - {{ $target.url }}
+  {{- else }}
+        - {{ $target }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
