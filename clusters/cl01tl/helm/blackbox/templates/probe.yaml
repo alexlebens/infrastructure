@@ -1,128 +1,33 @@
-{{- range $prober := .Values.blackboxProbes.probers }}
-{{- if $prober.targets2xx }}
+{{- $probers := .Values.probers }}
+{{- range $categoryName, $probe := .Values.probes }}
+{{- $targetProbers := $probe.probers | default (keys $probers) }}
+{{- range $proberName := $targetProbers }}
+{{- $proberUrl := index $probers $proberName }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: Probe
 metadata:
-  name: blackbox-{{ $prober.name }}-http-2xx
+  name: blackbox-{{ $proberName }}-{{ $categoryName | replace "_" "-" }}
   namespace: {{ $.Release.Namespace }}
   labels:
-    app.kubernetes.io/name: blackbox-{{ $prober.name }}-http-2xx
+    app.kubernetes.io/name: blackbox-{{ $proberName }}-{{ $categoryName | replace "_" "-" }}
+    probe.category: {{ $categoryName }}
     {{- include "custom.labels" $ | nindent 4 }}
 spec:
   prober:
-    url: {{ $prober.url }}
-  module: http_2xx
+    url: {{ $proberUrl }}
+  module: {{ $probe.module }}
   targets:
     staticConfig:
+      labels:
+        probe_category: {{ $categoryName }}
       static:
-{{- range $prober.targets2xx }}
-        - {{ . }}
-{{- end }}
-{{- end }}
-{{- if $prober.targets401 }}
----
-apiVersion: monitoring.coreos.com/v1
-kind: Probe
-metadata:
-  name: blackbox-{{ $prober.name }}-http-401
-  namespace: {{ $.Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: blackbox-{{ $prober.name }}-http-401
-    {{- include "custom.labels" $ | nindent 4 }}
-spec:
-  prober:
-    url: {{ $prober.url }}
-  module: http_401
-  targets:
-    staticConfig:
-      static:
-{{- range $prober.targets401 }}
-        - {{ . }}
-{{- end }}
-{{- end }}
-{{- if $prober.targets401Insecure }}
----
-apiVersion: monitoring.coreos.com/v1
-kind: Probe
-metadata:
-  name: blackbox-{{ $prober.name }}-http-401-insecure
-  namespace: {{ $.Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: blackbox-{{ $prober.name }}-http-401-insecure
-    {{- include "custom.labels" $ | nindent 4 }}
-spec:
-  prober:
-    url: {{ $prober.url }}
-  module: http_401_insecure
-  targets:
-    staticConfig:
-      static:
-{{- range $prober.targets401Insecure }}
-        - {{ . }}
-{{- end }}
-{{- end }}
-{{- if $prober.targetsTcp }}
----
-apiVersion: monitoring.coreos.com/v1
-kind: Probe
-metadata:
-  name: blackbox-{{ $prober.name }}-tcp-connect
-  namespace: {{ $.Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: blackbox-{{ $prober.name }}-tcp-connect
-    {{- include "custom.labels" $ | nindent 4 }}
-spec:
-  prober:
-    url: {{ $prober.url }}
-  module: tcp_connect
-  targets:
-    staticConfig:
-      static:
-{{- range $prober.targetsTcp }}
-        - {{ . }}
-{{- end }}
-{{- end }}
-{{- if $prober.targetsTls }}
----
-apiVersion: monitoring.coreos.com/v1
-kind: Probe
-metadata:
-  name: blackbox-{{ $prober.name }}-tcp-tls
-  namespace: {{ $.Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: blackbox-{{ $prober.name }}-tcp-tls
-    {{- include "custom.labels" $ | nindent 4 }}
-spec:
-  prober:
-    url: {{ $prober.url }}
-  module: tcp_tls
-  targets:
-    staticConfig:
-      static:
-{{- range $prober.targetsTls }}
-        - {{ . }}
-{{- end }}
-{{- end }}
-{{- if $prober.targetsYoutubeTv }}
----
-apiVersion: monitoring.coreos.com/v1
-kind: Probe
-metadata:
-  name: blackbox-{{ $prober.name }}-youtube-tv
-  namespace: {{ $.Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: blackbox-{{ $prober.name }}-youtube-tv
-    {{- include "custom.labels" $ | nindent 4 }}
-spec:
-  prober:
-    url: {{ $prober.url }}
-  module: youtube_samsung_tv
-  targets:
-    staticConfig:
-      static:
-{{- range $prober.targetsYoutubeTv }}
-        - {{ . }}
+{{- range $target := $probe.targets }}
+  {{- if kindIs "map" $target }}
+        - {{ $target.url }}
+  {{- else }}
+        - {{ $target }}
+  {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

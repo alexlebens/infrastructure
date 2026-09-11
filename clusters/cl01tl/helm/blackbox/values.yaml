@@ -65,65 +65,135 @@ prometheus-blackbox-exporter-cloudflare:
       enabled: true
   prometheusRule:
     enabled: false
-blackboxProbes:
-  alexDevTargets2xx: &alexDevTargets2xx
-    - http://ps02sn-bond.alexlebens.dev
-    - http://ps08rp.alexlebens.dev:9100
-    - http://ps09rp.alexlebens.dev:9100
-    - http://ps08rp.alexlebens.dev:9115
-    - http://ps09rp.alexlebens.dev:9115
-    - http://ps08rp.alexlebens.dev:12345
-    - http://ps09rp.alexlebens.dev:12345
-    - http://ps08rp.alexlebens.dev:9199
-    - http://dv01hr.alexlebens.dev
-    - https://dv02kv.alexlebens.dev/login/
-    - https://unifi.alexlebens.dev
-    - https://synology.alexlebens.dev
-    - http://synology-bond.alexlebens.dev
-    - http://hdhr.alexlebens.dev
-    - https://pikvm.alexlebens.dev/login/
-    - http://it01ag.alexlebens.dev:9926
-    - http://it02ph.alexlebens.dev
-    - http://it03tb.alexlebens.dev
-    - http://it04tb.alexlebens.dev
-    - http://it05sp.alexlebens.dev
-    - http://airgradient.alexlebens.dev:9926
-  alexDevTargets401Insecure: &alexDevTargets401Insecure
-    - https://cl01tl.alexlebens.dev:6443
-    - https://cl01tl-api.alexlebens.dev:6443
-    - https://cl01tl-endpoint.alexlebens.dev:10250
-  alexDevTargetsTcp: &alexDevTargetsTcp
-    - ps08rp.alexlebens.dev:53
-    - ps09rp.alexlebens.dev:53
-    - ps08rp.alexlebens.dev:3493
-    - ps09rp.alexlebens.dev:8554
-    - cl01tl.alexlebens.dev:50000
-    - cl01tl-endpoint.alexlebens.dev:50000
-  alexDevTargetsTls: &alexDevTargetsTls
-    - ps08rp.alexlebens.dev:4460
-    - ps09rp.alexlebens.dev:4460
-  probers:
-    - name: ps08rp
-      url: ps08rp.alexlebens.dev:9115
-      targets2xx: *alexDevTargets2xx
-      targets401Insecure: *alexDevTargets401Insecure
-      targetsTcp: *alexDevTargetsTcp
-      targetsTls: *alexDevTargetsTls
-    - name: ps09rp
-      url: ps09rp.alexlebens.dev:9115
-      targets2xx: *alexDevTargets2xx
-      targets401Insecure: *alexDevTargets401Insecure
-      targetsTcp: *alexDevTargetsTcp
-      targetsTls: *alexDevTargetsTls
-    - name: ps10rp
-      url: blackbox-exporter-ps10rp.boreal-beaufort.ts.net:9115
-      targets2xx:
-        - https://gitea.lebens-home.net
-        - https://garage-ui.lebens-home.net
-        - https://www.lebens-home.net
-        - http://printer.lebens-home.net
-      targets401: []
-      targetsTcp:
-        - ps10rp.lebens-home.net:53
-      targetsYoutubeTv:
-        - https://www.youtube.com/tv
+probers:
+  ps08rp: ps08rp.alexlebens.dev:9115
+  ps09rp: ps09rp.alexlebens.dev:9115
+  ps10rp: blackbox-exporter-ps10rp.boreal-beaufort.ts.net:9115
+probes:
+  hardware:
+    module: http_2xx
+    probers:
+      - ps08rp
+      - ps09rp
+    targets:
+      - name: unifi
+        url: https://unifi.alexlebens.dev
+      - name: pikvm
+        url: https://pikvm.alexlebens.dev/login/
+      - name: dv02kv-pikvm
+        url: https://dv02kv.alexlebens.dev/login/
+      - name: synology
+        url: https://synology.alexlebens.dev
+      - name: synology-bond
+        url: http://synology-bond.alexlebens.dev
+      - name: ps02sn-bond
+        url: http://ps02sn-bond.alexlebens.dev
+      - name: hdhr
+        url: http://hdhr.alexlebens.dev
+      - name: dv01hr
+        url: http://dv01hr.alexlebens.dev
+  iot:
+    module: http_2xx
+    probers:
+      - ps08rp
+      - ps09rp
+    targets:
+      - name: airgradient-it01ag
+        url: http://it01ag.alexlebens.dev:9926
+      - name: airgradient
+        url: http://airgradient.alexlebens.dev:9926
+      - name: philips-hue-it02ph
+        url: http://it02ph.alexlebens.dev
+      - name: it03tb
+        url: http://it03tb.alexlebens.dev
+      - name: it04tb
+        url: http://it04tb.alexlebens.dev
+      - name: it05sp
+        url: http://it05sp.alexlebens.dev
+  host_daemons_http:
+    module: http_2xx
+    probers:
+      - ps08rp
+      - ps09rp
+    targets:
+      - name: ps08rp-node-exporter
+        url: http://ps08rp.alexlebens.dev:9100
+      - name: ps09rp-node-exporter
+        url: http://ps09rp.alexlebens.dev:9100
+      - name: ps08rp-blackbox-exporter
+        url: http://ps08rp.alexlebens.dev:9115
+      - name: ps09rp-blackbox-exporter
+        url: http://ps09rp.alexlebens.dev:9115
+      - name: ps08rp-alloy
+        url: http://ps08rp.alexlebens.dev:12345
+      - name: ps09rp-alloy
+        url: http://ps09rp.alexlebens.dev:12345
+      - name: ps08rp-ups-exporter
+        url: http://ps08rp.alexlebens.dev:9199
+  cluster_nodes:
+    module: http_401_insecure
+    probers:
+      - ps08rp
+      - ps09rp
+    targets:
+      - name: apiserver
+        url: https://cl01tl.alexlebens.dev:6443
+      - name: apiserver-vip
+        url: https://cl01tl-api.alexlebens.dev:6443
+      - name: kubelet-workers
+        url: https://cl01tl-endpoint.alexlebens.dev:10250
+  services_tcp:
+    module: tcp_connect
+    probers:
+      - ps08rp
+      - ps09rp
+    targets:
+      - name: ps08rp-blocky-dns
+        url: ps08rp.alexlebens.dev:53
+      - name: ps09rp-blocky-dns
+        url: ps09rp.alexlebens.dev:53
+      - name: ps08rp-nut-server
+        url: ps08rp.alexlebens.dev:3493
+      - name: ps09rp-mediamtx
+        url: ps09rp.alexlebens.dev:8554
+      - name: cl01tl-talos-api
+        url: cl01tl.alexlebens.dev:50000
+      - name: cl01tl-endpoint-talos-api
+        url: cl01tl-endpoint.alexlebens.dev:50000
+  services_tls:
+    module: tcp_tls
+    probers:
+      - ps08rp
+      - ps09rp
+    targets:
+      - name: ps08rp-syncthing
+        url: ps08rp.alexlebens.dev:4460
+      - name: ps09rp-syncthing
+        url: ps09rp.alexlebens.dev:4460
+  remote_home_http:
+    module: http_2xx
+    probers:
+      - ps10rp
+    targets:
+      - name: gitea
+        url: https://gitea.lebens-home.net
+      - name: garage-ui
+        url: https://garage-ui.lebens-home.net
+      - name: home-web
+        url: https://www.lebens-home.net
+      - name: printer
+        url: http://printer.lebens-home.net
+  remote_home_tcp:
+    module: tcp_connect
+    probers:
+      - ps10rp
+    targets:
+      - name: ps10rp-blocky-dns
+        url: ps10rp.lebens-home.net:53
+  remote_home_youtube_tv:
+    module: youtube_samsung_tv
+    probers:
+      - ps10rp
+    targets:
+      - name: youtube-samsung-tv
+        url: https://www.youtube.com/tv
