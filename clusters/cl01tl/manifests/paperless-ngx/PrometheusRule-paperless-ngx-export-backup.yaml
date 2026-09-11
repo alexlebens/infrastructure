@@ -5,10 +5,10 @@ metadata:
   namespace: paperless-ngx
   labels:
     app.kubernetes.io/name: paperless-ngx-export-backup
-    helm.sh/chart: volsync-target-export-2.3.1
+    helm.sh/chart: volsync-target-export-2.4.0
     app.kubernetes.io/instance: paperless-ngx
     app.kubernetes.io/part-of: paperless-ngx
-    app.kubernetes.io/version: "2.3.1"
+    app.kubernetes.io/version: "2.4.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -16,14 +16,18 @@ spec:
       rules:
         - alert: VolSyncBackupPodFailed
           expr: |
-            (kube_pod_status_phase{namespace="paperless-ngx", phase="Failed", pod=~"volsync-.*paperless-ngx-export-backup-.*"} == 1)
-            * on(namespace, pod) group_left(owner_name)
-            kube_pod_owner{namespace="paperless-ngx", owner_kind="Job", owner_name=~"volsync-.*paperless-ngx-export-backup-.*"}
+            sum by (namespace) (
+              (kube_pod_status_phase{namespace="paperless-ngx", phase="Failed", pod=~"volsync-.*paperless-ngx-export-backup-.*"} == 1)
+              * on(namespace, pod) group_left(owner_name)
+              kube_pod_owner{namespace="paperless-ngx", owner_kind="Job", owner_name=~"volsync-.*paperless-ngx-export-backup-.*"}
+            ) > 0
+          keep_firing_for: 10m
           labels:
             severity: critical
+            pvc: paperless-ngx-export
           annotations:
             summary: "VolSync backup pod failed in {{ $labels.namespace }}"
             description: |
-              VolSync backup pod '{{ $labels.pod }}' for PVC 'paperless-ngx-export' failed.
-              Job: {{ $labels.owner_name }}
+              {{ $value }} VolSync backup pod(s) failed for PVC 'paperless-ngx-export'.
+              Target: paperless-ngx-export-backup
               Namespace: {{ $labels.namespace }}
