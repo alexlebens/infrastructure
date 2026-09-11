@@ -5,10 +5,10 @@ metadata:
   namespace: languagetool
   labels:
     app.kubernetes.io/name: languagetool-data-backup
-    helm.sh/chart: volsync-target-data-2.3.1
+    helm.sh/chart: volsync-target-data-2.4.0
     app.kubernetes.io/instance: languagetool
     app.kubernetes.io/part-of: languagetool
-    app.kubernetes.io/version: "2.3.1"
+    app.kubernetes.io/version: "2.4.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -16,14 +16,18 @@ spec:
       rules:
         - alert: VolSyncBackupPodFailed
           expr: |
-            (kube_pod_status_phase{namespace="languagetool", phase="Failed", pod=~"volsync-.*languagetool-data-backup-.*"} == 1)
-            * on(namespace, pod) group_left(owner_name)
-            kube_pod_owner{namespace="languagetool", owner_kind="Job", owner_name=~"volsync-.*languagetool-data-backup-.*"}
+            sum by (namespace) (
+              (kube_pod_status_phase{namespace="languagetool", phase="Failed", pod=~"volsync-.*languagetool-data-backup-.*"} == 1)
+              * on(namespace, pod) group_left(owner_name)
+              kube_pod_owner{namespace="languagetool", owner_kind="Job", owner_name=~"volsync-.*languagetool-data-backup-.*"}
+            ) > 0
+          keep_firing_for: 10m
           labels:
             severity: critical
+            pvc: languagetool-data
           annotations:
             summary: "VolSync backup pod failed in {{ $labels.namespace }}"
             description: |
-              VolSync backup pod '{{ $labels.pod }}' for PVC 'languagetool-data' failed.
-              Job: {{ $labels.owner_name }}
+              {{ $value }} VolSync backup pod(s) failed for PVC 'languagetool-data'.
+              Target: languagetool-data-backup
               Namespace: {{ $labels.namespace }}

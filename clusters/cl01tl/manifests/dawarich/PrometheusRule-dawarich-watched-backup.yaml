@@ -5,10 +5,10 @@ metadata:
   namespace: dawarich
   labels:
     app.kubernetes.io/name: dawarich-watched-backup
-    helm.sh/chart: volsync-target-watched-2.3.1
+    helm.sh/chart: volsync-target-watched-2.4.0
     app.kubernetes.io/instance: dawarich
     app.kubernetes.io/part-of: dawarich
-    app.kubernetes.io/version: "2.3.1"
+    app.kubernetes.io/version: "2.4.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -16,14 +16,18 @@ spec:
       rules:
         - alert: VolSyncBackupPodFailed
           expr: |
-            (kube_pod_status_phase{namespace="dawarich", phase="Failed", pod=~"volsync-.*dawarich-watched-backup-.*"} == 1)
-            * on(namespace, pod) group_left(owner_name)
-            kube_pod_owner{namespace="dawarich", owner_kind="Job", owner_name=~"volsync-.*dawarich-watched-backup-.*"}
+            sum by (namespace) (
+              (kube_pod_status_phase{namespace="dawarich", phase="Failed", pod=~"volsync-.*dawarich-watched-backup-.*"} == 1)
+              * on(namespace, pod) group_left(owner_name)
+              kube_pod_owner{namespace="dawarich", owner_kind="Job", owner_name=~"volsync-.*dawarich-watched-backup-.*"}
+            ) > 0
+          keep_firing_for: 10m
           labels:
             severity: critical
+            pvc: dawarich-watched
           annotations:
             summary: "VolSync backup pod failed in {{ $labels.namespace }}"
             description: |
-              VolSync backup pod '{{ $labels.pod }}' for PVC 'dawarich-watched' failed.
-              Job: {{ $labels.owner_name }}
+              {{ $value }} VolSync backup pod(s) failed for PVC 'dawarich-watched'.
+              Target: dawarich-watched-backup
               Namespace: {{ $labels.namespace }}
