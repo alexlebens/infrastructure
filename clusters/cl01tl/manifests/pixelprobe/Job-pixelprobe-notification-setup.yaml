@@ -1,0 +1,106 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pixelprobe-notification-setup
+  namespace: pixelprobe
+  labels:
+    app.kubernetes.io/name: pixelprobe-notification-setup
+    app.kubernetes.io/instance: pixelprobe
+    app.kubernetes.io/part-of: pixelprobe
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "argocd.argoproj.io/hook": PostSync
+    "argocd.argoproj.io/hook-delete-policy": BeforeHookCreation,HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 120
+  activeDeadlineSeconds: 300
+  backoffLimit: 3
+  template:
+    metadata:
+      name: pixelprobe-notification-setup
+      labels:
+        app.kubernetes.io/name: pixelprobe-notification-setup
+        app.kubernetes.io/instance: pixelprobe
+        app.kubernetes.io/part-of: pixelprobe
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: setup-ntfy-notifications
+          image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+          command:
+            - /bin/sh
+            - -c
+            - |
+              API_URL="http://pixelprobe.pixelprobe:80"
+              AUTH_HEADER="X-Internal-Secret: $INTERNAL_API_SECRET"
+
+              echo ">> Waiting for PixelProbe API to be ready..."
+              until wget -q -O /dev/null "$API_URL/healthz"; do
+                sleep 2
+              done
+              echo ">> PixelProbe API is ready!"
+
+              # Create ntfy provider if it doesn't already exist
+              PROVIDER_ID=$(wget -q -O - --header="$AUTH_HEADER" "$API_URL/api/notifications/providers" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+              if [ -z "$PROVIDER_ID" ]; then
+                echo ">> Creating ntfy provider..."
+                PROVIDER_ID=$(wget -q -O - \
+                  --header="$AUTH_HEADER" \
+                  --header="Content-Type: application/json" \
+                  --post-data='{"name":"ntfy","provider_type":"ntfy","is_active":true,"configuration":{"server_url":"'"$NTFY_SERVER_URL"'","topic":"'"$NTFY_TOPIC"'","token":"'"$NTFY_TOKEN"'"}}' \
+                  "$API_URL/api/notifications/providers" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+              else
+                echo ">> ntfy provider already exists (id=$PROVIDER_ID)"
+              fi
+
+              # Create rules for key events if missing
+              EXISTING_RULES=$(wget -q -O - --header="$AUTH_HEADER" "$API_URL/api/notifications/rules")
+              for EVENT in corruption_found bitrot_suspected scan_failed scan_missed scan_complete; do
+                if ! echo "$EXISTING_RULES" | grep -q "\"event_type\":\"$EVENT\""; then
+                  PRIORITY="normal"
+                  case "$EVENT" in corruption_found|bitrot_suspected|scan_failed) PRIORITY="high" ;; esac
+                  echo ">> Adding rule for $EVENT ($PRIORITY priority)..."
+                  wget -q -O /dev/null \
+                    --header="$AUTH_HEADER" \
+                    --header="Content-Type: application/json" \
+                    --post-data="{\"provider_id\": $PROVIDER_ID, \"event_type\": \"$EVENT\", \"priority\": \"$PRIORITY\", \"is_active\": true}" \
+                    "$API_URL/api/notifications/rules"
+                fi
+              done
+
+              echo ">> Notification configuration completed successfully!"
+          env:
+            - name: INTERNAL_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: pixelprobe-secret
+                  key: secret-key
+            - name: NTFY_SERVER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pixelprobe-ntfy
+                  key: internal-endpoint
+            - name: NTFY_TOPIC
+              valueFrom:
+                secretKeyRef:
+                  name: pixelprobe-ntfy
+                  key: topic
+            - name: NTFY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: pixelprobe-ntfy
+                  key: token
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+            limits:
+              cpu: 100m
+              memory: 50Mi

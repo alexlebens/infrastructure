@@ -36,6 +36,16 @@ spec:
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - jellyfin
+              topologyKey: kubernetes.io/hostname
       containers:
         - command:
             - python
@@ -89,6 +99,11 @@ spec:
                 secretKeyRef:
                   key: secret-key
                   name: pixelprobe-secret
+            - name: INTERNAL_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: secret-key
+                  name: pixelprobe-secret
             - name: SCAN_PATHS
               value: /mnt/store
             - name: EXCLUDED_PATHS
@@ -98,7 +113,7 @@ spec:
             - name: ENABLE_MONITORING
               value: "true"
             - name: TRUSTED_INTERNAL_HOSTS
-              value: ntfy.ntfy,ntfy.alexlebens.dev
+              value: ntfy.ntfy,ntfy.ntfy.svc.cluster.local,ntfy.alexlebens.dev
           image: ttlequals0/pixelprobe:2.8.11@sha256:36d355c4dcdd09e144457e98775bc4cbbdf9690d94fe682d5c5b73a0de32b85a
           name: main
           resources:
@@ -106,8 +121,8 @@ spec:
               cpu: 1000m
               memory: 8000Mi
             requests:
-              cpu: 500m
-              memory: 2000Mi
+              cpu: 100m
+              memory: 300Mi
           volumeMounts:
             - mountPath: /media
               name: media
