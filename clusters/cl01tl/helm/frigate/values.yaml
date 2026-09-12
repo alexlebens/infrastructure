@@ -11,7 +11,7 @@ frigate:
         main:
           image:
             repository: ghcr.io/blakeblackshear/frigate
-            tag: 0.17.2@sha256:06e48c72f5af2887eafff09a4c53e8df9238827ae9e8df811cbdeaab1c7a4330
+            tag: 0.18.0@sha256:b1f339cf08ae9148b0fac4295cf59f8e158455f6e72d29af32b773a3d8129851
           env:
             - name: TZ
               value: America/Chicago
@@ -20,6 +20,11 @@ frigate:
                 secretKeyRef:
                   name: frigate-secrets
                   key: rtsp-password
+            - name: FRIGATE_LITELLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: frigate-secrets
+                  key: litellm-api-key
             - name: FRIGATE_TAPO_USER
               valueFrom:
                 secretKeyRef:
@@ -150,6 +155,31 @@ frigate:
           auth:
             enabled: false
 
+          genai:
+            ollama:
+              provider: openai
+              base_url: http://ollama-router.ollama:11434/v1
+              api_key: "{FRIGATE_LITELLM_API_KEY}"
+              model: gemma4:e4b
+              roles:
+                - descriptions
+                - chat
+              provider_options:
+                context_size: 8192
+
+          semantic_search:
+            enabled: True
+            model: "jinav1"
+            model_size: small
+
+          review:
+            genai:
+              enabled: true
+
+          objects:
+            genai:
+              enabled: true
+
           mqtt:
             enabled: false
 
@@ -188,6 +218,8 @@ frigate:
               default: 30
 
           go2rtc:
+            ffmpeg:
+              global: "-vaapi_device /dev/dri/renderD128"
             streams:
               tapo_c200:
                 - rtsp://{FRIGATE_TAPO_USER}:{FRIGATE_TAPO_PASSWORD}@it06cm.alexlebens.dev:554/stream1
