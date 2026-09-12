@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Parse optional command-line flags
 CHART="${CHART:-}"
-MANIFEST_FILE=""
+CLUSTER="${CLUSTER:-cl01tl}"
+MANIFEST_PATH="${MANIFEST_PATH:-}"
 IGNORE_ERRORS="${IGNORE_ERRORS:-garage-bucket,GarageBucket,namespaces .* not found}"
 
 while [[ $# -gt 0 ]]; do
@@ -12,8 +13,12 @@ while [[ $# -gt 0 ]]; do
       CHART="$2"
       shift 2
       ;;
-    --manifest)
-      MANIFEST_FILE="$2"
+    --cluster)
+      CLUSTER="$2"
+      shift 2
+      ;;
+    --manifest|--manifest-path|--manifest-dir)
+      MANIFEST_PATH="$2"
       shift 2
       ;;
     --ignore-errors)
@@ -21,7 +26,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: $0 [--chart <chart>] [--manifest <file>] [--ignore-errors <comma-separated-patterns>]"
+      echo "Usage: $0 [--chart <chart>] [--cluster <cluster>] [--manifest <file|dir>] [--ignore-errors <comma-separated-patterns>]"
       echo "Performs server-side API dry-run validation using kubectl."
       exit 0
       ;;
@@ -32,19 +37,21 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [ -z "${CHART}" ] && [ -z "${MANIFEST_FILE}" ]; then
+if [ -z "${CHART}" ] && [ -z "${MANIFEST_PATH}" ]; then
   echo "Error: --chart (or CHART env var) or --manifest is required." >&2
   exit 1
 fi
 
-MANIFEST_FILE="${MANIFEST_FILE:-rendered-raw/${CHART}.yaml}"
+if [ -z "${MANIFEST_PATH}" ]; then
+  MANIFEST_PATH="clusters/${CLUSTER}/manifests/${CHART}"
+fi
 
-if [ ! -f "${MANIFEST_FILE}" ]; then
-  echo "Error: Manifest file '${MANIFEST_FILE}' not found." >&2
+if [ ! -e "${MANIFEST_PATH}" ]; then
+  echo "Error: Manifest path '${MANIFEST_PATH}' not found." >&2
   exit 1
 fi
 
-echo ">> Running server-side dry-run for: ${CHART:-$(basename "${MANIFEST_FILE}")}"
+echo ">> Running server-side dry-run for: ${CHART:-$(basename "${MANIFEST_PATH}")}"
 
 check_ignored() {
   local output="$1"
@@ -70,8 +77,22 @@ check_ignored() {
 }
 
 set +e
-APPLY_OUTPUT=$(kubectl apply --server-side --force-conflicts --dry-run=server -f <(yq 'select(.metadata.annotations."helm.sh/hook" == null)' "${MANIFEST_FILE}") 2>&1)
-EXIT_CODE=$?
+if [ -d "${MANIFEST_PATH}" ]; then
+  shopt -s nullglob
+  MANIFEST_FILES=("${MANIFEST_PATH}"/*.yaml)
+  shopt -u nullglob
+
+  if [ ${#MANIFEST_FILES[@]} -eq 0 ]; then
+    echo ">> No manifest files found in ${MANIFEST_PATH}. Skipping validation."
+    exit 0
+  fi
+
+  APPLY_OUTPUT=$(kubectl apply --server-side --force-conflicts --dry-run=server -f <(yq 'select(.metadata.annotations."helm.sh/hook" == null)' "${MANIFEST_FILES[@]}") 2>&1)
+  EXIT_CODE=$?
+else
+  APPLY_OUTPUT=$(kubectl apply --server-side --force-conflicts --dry-run=server -f <(yq 'select(.metadata.annotations."helm.sh/hook" == null)' "${MANIFEST_PATH}") 2>&1)
+  EXIT_CODE=$?
+fi
 set -e
 
 echo "${APPLY_OUTPUT}"
