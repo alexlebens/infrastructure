@@ -59,6 +59,11 @@ pixelprobe:
                 secretKeyRef:
                   name: pixelprobe-secret
                   key: secret-key
+            - name: INTERNAL_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: pixelprobe-secret
+                  key: secret-key
             - name: SCAN_PATHS
               value: /mnt/store
             - name: EXCLUDED_PATHS
@@ -68,7 +73,7 @@ pixelprobe:
             - name: ENABLE_MONITORING
               value: true
             - name: TRUSTED_INTERNAL_HOSTS
-              value: ntfy.ntfy,ntfy.alexlebens.dev
+              value: ntfy.ntfy,ntfy.ntfy.svc.cluster.local,ntfy.alexlebens.dev
           resources:
             requests:
               cpu: 50m
@@ -145,6 +150,16 @@ pixelprobe:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+        affinity:
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - jellyfin
+                topologyKey: kubernetes.io/hostname
       containers:
         main:
           image:
@@ -202,6 +217,11 @@ pixelprobe:
                 secretKeyRef:
                   name: pixelprobe-secret
                   key: secret-key
+            - name: INTERNAL_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: pixelprobe-secret
+                  key: secret-key
             - name: SCAN_PATHS
               value: /mnt/store
             - name: EXCLUDED_PATHS
@@ -211,14 +231,14 @@ pixelprobe:
             - name: ENABLE_MONITORING
               value: true
             - name: TRUSTED_INTERNAL_HOSTS
-              value: ntfy.ntfy,ntfy.alexlebens.dev
+              value: ntfy.ntfy,ntfy.ntfy.svc.cluster.local,ntfy.alexlebens.dev
           resources:
             limits:
               cpu: 1000m
               memory: 8000Mi
             requests:
-              cpu: 500m
-              memory: 2000Mi
+              cpu: 100m
+              memory: 300Mi
   service:
     main:
       controller: main
@@ -264,7 +284,7 @@ pixelprobe:
             - path: /media
               readOnly: true
 postgres-18-cluster:
-  mode: standalone
+  mode: recovery
   recovery:
     objectStore:
       index: 1

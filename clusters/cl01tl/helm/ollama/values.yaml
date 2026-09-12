@@ -25,6 +25,13 @@ ollama:
                       values:
                         - server
                 topologyKey: kubernetes.io/hostname
+              - labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - jellyfin
+                topologyKey: kubernetes.io/hostname
       initContainers:
         init-models:
           image:
@@ -101,6 +108,12 @@ ollama:
                   key: uri
             - name: UI_USERNAME
               value: "admin"
+            - name: REDIS_URL
+              value: redis://ollama-valkey.ollama:6379/0
+            - name: REDIS_HOST
+              value: ollama-valkey.ollama
+            - name: REDIS_PORT
+              value: "6379"
           resources:
             requests:
               cpu: 20m
@@ -202,6 +215,9 @@ ollama:
 
           router_settings:
             routing_strategy: "least-busy"
+            redis_url: os.environ/REDIS_URL
+            redis_host: os.environ/REDIS_HOST
+            redis_port: 6379
             num_retries: 2
             timeout: 600
             allowed_fails: 2
