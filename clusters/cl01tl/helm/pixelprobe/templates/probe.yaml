@@ -1,0 +1,36 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: blackbox-cl01tl-{{ $.Release.Namespace }}-http-2xx
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: blackbox-cl01tl-{{ $.Release.Namespace }}-http-2xx
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  prober:
+    url: {{ include "custom.blackboxUrl" . }}
+  module: http_2xx
+  targets:
+    staticConfig:
+      static:
+        - http://pixelprobe.{{ $.Release.Namespace }}:80/healthz
+
+{{- range $prober := list "ps08rp" "ps09rp" }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: blackbox-{{ $prober }}-{{ $.Release.Namespace }}-http-2xx
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: blackbox-{{ $prober }}-{{ $.Release.Namespace }}-http-2xx
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  prober:
+    url: {{ $prober }}{{ include "custom.domain" $ }}:9115
+  module: http_2xx
+  targets:
+    staticConfig:
+      static:
+        - https://{{ index $.Values.pixelprobe.route.main.hostnames 0 }}
+{{- end }}
