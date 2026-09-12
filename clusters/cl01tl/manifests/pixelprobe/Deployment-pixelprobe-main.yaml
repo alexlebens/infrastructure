@@ -1,0 +1,156 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pixelprobe-main
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: pixelprobe
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: pixelprobe
+    helm.sh/chart: pixelprobe-5.1.0
+  namespace: pixelprobe
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: pixelprobe
+      app.kubernetes.io/instance: pixelprobe
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: pixelprobe
+        app.kubernetes.io/name: pixelprobe
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: pixelprobe
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: PORT
+              value: "5000"
+            - name: SCHEDULER_ENABLED
+              value: "false"
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: pixelprobe-postgresql-18-cluster-app
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: pixelprobe-postgresql-18-cluster-app
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: pixelprobe-postgresql-18-cluster-app
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: pixelprobe-postgresql-18-cluster-app
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: pixelprobe-postgresql-18-cluster-app
+            - name: CELERY_BROKER_URL
+              value: redis://pixelprobe-valkey.pixelprobe:6379/0
+            - name: CELERY_RESULT_BACKEND
+              value: redis://pixelprobe-valkey.pixelprobe:6379/0
+            - name: REDIS_MAX_MEMORY
+              value: 1gb
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-key
+                  name: pixelprobe-secret
+            - name: SCAN_PATHS
+              value: /mnt/store
+            - name: EXCLUDED_PATHS
+              value: /mnt/store/Kwix,/mnt/store/slskd,/mnt/store/tmp,/mnt/store/Torrent,/mnt/store/TubeArchivist
+            - name: MAX_WORKERS
+              value: "10"
+            - name: ENABLE_MONITORING
+              value: "true"
+            - name: TRUSTED_INTERNAL_HOSTS
+              value: ntfy.ntfy,ntfy.alexlebens.dev
+          image: ttlequals0/pixelprobe:2.8.11@sha256:36d355c4dcdd09e144457e98775bc4cbbdf9690d94fe682d5c5b73a0de32b85a
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5000
+          name: main
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 5000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 300Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /healthz
+              port: 5000
+            periodSeconds: 5
+          volumeMounts:
+            - mountPath: /media
+              name: media
+              readOnly: true
+        - env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:5000
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_SET_XAUTHREQUEST
+              value: "true"
+            - name: OAUTH2_PROXY_PASS_USER_HEADERS
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: '*'
+          envFrom:
+            - secretRef:
+                name: pixelprobe-oauth-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4@sha256:b1b2021fe8f4004573e8d690dec6c7bb29cc44364572cf8510a05bf3a0ae2ded
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+          name: oauth
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4180
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: pixelprobe-nfs-storage
