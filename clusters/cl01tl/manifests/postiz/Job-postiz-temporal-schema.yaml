@@ -1,14 +1,15 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
+  namespace: "postiz"
   name: postiz-temporal-schema
   labels:
     app.kubernetes.io/component: database
     app.kubernetes.io/name: temporal
-    helm.sh/chart: temporal-1.6.0
+    helm.sh/chart: temporal-1.7.0
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/instance: postiz
-    app.kubernetes.io/version: "1.31.2"
+    app.kubernetes.io/version: "1.32.0"
     app.kubernetes.io/part-of: temporal
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
@@ -24,17 +25,17 @@ spec:
       labels:
         app.kubernetes.io/component: database
         app.kubernetes.io/name: temporal
-        helm.sh/chart: temporal-1.6.0
+        helm.sh/chart: temporal-1.7.0
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/instance: postiz
-        app.kubernetes.io/version: "1.31.2"
+        app.kubernetes.io/version: "1.32.0"
         app.kubernetes.io/part-of: temporal
     spec:
       serviceAccountName: default
       restartPolicy: OnFailure
       initContainers:
         - name: create-default-store
-          image: "temporalio/admin-tools:1.31.2"
+          image: "temporalio/admin-tools:1.32.0"
           imagePullPolicy: IfNotPresent
           command: ['temporal-sql-tool', 'create-database']
           env:
@@ -56,7 +57,7 @@ spec:
             - name: SQL_TLS
               value: "false"
         - name: manage-schema-default-store
-          image: "temporalio/admin-tools:1.31.2"
+          image: "temporalio/admin-tools:1.32.0"
           imagePullPolicy: IfNotPresent
           command: ['sh', '-c']
           args:
@@ -80,11 +81,8 @@ spec:
             - name: SQL_TLS
               value: "false"
           volumeMounts:
-            - name: shims
-              mountPath: /usr/local/sbin/temporal-elasticsearch-tool
-              subPath: temporal-elasticsearch-tool
         - name: create-visibility-store
-          image: "temporalio/admin-tools:1.31.2"
+          image: "temporalio/admin-tools:1.32.0"
           imagePullPolicy: IfNotPresent
           command: ['temporal-sql-tool', 'create-database']
           env:
@@ -106,7 +104,7 @@ spec:
             - name: SQL_TLS
               value: "false"
         - name: manage-schema-visibility-store
-          image: "temporalio/admin-tools:1.31.2"
+          image: "temporalio/admin-tools:1.32.0"
           imagePullPolicy: IfNotPresent
           command: ['sh', '-c']
           args:
@@ -130,16 +128,8 @@ spec:
             - name: SQL_TLS
               value: "false"
           volumeMounts:
-            - name: shims
-              mountPath: /usr/local/sbin/temporal-elasticsearch-tool
-              subPath: temporal-elasticsearch-tool
       containers:
         - name: done
-          image: "temporalio/admin-tools:1.31.2"
+          image: "temporalio/admin-tools:1.32.0"
           imagePullPolicy: IfNotPresent
           command: ['sh', '-c', 'echo "Store setup completed"']
-      volumes:
-        - name: shims
-          configMap:
-            name: "postiz-temporal-shims"
-            defaultMode: 0555
