@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pixelprobe-worker
+  labels:
+    app.kubernetes.io/controller: worker
+    app.kubernetes.io/instance: pixelprobe
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: pixelprobe
+    helm.sh/chart: pixelprobe-5.1.0
+  namespace: pixelprobe
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: worker
+      app.kubernetes.io/name: pixelprobe
+      app.kubernetes.io/instance: pixelprobe
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: worker
+        app.kubernetes.io/instance: pixelprobe
+        app.kubernetes.io/name: pixelprobe
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: pixelprobe
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - command:
+            - python
+            - celery_worker.py
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: SCHEDULER_ENABLED
+              value: "true"
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: pixelprobe-postgresql-18-cluster-app
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: pixelprobe-postgresql-18-cluster-app
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: pixelprobe-postgresql-18-cluster-app
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: pixelprobe-postgresql-18-cluster-app
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: pixelprobe-postgresql-18-cluster-app
+            - name: CELERY_BROKER_URL
+              value: redis://pixelprobe-valkey.pixelprobe:6379/0
+            - name: CELERY_RESULT_BACKEND
+              value: redis://pixelprobe-valkey.pixelprobe:6379/0
+            - name: CELERY_CONCURRENCY
+              value: "4"
+            - name: CELERY_LOG_LEVEL
+              value: INFO
+            - name: REDIS_MAX_MEMORY
+              value: 1gb
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-key
+                  name: pixelprobe-secret
+            - name: SCAN_PATHS
+              value: /mnt/store
+            - name: EXCLUDED_PATHS
+              value: /mnt/store/Kwix,/mnt/store/slskd,/mnt/store/tmp,/mnt/store/Torrent,/mnt/store/TubeArchivist
+            - name: MAX_WORKERS
+              value: "10"
+            - name: ENABLE_MONITORING
+              value: "true"
+            - name: TRUSTED_INTERNAL_HOSTS
+              value: ntfy.ntfy,ntfy.alexlebens.dev
+          image: ttlequals0/pixelprobe:2.8.11@sha256:36d355c4dcdd09e144457e98775bc4cbbdf9690d94fe682d5c5b73a0de32b85a
+          name: main
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 8000Mi
+            requests:
+              cpu: 500m
+              memory: 2000Mi
+          volumeMounts:
+            - mountPath: /media
+              name: media
+              readOnly: true
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: pixelprobe-nfs-storage
