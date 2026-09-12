@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: "postiz"
   name: postiz-temporal-history
   annotations:
   labels:
     app.kubernetes.io/component: history
     app.kubernetes.io/name: temporal
-    helm.sh/chart: temporal-1.6.0
+    helm.sh/chart: temporal-1.7.0
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/instance: postiz
-    app.kubernetes.io/version: "1.31.2"
+    app.kubernetes.io/version: "1.32.0"
     app.kubernetes.io/part-of: temporal
 spec:
-  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: temporal
@@ -21,7 +21,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: c01e30af9483b1e092ddf12fa2d6b80d2a8920ff65172a093cd8db866092481d
+        checksum/config: 2dd5c83803327c7d504b1201222e354dc1add88fe252fd2df55487f1443ef2ec
         prometheus.io/job: temporal-history
         prometheus.io/scrape: 'true'
         prometheus.io/scheme: http
@@ -29,10 +29,10 @@ spec:
       labels:
         app.kubernetes.io/component: history
         app.kubernetes.io/name: temporal
-        helm.sh/chart: temporal-1.6.0
+        helm.sh/chart: temporal-1.7.0
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/instance: postiz
-        app.kubernetes.io/version: "1.31.2"
+        app.kubernetes.io/version: "1.32.0"
         app.kubernetes.io/part-of: temporal
     spec:
       serviceAccountName: default
@@ -41,7 +41,7 @@ spec:
         runAsUser: 1000
       containers:
         - name: temporal-history
-          image: "temporalio/server:1.31.2"
+          image: "temporalio/server:1.32.0"
           imagePullPolicy: IfNotPresent
           env:
             - name: POD_IP
@@ -87,18 +87,11 @@ spec:
               subPath: config_template.yaml
             - name: dynamic-config
               mountPath: /etc/temporal/dynamic_config
-            - name: shims
-              mountPath: /usr/local/bin/dockerize
-              subPath: dockerize
           resources:
             requests:
               cpu: 10m
               memory: 200Mi
       volumes:
-        - name: shims
-          configMap:
-            name: "postiz-temporal-shims"
-            defaultMode: 0555
         - name: config
           configMap:
             name: "postiz-temporal-config"
