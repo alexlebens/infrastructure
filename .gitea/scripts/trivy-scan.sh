@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Parse optional command-line flags
 CHART="${CHART:-}"
 CLUSTER="${CLUSTER:-cl01tl}"
-MANIFEST_FILE=""
+MANIFEST_PATH="${MANIFEST_PATH:-}"
 FAIL_ON="${FAIL_ON:-CRITICAL}"
 GITEA_TOKEN="${GITEA_TOKEN:-}"
 PR_NUMBER="${PR_NUMBER:-}"
@@ -28,8 +28,8 @@ while [[ $# -gt 0 ]]; do
       MAIN_DIR="$2"
       shift 2
       ;;
-    --manifest)
-      MANIFEST_FILE="$2"
+    --manifest|--manifest-path|--manifest-dir)
+      MANIFEST_PATH="$2"
       shift 2
       ;;
     --ignorefile)
@@ -49,7 +49,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: $0 [--chart <chart>] [--cluster <cluster>] [--main-dir <dir>] [--manifest <file>] [--ignorefile <file>] [--fail-on <CRITICAL|HIGH>] [--gitea-token <token>] [--pr-number <num>]"
+      echo "Usage: $0 [--chart <chart>] [--cluster <cluster>] [--main-dir <dir>] [--manifest <file|dir>] [--ignorefile <file>] [--fail-on <CRITICAL|HIGH>] [--gitea-token <token>] [--pr-number <num>]"
       echo "Runs Trivy misconfiguration scan on rendered manifests, publishes advisory summary and PR comments, and enforces severity gate."
       exit 0
       ;;
@@ -60,15 +60,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [ -z "${CHART}" ] && [ -z "${MANIFEST_FILE}" ]; then
+if [ -z "${CHART}" ] && [ -z "${MANIFEST_PATH}" ]; then
   echo "Error: --chart (or CHART env var) or --manifest is required." >&2
   exit 1
 fi
 
-MANIFEST_FILE="${MANIFEST_FILE:-rendered-raw/${CHART}.yaml}"
+if [ -z "${MANIFEST_PATH}" ]; then
+  MANIFEST_PATH="clusters/${CLUSTER}/manifests/${CHART}"
+fi
 
-if [ ! -f "${MANIFEST_FILE}" ]; then
-  echo "Error: Manifest file '${MANIFEST_FILE}' not found." >&2
+if [ ! -e "${MANIFEST_PATH}" ]; then
+  echo "Error: Manifest path '${MANIFEST_PATH}' not found." >&2
   exit 1
 fi
 
@@ -96,14 +98,14 @@ if [ -z "${IGNORE_FILE}" ]; then
   fi
 fi
 
-echo ">> Running Trivy scan for: ${CHART:-$(basename "${MANIFEST_FILE}")} ..."
+echo ">> Running Trivy scan for: ${CHART:-$(basename "${MANIFEST_PATH}")} ..."
 
 # Generate machine-readable JSON in a single pass
 if [ -n "${IGNORE_FILE}" ] && [ -f "${IGNORE_FILE}" ]; then
   echo ">> Using ignore file: ${IGNORE_FILE}"
-  trivy config --ignorefile "${IGNORE_FILE}" "${MANIFEST_FILE}" --format json > "${REPORT_JSON}" 2>/dev/null || true
+  trivy config --ignorefile "${IGNORE_FILE}" "${MANIFEST_PATH}" --format json > "${REPORT_JSON}" 2>/dev/null || true
 else
-  trivy config "${MANIFEST_FILE}" --format json > "${REPORT_JSON}" 2>/dev/null || true
+  trivy config "${MANIFEST_PATH}" --format json > "${REPORT_JSON}" 2>/dev/null || true
 fi
 
 # Parse findings from JSON report in a single pass

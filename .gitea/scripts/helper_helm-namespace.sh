@@ -2,7 +2,7 @@
 # Sourceable helper — resolves the Kubernetes namespace for a given Helm chart name.
 #
 # Charts with non-standard namespace mappings are defined here in a single location
-# to keep helm-render-manifests.sh and helm-render-templates.sh in sync.
+# used by helm-render.sh.
 #
 # Usage:
 #   source helm-namespace.sh

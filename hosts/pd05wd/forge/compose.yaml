@@ -1,14 +1,14 @@
 ---
-name: invoke-ai
+name: forge
 services:
-  invoke-ai:
-    image: ghcr.io/invoke-ai/invokeai:main-cuda@sha256:6d4c2edc3013ce7001008707722620bc7306325c4de59620ac470aa63e80448b
-    container_name: invoke-ai
+  forge:
+    build: .
+    container_name: forge
     volumes:
-      - ./invokeai:/invokeai
-    environment:
-      - INVOKEAI_ROOT=~/invokeai
-      - INVOKEAI_DEVICE=cuda
+      - ./models:/workspace/forge/models
+      - ./outputs:/workspace/forge/outputs
+      - ./extensions:/workspace/forge/extensions
+      - ./cache:/home/forge/.cache
     restart: always
     deploy:
       resources:
@@ -18,20 +18,20 @@ services:
               capabilities: ['gpu']
               count: all
 
-  tailscale-invoke-ai:
+  tailscale-forge:
     image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
-    container_name: tailscale-invoke-ai
+    container_name: tailscale-forge
     volumes:
       - tailscale:/var/lib/tailscale
       - ./serve.json:/config/serve.json
     environment:
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_ENABLE_METRICS=true
-      - TS_HOSTNAME=invoke-ai-pd05wd
+      - TS_HOSTNAME=forge-pd05wd
       - TS_SERVE_CONFIG=/config/serve.json
     env_file:
       - .ts-env
-    network_mode: service:invoke-ai
+    network_mode: service:forge
     restart: always
     cap_add:
       - net_admin

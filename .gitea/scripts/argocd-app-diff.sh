@@ -61,7 +61,6 @@ case "${CHART}" in
     ;;
 esac
 
-TEMP_COPIED="false"
 APP_PATH=""
 DIFF_FILE="$(mktemp)"
 ERR_FILE="$(mktemp)"
@@ -78,9 +77,6 @@ cleanup() {
   if [ -f .gitignore.bak ]; then
     rm -f .gitignore
     mv .gitignore.bak .gitignore
-  fi
-  if [ "${TEMP_COPIED}" = "true" ] && [ -n "${APP_PATH}" ]; then
-    rm -rf "${APP_PATH}"
   fi
   rm -f "${DIFF_FILE:-}" "${ERR_FILE:-}" "${APP_CONFIG:-}" "${APP_CONFIG_ERR:-}"
 }
@@ -110,14 +106,11 @@ else
 fi
 
 if [ "${IS_NEW_APP}" = "false" ]; then
-  LOCAL_CHART_PATH="clusters/${CLUSTER}/helm/${CHART}"
+  MANIFEST_PATH="clusters/${CLUSTER}/manifests/${CHART}"
 
-  if [ -n "${APP_PATH}" ] && [ "${APP_PATH}" != "${LOCAL_CHART_PATH}" ] && [ "${APP_PATH}" != "null" ]; then
-    echo ">> Live ArgoCD App expects path '${APP_PATH}', but local path is '${LOCAL_CHART_PATH}'."
-    echo ">> Temporarily mirroring directory so local diff succeeds ..."
-    mkdir -p "$(dirname "${APP_PATH}")"
-    cp -r "${LOCAL_CHART_PATH}" "${APP_PATH}"
-    TEMP_COPIED="true"
+  if [ ! -d "${MANIFEST_PATH}" ]; then
+    echo ">> Manifest directory '${MANIFEST_PATH}' not found for ${CHART}." >&2
+    exit 1
   fi
 
   # Temporarily hide .git and .gitignore so argocd packages everything without exclusions
@@ -136,7 +129,7 @@ if [ "${IS_NEW_APP}" = "false" ]; then
   DIFF_EXIT=$?
   set -e
 
-  # Restore git repository and mirror directory immediately after diff completes
+  # Restore git repository and gitignore immediately after diff completes
   if [ -d .git.bak ]; then
     rm -rf .git
     mv .git.bak .git
@@ -144,10 +137,6 @@ if [ "${IS_NEW_APP}" = "false" ]; then
   if [ -f .gitignore.bak ]; then
     rm -f .gitignore
     mv .gitignore.bak .gitignore
-  fi
-  if [ "${TEMP_COPIED}" = "true" ] && [ -n "${APP_PATH}" ]; then
-    rm -rf "${APP_PATH}"
-    TEMP_COPIED="false"
   fi
 
   if [ ${DIFF_EXIT} -ne 0 ]; then
