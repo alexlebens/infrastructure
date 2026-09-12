@@ -1,0 +1,43 @@
+---
+name: forge
+services:
+  forge:
+    build: .
+    container_name: forge
+    volumes:
+      - ./models:/workspace/forge/models
+      - ./outputs:/workspace/forge/outputs
+      - ./extensions:/workspace/forge/extensions
+      - ./cache:/root/.cache
+    restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ['gpu']
+              count: all
+
+  tailscale-forge:
+    image: ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680
+    container_name: tailscale-forge
+    volumes:
+      - tailscale:/var/lib/tailscale
+      - ./serve.json:/config/serve.json
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_ENABLE_METRICS=true
+      - TS_HOSTNAME=forge-pd05wd
+      - TS_SERVE_CONFIG=/config/serve.json
+    env_file:
+      - .ts-env
+    network_mode: service:forge
+    restart: always
+    cap_add:
+      - net_admin
+      - sys_module
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+volumes:
+  tailscale:
