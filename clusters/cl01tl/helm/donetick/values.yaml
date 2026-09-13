@@ -1,0 +1,194 @@
+donetick:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: donetick/donetick
+            tag: v0.1.79@sha256:a1cc21dd5a37acb5009009f13e5d2529153049361afb0a1cd94bde312382d36a
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: DT_ENV
+              value: selfhosted
+            - name: DT_SERVER_PORT
+              value: "2021"
+            - name: DT_SERVER_PUBLIC_HOST
+              value: https://donetick.alexlebens.dev
+            - name: DT_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: donetick-key
+                  key: jwt-secret
+            - name: DT_DATABASE_TYPE
+              value: postgres
+            - name: DT_DATABASE_MIGRATION
+              value: "true"
+            - name: DT_DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: donetick-postgresql-18-cluster-app
+                  key: host
+            - name: DT_DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: donetick-postgresql-18-cluster-app
+                  key: port
+            - name: DT_DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: donetick-postgresql-18-cluster-app
+                  key: user
+            - name: DT_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: donetick-postgresql-18-cluster-app
+                  key: password
+            - name: DT_DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: donetick-postgresql-18-cluster-app
+                  key: dbname
+            - name: DT_STORAGE_STORAGE_TYPE
+              value: s3
+            - name: DT_STORAGE_BUCKET_NAME
+              value: donetick-assets
+            - name: DT_STORAGE_ENDPOINT
+              value: https://a.s3.alexlebens.dev
+            - name: DT_STORAGE_PATH_STYLE
+              value: "true"
+            - name: DT_STORAGE_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: donetick-assets-key
+                  key: region
+            - name: DT_STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: donetick-assets-key
+                  key: access-key-id
+            - name: DT_STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: donetick-assets-key
+                  key: secret-access-key
+            - name: DT_EMAIL_PROVIDER
+              value: smtp
+            - name: DT_EMAIL_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: DT_EMAIL_PORT
+              value: "587"
+            - name: DT_EMAIL_EMAIL
+              value: donetick@alexlebens.dev
+            - name: DT_EMAIL_USER
+              value: donetick@alexlebens.dev
+            - name: DT_OAUTH2_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: donetick-oidc-secret
+                  key: clientId
+            - name: DT_OAUTH2_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: donetick-oidc-secret
+                  key: clientSecret
+            - name: DT_OAUTH2_NAME
+              value: "Pocket ID"
+            - name: DT_OAUTH2_AUTH_URL
+              value: https://auth.alexlebens.dev/authorize
+            - name: DT_OAUTH2_TOKEN_URL
+              value: https://auth.alexlebens.dev/api/oidc/token
+            - name: DT_OAUTH2_USER_INFO_URL
+              value: https://auth.alexlebens.dev/api/oidc/userinfo
+            - name: DT_OAUTH2_REDIRECT_URL
+              value: https://donetick.alexlebens.dev/authenticating/oauth2
+            - name: DT_OAUTH2_SCOPES
+              value: openid,profile,email,groups
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/v1/health
+                  port: 2021
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/v1/health
+                  port: 2021
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+  service:
+    main:
+      ports:
+        http:
+          port: 80
+          targetPort: 2021
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - donetick.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: donetick
+              port: 80
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Donetick"
+    description: "Open-source task & chore management."
+    callbackUrls:
+      - https://donetick.alexlebens.dev/authenticating/oauth2
+      - https://donetick.alexlebens.dev/auth/oauth2
+  seedJob:
+    enabled: true
+cloudflared:
+  probe:
+    enabled: true
+    targetUrl: https://donetick.alexlebens.dev
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 0 5 * * *"
+garage-bucket-donetick-assets:
+  bucketName: donetick-assets
+  cors:
+    enabled: true
+    policy: |
+      {
+        "CORSRules": [
+          {
+            "AllowedOrigins": ["https://donetick.alexlebens.dev"],
+            "AllowedHeaders": ["*"],
+            "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+            "MaxAgeSeconds": 3000,
+            "ExposeHeaders": ["ETag"]
+          }
+        ]
+      }
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: donetick-assets
