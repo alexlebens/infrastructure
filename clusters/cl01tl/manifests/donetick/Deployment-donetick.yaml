@@ -1,0 +1,148 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: donetick
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: donetick
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: donetick
+    helm.sh/chart: donetick-5.1.0
+  namespace: donetick
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: donetick
+      app.kubernetes.io/instance: donetick
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: donetick
+        app.kubernetes.io/name: donetick
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: donetick
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: DT_ENV
+              value: selfhosted
+            - name: DT_SERVER_PORT
+              value: "2021"
+            - name: DT_SERVER_PUBLIC_HOST
+              value: https://donetick.alexlebens.dev
+            - name: DT_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: jwt-secret
+                  name: donetick-key
+            - name: DT_DATABASE_TYPE
+              value: postgres
+            - name: DT_DATABASE_MIGRATION
+              value: "true"
+            - name: DT_DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: donetick-postgresql-18-cluster-app
+            - name: DT_DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: donetick-postgresql-18-cluster-app
+            - name: DT_DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: donetick-postgresql-18-cluster-app
+            - name: DT_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: donetick-postgresql-18-cluster-app
+            - name: DT_DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: donetick-postgresql-18-cluster-app
+            - name: DT_STORAGE_STORAGE_TYPE
+              value: s3
+            - name: DT_STORAGE_BUCKET_NAME
+              value: donetick-assets
+            - name: DT_STORAGE_ENDPOINT
+              value: https://a.s3.alexlebens.dev
+            - name: DT_STORAGE_PATH_STYLE
+              value: "true"
+            - name: DT_STORAGE_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: region
+                  name: donetick-assets-key
+            - name: DT_STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: access-key-id
+                  name: donetick-assets-key
+            - name: DT_STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-access-key
+                  name: donetick-assets-key
+            - name: DT_EMAIL_PROVIDER
+              value: smtp
+            - name: DT_EMAIL_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: DT_EMAIL_PORT
+              value: "587"
+            - name: DT_EMAIL_EMAIL
+              value: donetick@alexlebens.dev
+            - name: DT_EMAIL_USER
+              value: donetick@alexlebens.dev
+            - name: DT_OAUTH2_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: donetick-oidc-secret
+            - name: DT_OAUTH2_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: donetick-oidc-secret
+            - name: DT_OAUTH2_NAME
+              value: Pocket ID
+            - name: DT_OAUTH2_AUTH_URL
+              value: https://auth.alexlebens.dev/authorize
+            - name: DT_OAUTH2_TOKEN_URL
+              value: https://auth.alexlebens.dev/api/oidc/token
+            - name: DT_OAUTH2_USER_INFO_URL
+              value: https://auth.alexlebens.dev/api/oidc/userinfo
+            - name: DT_OAUTH2_REDIRECT_URL
+              value: https://donetick.alexlebens.dev/authenticating/oauth2
+            - name: DT_OAUTH2_SCOPES
+              value: openid,profile,email,groups
+          image: donetick/donetick:v0.1.79@sha256:a1cc21dd5a37acb5009009f13e5d2529153049361afb0a1cd94bde312382d36a
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 2021
+          name: main
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 2021
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
