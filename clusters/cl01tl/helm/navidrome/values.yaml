@@ -16,6 +16,7 @@ navidrome:
             - /bin/sh
             - -c
             - |
+              umask 022
               mkdir -p /data/plugins
               install_plugin() {
                 PLUGIN_NAME=$1
@@ -39,6 +40,9 @@ navidrome:
 
               # renovate: datasource=github-releases depName=andykelk/navidrome-ntfy-plugin
               install_plugin "navidrome-ntfy.ndp" "v1.1.0" "https://github.com/andykelk/navidrome-ntfy-plugin/releases/download/v1.1.0/navidrome-ntfy.ndp"
+
+              chown -R 1000:1000 /data/plugins
+              chmod -R 775 /data/plugins
       containers:
         main:
           image:
@@ -371,8 +375,10 @@ postgres-18-cluster:
 volsync-target-data:
   pvcTarget: navidrome-data
   moverSecurityContext:
-    runAsUser: 0
-    runAsGroup: 0
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
   local:
     enabled: true
     schedule: 0 10 * * *
