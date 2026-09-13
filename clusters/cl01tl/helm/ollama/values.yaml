@@ -95,6 +95,8 @@ ollama:
             - "/etc/litellm/config.yaml"
             - "--port"
             - "11434"
+            - "--num_workers"
+            - "2"
           env:
             - name: LITELLM_MASTER_KEY
               valueFrom:
@@ -116,8 +118,8 @@ ollama:
               value: "6379"
           resources:
             requests:
-              cpu: 20m
-              memory: 128Mi
+              cpu: 200m
+              memory: 1Gi
           probes:
             liveness:
               enabled: true
@@ -126,10 +128,10 @@ ollama:
                 httpGet:
                   path: /health/liveliness
                   port: 11434
-                initialDelaySeconds: 30
+                initialDelaySeconds: 45
                 periodSeconds: 15
-                timeoutSeconds: 10
-                failureThreshold: 6
+                timeoutSeconds: 15
+                failureThreshold: 8
             readiness:
               enabled: true
               custom: true
@@ -137,10 +139,10 @@ ollama:
                 httpGet:
                   path: /health/readiness
                   port: 11434
-                initialDelaySeconds: 20
+                initialDelaySeconds: 30
                 periodSeconds: 10
-                timeoutSeconds: 5
-                failureThreshold: 3
+                timeoutSeconds: 10
+                failureThreshold: 5
   configMaps:
     router:
       enabled: true
@@ -190,6 +192,44 @@ ollama:
                 api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
               model_info:
                 id: embeddinggemma:latest-desktop
+
+            # OpenAI Embedding Aliases mapped to Embedding Gemma
+            - model_name: text-embedding-ada-002
+              litellm_params:
+                model: ollama/embeddinggemma:latest
+                api_base: http://ollama-server-0.ollama-headless:11434
+              model_info:
+                id: text-embedding-ada-002-server-0
+            - model_name: text-embedding-ada-002
+              litellm_params:
+                model: ollama/embeddinggemma:latest
+                api_base: http://ollama-server-1.ollama-headless:11434
+              model_info:
+                id: text-embedding-ada-002-server-1
+            - model_name: text-embedding-ada-002
+              litellm_params:
+                model: ollama/embeddinggemma:latest
+                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
+              model_info:
+                id: text-embedding-ada-002-desktop
+            - model_name: text-embedding-3-small
+              litellm_params:
+                model: ollama/embeddinggemma:latest
+                api_base: http://ollama-server-0.ollama-headless:11434
+              model_info:
+                id: text-embedding-3-small-server-0
+            - model_name: text-embedding-3-small
+              litellm_params:
+                model: ollama/embeddinggemma:latest
+                api_base: http://ollama-server-1.ollama-headless:11434
+              model_info:
+                id: text-embedding-3-small-server-1
+            - model_name: text-embedding-3-small
+              litellm_params:
+                model: ollama/embeddinggemma:latest
+                api_base: https://ollama-pd05wd.boreal-beaufort.ts.net
+              model_info:
+                id: text-embedding-3-small-desktop
 
             # Desktop
             - model_name: gemma4:12b
