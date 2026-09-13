@@ -24,7 +24,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/configMaps: 53d5b83938b3e714931752bcae2a7db6778afc6cfc1954769e2635dbaa0c8173
+        checksum/configMaps: ba62e1737f7eaabf30b7eced55b8ec61c66f0516b63b27996423636b7c4bbbb6
       labels:
         app.kubernetes.io/controller: server
         app.kubernetes.io/instance: ollama
@@ -54,6 +54,8 @@ spec:
                     operator: In
                     values:
                       - jellyfin
+              namespaces:
+                - jellyfin
               topologyKey: kubernetes.io/hostname
       initContainers:
         - command:
@@ -78,25 +80,36 @@ spec:
             - name: OLLAMA_HOST
               value: 0.0.0.0
             - name: OLLAMA_NUM_PARALLEL
-              value: "4"
+              value: "1"
+            - name: OLLAMA_NUM_THREADS
+              value: "3"
             - name: OLLAMA_IGPU_ENABLE
               value: "0"
           image: ollama/ollama:0.34.0@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
           livenessProbe:
+            failureThreshold: 6
             httpGet:
               path: /
               port: 11434
             initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
           name: main
           readinessProbe:
+            failureThreshold: 3
             httpGet:
               path: /
               port: 11434
             initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
           resources:
+            limits:
+              cpu: "3"
+              memory: 12Gi
             requests:
-              cpu: 10m
-              memory: 20Mi
+              cpu: 500m
+              memory: 2Gi
           volumeMounts:
             - mountPath: /root/.ollama
               name: ollama-data
