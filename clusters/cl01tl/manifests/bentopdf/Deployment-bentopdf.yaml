@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bentopdf
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: bentopdf
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: bentopdf
+    helm.sh/chart: bentopdf-5.1.0
+  namespace: bentopdf
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: bentopdf
+      app.kubernetes.io/instance: bentopdf
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: bentopdf
+        app.kubernetes.io/name: bentopdf
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: bentopdf
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+          image: bentopdf/bentopdf:latest@sha256:4eb4ec8f5030faf87c29a73d3d5a2781f28a597cf440c3ab111eb96aee550871
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+          name: main
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
+        - env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:80
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: '*'
+          envFrom:
+            - secretRef:
+                name: bentopdf-oauth-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4@sha256:b1b2021fe8f4004573e8d690dec6c7bb29cc44364572cf8510a05bf3a0ae2ded
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+          name: oauth
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4180
