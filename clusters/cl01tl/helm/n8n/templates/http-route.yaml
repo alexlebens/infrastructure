@@ -8,7 +8,9 @@ metadata:
     {{- include "custom.labels" . | nindent 4 }}
 spec:
   parentRefs:
-    - name: traefik-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
       namespace: traefik
   hostnames:
     - {{ .Release.Name }}{{ include "custom.domain" . }}
@@ -27,12 +29,18 @@ spec:
             type: PathPrefix
             value: /healthz
       backendRefs:
-        - name: {{ .Release.Name }}-main
+        - group: ""
+          kind: Service
+          name: {{ .Release.Name }}-main
           port: 5678
+          weight: 1
     - matches:
         - path:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: {{ .Release.Name }}-oauth2-proxy
+        - group: ""
+          kind: Service
+          name: {{ .Release.Name }}-oauth2-proxy
           port: 4180
+          weight: 1
