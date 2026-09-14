@@ -12,8 +12,10 @@ import argparse
 import json
 import os
 from pathlib import Path
+import random
 import subprocess
 import sys
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 import urllib.request
@@ -376,6 +378,17 @@ def main():
       print(f">> Pull Request #{pr_number} created successfully!")
     elif create_status in (409, 422):
       print(f">> Pull Request already exists (HTTP {create_status}).")
+      # Retrieve existing PR number so automerge can proceed
+      list_url = f"{gitea_url}/api/v1/repos/{repo}/pulls?state=open&page=1"
+      status_code, pulls_data = gitea_api_request(list_url, token, method="GET")
+      if status_code == 200 and isinstance(pulls_data, list):
+        for p in pulls_data:
+          head_ref = p.get("head", {}).get("ref", "")
+          if head_ref == head_branch or head_ref == f"refs/heads/{head_branch}":
+            pr_number = str(p.get("number", ""))
+            pr_url = p.get("html_url", f"{gitea_url}/{repo}/pulls/{pr_number}")
+            print(f">> Found existing open PR #{pr_number}.")
+            break
     else:
       print(
           f">> Failed to create PR, HTTP {create_status}: {create_data}",
@@ -387,19 +400,63 @@ def main():
   if is_automerge and pr_number:
     print(f">> Automerging PR #{pr_number} ...")
     merge_url = f"{gitea_url}/api/v1/repos/{repo}/pulls/{pr_number}/merge"
-    merge_status, merge_data = gitea_api_request(
-        merge_url, token, method="POST", data={"Do": "merge"}
-    )
+    max_retries = 12
+    base_delay = 3.0
+    merged = False
 
-    if merge_status == 200:
-      print(f">> Pull Request #{pr_number} merged successfully!")
-      pr_operation = "merged"
-    else:
-      print(
-          f">> Failed to automerge PR #{pr_number}, HTTP {merge_status}:"
-          f" {merge_data}",
-          file=sys.stderr,
+    for attempt in range(1, max_retries + 1):
+      # First verify if the PR has already been merged
+      is_merged_status, _ = gitea_api_request(merge_url, token, method="GET")
+      if is_merged_status == 204:
+        print(f">> Pull Request #{pr_number} is already merged!")
+        pr_operation = "merged"
+        merged = True
+        break
+
+      merge_status, merge_data = gitea_api_request(
+          merge_url, token, method="POST", data={"Do": "merge"}
       )
+
+      if merge_status == 200:
+        print(f">> Pull Request #{pr_number} merged successfully!")
+        pr_operation = "merged"
+        merged = True
+        break
+
+      # Transient merge conflicts / locks / pending checks:
+      # 405 (Method Not Allowed - merge check in progress), 409 (Conflict - ref lock / push rejected), 423 (Locked)
+      if merge_status in (405, 409, 423) and attempt < max_retries:
+        delay = base_delay + (attempt * 1.5) + random.uniform(0.5, 2.0)
+        print(
+            f">> Automerge attempt {attempt}/{max_retries} for PR #{pr_number} returned HTTP {merge_status} ({merge_data})."
+            f" Retrying in {delay:.1f}s ...",
+            file=sys.stderr,
+        )
+
+        # On subsequent retries, try requesting Gitea to merge base into head if branch is out-of-date
+        if attempt >= 2 and merge_status == 409:
+          update_url = f"{gitea_url}/api/v1/repos/{repo}/pulls/{pr_number}/update?style=merge"
+          update_status, update_data = gitea_api_request(
+              update_url, token, method="POST"
+          )
+          if update_status == 200:
+            print(f">> Updated PR #{pr_number} branch with latest changes from {base_branch}.")
+          else:
+            print(
+                f">> Note: PR branch update returned HTTP {update_status}: {update_data}",
+                file=sys.stderr,
+            )
+
+        time.sleep(delay)
+      else:
+        print(
+            f">> Failed to automerge PR #{pr_number}, HTTP {merge_status}:"
+            f" {merge_data}",
+            file=sys.stderr,
+        )
+        break
+
+    if not merged:
       # Clean up branch on automerge failure
       run_cmd(
           ["git", "push", "origin", "--delete", head_branch],
