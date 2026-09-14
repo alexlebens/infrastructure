@@ -166,3 +166,31 @@ volsync-target-data:
   external:
     enabled: true
     schedule: 50 9 * * 1
+postgres-pgvector-cluster:
+  nameOverride: n8n-postgres-pgvector
+  mode: standalone
+  cluster:
+    image:
+      repository: ghcr.io/tensorchord/cloudnative-vectorchord
+      tag: 18.6-1.1.1
+    postgresql:
+      shared_preload_libraries:
+        - "vchord.so"
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 15 6 * * *"
+  databases:
+    - name: app
+      ensure: present
+      owner: app
+      extensions:
+        - name: vector
+          ensure: present
+        - name: vchord
+          ensure: present
