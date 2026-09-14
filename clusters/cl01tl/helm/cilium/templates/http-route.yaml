@@ -7,20 +7,24 @@ metadata:
     app.kubernetes.io/name: cilium-http-redirect
     {{- include "custom.labels" . | nindent 4 }}
 spec:
+  hostnames:
+    - "*{{ include "custom.domain" . }}"
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: cilium-gateway
       namespace: kube-system
       sectionName: http
-  hostnames:
-    - "*{{ include "custom.domain" . }}"
   rules:
     - filters:
-        - type: RequestRedirect
-          requestRedirect:
+        - requestRedirect:
             scheme: https
             statusCode: 301
+          type: RequestRedirect
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
 
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -32,12 +36,21 @@ metadata:
     app.kubernetes.io/name: hubble-ui
     {{- include "custom.labels" . | nindent 4 }}
 spec:
-  parentRefs:
-    - name: cilium-gateway
-      namespace: kube-system
   hostnames:
     - hubble{{ include "custom.domain" . }}
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: cilium-gateway
+      namespace: kube-system
   rules:
     - backendRefs:
-        - name: hubble-ui
+        - group: ''
+          kind: Service
+          name: hubble-ui
           port: 80
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
