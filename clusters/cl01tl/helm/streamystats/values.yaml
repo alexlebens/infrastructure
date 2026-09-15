@@ -1,0 +1,187 @@
+streamystats:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        job-server:
+          image:
+            repository: ghcr.io/fredrikburmester/streamystats-job-server
+            tag: v2.20.0@sha256:b9e6fc640b02ede44f379970cf3f8e81a20bb82bb846e2f738c5db650784137c
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: 3005
+            - name: HOST
+              value: 0.0.0.0
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: streamystats-postgres-pgvector-cluster-app
+                  key: uri
+          resources:
+            requests:
+              cpu: 10m
+              memory: 150Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 3005
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 3005
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 3005
+                initialDelaySeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 30
+                periodSeconds: 5
+        main:
+          image:
+            repository: ghcr.io/fredrikburmester/streamystats-nextjs
+            tag: v2.20.0@sha256:45f93e6233eac3802d056c237293482704ae5dd9502a2566f6df5aa8a4fa214c
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: 3000
+            - name: HOSTNAME
+              value: 0.0.0.0
+            - name: NEXT_TELEMETRY_DISABLED
+              value: "1"
+            - name: JOB_SERVER_URL
+              value: http://127.0.0.1:3005
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: streamystats-postgres-pgvector-cluster-app
+                  key: uri
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: streamystats-config
+                  key: session-secret
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: streamystats-config
+                  key: session-secret
+            - name: NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: streamystats-config
+                  key: session-secret
+          resources:
+            requests:
+              cpu: 20m
+              memory: 250Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3000
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3000
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3000
+                initialDelaySeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 30
+                periodSeconds: 5
+  service:
+    main:
+      ports:
+        http:
+          port: 80
+          targetPort: 3000
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - streamystats.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: streamystats
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+postgres-pgvector-cluster:
+  nameOverride: streamystats-postgres-pgvector
+  mode: standalone
+  cluster:
+    image:
+      repository: ghcr.io/tensorchord/cloudnative-vectorchord
+      tag: 18.6-1.1.1
+    postgresql:
+      shared_preload_libraries:
+        - "vchord.so"
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackup:
+      suspend: false
+      schedule: "0 35 7 * * *"
+  databases:
+    - name: app
+      ensure: present
+      owner: app
+      extensions:
+        - name: vector
+          ensure: present
+        - name: vchord
+          ensure: present
