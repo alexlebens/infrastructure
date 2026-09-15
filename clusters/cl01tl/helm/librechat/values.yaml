@@ -163,6 +163,8 @@ librechat:
                   key: MEILI_MASTER_KEY
             - name: MEILI_NO_ANALYTICS
               value: "true"
+            - name: RAG_API_URL
+              value: "http://librechat-rag-api:8000"
           resources:
             requests:
               cpu: 50m
@@ -247,6 +249,73 @@ librechat:
                 periodSeconds: 10
                 timeoutSeconds: 5
                 failureThreshold: 3
+    rag-api:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+      containers:
+        rag-api:
+          image:
+            repository: ghcr.io/danny-avila/librechat-rag-api-dev-lite
+            tag: v0.9.0@sha256:18a8dffa9316276b924bf3fd23bfb4544b0f68f8f6b14c048affb35c01721a35
+          env:
+            - name: RAG_HOST
+              value: "0.0.0.0"
+            - name: RAG_PORT
+              value: "8000"
+            - name: DB_HOST
+              value: "n8n-postgres-pgvector-rw.n8n.svc.cluster.local"
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              value: "app"
+            - name: POSTGRES_USER
+              value: "app"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-pgvector-secret
+                  key: password
+            - name: PGVECTOR_CREATE_EXTENSION
+              value: "false"
+            - name: EMBEDDINGS_PROVIDER
+              value: "ollama"
+            - name: EMBEDDINGS_MODEL
+              value: "embeddinggemma:latest"
+            - name: OLLAMA_BASE_URL
+              value: "http://ollama-router.ollama:11434"
+            - name: RAG_CHECK_EMBEDDING_CTX_LENGTH
+              value: "false"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8000
+                initialDelaySeconds: 30
+                periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 5
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8000
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
   configMaps:
     librechat-config:
       forceRename: librechat-config
@@ -298,7 +367,6 @@ librechat:
 
           mcpSettings:
             allowedAddresses:
-              - "n8n-main.n8n.svc.cluster.local:5678"
               - "sparkyfitness-server.sparkyfitness.svc.cluster.local:3010"
               - "trek.alexlebens.dev:443"
               - "outline.alexlebens.dev:443"
@@ -306,11 +374,6 @@ librechat:
               - "kaneo.alexlebens.dev:443"
 
           mcpServers:
-            n8n-documents:
-              type: "sse"
-              url: "http://n8n-main.n8n.svc.cluster.local:5678/mcp/documents"
-              timeout: 60000
-
             trek:
               type: "streamable-http"
               url: "https://trek.alexlebens.dev/mcp"
@@ -400,6 +463,11 @@ librechat:
       ports:
         http:
           port: 4000
+    rag-api:
+      controller: rag-api
+      ports:
+        http:
+          port: 8000
   route:
     main:
       kind: HTTPRoute
