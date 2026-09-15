@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: librechat-rag-api
+  labels:
+    app.kubernetes.io/controller: rag-api
+    app.kubernetes.io/instance: librechat
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: librechat
+    helm.sh/chart: librechat-5.1.0
+  namespace: librechat
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: rag-api
+      app.kubernetes.io/name: librechat
+      app.kubernetes.io/instance: librechat
+  template:
+    metadata:
+      annotations:
+        checksum/configMaps: 503e727ba36a05979bc4e43a1baa08b881a213d100946d1970b1f6004053acf3
+      labels:
+        app.kubernetes.io/controller: rag-api
+        app.kubernetes.io/instance: librechat
+        app.kubernetes.io/name: librechat
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: librechat
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: RAG_HOST
+              value: 0.0.0.0
+            - name: RAG_PORT
+              value: "8000"
+            - name: DB_HOST
+              value: n8n-postgres-pgvector-rw.n8n.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              value: app
+            - name: POSTGRES_USER
+              value: app
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: librechat-pgvector-secret
+            - name: PGVECTOR_CREATE_EXTENSION
+              value: "false"
+            - name: EMBEDDINGS_PROVIDER
+              value: ollama
+            - name: EMBEDDINGS_MODEL
+              value: embeddinggemma:latest
+            - name: OLLAMA_BASE_URL
+              value: http://ollama-router.ollama:11434
+            - name: RAG_CHECK_EMBEDDING_CTX_LENGTH
+              value: "false"
+          image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:v0.9.0@sha256:18a8dffa9316276b924bf3fd23bfb4544b0f68f8f6b14c048affb35c01721a35
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          name: rag-api
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
