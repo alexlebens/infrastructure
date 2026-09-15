@@ -98,11 +98,6 @@ librechat:
                 secretKeyRef:
                   name: librechat-secrets
                   key: sparkyfitness-api-key
-            - name: KANEO_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: librechat-secrets
-                  key: kaneo-api-key
             - name: SEARXNG_INSTANCE_URL
               value: "http://searxng-api.searxng.svc.cluster.local:8080"
             - name: SD_WEBUI_URL
@@ -304,6 +299,7 @@ librechat:
           mcpSettings:
             allowedAddresses:
               - "n8n-main.n8n.svc.cluster.local:5678"
+              - "sparkyfitness-server.sparkyfitness.svc.cluster.local:3010"
               - "trek.alexlebens.dev:443"
               - "outline.alexlebens.dev:443"
               - "sparkyfitness.alexlebens.dev:443"
@@ -340,7 +336,7 @@ librechat:
 
             sparkyfitness:
               type: "streamable-http"
-              url: "https://sparkyfitness.alexlebens.dev/mcp"
+              url: "http://sparkyfitness-server.sparkyfitness.svc.cluster.local:3010/mcp"
               timeout: 60000
               headers:
                 Authorization: "Bearer ${SPARKYFITNESS_API_KEY}"
@@ -348,9 +344,10 @@ librechat:
             kaneo:
               type: "streamable-http"
               url: "https://kaneo.alexlebens.dev/api/mcp"
+              startup: false
               timeout: 60000
-              headers:
-                Authorization: "Bearer ${KANEO_API_KEY}"
+              initTimeout: 150000
+              requiresOAuth: true
 
             karakeep:
               type: "stdio"
