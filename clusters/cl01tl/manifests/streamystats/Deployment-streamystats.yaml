@@ -1,0 +1,143 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: streamystats
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: streamystats
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: streamystats
+    helm.sh/chart: streamystats-5.1.0
+  namespace: streamystats
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: streamystats
+      app.kubernetes.io/instance: streamystats
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: streamystats
+        app.kubernetes.io/name: streamystats
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: streamystats
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3005"
+            - name: HOST
+              value: 0.0.0.0
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: streamystats-postgres-pgvector-cluster-app
+          image: ghcr.io/fredrikburmester/streamystats-job-server:v2.20.0@sha256:b9e6fc640b02ede44f379970cf3f8e81a20bb82bb846e2f738c5db650784137c
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: job-server
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 150Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 5
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3000"
+            - name: HOSTNAME
+              value: 0.0.0.0
+            - name: NEXT_TELEMETRY_DISABLED
+              value: "1"
+            - name: JOB_SERVER_URL
+              value: http://127.0.0.1:3005
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: streamystats-postgres-pgvector-cluster-app
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: session-secret
+                  name: streamystats-config
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: session-secret
+                  name: streamystats-config
+            - name: NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: session-secret
+                  name: streamystats-config
+          image: ghcr.io/fredrikburmester/streamystats-nextjs:v2.20.0@sha256:45f93e6233eac3802d056c237293482704ae5dd9502a2566f6df5aa8a4fa214c
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: main
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 250Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 5
