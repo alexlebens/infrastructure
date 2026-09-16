@@ -110,10 +110,46 @@ data:
 
       karakeep:
         type: "stdio"
-        command: "npx"
+        command: "node"
         args:
-          - "-y"
-          - "@karakeep/mcp"
+          - "-e"
+          - |
+            const { spawn } = require('child_process');
+            const readline = require('readline');
+            const child = spawn('npx', ['-y', '@karakeep/mcp'], { stdio: ['pipe', 'pipe', 'inherit'], env: process.env });
+            readline.createInterface({ input: process.stdin }).on('line', (line) => {
+              try {
+                const msg = JSON.parse(line);
+                if (msg.method === 'tools/call' && msg.params?.name) {
+                  msg.params.name = msg.params.name.replace(/_/g, '-');
+                  child.stdin.write(JSON.stringify(msg) + '\n');
+                  return;
+                }
+              } catch (e) {}
+              child.stdin.write(line + '\n');
+            });
+            readline.createInterface({ input: child.stdout }).on('line', (line) => {
+              try {
+                const msg = JSON.parse(line);
+                if (msg.result?.tools && Array.isArray(msg.result.tools)) {
+                  const extra = [];
+                  for (const t of msg.result.tools) {
+                    if (t.name?.includes('-')) {
+                      const u = t.name.replace(/-/g, '_');
+                      if (!msg.result.tools.some((x) => x.name === u)) extra.push({ ...t, name: u });
+                    }
+                  }
+                  msg.result.tools.push(...extra);
+                  process.stdout.write(JSON.stringify(msg) + '\n');
+                  return;
+                }
+              } catch (e) {}
+              process.stdout.write(line + '\n');
+            });
+            process.stdin.on('end', () => child.stdin.end());
+            child.on('exit', (c) => process.exit(c || 0));
+            process.on('SIGTERM', () => child.kill('SIGTERM'));
+            process.on('SIGINT', () => child.kill('SIGINT'));
         env:
           KARAKEEP_API_ADDR: "http://karakeep.karakeep.svc.cluster.local:3000"
           KARAKEEP_API_KEY: "${KARAKEEP_API_KEY}"
