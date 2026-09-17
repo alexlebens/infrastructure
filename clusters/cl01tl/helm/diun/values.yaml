@@ -1,0 +1,88 @@
+diun:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      serviceAccount:
+        name: diun
+      containers:
+        main:
+          image:
+            repository: crazymax/diun
+            tag: 4.33.0@sha256:e324b793eb32dfb7f74d3a39421ebf090141caaadee69b8f78da63112408ee25
+          args:
+            - serve
+          envFrom:
+            - secretRef:
+                name: diun-ntfy
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: LOG_LEVEL
+              value: info
+            - name: LOG_JSON
+              value: "false"
+            - name: DIUN_WATCH_SCHEDULE
+              value: "0 */6 * * *"
+            - name: DIUN_PROVIDERS_KUBERNETES
+              value: "true"
+            - name: DIUN_PROVIDERS_KUBERNETES_WATCHBYDEFAULT
+              value: "true"
+            - name: DIUN_METRICS_ENABLED
+              value: "true"
+            - name: DIUN_METRICS_ADDR
+              value: ":9090"
+            - name: DIUN_METRICS_PATH
+              value: "/metrics"
+            - name: DIUN_NOTIF_NTFY_ENABLE
+              value: "true"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+            limits:
+              memory: 250Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /metrics
+                  port: 9090
+                initialDelaySeconds: 10
+                periodSeconds: 30
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /metrics
+                  port: 9090
+                initialDelaySeconds: 10
+                periodSeconds: 30
+  service:
+    main:
+      ports:
+        metrics:
+          port: 9090
+  serviceMonitor:
+    main:
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: diun
+          app.kubernetes.io/instance: diun
+      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      endpoints:
+        - port: metrics
+          interval: 1m
+  persistence:
+    data:
+      forceRename: diun-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /data
