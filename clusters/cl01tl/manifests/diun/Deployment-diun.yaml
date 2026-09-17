@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: diun
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: diun
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: diun
+    helm.sh/chart: diun-5.2.1
+  namespace: diun
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: diun
+      app.kubernetes.io/instance: diun
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: diun
+        app.kubernetes.io/name: diun
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: diun
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - args:
+            - serve
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: LOG_LEVEL
+              value: info
+            - name: LOG_JSON
+              value: "false"
+            - name: DIUN_WATCH_SCHEDULE
+              value: 0 */6 * * *
+            - name: DIUN_PROVIDERS_KUBERNETES
+              value: "true"
+            - name: DIUN_PROVIDERS_KUBERNETES_WATCHBYDEFAULT
+              value: "true"
+            - name: DIUN_METRICS_ENABLED
+              value: "true"
+            - name: DIUN_METRICS_ADDR
+              value: :9090
+            - name: DIUN_METRICS_PATH
+              value: /metrics
+            - name: DIUN_NOTIF_NTFY_ENABLE
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: diun-ntfy
+          image: crazymax/diun:4.33.0@sha256:e324b793eb32dfb7f74d3a39421ebf090141caaadee69b8f78da63112408ee25
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          name: main
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            limits:
+              memory: 250Mi
+            requests:
+              cpu: 10m
+              memory: 50Mi
+          volumeMounts:
+            - mountPath: /data
+              name: data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: diun-data
