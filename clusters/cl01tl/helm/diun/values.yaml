@@ -17,6 +17,8 @@ diun:
           envFrom:
             - secretRef:
                 name: diun-ntfy
+            - secretRef:
+                name: diun-dockerhub
           env:
             - name: TZ
               value: America/Chicago
@@ -24,12 +26,26 @@ diun:
               value: info
             - name: LOG_JSON
               value: "false"
+            - name: DIUN_WATCH_WORKERS
+              value: "1"
             - name: DIUN_WATCH_SCHEDULE
               value: "0 */6 * * *"
             - name: DIUN_PROVIDERS_KUBERNETES
               value: "true"
+            - name: DIUN_PROVIDERS_KUBERNETES_NAMESPACES
+              value: "!kube-system,!kube-public,!kube-node-lease,!rook-ceph,!talos,!cilium,!cilium-secrets,!kube-prometheus-stack,!loki"
             - name: DIUN_PROVIDERS_KUBERNETES_WATCHBYDEFAULT
               value: "true"
+            - name: DIUN_DEFAULTS_WATCHREPO
+              value: "true"
+            - name: DIUN_DEFAULTS_SORTTAGS
+              value: "semver"
+            - name: DIUN_DEFAULTS_MAXTAGS
+              value: "10"
+            - name: DIUN_REGOPTS_0_NAME
+              value: "docker.io"
+            - name: DIUN_REGOPTS_0_SELECTOR
+              value: "image"
             - name: DIUN_METRICS_ENABLED
               value: "true"
             - name: DIUN_METRICS_ADDR
@@ -47,18 +63,20 @@ diun:
               enabled: true
               custom: true
               spec:
-                httpGet:
-                  path: /metrics
-                  port: 9090
-                initialDelaySeconds: 10
+                exec:
+                  command:
+                    - diun
+                    - healthcheck
+                initialDelaySeconds: 15
                 periodSeconds: 30
             readiness:
               enabled: true
               custom: true
               spec:
-                httpGet:
-                  path: /metrics
-                  port: 9090
+                exec:
+                  command:
+                    - diun
+                    - healthcheck
                 initialDelaySeconds: 10
                 periodSeconds: 30
   service:
