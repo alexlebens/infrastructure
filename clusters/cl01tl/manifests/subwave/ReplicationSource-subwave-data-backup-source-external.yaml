@@ -1,0 +1,34 @@
+apiVersion: volsync.backube/v1alpha1
+kind: ReplicationSource
+metadata:
+  name: subwave-data-backup-source-external
+  namespace: subwave
+  labels:
+    helm.sh/chart: volsync-target-data-2.4.0
+    app.kubernetes.io/instance: subwave
+    app.kubernetes.io/part-of: subwave
+    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: subwave-data-backup
+spec:
+  sourcePVC: subwave-data
+  trigger:
+    schedule: 15 9 * * 0
+  restic:
+    pruneIntervalDays: 35
+    repository: subwave-data-backup-secret-external
+    retain:
+      daily: 0
+      hourly: 0
+      monthly: 0
+      weekly: 12
+      yearly: 0
+    moverSecurityContext:
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+      runAsGroup: 1000
+      runAsUser: 1000
+    copyMethod: Snapshot
+    storageClassName: ceph-block
+    volumeSnapshotClassName: ceph-blockpool-snapshot
+    cacheCapacity: 1Gi
