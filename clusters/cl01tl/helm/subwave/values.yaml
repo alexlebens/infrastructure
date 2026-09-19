@@ -1,0 +1,92 @@
+subwave:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/perminder-klair/subwave-aio
+            tag: 1.16.0@sha256:549447768d1afa926096d4e4392b2b5ce8fbf3fdc6acccbbdc61f8dab0f5bed4
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: NODE_ENV
+              value: production
+            - name: SITE_URL
+              value: https://subwave.alexlebens.dev
+            - name: STATE_DIR
+              value: /var/sub-wave
+            - name: NAVIDROME_URL
+              value: http://navidrome.navidrome.svc.cluster.local:80
+          envFrom:
+            - secretRef:
+                name: subwave-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 300Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 80
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 80
+  service:
+    main:
+      controller: main
+      ports:
+        http:
+          port: 80
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - subwave.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: subwave-main
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      forceRename: subwave-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /var/sub-wave
+
+volsync-target-data:
+  pvcTarget: subwave-data
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+  local:
+    enabled: true
+    schedule: 25 12 * * *
+  remote:
+    enabled: true
+    schedule: 15 10 * * 0
+  external:
+    enabled: true
+    schedule: 15 9 * * 0
