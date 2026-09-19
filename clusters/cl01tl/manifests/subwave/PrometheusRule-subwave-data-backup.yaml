@@ -1,0 +1,33 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: subwave-data-backup
+  namespace: subwave
+  labels:
+    app.kubernetes.io/name: subwave-data-backup
+    helm.sh/chart: volsync-target-data-2.4.0
+    app.kubernetes.io/instance: subwave
+    app.kubernetes.io/part-of: subwave
+    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  groups:
+    - name: volsync.alerts
+      rules:
+        - alert: VolSyncBackupPodFailed
+          expr: |
+            sum by (namespace) (
+              (kube_pod_status_phase{namespace="subwave", phase="Failed", pod=~"volsync-.*subwave-data-backup-.*"} == 1)
+              * on(namespace, pod) group_left(owner_name)
+              kube_pod_owner{namespace="subwave", owner_kind="Job", owner_name=~"volsync-.*subwave-data-backup-.*"}
+            ) > 0
+          keep_firing_for: 10m
+          labels:
+            severity: critical
+            pvc: subwave-data
+          annotations:
+            summary: "VolSync backup pod failed in {{ $labels.namespace }}"
+            description: |
+              {{ $value }} VolSync backup pod(s) failed for PVC 'subwave-data'.
+              Target: subwave-data-backup
+              Namespace: {{ $labels.namespace }}
