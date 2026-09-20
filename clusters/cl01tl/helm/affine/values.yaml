@@ -1,0 +1,292 @@
+affine:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      initContainers:
+        init-config:
+          image:
+            repository: busybox
+            tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              cat <<EOF > /root/.affine/config/config.json
+              {
+                "server": {
+                  "externalUrl": "https://affine.alexlebens.dev",
+                  "port": 3010
+                },
+                "blob": {
+                  "storage": {
+                    "provider": "aws-s3",
+                    "bucket": "${S3_BUCKET}",
+                    "config": {
+                      "endpoint": "${S3_ENDPOINT}",
+                      "region": "${S3_REGION}",
+                      "forcePathStyle": true,
+                      "credentials": {
+                        "accessKeyId": "${S3_ACCESS_KEY_ID}",
+                        "secretAccessKey": "${S3_SECRET_ACCESS_KEY}"
+                      }
+                    }
+                  }
+                },
+                "copilot": {
+                  "enabled": true,
+                  "storage": {
+                    "provider": "aws-s3",
+                    "bucket": "${S3_BUCKET}",
+                    "config": {
+                      "endpoint": "${S3_ENDPOINT}",
+                      "region": "${S3_REGION}",
+                      "forcePathStyle": true,
+                      "credentials": {
+                        "accessKeyId": "${S3_ACCESS_KEY_ID}",
+                        "secretAccessKey": "${S3_SECRET_ACCESS_KEY}"
+                      }
+                    }
+                  },
+                  "byok": {
+                    "enabled": true,
+                    "allowCustomEndpoint": true,
+                    "allowPrivateEndpoint": true
+                  }
+                },
+                "indexer": {
+                  "enabled": false
+                }
+              }
+              EOF
+          env:
+            - name: S3_BUCKET
+              value: affine-assets
+            - name: S3_ENDPOINT
+              value: https://a.s3.alexlebens.dev
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: affine-assets-key
+                  key: region
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: affine-assets-key
+                  key: access-key-id
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: affine-assets-key
+                  key: secret-access-key
+        migration:
+          image:
+            repository: ghcr.io/toeverything/affine
+            tag: 0.27.4@sha256:b649f5ce2384ffdf13c23bccf81d759e15973d59d0b0058af65d895a84373099
+          command:
+            - node
+            - ./scripts/self-host-predeploy.js
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: affine-postgres-pgvector-cluster-app
+                  key: uri
+            - name: REDIS_SERVER_HOST
+              value: affine-valkey.affine
+            - name: REDIS_SERVER_PORT
+              value: "6379"
+            - name: AFFINE_INDEXER_ENABLED
+              value: "false"
+      containers:
+        main:
+          image:
+            repository: ghcr.io/toeverything/affine
+            tag: 0.27.4@sha256:b649f5ce2384ffdf13c23bccf81d759e15973d59d0b0058af65d895a84373099
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: TZ
+              value: America/Chicago
+            - name: AFFINE_SERVER_EXTERNAL_URL
+              value: https://affine.alexlebens.dev
+            - name: AFFINE_SERVER_PORT
+              value: "3010"
+            - name: S3_BUCKET
+              value: affine-assets
+            - name: S3_ENDPOINT
+              value: https://a.s3.alexlebens.dev
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: affine-assets-key
+                  key: region
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: affine-assets-key
+                  key: access-key-id
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: affine-assets-key
+                  key: secret-access-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: affine-postgres-pgvector-cluster-app
+                  key: uri
+            - name: REDIS_SERVER_HOST
+              value: affine-valkey.affine
+            - name: REDIS_SERVER_PORT
+              value: "6379"
+            - name: AFFINE_INDEXER_ENABLED
+              value: "false"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 500Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3010
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3010
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3010
+                initialDelaySeconds: 15
+                periodSeconds: 5
+                timeoutSeconds: 5
+                failureThreshold: 30
+  service:
+    main:
+      forceRename: affine
+      ports:
+        http:
+          port: 80
+          targetPort: 3010
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - affine.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: affine
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    config:
+      type: emptyDir
+      advancedMounts:
+        main:
+          init-config:
+            - path: /root/.affine/config
+          migration:
+            - path: /root/.affine/config
+          main:
+            - path: /root/.affine/config
+    storage:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /root/.affine/storage
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "AFFiNE"
+    description: "All-in-one workspace for notes, docs, and knowledge management."
+    pkceEnabled: false
+    callbackUrls:
+      - https://affine.alexlebens.dev/oauth/callback
+  seedJob:
+    enabled: true
+postgres-pgvector-cluster:
+  nameOverride: affine-postgres-pgvector
+  mode: standalone
+  cluster:
+    image:
+      repository: ghcr.io/tensorchord/cloudnative-vectorchord
+      tag: 18.6-1.1.1
+    postgresql:
+      shared_preload_libraries:
+        - "vchord.so"
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 40 7 * * *"
+  databases:
+    - name: app
+      ensure: present
+      owner: app
+      extensions:
+        - name: vector
+          ensure: present
+        - name: vchord
+          ensure: present
+garage-bucket-affine-assets:
+  bucketName: affine-assets
+  cors:
+    enabled: true
+    policy: |
+      {
+        "CORSRules": [
+          {
+            "AllowedOrigins": ["https://affine.alexlebens.dev"],
+            "AllowedHeaders": ["*"],
+            "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+            "MaxAgeSeconds": 3000,
+            "ExposeHeaders": ["ETag"]
+          }
+        ]
+      }
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: affine-assets
+    secondary:
+      enabled: false
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: affine-assets
