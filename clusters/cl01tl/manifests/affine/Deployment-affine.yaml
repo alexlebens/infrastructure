@@ -1,0 +1,213 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: affine
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: affine
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: affine
+    helm.sh/chart: affine-5.2.1
+  namespace: affine
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: affine
+      app.kubernetes.io/instance: affine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: affine
+        app.kubernetes.io/name: affine
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: affine
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      initContainers:
+        - args:
+            - |
+              cat <<EOF > /root/.affine/config/config.json
+              {
+                "server": {
+                  "externalUrl": "https://affine.alexlebens.dev",
+                  "port": 3010
+                },
+                "blob": {
+                  "storage": {
+                    "provider": "aws-s3",
+                    "bucket": "${S3_BUCKET}",
+                    "config": {
+                      "endpoint": "${S3_ENDPOINT}",
+                      "region": "${S3_REGION}",
+                      "forcePathStyle": true,
+                      "credentials": {
+                        "accessKeyId": "${S3_ACCESS_KEY_ID}",
+                        "secretAccessKey": "${S3_SECRET_ACCESS_KEY}"
+                      }
+                    }
+                  }
+                },
+                "copilot": {
+                  "enabled": true,
+                  "storage": {
+                    "provider": "aws-s3",
+                    "bucket": "${S3_BUCKET}",
+                    "config": {
+                      "endpoint": "${S3_ENDPOINT}",
+                      "region": "${S3_REGION}",
+                      "forcePathStyle": true,
+                      "credentials": {
+                        "accessKeyId": "${S3_ACCESS_KEY_ID}",
+                        "secretAccessKey": "${S3_SECRET_ACCESS_KEY}"
+                      }
+                    }
+                  },
+                  "byok": {
+                    "enabled": true,
+                    "allowCustomEndpoint": true,
+                    "allowPrivateEndpoint": true
+                  }
+                },
+                "indexer": {
+                  "enabled": false
+                }
+              }
+              EOF
+          command:
+            - /bin/sh
+            - -c
+          env:
+            - name: S3_BUCKET
+              value: affine-assets
+            - name: S3_ENDPOINT
+              value: https://a.s3.alexlebens.dev
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: region
+                  name: affine-assets-key
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: access-key-id
+                  name: affine-assets-key
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-access-key
+                  name: affine-assets-key
+          image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+          name: init-config
+          volumeMounts:
+            - mountPath: /root/.affine/config
+              name: config
+        - command:
+            - node
+            - ./scripts/self-host-predeploy.js
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: affine-postgres-pgvector-cluster-app
+            - name: REDIS_SERVER_HOST
+              value: affine-valkey.affine
+            - name: REDIS_SERVER_PORT
+              value: "6379"
+            - name: AFFINE_INDEXER_ENABLED
+              value: "false"
+          image: ghcr.io/toeverything/affine:0.27.4@sha256:b649f5ce2384ffdf13c23bccf81d759e15973d59d0b0058af65d895a84373099
+          name: migration
+          volumeMounts:
+            - mountPath: /root/.affine/config
+              name: config
+      containers:
+        - env:
+            - name: NODE_ENV
+              value: production
+            - name: TZ
+              value: America/Chicago
+            - name: AFFINE_SERVER_EXTERNAL_URL
+              value: https://affine.alexlebens.dev
+            - name: AFFINE_SERVER_PORT
+              value: "3010"
+            - name: S3_BUCKET
+              value: affine-assets
+            - name: S3_ENDPOINT
+              value: https://a.s3.alexlebens.dev
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: region
+                  name: affine-assets-key
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: access-key-id
+                  name: affine-assets-key
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-access-key
+                  name: affine-assets-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: affine-postgres-pgvector-cluster-app
+            - name: REDIS_SERVER_HOST
+              value: affine-valkey.affine
+            - name: REDIS_SERVER_PORT
+              value: "6379"
+            - name: AFFINE_INDEXER_ENABLED
+              value: "false"
+          image: ghcr.io/toeverything/affine:0.27.4@sha256:b649f5ce2384ffdf13c23bccf81d759e15973d59d0b0058af65d895a84373099
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /api/health
+              port: 3010
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: main
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /api/health
+              port: 3010
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 500Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /api/health
+              port: 3010
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 5
+          volumeMounts:
+            - mountPath: /root/.affine/config
+              name: config
+            - mountPath: /root/.affine/storage
+              name: storage
+      volumes:
+        - emptyDir: {}
+          name: config
+        - emptyDir: {}
+          name: storage
