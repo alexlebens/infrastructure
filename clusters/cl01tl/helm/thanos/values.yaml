@@ -1,0 +1,183 @@
+thanos:
+  controllers:
+    query:
+      type: deployment
+      strategy: RollingUpdate
+      containers:
+        main:
+          image:
+            repository: thanosio/thanos
+            tag: v0.42.4@sha256:b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
+          args:
+            - query
+            - --http-address=0.0.0.0:9090
+            - --grpc-address=0.0.0.0:10901
+            - --store=kube-prometheus-stack-thanos-discovery.kube-prometheus-stack.svc.cluster.local:10901
+            - --store=thanos-store.thanos.svc.cluster.local:10901
+            - --query.replica-label=prometheus
+            - --query.auto-downsampling
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 1Gi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/healthy
+                  port: 9090
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/ready
+                  port: 9090
+    store:
+      type: statefulset
+      containers:
+        main:
+          image:
+            repository: thanosio/thanos
+            tag: v0.42.4@sha256:b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
+          args:
+            - store
+            - --http-address=0.0.0.0:9090
+            - --grpc-address=0.0.0.0:10901
+            - --data-dir=/var/thanos/store
+            - --objstore.config-file=/etc/thanos/thanos.yaml
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 2Gi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/healthy
+                  port: 9090
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/ready
+                  port: 9090
+    compact:
+      type: statefulset
+      containers:
+        main:
+          image:
+            repository: thanosio/thanos
+            tag: v0.42.4@sha256:b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
+          args:
+            - compact
+            - --http-address=0.0.0.0:9090
+            - --data-dir=/var/thanos/compact
+            - --objstore.config-file=/etc/thanos/thanos.yaml
+            - --retention.resolution-raw=90d
+            - --retention.resolution-5m=1y
+            - --retention.resolution-1h=0d
+            - --compact.concurrency=1
+            - --downsampling.concurrency=1
+            - --wait
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/healthy
+                  port: 9090
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/ready
+                  port: 9090
+  service:
+    query:
+      controller: query
+      forceRename: thanos-query
+      ports:
+        http:
+          port: 9090
+        grpc:
+          port: 10901
+    store:
+      controller: store
+      forceRename: thanos-store
+      ports:
+        http:
+          port: 9090
+        grpc:
+          port: 10901
+    compact:
+      controller: compact
+      forceRename: thanos-compact
+      ports:
+        http:
+          port: 9090
+  serviceMonitor:
+    query:
+      serviceName: thanos-query
+      endpoints:
+        - port: http
+          interval: 30s
+    store:
+      serviceName: thanos-store
+      endpoints:
+        - port: http
+          interval: 30s
+    compact:
+      serviceName: thanos-compact
+      endpoints:
+        - port: http
+          interval: 30s
+  persistence:
+    objstore-config:
+      type: secret
+      name: thanos-objstore-secret
+      advancedMounts:
+        store:
+          main:
+            - path: /etc/thanos/thanos.yaml
+              subPath: thanos.yaml
+              readOnly: true
+        compact:
+          main:
+            - path: /etc/thanos/thanos.yaml
+              subPath: thanos.yaml
+              readOnly: true
+    store-cache:
+      type: emptyDir
+      advancedMounts:
+        store:
+          main:
+            - path: /var/thanos/store
+    compact-data:
+      forceRename: thanos-compact-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 30Gi
+      advancedMounts:
+        compact:
+          main:
+            - path: /var/thanos/compact
+garage-bucket-prometheus-data:
+  bucketName: prometheus-data

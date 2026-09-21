@@ -33,6 +33,21 @@ kube-prometheus-stack:
     route:
       main:
         enabled: true
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/name: "Alerting"
+          gethomepage.dev/description: "Alertmanager"
+          gethomepage.dev/group: "Monitoring"
+          gethomepage.dev/icon: "sh-prometheus-light.webp"
+          gethomepage.dev/siteMonitor: "http://alertmanager-operated.kube-prometheus-stack:9093"
+          gethomepage.dev/statusStyle: "dot"
+          gethomepage.dev/weight: "500"
+          gethomepage.dev/widget.type: "prometheusmetric"
+          gethomepage.dev/widget.url: "http://prometheus-operated.kube-prometheus-stack:9090"
+          gethomepage.dev/widget.refreshInterval: "120s"
+          gethomepage.dev/widget.metrics:
+            '[{"label":"Alerts Active","query":"alertmanager_alerts{state=\"active\"}"},{"label":"Metric Database
+            Size","query":"prometheus_tsdb_storage_blocks_bytes","format":{"type":"bytes"}}]'
         hostnames:
           - alertmanager.alexlebens.dev
         parentRefs:
@@ -127,6 +142,8 @@ kube-prometheus-stack:
         annotations:
           argocd.argoproj.io/hook: PreSync
   prometheus:
+    thanosService:
+      enabled: true
     service:
       additionalPorts:
         - name: oauth-proxy
@@ -140,6 +157,17 @@ kube-prometheus-stack:
     route:
       main:
         enabled: true
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/name: "Metrics"
+          gethomepage.dev/description: "Prometheus"
+          gethomepage.dev/group: "Monitoring"
+          gethomepage.dev/icon: "sh-prometheus.webp"
+          gethomepage.dev/siteMonitor: "http://prometheus-operated.kube-prometheus-stack:9090"
+          gethomepage.dev/statusStyle: "dot"
+          gethomepage.dev/weight: "400"
+          gethomepage.dev/widget.type: "prometheus"
+          gethomepage.dev/widget.url: "http://prometheus-operated.kube-prometheus-stack:9090"
         hostnames:
           - prometheus.alexlebens.dev
         parentRefs:
@@ -153,6 +181,16 @@ kube-prometheus-stack:
           path: /metrics
     prometheusSpec:
       externalUrl: https://prometheus.alexlebens.dev
+      externalLabels:
+        cluster: cl01tl
+      thanos:
+        # renovate: datasource=docker depName=thanosio/thanos
+        image: thanosio/thanos:v0.42.4@sha256:b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
+        # renovate: datasource=docker depName=thanosio/thanos
+        version: v0.42.4
+        objectStorageConfig:
+          name: thanos-objstore-secret
+          key: thanos.yaml
       ruleSelectorNilUsesHelmValues: false
       serviceMonitorSelectorNilUsesHelmValues: false
       podMonitorSelectorNilUsesHelmValues: false
