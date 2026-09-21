@@ -1,0 +1,39 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: open-archiver
+  labels:
+    app.kubernetes.io/instance: open-archiver
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: open-archiver
+    helm.sh/chart: open-archiver-5.2.1
+  annotations:
+    gethomepage.dev/description: OpenArchiver
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Background
+    gethomepage.dev/icon: mdi-email-outline-#ffffff
+    gethomepage.dev/name: Email Archiver
+    gethomepage.dev/siteMonitor: http://open-archiver.open-archiver:80
+    gethomepage.dev/statusStyle: dot
+    gethomepage.dev/weight: "350"
+  namespace: open-archiver
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: "traefik"
+  hostnames:
+    - "open-archiver.alexlebens.dev"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: open-archiver
+          namespace: open-archiver
+          port: 80
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /

@@ -1,0 +1,188 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-archiver
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: open-archiver
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: open-archiver
+    helm.sh/chart: open-archiver-5.2.1
+  namespace: open-archiver
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: open-archiver
+      app.kubernetes.io/instance: open-archiver
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: open-archiver
+        app.kubernetes.io/name: open-archiver
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: open-archiver
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT_BACKEND
+              value: "4000"
+            - name: PORT_FRONTEND
+              value: "3000"
+            - name: APP_URL
+              value: https://open-archiver.alexlebens.dev
+            - name: ORIGIN
+              value: https://open-archiver.alexlebens.dev
+            - name: SYNC_FREQUENCY
+              value: 0 * * * *
+            - name: ALL_INCLUSIVE_ARCHIVE
+              value: "false"
+            - name: ARCHIVE_DRAFTS
+              value: "false"
+            - name: INGESTION_WORKER_CONCURRENCY
+              value: "5"
+            - name: INGESTION_EMAIL_CONCURRENCY
+              value: "3"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: open-archiver-postgresql-18-cluster-app
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: open-archiver-postgresql-18-cluster-app
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: open-archiver-postgresql-18-cluster-app
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: open-archiver-postgresql-18-cluster-app
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: open-archiver-postgresql-18-cluster-app
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: open-archiver-postgresql-18-cluster-app
+            - name: MEILI_HOST
+              value: http://open-archiver-meilisearch.open-archiver:7700
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: MEILI_MASTER_KEY
+                  name: open-archiver-meilisearch-key
+            - name: MEILI_INDEXING_BATCH
+              value: "500"
+            - name: MEILI_INDEXING_CHUNK
+              value: "25"
+            - name: INDEXING_MAX_TEXT_BYTES
+              value: "1000000"
+            - name: INDEXING_WORKER_CONCURRENCY
+              value: "4"
+            - name: INDEXING_WORKER_MAX_OLD_SPACE_MB
+              value: "2048"
+            - name: REDIS_HOST
+              value: open-archiver-valkey.open-archiver
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_TLS_ENABLED
+              value: "false"
+            - name: STORAGE_TYPE
+              value: s3
+            - name: STORAGE_LOCAL_ROOT_PATH
+              value: /data
+            - name: STORAGE_S3_ENDPOINT
+              value: https://a.s3.alexlebens.dev
+            - name: STORAGE_S3_BUCKET
+              value: open-archiver-assets
+            - name: STORAGE_S3_REGION
+              value: garage
+            - name: STORAGE_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: STORAGE_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: access-key-id
+                  name: open-archiver-assets-key
+            - name: STORAGE_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-access-key
+                  name: open-archiver-assets-key
+            - name: TIKA_URL
+              value: http://127.0.0.1:9998
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: jwt-secret
+                  name: open-archiver-key
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: encryption-key
+                  name: open-archiver-key
+          image: logiclabshq/open-archiver:v0.6.0@sha256:3c240bf852d604b73a5229c0a22e2e69987e8e9cfe7241710598ca6187c08b83
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          name: main
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 500Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /
+              port: 3000
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: /data
+              name: data
+        - image: apache/tika:3.3.1.0@sha256:90b7fa1dc018434075fce9e1d9b88b1e3d0ea6979d0cf86e116c79a8073ae973
+          livenessProbe:
+            httpGet:
+              path: /tika
+              port: 9998
+          name: tika
+          readinessProbe:
+            httpGet:
+              path: /tika
+              port: 9998
+          resources:
+            requests:
+              cpu: 10m
+              memory: 250Mi
+      volumes:
+        - emptyDir: {}
+          name: data
