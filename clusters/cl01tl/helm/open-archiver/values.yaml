@@ -1,0 +1,253 @@
+open-archiver:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: logiclabshq/open-archiver
+            tag: v0.6.0@sha256:3c240bf852d604b73a5229c0a22e2e69987e8e9cfe7241710598ca6187c08b83
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT_BACKEND
+              value: "4000"
+            - name: PORT_FRONTEND
+              value: "3000"
+            - name: APP_URL
+              value: https://open-archiver.alexlebens.dev
+            - name: ORIGIN
+              value: https://open-archiver.alexlebens.dev
+            - name: SYNC_FREQUENCY
+              value: "0 * * * *"
+            - name: ALL_INCLUSIVE_ARCHIVE
+              value: "false"
+            - name: ARCHIVE_DRAFTS
+              value: "false"
+            - name: INGESTION_WORKER_CONCURRENCY
+              value: "5"
+            - name: INGESTION_EMAIL_CONCURRENCY
+              value: "3"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: open-archiver-postgresql-18-cluster-app
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: open-archiver-postgresql-18-cluster-app
+                  key: password
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: open-archiver-postgresql-18-cluster-app
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: open-archiver-postgresql-18-cluster-app
+                  key: port
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: open-archiver-postgresql-18-cluster-app
+                  key: dbname
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: open-archiver-postgresql-18-cluster-app
+                  key: uri
+            - name: MEILI_HOST
+              value: http://open-archiver-meilisearch.open-archiver:7700
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: open-archiver-meilisearch-key
+                  key: MEILI_MASTER_KEY
+            - name: MEILI_INDEXING_BATCH
+              value: "500"
+            - name: MEILI_INDEXING_CHUNK
+              value: "25"
+            - name: INDEXING_MAX_TEXT_BYTES
+              value: "1000000"
+            - name: INDEXING_WORKER_CONCURRENCY
+              value: "4"
+            - name: INDEXING_WORKER_MAX_OLD_SPACE_MB
+              value: "2048"
+            - name: REDIS_HOST
+              value: open-archiver-valkey.open-archiver
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_TLS_ENABLED
+              value: "false"
+            - name: STORAGE_TYPE
+              value: s3
+            - name: STORAGE_LOCAL_ROOT_PATH
+              value: /data
+            - name: STORAGE_S3_ENDPOINT
+              value: https://a.s3.alexlebens.dev
+            - name: STORAGE_S3_BUCKET
+              value: open-archiver-assets
+            - name: STORAGE_S3_REGION
+              value: garage
+            - name: STORAGE_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: STORAGE_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: open-archiver-assets-key
+                  key: access-key-id
+            - name: STORAGE_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: open-archiver-assets-key
+                  key: secret-access-key
+            - name: TIKA_URL
+              value: http://127.0.0.1:9998
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: open-archiver-key
+                  key: jwt-secret
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: open-archiver-key
+                  key: encryption-key
+          resources:
+            requests:
+              cpu: 10m
+              memory: 500Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 3000
+                initialDelaySeconds: 15
+                periodSeconds: 10
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 3000
+                initialDelaySeconds: 10
+                periodSeconds: 5
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 3000
+                failureThreshold: 30
+                periodSeconds: 10
+        tika:
+          image:
+            repository: apache/tika
+            tag: 3.3.1.0@sha256:90b7fa1dc018434075fce9e1d9b88b1e3d0ea6979d0cf86e116c79a8073ae973
+          resources:
+            requests:
+              cpu: 10m
+              memory: 250Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /tika
+                  port: 9998
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /tika
+                  port: 9998
+  service:
+    main:
+      controller: main
+      forceRename: open-archiver
+      ports:
+        http:
+          port: 80
+          targetPort: 3000
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Email Archiver"
+        gethomepage.dev/description: "OpenArchiver"
+        gethomepage.dev/group: "Background"
+        gethomepage.dev/icon: "mdi-email-outline-#ffffff"
+        gethomepage.dev/siteMonitor: "http://open-archiver.open-archiver:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "350"
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - open-archiver.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: open-archiver
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+meilisearch:
+  environment:
+    MEILI_NO_ANALYTICS: true
+    MEILI_ENV: production
+    MEILI_UPGRADE_DB: true
+    MEILI_EXPERIMENTAL_ENABLE_VECTOR_STORE: "true"
+    MEILI_EXPERIMENTAL_ENABLE_VECTOR_SEARCH: "true"
+  auth:
+    existingMasterKeySecret: open-archiver-meilisearch-key
+  persistence:
+    enabled: true
+    storageClass: ceph-block
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 1m
+      memory: 50Mi
+  serviceMonitor:
+    enabled: true
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 25 5 * * *"
+garage-bucket-open-archiver-assets:
+  bucketName: open-archiver-assets
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: open-archiver-assets
