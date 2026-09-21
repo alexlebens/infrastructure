@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shelly-plug-it05sp
+  labels:
+    app.kubernetes.io/controller: it05sp
+    app.kubernetes.io/instance: shelly-plug
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: shelly-plug
+    helm.sh/chart: shelly-plug-5.2.1
+  namespace: shelly-plug
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: it05sp
+      app.kubernetes.io/name: shelly-plug
+      app.kubernetes.io/instance: shelly-plug
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: it05sp
+        app.kubernetes.io/instance: shelly-plug
+        app.kubernetes.io/name: shelly-plug
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: shelly-plug
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      initContainers:
+        - command:
+            - /bin/sh
+            - -ec
+            - |
+              cd /var/www/html
+              if [ -d ".git" ]; then
+                echo "Git repository found. Pulling latest changes..."
+                git pull
+              else
+                echo "Not a git repository. Initializing ..."
+                git init
+                git remote add origin https://github.com/geerlingguy/shelly-plug-prometheus.git
+                git fetch origin
+                git checkout origin/master -ft
+              fi
+          image: alpine/git:v2.54.0@sha256:113d99116e236f93f0b1f53cd46dbda662cf1136d20dc9ae2834962226654d9f
+          name: init-fetch-repo
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - mountPath: /var/www/html
+              name: script
+      containers:
+        - env:
+            - name: SHELLY_HOSTNAME
+              value: it05sp.alexlebens.dev
+            - name: SHELLY_GENERATION
+              value: "2"
+          envFrom:
+            - secretRef:
+                name: shelly-plug-it05sp-config-secret
+          image: php:8.5.10-apache@sha256:f36ea061995a3542d75f56e7615e62fea8095ec1ec8b93005ebffc83be4c8cd1
+          livenessProbe:
+            tcpSocket:
+              port: 80
+          name: main
+          readinessProbe:
+            tcpSocket:
+              port: 80
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          volumeMounts:
+            - mountPath: /var/www/html
+              name: script
+      volumes:
+        - emptyDir: {}
+          name: script
