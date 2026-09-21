@@ -4,7 +4,7 @@
       {
         "builtIn": 1,
         "datasource": {
-          "type": "datasource",
+          "type": "grafana",
           "uid": "grafana"
         },
         "enable": true,
@@ -18,64 +18,496 @@
   "editable": false,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "links": [],
+  "liveNow": false,
   "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 16,
+      "title": "Cost",
+      "type": "row"
+    },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "",
+      "description": "Active electricity tariff tier ($/kWh) based on Xcel Energy MN Time-of-Use schedule",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "#EAB839",
+                "value": 0.15
+              },
+              {
+                "color": "red",
+                "value": 0.2
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 11,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21)) * $on_peak_rate + (1 - ((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21))) * $off_peak_rate",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "interval": "",
+          "legendFormat": "Rate",
+          "queryType": "randomWalk",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Current Rate ($/kWh)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Real-time electricity burn rate in $/hr based on active tariff tier",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#ad46ff",
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 12,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "(sum(power{namespace=\"shelly-plug\", service=~\"shelly-plug-$plug\"}) / 1000) * on() group_left () (((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21)) * $on_peak_rate + (1 - ((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21))) * $off_peak_rate)",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "interval": "",
+          "legendFormat": "Cost/Hour",
+          "queryType": "randomWalk",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Current Cost / Hour",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Total calculated electricity cost for the current month (Month to Date) accounting for dynamic peak/off-peak rates",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "id": 14,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "((sum(avg_over_time(power{namespace=\"shelly-plug\", service=~\"shelly-plug-$plug\"}[$__range])) * $__range_s) / 3600000) * on() group_left () avg_over_time((((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21)) * $on_peak_rate + (1 - ((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21))) * $off_peak_rate)[$__range:])",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "interval": "",
+          "legendFormat": "Cost ($)",
+          "queryType": "randomWalk",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "timeFrom": "now/M",
+      "title": "Cost (Current Month)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Total calculated electricity cost for the prior calendar month accounting for dynamic peak/off-peak rates",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "id": 18,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "((sum(avg_over_time(power{namespace=\"shelly-plug\", service=~\"shelly-plug-$plug\"}[$__range])) * $__range_s) / 3600000) * on() group_left () avg_over_time((((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21)) * $on_peak_rate + (1 - ((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21))) * $off_peak_rate)[$__range:])",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "interval": "",
+          "legendFormat": "Cost ($)",
+          "queryType": "randomWalk",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "timeFrom": "1M/M",
+      "timeShift": "1M/M",
+      "title": "Cost (Prior Month)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Calculated power cost rate over time based on dynamic Xcel Energy Time-of-Use rates",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "right",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 2,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 15,
+      "options": {
+        "alertThreshold": true,
+        "legend": {
+          "calcs": ["lastNotNull", "mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "((sum by (service) (power{namespace=\"shelly-plug\", service=~\"shelly-plug-$plug\"})) / 1000) * on() group_left () (((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21)) * $on_peak_rate + (1 - ((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21))) * $off_peak_rate)",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "interval": "",
+          "legendFormat": "{{service}} ($/hr)",
+          "queryType": "randomWalk",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "((sum(power{namespace=\"shelly-plug\", service=~\"shelly-plug-$plug\"}) / 1000)) * on() group_left () (((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21)) * $on_peak_rate + (1 - ((day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1) * (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9) * (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21))) * $off_peak_rate)",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "interval": "",
+          "legendFormat": "Total ($/hr)",
+          "queryType": "randomWalk",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        }
+      ],
+      "title": "Power Cost Rate",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 17,
+      "title": "Consumption",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#ad46ff",
+            "mode": "thresholds"
+          },
           "max": 600,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "#EAB839",
-                "value": 480
+                "value": 1000
               },
               {
                 "color": "red",
-                "value": 550
+                "value": 1200
               }
             ]
           },
           "unit": "watt"
-        },
-        "overrides": []
+        }
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 4,
+        "w": 6,
         "x": 0,
-        "y": 0
+        "y": 15
       },
       "id": 6,
       "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto",
-        "text": {}
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "13.2.2",
       "targets": [
         {
           "datasource": {
@@ -96,7 +528,7 @@
         }
       ],
       "title": "Power Consumption (Latest)",
-      "type": "gauge"
+      "type": "stat"
     },
     {
       "datasource": {
@@ -106,53 +538,54 @@
       "fieldConfig": {
         "defaults": {
           "color": {
+            "fixedColor": "#ad46ff",
             "mode": "thresholds"
           },
-          "mappings": [],
           "max": 600,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "#EAB839",
-                "value": 480
+                "value": 1000
               },
               {
                 "color": "red",
-                "value": 550
+                "value": 1200
               }
             ]
           },
           "unit": "watt"
-        },
-        "overrides": []
+        }
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 15
       },
       "id": 4,
       "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": ["mean"],
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto",
-        "text": {}
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "13.2.2",
       "targets": [
         {
           "datasource": {
@@ -173,14 +606,154 @@
         }
       ],
       "title": "Power Consumption (Average)",
-      "type": "gauge"
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "",
+      "description": "Total electricity consumed (kWh) for the current month (Month to Date)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "kwh"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 15
+      },
+      "id": 13,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "(sum(avg_over_time(power{namespace=\"shelly-plug\", service=~\"shelly-plug-$plug\"}[$__range])) * $__range_s) / 3600000",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "interval": "",
+          "legendFormat": "Energy (kWh)",
+          "queryType": "randomWalk",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "timeFrom": "now/M",
+      "title": "Energy (Current Month)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Total electricity consumed (kWh) for the prior calendar month",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "kwh"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 15
+      },
+      "id": 19,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "13.2.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "(sum(avg_over_time(power{namespace=\"shelly-plug\", service=~\"shelly-plug-$plug\"}[$__range])) * $__range_s) / 3600000",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "interval": "",
+          "legendFormat": "Energy (kWh)",
+          "queryType": "randomWalk",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "timeFrom": "1M/M",
+      "timeShift": "1M/M",
+      "title": "Energy (Prior Month)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -192,6 +765,7 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
+            "axisSoftMax": 1000,
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
@@ -210,6 +784,7 @@
               "type": "linear"
             },
             "showPoints": "never",
+            "showValues": false,
             "spanNulls": true,
             "stacking": {
               "group": "A",
@@ -219,29 +794,28 @@
               "mode": "off"
             }
           },
-          "mappings": [],
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
-                "value": 80
+                "value": 600
               }
             ]
           },
           "unit": "watt"
-        },
-        "overrides": []
+        }
       },
       "gridPos": {
-        "h": 8,
+        "h": 11,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 19
       },
       "id": 2,
       "options": {
@@ -258,7 +832,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "13.2.2",
       "targets": [
         {
           "datasource": {
@@ -306,22 +880,27 @@
   "templating": {
     "list": [
       {
+        "allowCustomValue": true,
         "current": {
           "text": "Prometheus",
           "value": "kube-prometheus-stack"
         },
+        "hide": 0,
+        "includeAll": false,
         "label": "Prometheus",
+        "multi": false,
         "name": "DS_PROMETHEUS",
         "options": [],
         "query": "prometheus",
-        "refresh": 0,
+        "refresh": 1,
         "regex": "",
+        "skipUrlSync": false,
         "type": "datasource"
       },
       {
         "allValue": ".*",
+        "allowCustomValue": true,
         "current": {
-          "selected": true,
           "text": "All",
           "value": "$__all"
         },
@@ -342,14 +921,103 @@
         },
         "refresh": 1,
         "regex": "/shelly-plug-(.*)/",
+        "regexApplyTo": "value",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
+      },
+      {
+        "allowCustomValue": true,
+        "current": {
+          "text": "0.26",
+          "value": "0.26"
+        },
+        "description": "Xcel Energy MN On-Peak rate ($/kWh). Summer: $0.26, Winter: $0.21",
+        "hide": 0,
+        "includeAll": false,
+        "label": "On-Peak ($/kWh)",
+        "multi": false,
+        "name": "on_peak_rate",
+        "options": [
+          {
+            "selected": false,
+            "text": "0.21",
+            "value": "0.21"
+          },
+          {
+            "selected": false,
+            "text": "0.24",
+            "value": "0.24"
+          },
+          {
+            "selected": true,
+            "text": "0.26",
+            "value": "0.26"
+          },
+          {
+            "selected": false,
+            "text": "0.28",
+            "value": "0.28"
+          },
+          {
+            "selected": false,
+            "text": "0.30",
+            "value": "0.30"
+          }
+        ],
+        "query": "0.21, 0.24, 0.26, 0.28, 0.30",
+        "skipUrlSync": false,
+        "type": "custom",
+        "valuesFormat": "csv"
+      },
+      {
+        "allowCustomValue": true,
+        "current": {
+          "text": "0.06",
+          "value": "0.06"
+        },
+        "description": "Xcel Energy MN Off-Peak rate ($/kWh). Base: $0.05 + fuel rider",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Off-Peak ($/kWh)",
+        "multi": false,
+        "name": "off_peak_rate",
+        "options": [
+          {
+            "selected": false,
+            "text": "0.04",
+            "value": "0.04"
+          },
+          {
+            "selected": false,
+            "text": "0.05",
+            "value": "0.05"
+          },
+          {
+            "selected": true,
+            "text": "0.06",
+            "value": "0.06"
+          },
+          {
+            "selected": false,
+            "text": "0.07",
+            "value": "0.07"
+          },
+          {
+            "selected": false,
+            "text": "0.08",
+            "value": "0.08"
+          }
+        ],
+        "query": "0.04, 0.05, 0.06, 0.07, 0.08",
+        "skipUrlSync": false,
+        "type": "custom",
+        "valuesFormat": "csv"
       }
     ]
   },
   "time": {
-    "from": "now-7d",
+    "from": "now-30d",
     "to": "now"
   },
   "timepicker": {},
