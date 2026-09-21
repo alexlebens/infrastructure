@@ -100,7 +100,7 @@ spec:
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "sum(power{namespace=\"shelly-plug\"})",
+              "expr": "sum(power{namespace=\"shelly-plug\", service=~\"shelly-plug-$plug\"})",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "interval": "",
@@ -177,7 +177,7 @@ spec:
               },
               "disableTextWrap": false,
               "editorMode": "builder",
-              "expr": "sum(power{namespace=\"shelly-plug\"})",
+              "expr": "sum(power{namespace=\"shelly-plug\", service=~\"shelly-plug-$plug\"})",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "interval": "",
@@ -263,10 +263,10 @@ spec:
           "options": {
             "alertThreshold": true,
             "legend": {
-              "calcs": [],
-              "displayMode": "list",
+              "calcs": ["lastNotNull", "mean", "max"],
+              "displayMode": "table",
               "placement": "bottom",
-              "showLegend": false
+              "showLegend": true
             },
             "tooltip": {
               "hideZeros": false,
@@ -282,15 +282,32 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "disableTextWrap": false,
-              "editorMode": "builder",
-              "expr": "sum(power{namespace=\"shelly-plug\"})",
+              "editorMode": "code",
+              "expr": "sum by (service) (power{namespace=\"shelly-plug\", service=~\"shelly-plug-$plug\"})",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "interval": "",
-              "legendFormat": "Watts",
+              "legendFormat": "{{service}}",
               "queryType": "randomWalk",
               "range": true,
               "refId": "A",
+              "useBackend": false
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "expr": "sum(power{namespace=\"shelly-plug\", service=~\"shelly-plug-$plug\"})",
+              "fullMetaSearch": false,
+              "includeNullMetadata": true,
+              "interval": "",
+              "legendFormat": "Total",
+              "queryType": "randomWalk",
+              "range": true,
+              "refId": "B",
               "useBackend": false
             }
           ],
@@ -316,6 +333,34 @@ spec:
             "refresh": 0,
             "regex": "",
             "type": "datasource"
+          },
+          {
+            "allValue": ".*",
+            "current": {
+              "selected": true,
+              "text": "All",
+              "value": "$__all"
+            },
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${DS_PROMETHEUS}"
+            },
+            "definition": "label_values(power{namespace=\"shelly-plug\"}, service)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Plug",
+            "multi": false,
+            "name": "plug",
+            "options": [],
+            "query": {
+              "query": "label_values(power{namespace=\"shelly-plug\"}, service)",
+              "refId": "StandardVariableQuery"
+            },
+            "refresh": 1,
+            "regex": "/shelly-plug-(.*)/",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
           }
         ]
       },
