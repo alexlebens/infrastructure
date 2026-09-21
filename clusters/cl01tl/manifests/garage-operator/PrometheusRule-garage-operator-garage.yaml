@@ -4,11 +4,11 @@ metadata:
   name: garage-operator-garage
   namespace: garage-operator
   labels:
-    helm.sh/chart: garage-operator-0.7.10
+    helm.sh/chart: garage-operator-0.7.11
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.7.10"
+    app.kubernetes.io/version: "0.7.11"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -60,6 +60,30 @@ spec:
           for: 5m
           labels:
             severity: critical
+    - name: garage.quota
+      rules:
+        - alert: GarageBucketSizeQuotaNearLimit
+          annotations:
+            summary: "Garage bucket {{ $labels.namespace }}/{{ $labels.bucket }} is near its size quota"
+            description: "Garage bucket {{ $labels.namespace }}/{{ $labels.bucket }} has used {{ $value | humanizePercentage }} of its configured size quota for 15 minutes."
+          expr: |
+            garage_operator_bucket_quota_size_utilization_ratio > 0.9
+            and on (namespace, bucket)
+            garage_operator_bucket_size_limit_bytes > 0
+          for: 15m
+          labels:
+            severity: warning
+        - alert: GarageBucketObjectQuotaNearLimit
+          annotations:
+            summary: "Garage bucket {{ $labels.namespace }}/{{ $labels.bucket }} is near its object quota"
+            description: "Garage bucket {{ $labels.namespace }}/{{ $labels.bucket }} has used {{ $value | humanizePercentage }} of its configured object quota for 15 minutes."
+          expr: |
+            garage_operator_bucket_quota_object_utilization_ratio > 0.9
+            and on (namespace, bucket)
+            garage_operator_bucket_object_limit > 0
+          for: 15m
+          labels:
+            severity: warning
     - name: garage.cluster
       rules:
         - alert: GarageClusterUnhealthy
