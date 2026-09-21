@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thanos-query
+  labels:
+    app.kubernetes.io/controller: query
+    app.kubernetes.io/instance: thanos
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: thanos
+    helm.sh/chart: thanos-5.2.1
+  namespace: thanos
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: query
+      app.kubernetes.io/name: thanos
+      app.kubernetes.io/instance: thanos
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: query
+        app.kubernetes.io/instance: thanos
+        app.kubernetes.io/name: thanos
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: thanos
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - args:
+            - query
+            - --http-address=0.0.0.0:9090
+            - --grpc-address=0.0.0.0:10901
+            - --store=kube-prometheus-stack-thanos-discovery.kube-prometheus-stack.svc.cluster.local:10901
+            - --store=thanos-store.thanos.svc.cluster.local:10901
+            - --query.replica-label=prometheus
+            - --query.auto-downsampling
+          image: thanosio/thanos:v0.42.4@sha256:b567818fe608067eb0f1d7c2c4fe361e7ad83c8a256234c97685f1d0bf670cc8
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+          name: main
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 50m
+              memory: 128Mi
