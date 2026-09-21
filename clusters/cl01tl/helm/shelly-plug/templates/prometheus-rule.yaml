@@ -1,0 +1,42 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: shelly-plug
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: shelly-plug
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: shelly-plug-xcel-rates
+      rules:
+        - record: xcel_energy_is_on_peak
+          expr: |
+            (
+              (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 1)
+              *
+              (day_of_week(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 5)
+              *
+              (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 9)
+              *
+              (hour(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) < bool 21)
+            )
+        - record: xcel_energy_is_summer
+          expr: |
+            (month(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) >= bool 6)
+            *
+            (month(vector(time()) - 21600 + (3600 * ((month() >= bool 4) * (month() <= bool 10)))) <= bool 9)
+        - record: xcel_electricity_rate_usd_per_kwh
+          expr: |
+            (
+              (xcel_energy_is_on_peak == bool 1) * (
+                (xcel_energy_is_summer == bool 1) * 0.26
+                +
+                (xcel_energy_is_summer == bool 0) * 0.21
+              )
+              +
+              (xcel_energy_is_on_peak == bool 0) * 0.06
+            )
+        - record: power_cost_rate_usd_per_hour
+          expr: |
+            (power{namespace="shelly-plug"} / 1000) * on() group_left () xcel_electricity_rate_usd_per_kwh
