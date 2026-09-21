@@ -1,6 +1,6 @@
 shelly-plug:
   controllers:
-    main:
+    it05sp:
       type: deployment
       strategy: Recreate
       initContainers:
@@ -37,7 +37,62 @@ shelly-plug:
               value: 2
           envFrom:
             - secretRef:
-                name: shelly-plug-config-secret
+                name: shelly-plug-it05sp-config-secret
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 80
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 80
+    it07sp:
+      type: deployment
+      strategy: Recreate
+      initContainers:
+        init-fetch-repo:
+          securityContext:
+            runAsUser: 0
+          image:
+            repository: alpine/git
+            tag: v2.54.0@sha256:113d99116e236f93f0b1f53cd46dbda662cf1136d20dc9ae2834962226654d9f
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cd /var/www/html
+              if [ -d ".git" ]; then
+                echo "Git repository found. Pulling latest changes..."
+                git pull
+              else
+                echo "Not a git repository. Initializing ..."
+                git init
+                git remote add origin https://github.com/geerlingguy/shelly-plug-prometheus.git
+                git fetch origin
+                git checkout origin/master -ft
+              fi
+      containers:
+        main:
+          image:
+            repository: php
+            tag: 8.5.10-apache@sha256:f36ea061995a3542d75f56e7615e62fea8095ec1ec8b93005ebffc83be4c8cd1
+          env:
+            - name: SHELLY_HOSTNAME
+              value: it07sp.alexlebens.dev
+            - name: SHELLY_GENERATION
+              value: 2
+          envFrom:
+            - secretRef:
+                name: shelly-plug-it07sp-config-secret
           resources:
             requests:
               cpu: 1m
@@ -56,27 +111,41 @@ shelly-plug:
                 tcpSocket:
                   port: 80
   service:
-    main:
+    it05sp:
+      controller: it05sp
+      forceRename: shelly-plug-it05sp
+      ports:
+        metrics:
+          port: 80
+    it07sp:
+      controller: it07sp
+      forceRename: shelly-plug-it07sp
       ports:
         metrics:
           port: 80
   serviceMonitor:
-    main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: shelly-plug
-          app.kubernetes.io/instance: shelly-plug
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+    it05sp:
+      service:
+        identifier: it05sp
+      endpoints:
+        - port: metrics
+          interval: 5m
+    it07sp:
+      service:
+        identifier: it07sp
       endpoints:
         - port: metrics
           interval: 5m
   persistence:
     script:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 1Gi
+      type: emptyDir
       advancedMounts:
-        main:
+        it05sp:
+          init-fetch-repo:
+            - path: /var/www/html
+          main:
+            - path: /var/www/html
+        it07sp:
           init-fetch-repo:
             - path: /var/www/html
           main:
