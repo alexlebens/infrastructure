@@ -1,0 +1,39 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mealie
+  labels:
+    app.kubernetes.io/instance: mealie
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mealie
+    helm.sh/chart: mealie-5.2.1
+  annotations:
+    gethomepage.dev/description: Mealie
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Applications
+    gethomepage.dev/icon: sh-mealie.webp
+    gethomepage.dev/name: Recipes
+    gethomepage.dev/siteMonitor: http://mealie.mealie:9000
+    gethomepage.dev/statusStyle: dot
+    gethomepage.dev/weight: "360"
+  namespace: mealie
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: "traefik"
+  hostnames:
+    - "mealie.alexlebens.dev"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: mealie
+          namespace: mealie
+          port: 9000
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
