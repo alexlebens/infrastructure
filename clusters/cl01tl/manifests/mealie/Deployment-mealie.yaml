@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mealie
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: mealie
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: mealie
+    helm.sh/chart: mealie-5.2.1
+  namespace: mealie
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: mealie
+      app.kubernetes.io/instance: mealie
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: mealie
+        app.kubernetes.io/name: mealie
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: mealie
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: BASE_URL
+              value: https://mealie.alexlebens.dev
+            - name: ALLOW_SIGNUP
+              value: "false"
+            - name: DB_ENGINE
+              value: postgres
+            - name: POSTGRES_SERVER
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: mealie-postgresql-18-cluster-app
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: mealie-postgresql-18-cluster-app
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: mealie-postgresql-18-cluster-app
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: mealie-postgresql-18-cluster-app
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mealie-postgresql-18-cluster-app
+            - name: OIDC_AUTH_ENABLED
+              value: "true"
+            - name: OIDC_CONFIGURATION_URL
+              value: https://auth.alexlebens.dev/.well-known/openid-configuration
+            - name: OIDC_PROVIDER_NAME
+              value: AlexAuth
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: mealie-oidc-secret
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: mealie-oidc-secret
+            - name: OIDC_SIGNUP_ENABLED
+              value: "true"
+            - name: OIDC_AUTO_REDIRECT
+              value: "false"
+            - name: OIDC_REQUIRES_EMAIL_VERIFICATION
+              value: "false"
+          image: ghcr.io/mealie-recipes/mealie:v3.27.0@sha256:ba24b88462380fb59a6c7d04c6d9e607e0b6b04e31306592181186bcdab1952b
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 9000
+            periodSeconds: 15
+            timeoutSeconds: 5
+          name: main
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 9000
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 50m
+              memory: 256Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - mountPath: /app/data
+              name: data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mealie-data

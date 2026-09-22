@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: foldergram
+  name: foldergram-main
   labels:
     app.kubernetes.io/controller: main
     app.kubernetes.io/instance: foldergram
@@ -47,7 +47,7 @@ spec:
             - name: GALLERY_ROOT
               value: /gallery
             - name: CSRF_TRUSTED_ORIGINS
-              value: https://art.alexlebens.dev
+              value: https://photos.alexlebens.dev
           image: ghcr.io/foldergram/foldergram:1.2.2@sha256:f72dfe39d9042555fd1b509a06f6c93c8b9a8be02541c80135a9a8f25fe362d4
           livenessProbe:
             httpGet:
@@ -67,22 +67,15 @@ spec:
               name: data
             - mountPath: /app/data/db
               name: db
-            - mountPath: /gallery/Minneapolis Institute of Art
-              name: pictures-mia
-              readOnly: true
-            - mountPath: /gallery/Rijksmuseum
-              name: pictures-rijksmuseum
-              readOnly: true
+            - mountPath: /gallery/Favorites
+              name: gallery-favorites
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: foldergram-data
+            claimName: foldergram-cache
         - name: db
           persistentVolumeClaim:
             claimName: foldergram-db
-        - name: pictures-mia
+        - name: gallery-favorites
           persistentVolumeClaim:
-            claimName: foldergram-pictures-collection-mia-nfs-storage
-        - name: pictures-rijksmuseum
-          persistentVolumeClaim:
-            claimName: foldergram-pictures-collection-rijksmuseum-nfs-storage
+            claimName: foldergram-gallery-favorites

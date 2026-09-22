@@ -1,0 +1,78 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: foldergram-sync
+  labels:
+    app.kubernetes.io/controller: sync
+    app.kubernetes.io/instance: foldergram
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: foldergram
+    helm.sh/chart: foldergram-5.2.1
+  namespace: foldergram
+spec:
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 30
+  schedule: "0 4 * * 0"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/controller: sync
+            app.kubernetes.io/instance: foldergram
+            app.kubernetes.io/name: foldergram
+        spec:
+          enableServiceLinks: false
+          serviceAccountName: foldergram
+          automountServiceAccountToken: false
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsUser: 1000
+          hostIPC: false
+          hostNetwork: false
+          hostPID: false
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          containers:
+            - command:
+                - python3
+                - /scripts/sync.py
+              env:
+                - name: IMMICH_URL
+                  value: http://immich.immich:2283/api
+                - name: IMMICH_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: apiKey
+                      name: foldergram-immich-secret
+                - name: GALLERY_PATH
+                  value: /gallery/Favorites
+                - name: PRUNE_DELETED
+                  value: "true"
+              image: python:3.12-alpine@sha256:4c47124a8391cb7a9f571164147d154777cf012a4ece5f86097130d7a4478111
+              name: main
+              resources:
+                limits:
+                  memory: 128Mi
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              volumeMounts:
+                - mountPath: /gallery/Favorites
+                  name: gallery-favorites
+                - mountPath: /scripts/sync.py
+                  name: sync-script
+                  readOnly: true
+                  subPath: sync.py
+          volumes:
+            - name: gallery-favorites
+              persistentVolumeClaim:
+                claimName: foldergram-gallery-favorites
+            - configMap:
+                name: foldergram-immich-sync
+              name: sync-script
