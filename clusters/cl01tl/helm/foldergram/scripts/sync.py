@@ -1,0 +1,135 @@
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+IMMICH_URL = os.environ.get("IMMICH_URL", "http://immich.immich:2283/api").rstrip("/")
+API_KEY = os.environ.get("IMMICH_API_KEY", "")
+GALLERY_PATH = os.environ.get("GALLERY_PATH", "/gallery/Favorites")
+PRUNE_DELETED = os.environ.get("PRUNE_DELETED", "true").lower() in ("true", "1", "yes")
+
+def sanitize_filename(filename):
+    return re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
+
+def api_request(endpoint, method="GET", data=None):
+    url = f"{IMMICH_URL}/{endpoint.lstrip('/')}"
+    headers = {
+        "x-api-key": API_KEY,
+        "Accept": "application/json",
+    }
+    body = None
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(data).encode("utf-8")
+
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+def download_asset(asset_id, dest_path):
+    url = f"{IMMICH_URL}/assets/{asset_id}/original"
+    req = urllib.request.Request(url, headers={"x-api-key": API_KEY})
+    tmp_path = f"{dest_path}.tmp"
+    with urllib.request.urlopen(req, timeout=120) as resp, open(tmp_path, "wb") as f:
+        while True:
+            chunk = resp.read(64 * 1024)
+            if not chunk:
+                break
+            f.write(chunk)
+    os.replace(tmp_path, dest_path)
+
+def fetch_all_favorites():
+    assets = []
+    page = 1
+    size = 250
+    while True:
+        payload = {
+            "isFavorite": True,
+            "page": page,
+            "size": size,
+        }
+        res = api_request("search/metadata", method="POST", data=payload)
+        items = res.get("assets", {}).get("items", [])
+        if not items:
+            break
+        assets.extend(items)
+        total = res.get("assets", {}).get("total", len(assets))
+        if len(assets) >= total:
+            break
+        page += 1
+    return assets
+
+def sync_favorites():
+    if not API_KEY:
+        print("[sync] ERROR: IMMICH_API_KEY is not set. Skipping sync.")
+        return
+
+    os.makedirs(GALLERY_PATH, exist_ok=True)
+    print(f"[sync] Fetching favorites from {IMMICH_URL}...")
+    try:
+        favorites = fetch_all_favorites()
+    except Exception as e:
+        print(f"[sync] Failed to query Immich API: {e}")
+        return
+
+    print(f"[sync] Found {len(favorites)} favorite assets in Immich.")
+
+    # Map asset_id -> filename
+    remote_assets = {}
+    for a in favorites:
+        aid = a["id"]
+        orig_name = sanitize_filename(a.get("originalFileName", f"{aid}.jpg"))
+        remote_assets[aid] = f"{aid}_{orig_name}"
+
+    # Scan existing files in GALLERY_PATH
+    existing_files = os.listdir(GALLERY_PATH)
+    local_assets = {}
+    for fname in existing_files:
+        if fname.endswith(".tmp"):
+            try:
+                os.remove(os.path.join(GALLERY_PATH, fname))
+            except OSError:
+                pass
+            continue
+        if "_" in fname:
+            aid = fname.split("_", 1)[0]
+            local_assets[aid] = fname
+
+    # Download missing assets
+    downloaded = 0
+    for aid, fname in remote_assets.items():
+        if aid not in local_assets:
+            target = os.path.join(GALLERY_PATH, fname)
+            print(f"[sync] Downloading new asset: {fname}...")
+            try:
+                download_asset(aid, target)
+                downloaded += 1
+            except Exception as e:
+                print(f"[sync] Failed to download {aid}: {e}")
+
+    # Prune un-favorited or deleted assets
+    pruned = 0
+    if PRUNE_DELETED:
+        for aid, fname in local_assets.items():
+            if aid not in remote_assets:
+                target = os.path.join(GALLERY_PATH, fname)
+                print(f"[sync] Pruning un-favorited asset: {fname}...")
+                try:
+                    os.remove(target)
+                    pruned += 1
+                except Exception as e:
+                    print(f"[sync] Failed to remove {target}: {e}")
+
+    print(f"[sync] Sync finished: {downloaded} downloaded, {pruned} pruned, {len(remote_assets)} total in gallery.")
+
+def main():
+    print("[sync] Starting Immich favorites sync...")
+    sync_favorites()
+    print("[sync] Sync completed successfully.")
+
+if __name__ == "__main__":
+    main()

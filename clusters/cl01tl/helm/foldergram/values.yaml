@@ -42,8 +42,46 @@ foldergram:
                 httpGet:
                   path: /api/health
                   port: 4141
+    sync:
+      type: cronjob
+      cronjob:
+        schedule: "0 4 * * 0"
+        backoffLimit: 3
+      pod:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+      containers:
+        main:
+          image:
+            repository: python
+            tag: 3.12-alpine@sha256:4c47124a8391cb7a9f571164147d154777cf012a4ece5f86097130d7a4478111
+          env:
+            - name: IMMICH_URL
+              value: http://immich.immich:2283/api
+            - name: IMMICH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: foldergram-immich-secret
+                  key: apiKey
+            - name: GALLERY_PATH
+              value: /gallery/Favorites
+            - name: PRUNE_DELETED
+              value: "true"
+          command:
+            - python3
+            - /scripts/sync.py
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
   service:
     main:
+      controller: main
+      forceRename: foldergram
       ports:
         http:
           port: 80
@@ -65,6 +103,15 @@ foldergram:
                 type: PathPrefix
                 value: /
   persistence:
+    sync-script:
+      type: configMap
+      name: foldergram-immich-sync
+      advancedMounts:
+        sync:
+          main:
+            - path: /scripts/sync.py
+              subPath: sync.py
+              readOnly: true
     db:
       forceRename: foldergram-db
       storageClass: ceph-block
@@ -75,28 +122,26 @@ foldergram:
           main:
             - path: /app/data/db
     data:
-      forceRename: foldergram-data
-      storageClass: synology-iscsi-delete
+      forceRename: foldergram-cache
+      storageClass: ceph-block
       accessMode: ReadWriteOnce
-      size: 500Gi
+      size: 20Gi
       advancedMounts:
         main:
           main:
             - path: /app/data
-    pictures-mia:
-      existingClaim: foldergram-pictures-collection-mia-nfs-storage
+    gallery-favorites:
+      forceRename: foldergram-gallery-favorites
+      storageClass: ceph-filesystem
+      accessMode: ReadWriteMany
+      size: 50Gi
       advancedMounts:
         main:
           main:
-            - path: "/gallery/Minneapolis Institute of Art"
-              readOnly: true
-    pictures-rijksmuseum:
-      existingClaim: foldergram-pictures-collection-rijksmuseum-nfs-storage
-      advancedMounts:
-        main:
+            - path: /gallery/Favorites
+        sync:
           main:
-            - path: "/gallery/Rijksmuseum"
-              readOnly: true
+            - path: /gallery/Favorites
 cloudflared:
   probe:
     enabled: true

@@ -1,0 +1,181 @@
+mealie:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: ghcr.io/mealie-recipes/mealie
+            tag: v3.27.0@sha256:ba24b88462380fb59a6c7d04c6d9e607e0b6b04e31306592181186bcdab1952b
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: BASE_URL
+              value: https://mealie.alexlebens.dev
+            - name: ALLOW_SIGNUP
+              value: "false"
+            - name: DB_ENGINE
+              value: postgres
+            - name: POSTGRES_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-postgresql-18-cluster-app
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-postgresql-18-cluster-app
+                  key: port
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-postgresql-18-cluster-app
+                  key: dbname
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-postgresql-18-cluster-app
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-postgresql-18-cluster-app
+                  key: password
+            - name: OIDC_AUTH_ENABLED
+              value: "true"
+            - name: OIDC_CONFIGURATION_URL
+              value: https://auth.alexlebens.dev/.well-known/openid-configuration
+            - name: OIDC_PROVIDER_NAME
+              value: AlexAuth
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-oidc-secret
+                  key: clientId
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-oidc-secret
+                  key: clientSecret
+            - name: OIDC_SIGNUP_ENABLED
+              value: "true"
+            - name: OIDC_AUTO_REDIRECT
+              value: "false"
+            - name: OIDC_REQUIRES_EMAIL_VERIFICATION
+              value: "false"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          probes:
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 9000
+                initialDelaySeconds: 10
+                periodSeconds: 5
+                failureThreshold: 30
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 9000
+                periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 9000
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+  service:
+    main:
+      forceRename: mealie
+      ports:
+        http:
+          port: 9000
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - mealie.alexlebens.dev
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Recipes"
+        gethomepage.dev/description: "Mealie"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "sh-mealie.webp"
+        gethomepage.dev/siteMonitor: "http://mealie.mealie:9000"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "360"
+      rules:
+        - backendRefs:
+            - name: mealie
+              port: 9000
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      forceRename: mealie-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 10Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Mealie"
+    description: "A self-hosted recipe manager and meal planner."
+    callbackUrls:
+      - https://mealie.alexlebens.dev/login
+      - https://mealie.alexlebens.dev/login?direct=1
+  seedJob:
+    enabled: true
+postgres-18-cluster:
+  mode: standalone
+  cluster:
+    initdb:
+      postInitTemplateSQL:
+        - CREATE EXTENSION IF NOT EXISTS pg_trgm;
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 20 4 * * *"
+volsync-target-data:
+  pvcTarget: mealie-data
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+  local:
+    enabled: true
+    schedule: 30 11 * * *
+  remote:
+    enabled: true
+    schedule: 0 11 * * 6
