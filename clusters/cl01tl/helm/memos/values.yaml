@@ -1,0 +1,153 @@
+memos:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: neosmemo/memos
+            tag: 0.31.0@sha256:24c2707ddd8fbd2ceaa7a61ecab86a53cdcde640b24ce572b73da14b00b5785f
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: MEMOS_PORT
+              value: "5230"
+            - name: MEMOS_DRIVER
+              value: postgres
+            - name: POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: memos-postgresql-18-cluster-app
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: memos-postgresql-18-cluster-app
+                  key: password
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: memos-postgresql-18-cluster-app
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: memos-postgresql-18-cluster-app
+                  key: port
+            - name: POSTGRES_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: memos-postgresql-18-cluster-app
+                  key: dbname
+            - name: MEMOS_DSN
+              value: postgres://$(POSTGRES_USERNAME):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DATABASE)?sslmode=disable
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz
+                  port: 5230
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz
+                  port: 5230
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz
+                  port: 5230
+                failureThreshold: 30
+                periodSeconds: 10
+  service:
+    main:
+      forceRename: memos
+      ports:
+        http:
+          port: 80
+          targetPort: 5230
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Notes"
+        gethomepage.dev/description: "Memos"
+        gethomepage.dev/group: "Knowledge"
+        gethomepage.dev/icon: "sh-memos.webp"
+        gethomepage.dev/siteMonitor: "http://memos.memos:80/healthz"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "360"
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - memos.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: memos
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    idp-config:
+      type: secret
+      name: memos-idp-config
+      advancedMounts:
+        main:
+          main:
+            - path: /etc/secrets
+              readOnly: true
+cloudflared:
+  probe:
+    enabled: true
+    targetUrl: https://memos.alexlebens.dev
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackup:
+      suspend: false
+      schedule: "0 15 10 * * *"
+garage-bucket-memos-assets:
+  bucketName: memos-assets
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: memos-assets
+    secondary:
+      enabled: false
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: memos-assets
