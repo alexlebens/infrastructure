@@ -8,7 +8,9 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-IMMICH_URL = os.environ.get("IMMICH_URL", "http://immich-main.immich:80/api").rstrip("/")
+IMMICH_URL = os.environ.get("IMMICH_URL", "http://immich-main.immich:80/api").rstrip(
+    "/"
+)
 API_KEY = os.environ.get("IMMICH_API_KEY", "")
 GALLERY_PATH = os.environ.get("GALLERY_PATH", "/gallery/Favorites")
 PRUNE_DELETED = os.environ.get("PRUNE_DELETED", "true").lower() in ("true", "1", "yes")
@@ -19,8 +21,8 @@ INDEX_PATH = os.path.join(GALLERY_PATH, ".foldergram-index.json")
 
 def sanitize_filename(name):
     """Replace filesystem-unsafe characters, collapse multiple underscores."""
-    name = re.sub(r'[^\w. -]', '_', name)
-    name = re.sub(r'_+', '_', name)
+    name = re.sub(r"[^\w. -]", "_", name)
+    name = re.sub(r"_+", "_", name)
     return name.strip("_. ")
 
 
@@ -106,19 +108,42 @@ def download_asset(asset_id, dest_path):
     os.replace(tmp_path, dest_path)
 
 
+def get_best_asset_datetime(asset):
+    """Retrieve capture date from exifInfo if available; fallback to fileCreatedAt."""
+    exif = asset.get("exifInfo") or {}
+    dt_str = exif.get("dateTimeOriginal") or asset.get("fileCreatedAt")
+    return parse_immich_datetime(dt_str)
+
+
 def embed_metadata(asset, file_path):
-    """
-    Embed EXIF/XMP metadata into the downloaded file using exiftool.
-    Handles both images and videos.
-    """
     exif = asset.get("exifInfo") or {}
     detail = {}
     try:
         detail = fetch_asset_detail(asset["id"])
     except Exception as e:
-        print(f"[sync]   Warning: could not fetch full asset detail for metadata: {e}")
+        print(f"[sync]   Warning: could not fetch full asset detail: {e}")
 
-    args = ["exiftool", "-overwrite_original", "-charset", "UTF8"]
+    # -P preserves file modification timestamp; -api QuickTimeUTC fixes MP4 offsets
+    args = [
+        "exiftool",
+        "-overwrite_original",
+        "-charset",
+        "UTF8",
+        "-P",
+        "-api",
+        "QuickTimeUTC",
+    ]
+
+    dt = get_best_asset_datetime(asset)
+    if dt:
+        dt_exif = dt.strftime("%Y:%m:%d %H:%M:%S")
+        args += [
+            f"-DateTimeOriginal={dt_exif}",
+            f"-CreateDate={dt_exif}",
+            f"-ModifyDate={dt_exif}",
+            f"-QuickTime:CreateDate={dt_exif}",
+            f"-QuickTime:ModifyDate={dt_exif}",
+        ]
 
     # ── Date / Time ────────────────────────────────────────────────────────────
     dt = parse_immich_datetime(asset.get("fileCreatedAt"))
@@ -161,8 +186,11 @@ def embed_metadata(asset, file_path):
         ]
 
     # ── Description / Caption ─────────────────────────────────────────────────
-    description = (detail.get("exifInfo") or {}).get("description") or \
-                  detail.get("description") or ""
+    description = (
+        (detail.get("exifInfo") or {}).get("description")
+        or detail.get("description")
+        or ""
+    )
     if description:
         args += [
             f"-ImageDescription={description}",
@@ -194,7 +222,9 @@ def embed_metadata(asset, file_path):
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=60)
         if result.returncode != 0:
-            print(f"[sync]   Warning: exiftool returned {result.returncode}: {result.stderr.strip()}")
+            print(
+                f"[sync]   Warning: exiftool returned {result.returncode}: {result.stderr.strip()}"
+            )
         else:
             print(f"[sync]   Metadata embedded OK.")
     except FileNotFoundError:
