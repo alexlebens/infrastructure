@@ -1,0 +1,155 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pigallery2
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: pigallery2
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: pigallery2
+    helm.sh/chart: pigallery2-5.2.1
+  namespace: pigallery2
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: pigallery2
+      app.kubernetes.io/instance: pigallery2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: pigallery2
+        app.kubernetes.io/name: pigallery2
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: pigallery2
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: NODE_ENV
+              value: production
+            - name: Server-applicationTitle
+              value: Gallery
+            - name: Server-publicUrl
+              value: https://gallery.alexlebens.dev
+            - name: Server-port
+              value: "80"
+            - name: Server-host
+              value: 0.0.0.0
+            - name: Database-type
+              value: mysql
+            - name: MYSQL_HOST
+              value: pigallery2-mariadb-cluster-primary.pigallery2
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_DATABASE
+              value: pigallery2
+            - name: MYSQL_USERNAME
+              value: pigallery2
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: pigallery2-database-secret
+            - name: Messaging-Email-emailFrom
+              value: pigallery2@alexlebens.dev
+            - name: Messaging-Email-smtp-host
+              value: postfix.postfix.svc.cluster.local
+            - name: Messaging-Email-smtp-port
+              value: "587"
+            - name: Messaging-Email-smtp-secure
+              value: "false"
+            - name: Messaging-Email-smtp-requireTLS
+              value: "false"
+            - name: Users-authenticationRequired
+              value: "true"
+            - name: Users-unAuthenticatedUserRole
+              value: Nobody
+            - name: Users-oidc-enabled
+              value: "true"
+            - name: Users-oidc-displayName
+              value: AlexAuth
+            - name: Users-oidc-issuerUrl
+              value: https://auth.alexlebens.dev
+            - name: Users-oidc-clientId
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: pigallery2-oidc-secret
+            - name: Users-oidc-clientSecret
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: pigallery2-oidc-secret
+            - name: Users-oidc-redirectUri
+              value: https://gallery.alexlebens.dev/pgapi/auth/oidc/callback
+            - name: Users-oidc-autoCreateUser
+              value: "true"
+            - name: Media-folder
+              value: /app/data/images
+            - name: Media-tempFolder
+              value: /app/data/tmp
+            - name: Media-Video-enabled
+              value: "false"
+            - name: Upload-enabled
+              value: "true"
+            - name: Indexing-reIndexingSensitivity
+              value: low
+          image: bpatrik/pigallery2:3.5.2-alpine@sha256:46d92cefcd688307df971854362eb2467dec44f5f198f11c28327288b132ec35
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /pgapi/user/me
+              port: 80
+            periodSeconds: 30
+            timeoutSeconds: 10
+          name: main
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /pgapi/user/me
+              port: 80
+            periodSeconds: 15
+            timeoutSeconds: 10
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 50m
+              memory: 256Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /pgapi/user/me
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: /app/data/images/collections
+              name: collections
+            - mountPath: /app/data/config
+              name: config
+            - mountPath: /app/data/images/pictures
+              name: pictures
+            - mountPath: /app/data/tmp
+              name: tmp
+      volumes:
+        - name: collections
+          persistentVolumeClaim:
+            claimName: pigallery2-collections-nfs-storage
+        - emptyDir: {}
+          name: config
+        - name: pictures
+          persistentVolumeClaim:
+            claimName: pigallery2-pictures-nfs-storage
+        - emptyDir: {}
+          name: tmp

@@ -1,0 +1,36 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: PhysicalBackup
+metadata:
+  name: pigallery2-mariadb-cluster-backup-external
+  namespace: pigallery2
+  labels:
+    helm.sh/chart: mariadb-cluster-26.6.0
+    app.kubernetes.io/name: mariadb-cluster
+    app.kubernetes.io/instance: pigallery2
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  mariaDbRef:
+    name: pigallery2-mariadb-cluster
+    namespace: pigallery2
+  compression: gzip
+  maxRetention: 2160h
+  schedule:
+    cron: 0 0 * * 6
+    immediate: true
+    suspend: false
+  storage:
+    s3:
+      accessKeyIdSecretKeyRef:
+        key: access
+        name: pigallery2-mariadb-cluster-backup-secret-external
+      bucket: mariadb-backups-6e3b78870f7af040
+      endpoint: s3.us-east-005.backblazeb2.com
+      prefix: cl01tl/pigallery2
+      region: us-east-005
+      secretAccessKeySecretKeyRef:
+        key: secret
+        name: pigallery2-mariadb-cluster-backup-secret-external
+      tls:
+        enabled: true
+  successfulJobsHistoryLimit: 1
