@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memos
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: memos
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: memos
+    helm.sh/chart: memos-5.2.1
+  namespace: memos
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/name: memos
+      app.kubernetes.io/instance: memos
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: memos
+        app.kubernetes.io/name: memos
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: memos
+      automountServiceAccountToken: false
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: MEMOS_PORT
+              value: "5230"
+            - name: MEMOS_DRIVER
+              value: postgres
+            - name: POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: memos-postgresql-18-cluster-app
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: memos-postgresql-18-cluster-app
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: memos-postgresql-18-cluster-app
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: memos-postgresql-18-cluster-app
+            - name: POSTGRES_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: memos-postgresql-18-cluster-app
+            - name: MEMOS_DSN
+              value: postgres://$(POSTGRES_USERNAME):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DATABASE)?sslmode=disable
+          image: neosmemo/memos:0.31.0@sha256:24c2707ddd8fbd2ceaa7a61ecab86a53cdcde640b24ce572b73da14b00b5785f
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 5230
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: main
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 5230
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /healthz
+              port: 5230
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: /etc/secrets
+              name: secrets
+              readOnly: true
+      volumes:
+        - name: secrets
+          projected:
+            sources:
+              - secret:
+                  name: memos-idp-config
+              - secret:
+                  name: memos-storage-config
+              - secret:
+                  name: memos-ai-config
+              - configMap:
+                  name: memos-general-config
