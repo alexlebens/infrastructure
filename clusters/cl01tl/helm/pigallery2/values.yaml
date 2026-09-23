@@ -1,0 +1,278 @@
+pigallery2:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      containers:
+        main:
+          image:
+            repository: bpatrik/pigallery2
+            tag: 3.5.2-alpine@sha256:46d92cefcd688307df971854362eb2467dec44f5f198f11c28327288b132ec35
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: Server-applicationTitle
+              value: Gallery
+            - name: Server-publicUrl
+              value: https://gallery.alexlebens.dev
+            - name: Server-port
+              value: "80"
+            - name: Server-host
+              value: 0.0.0.0
+            - name: Database-type
+              value: mysql
+            - name: MYSQL_HOST
+              value: pigallery2-mariadb-cluster-primary.pigallery2
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_DATABASE
+              value: pigallery2
+            - name: MYSQL_USERNAME
+              value: pigallery2
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pigallery2-database-secret
+                  key: password
+            - name: Messaging-Email-emailFrom
+              value: pigallery2@alexlebens.dev
+            - name: Messaging-Email-smtp-host
+              value: postfix.postfix.svc.cluster.local
+            - name: Messaging-Email-smtp-port
+              value: "587"
+            - name: Messaging-Email-smtp-secure
+              value: "false"
+            - name: Messaging-Email-smtp-requireTLS
+              value: "false"
+            - name: Users-authenticationRequired
+              value: "true"
+            - name: Users-unAuthenticatedUserRole
+              value: Nobody
+            - name: Users-oidc-enabled
+              value: "true"
+            - name: Users-oidc-displayName
+              value: AlexAuth
+            - name: Users-oidc-issuerUrl
+              value: https://auth.alexlebens.dev
+            - name: Users-oidc-clientId
+              valueFrom:
+                secretKeyRef:
+                  name: pigallery2-oidc-secret
+                  key: clientId
+            - name: Users-oidc-clientSecret
+              valueFrom:
+                secretKeyRef:
+                  name: pigallery2-oidc-secret
+                  key: clientSecret
+            - name: Users-oidc-redirectUri
+              value: https://gallery.alexlebens.dev/pgapi/auth/oidc/callback
+            - name: Users-oidc-autoCreateUser
+              value: "true"
+            - name: Media-folder
+              value: /app/data/images
+            - name: Media-tempFolder
+              value: /app/data/tmp
+            - name: Media-Video-enabled
+              value: "false"
+            - name: Upload-enabled
+              value: "true"
+            - name: Indexing-reIndexingSensitivity
+              value: low
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          probes:
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /pgapi/user/me
+                  port: 80
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                failureThreshold: 30
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /pgapi/user/me
+                  port: 80
+                periodSeconds: 30
+                timeoutSeconds: 10
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /pgapi/user/me
+                  port: 80
+                periodSeconds: 15
+                timeoutSeconds: 10
+                failureThreshold: 3
+  service:
+    main:
+      forceRename: pigallery2
+      ports:
+        http:
+          port: 80
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Photos"
+        gethomepage.dev/description: "Gallery"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "sh-pigallery2.webp"
+        gethomepage.dev/siteMonitor: "http://pigallery2.pigallery2:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "370"
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - gallery.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: pigallery2
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    config:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data/config
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data/tmp
+    collections:
+      existingClaim: pigallery2-collections-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data/images
+    pictures:
+      existingClaim: pigallery2-pictures-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data/images
+
+mariadb-cluster:
+  mariadb:
+    rootPasswordSecretKeyRef:
+      name: pigallery2-database-secret
+      key: password
+      generate: false
+    storage:
+      size: 5Gi
+  databases:
+    - name: pigallery2
+      characterSet: utf8mb4
+      collate: utf8mb4_unicode_ci
+  users:
+    - name: pigallery2
+      passwordSecretKeyRef:
+        name: pigallery2-database-secret
+        key: password
+      host: "%"
+  grants:
+    - name: pigallery2
+      privileges:
+        - "ALL PRIVILEGES"
+      database: "pigallery2"
+      table: "*"
+      username: pigallery2
+      grantOption: true
+      host: "%"
+  physicalBackups:
+    - name: backup-local
+      schedule:
+        cron: "0 0 * * *"
+        suspend: false
+        immediate: true
+      compression: gzip
+      maxRetention: 360h
+      successfulJobsHistoryLimit: 1
+      storage:
+        s3:
+          bucket: mariadb-backups
+          prefix: cl01tl/pigallery2
+          endpoint: garage-cluster-a.garage-operator.svc.cluster.local:3900
+          region: garage
+          accessKeyIdSecretKeyRef:
+            name: pigallery2-mariadb-cluster-backup-secret-garage
+            key: access
+          secretAccessKeySecretKeyRef:
+            name: pigallery2-mariadb-cluster-backup-secret-garage
+            key: secret
+          tls:
+            enabled: false
+    - name: backup-remote
+      schedule:
+        cron: "0 0 * * 0"
+        suspend: false
+        immediate: true
+      compression: gzip
+      maxRetention: 2160h
+      successfulJobsHistoryLimit: 1
+      storage:
+        s3:
+          bucket: mariadb-backups
+          prefix: cl01tl/pigallery2
+          endpoint: garage-ps10rp.boreal-beaufort.ts.net:3900
+          region: garage
+          accessKeyIdSecretKeyRef:
+            name: pigallery2-mariadb-cluster-backup-secret-garage
+            key: access
+          secretAccessKeySecretKeyRef:
+            name: pigallery2-mariadb-cluster-backup-secret-garage
+            key: secret
+          tls:
+            enabled: true
+    - name: backup-external
+      schedule:
+        cron: "0 0 * * 6"
+        suspend: false
+        immediate: true
+      compression: gzip
+      maxRetention: 2160h
+      successfulJobsHistoryLimit: 1
+      storage:
+        s3:
+          bucket: mariadb-backups-6e3b78870f7af040
+          prefix: cl01tl/pigallery2
+          endpoint: s3.us-east-005.backblazeb2.com
+          region: us-east-005
+          accessKeyIdSecretKeyRef:
+            name: pigallery2-mariadb-cluster-backup-secret-external
+            key: access
+          secretAccessKeySecretKeyRef:
+            name: pigallery2-mariadb-cluster-backup-secret-external
+            key: secret
+          tls:
+            enabled: true
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "PiGallery2"
+    description: "A self-hosted photo gallery that automatically scans and displays your photo library."
+    callbackUrls:
+      - https://gallery.alexlebens.dev/pgapi/auth/oidc/callback
+  seedJob:
+    enabled: true
