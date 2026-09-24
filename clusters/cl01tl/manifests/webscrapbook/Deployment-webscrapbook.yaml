@@ -34,7 +34,14 @@ spec:
       hostPID: false
       dnsPolicy: ClusterFirst
       containers:
-        - env:
+        - command:
+            - /bin/bash
+            - -c
+            - |
+              sed -i 's|chown -R.*$PATH_DATA.*|chown "$WSB_USER:$WSB_USER" "$PATH_DATA" "$PATH_WSB" "$PATH_STORE"|' /run_wsb.sh
+              sed -i 's/set -e//' /run_wsb.sh
+              exec /entrypoint.sh start
+          env:
             - name: TZ
               value: America/Chicago
             - name: HTTP_PORT
@@ -56,7 +63,7 @@ spec:
           volumeMounts:
             - mountPath: /data
               name: data
-            - mountPath: /share
+            - mountPath: /data/share
               name: share
       volumes:
         - name: data
