@@ -30,8 +30,9 @@ provider "garage" {
 # OpenBao / Vault Provider
 # ==============================================================================
 provider "vault" {
-  address = var.openbao_address
-  token   = var.openbao_token
+  address          = var.openbao_address
+  token            = var.openbao_token
+  skip_child_token = true
 }
 
 # ==============================================================================

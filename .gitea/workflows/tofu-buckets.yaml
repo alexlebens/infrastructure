@@ -27,7 +27,9 @@ env:
   TOFU_VERSION: "1.8.8"
   KUBECTL_VERSION: "v1.36.5"
   TF_IN_AUTOMATION: "true"
-  TF_PLUGIN_CACHE_DIR: "~/.terraform.d/plugin-cache"
+  TF_PLUGIN_CACHE_DIR: "/tmp/terraform-plugin-cache"
+  TF_HTTP_PASSWORD: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+  TF_HTTP_USERNAME: alexlebens
 
 jobs:
   tofu:
@@ -47,16 +49,16 @@ jobs:
       - name: Set Up OpenTofu
         run: ./.gitea/scripts/install-tofu.sh
 
+      - name: Create OpenTofu Plugin Cache Directory
+        run: mkdir -p /tmp/terraform-plugin-cache
+
       - name: Cache OpenTofu Plugins
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
         with:
-          path: ~/.terraform.d/plugin-cache
+          path: /tmp/terraform-plugin-cache
           key: ${{ runner.os }}-tofu-plugins-${{ hashFiles('tofu/buckets/versions.tf') }}
           restore-keys: |
             ${{ runner.os }}-tofu-plugins-
-
-      - name: Create OpenTofu Plugin Cache Directory
-        run: mkdir -p ~/.terraform.d/plugin-cache
 
       - name: Cache Kubectl
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
