@@ -10,7 +10,7 @@ terraform {
 
   required_providers {
     garage = {
-      source  = "arsolitt/garagehq"
+      source  = "registry.terraform.io/arsolitt/garagehq"
       version = "~> 1.2.0"
     }
     aws = {
