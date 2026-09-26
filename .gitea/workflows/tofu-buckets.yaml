@@ -1,0 +1,110 @@
+name: tofu-buckets
+
+concurrency:
+  group: tofu-buckets-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "clusters/cl01tl/helm/**"
+      - "tofu/buckets/**"
+
+  push:
+    branches:
+      - "main"
+    paths:
+      - "clusters/cl01tl/helm/**"
+      - "tofu/buckets/**"
+
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform (plan or apply)"
+        type: choice
+        options:
+          - plan
+          - apply
+        default: plan
+        required: true
+
+env:
+  TOFU_VERSION: "1.8.8"
+  TF_IN_AUTOMATION: "true"
+  MAIN_DIR: "tofu/buckets"
+
+jobs:
+  tofu:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tofu/buckets
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Set Up OpenTofu
+        uses: opentofu/setup-opentofu@e95ccdd579fbbe234c679f9765f082c5148810ea # v1.0.7
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+
+      - name: Configure Kubeconfig
+        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Retrieve Cluster Secrets
+        id: cluster-secrets
+        run: |
+          set -e
+          # Extract admin token for Garage clusters
+          GARAGE_TOKEN=$(kubectl get secret -n garage-operator garage-operator-token -o jsonpath='{.data.admin-token}' | base64 -d)
+          echo "::add-mask::$GARAGE_TOKEN"
+          echo "garage_token=$GARAGE_TOKEN" >> $GITHUB_OUTPUT
+
+          # Extract OpenBao token or role secret
+          OPENBAO_TOKEN=$(kubectl get secret -n external-secrets openbao-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || echo "")
+          if [ -n "$OPENBAO_TOKEN" ]; then
+            echo "::add-mask::$OPENBAO_TOKEN"
+            echo "openbao_token=$OPENBAO_TOKEN" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Initialize OpenTofu
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+        run: |
+          tofu init \
+            -backend-config="password=${GITEA_TOKEN}"
+
+      - name: OpenTofu Plan
+        if:
+          github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action
+          == 'plan')
+        env:
+          TF_VAR_gitea_token: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          TF_VAR_garage_synology_a_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_cluster_b_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
+          TF_VAR_backblaze_access_key_id: ${{ secrets.BACKBLAZE_ACCESS_KEY_ID }}
+          TF_VAR_backblaze_secret_access_key: ${{ secrets.BACKBLAZE_SECRET_ACCESS_KEY }}
+        run: |
+          tofu plan -no-color
+
+      - name: OpenTofu Apply
+        if:
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch'
+          && github.event.inputs.action == 'apply')
+        env:
+          TF_VAR_gitea_token: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          TF_VAR_garage_synology_a_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_cluster_b_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
+          TF_VAR_backblaze_access_key_id: ${{ secrets.BACKBLAZE_ACCESS_KEY_ID }}
+          TF_VAR_backblaze_secret_access_key: ${{ secrets.BACKBLAZE_SECRET_ACCESS_KEY }}
+        run: |
+          tofu apply -auto-approve -no-color
