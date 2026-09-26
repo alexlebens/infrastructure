@@ -146,14 +146,14 @@ for path in "backblaze/home-infra/s3-exporter" "backblaze/home-infra/talos-backu
   fi
 done
 
-ensure_backblaze_cors() {
+configure_backblaze_b2_imports() {
   local key="$1"
   local secret="$2"
   if [ -z "$key" ] || [ -z "$secret" ]; then
     return 0
   fi
 
-  echo ">> Checking Backblaze B2 bucket CORS configurations..."
+  echo ">> Resolving Backblaze B2 bucket IDs for OpenTofu..."
   local auth_resp
   auth_resp=$(curl -sk --connect-timeout 4 --max-time 8 -u "${key}:${secret}" "https://api.backblazeb2.com/b2api/v3/b2_authorize_account" 2>/dev/null || true)
   local token api_url account_id
@@ -162,7 +162,7 @@ ensure_backblaze_cors() {
   account_id=$(echo "$auth_resp" | jq -r '.accountId // empty' 2>/dev/null || true)
 
   if [ -z "$token" ] || [ -z "$api_url" ] || [ -z "$account_id" ]; then
-    echo ">> Notice: Unable to authorize with Backblaze B2 Native API to verify CORS."
+    echo ">> Notice: Unable to authorize with Backblaze B2 Native API to resolve bucket IDs."
     return 0
   fi
 
@@ -172,35 +172,36 @@ ensure_backblaze_cors() {
     -d "{\"accountId\": \"${account_id}\"}" \
     "${api_url}/b2api/v3/b2_list_buckets" 2>/dev/null || true)
 
-  for target_bucket in "web-assets-770aef58c931fcf4" "reactive-resume-assets-61758b59b4c7c893"; do
-    local b_info
-    b_info=$(echo "$buckets_resp" | jq -r --arg name "$target_bucket" '.buckets[] | select(.bucketName == $name) // empty' 2>/dev/null || true)
-    if [ -n "$b_info" ]; then
-      local b_id cors_count
-      b_id=$(echo "$b_info" | jq -r '.bucketId' 2>/dev/null || true)
-      cors_count=$(echo "$b_info" | jq -r '.corsRules | length' 2>/dev/null || 0)
-      if [ "$cors_count" -eq 0 ]; then
-        echo ">> Initializing default CORS rule on Backblaze B2 bucket: ${target_bucket}..."
-        local update_payload
-        update_payload=$(jq -n \
-          --arg acct "$account_id" \
-          --arg bid "$b_id" \
-          '{accountId: $acct, bucketId: $bid, corsRules: [{corsRuleName: "s3-cors-default", allowedOrigins: ["*"], allowedOperations: ["s3_get", "s3_head"], maxAgeSeconds: 3600}]}')
-        local update_resp
-        update_resp=$(curl -sk --connect-timeout 4 --max-time 8 -H "Authorization: ${token}" \
-          -H "Content-Type: application/json" \
-          -d "$update_payload" \
-          "${api_url}/b2api/v3/b2_update_bucket" 2>/dev/null || true)
-        if [ "$(echo "$update_resp" | jq -r '.bucketId // empty' 2>/dev/null)" = "$b_id" ]; then
-          echo ">> Successfully initialized CORS rule on Backblaze B2 bucket: ${target_bucket}"
-        else
-          echo ">> Notice: Failed to update CORS on ${target_bucket}: ${update_resp}"
-        fi
-      else
-        echo ">> Backblaze B2 bucket ${target_bucket} already has CORS rules configured."
-      fi
+  local web_id resume_id
+  web_id=$(echo "$buckets_resp" | jq -r '.buckets[] | select(.bucketName == "web-assets-770aef58c931fcf4") | .bucketId // empty' 2>/dev/null || true)
+  resume_id=$(echo "$buckets_resp" | jq -r '.buckets[] | select(.bucketName == "reactive-resume-assets-61758b59b4c7c893") | .bucketId // empty' 2>/dev/null || true)
+
+  if [ -n "$web_id" ] || [ -n "$resume_id" ]; then
+    cat <<EOF > tofu/buckets/import.tf
+# ==============================================================================
+# Pre-Existing Tier D (Backblaze B2 cs01bb) Buckets
+# Generated dynamically by .gitea/scripts/tofu-fetch-secrets.sh
+# ==============================================================================
+EOF
+    if [ -n "$web_id" ]; then
+      cat <<EOF >> tofu/buckets/import.tf
+import {
+  to = b2_bucket.d_cs01bb["web-assets"]
+  id = "${web_id}"
+}
+EOF
+      echo ">> Resolved Backblaze bucket ID for web-assets: ${web_id}"
     fi
-  done
+    if [ -n "$resume_id" ]; then
+      cat <<EOF >> tofu/buckets/import.tf
+import {
+  to = b2_bucket.d_cs01bb["reactive-resume"]
+  id = "${resume_id}"
+}
+EOF
+      echo ">> Resolved Backblaze bucket ID for reactive-resume: ${resume_id}"
+    fi
+  fi
 }
 
 if [ -n "$BACKBLAZE_KEY" ]; then
@@ -208,7 +209,7 @@ if [ -n "$BACKBLAZE_KEY" ]; then
   mask_var "${BACKBLAZE_SECRET}"
   output_var "backblaze_access_key_id" "${BACKBLAZE_KEY}"
   output_var "backblaze_secret_access_key" "${BACKBLAZE_SECRET}"
-  ensure_backblaze_cors "${BACKBLAZE_KEY}" "${BACKBLAZE_SECRET}"
+  configure_backblaze_b2_imports "${BACKBLAZE_KEY}" "${BACKBLAZE_SECRET}"
 else
   echo ">> Notice: Backblaze credentials not found in OpenBao (falling back to workflow secret if defined)"
 fi
@@ -237,6 +238,8 @@ if [ -n "${GITHUB_ENV:-}" ]; then
   if [ -n "${BACKBLAZE_KEY}" ]; then
     echo "TF_VAR_backblaze_d_cs01bb_access_key_id=${BACKBLAZE_KEY}" >> "${GITHUB_ENV}"
     echo "TF_VAR_backblaze_d_cs01bb_secret_access_key=${BACKBLAZE_SECRET}" >> "${GITHUB_ENV}"
+    echo "B2_APPLICATION_KEY_ID=${BACKBLAZE_KEY}" >> "${GITHUB_ENV}"
+    echo "B2_APPLICATION_KEY=${BACKBLAZE_SECRET}" >> "${GITHUB_ENV}"
   fi
   if [ -n "${GARAGE_S3_KEY}" ]; then
     echo "TF_VAR_garage_a_ps02sn_admin_access_key=${GARAGE_S3_KEY}" >> "${GITHUB_ENV}"

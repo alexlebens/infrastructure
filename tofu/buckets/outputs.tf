@@ -31,9 +31,10 @@ output "c_ps10rp_buckets" {
 output "d_cs01bb_buckets" {
   description = "Summary of provisioned Tier D (Backblaze B2 cs01bb) buckets"
   value = {
-    for k, v in aws_s3_bucket.d_cs01bb : k => {
-      id  = v.id
-      arn = v.arn
+    for k, v in b2_bucket.d_cs01bb : k => {
+      id          = v.id
+      bucket_name = v.bucket_name
+      bucket_type = v.bucket_type
     }
   }
 }

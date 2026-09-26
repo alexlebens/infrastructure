@@ -87,17 +87,7 @@ provider "aws" {
 }
 
 # Tier D: Cloud DR Storage (Backblaze B2 cs01bb)
-provider "aws" {
-  alias                       = "d_cs01bb"
-  region                      = var.backblaze_d_cs01bb_region
-  endpoints {
-    s3 = "https://s3.${var.backblaze_d_cs01bb_region}.backblazeb2.com"
-  }
-  skip_credentials_validation = true
-  skip_requesting_account_id  = true
-  skip_metadata_api_check     = true
-  skip_region_validation      = true
-  s3_use_path_style           = true
-  access_key                  = var.backblaze_d_cs01bb_access_key_id != "" ? var.backblaze_d_cs01bb_access_key_id : "mock_access_key"
-  secret_key                  = var.backblaze_d_cs01bb_secret_access_key != "" ? var.backblaze_d_cs01bb_secret_access_key : "mock_secret_key"
+provider "b2" {
+  application_key_id = var.backblaze_d_cs01bb_access_key_id != "" ? var.backblaze_d_cs01bb_access_key_id : "mock_access_key"
+  application_key    = var.backblaze_d_cs01bb_secret_access_key != "" ? var.backblaze_d_cs01bb_secret_access_key : "mock_secret_key"
 }

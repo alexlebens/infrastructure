@@ -140,28 +140,16 @@ resource "garage_bucket_key" "c_ps10rp" {
 # Cloud replica bucket creation and optional prune lifecycle policies
 # ==============================================================================
 
-resource "aws_s3_bucket" "d_cs01bb" {
-  provider = aws.d_cs01bb
-  for_each = local.d_cs01bb_buckets
-  bucket   = each.value.backups.d_cs01bb.destination_bucket
-}
+resource "b2_bucket" "d_cs01bb" {
+  for_each    = local.d_cs01bb_buckets
+  bucket_name = each.value.backups.d_cs01bb.destination_bucket
+  bucket_type = "allPrivate"
 
-resource "aws_s3_bucket_lifecycle_configuration" "d_cs01bb" {
-  provider = aws.d_cs01bb
-  for_each = {
-    for k, v in local.d_cs01bb_buckets : k => v
-    if v.backups.d_cs01bb.prune.enabled
-  }
-  bucket = aws_s3_bucket.d_cs01bb[each.key].id
-
-  rule {
-    id     = "prune-old-backups"
-    status = "Enabled"
-
-    filter {}
-
-    expiration {
-      days = tonumber(replace(each.value.backups.d_cs01bb.prune.age_to_prune, "d", ""))
+  dynamic "lifecycle_rules" {
+    for_each = each.value.backups.d_cs01bb.prune.enabled ? [1] : []
+    content {
+      days_from_uploading_to_hiding = tonumber(replace(each.value.backups.d_cs01bb.prune.age_to_prune, "d", ""))
+      days_from_hiding_to_deleting  = 1
     }
   }
 }

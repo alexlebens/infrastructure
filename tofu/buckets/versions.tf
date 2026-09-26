@@ -15,6 +15,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    b2 = {
+      source  = "Backblaze/b2"
+      version = "~> 0.8"
+    }
     vault = {
       source  = "hashicorp/vault"
       version = "~> 4.0"
