@@ -16,9 +16,29 @@ mask_var() {
   fi
 }
 
-echo ">> Authenticating to OpenBao using Kubernetes Auth (role: gitea-runner)..."
+# Login to OpenBao via Kubernetes Auth
+login_openbao_k8s() {
+  local role="$1"
+  local jwt="$2"
+  curl -sk --connect-timeout 2 --max-time 4 -X POST \
+    -H "Content-Type: application/json" \
+    -d "{\"role\": \"${role}\", \"jwt\": \"${jwt}\"}" \
+    "${OPENBAO_ADDR}/v1/auth/kubernetes/login" 2>/dev/null || true
+}
 
-OPENBAO_ADDR="${OPENBAO_ADDR:-https://openbao.alexlebens.dev}"
+# Helper to fetch a JSON payload from OpenBao KV v2 (mount: secret)
+fetch_bao_path() {
+  local path="$1"
+  curl -sk --connect-timeout 2 --max-time 4 \
+    -H "X-Vault-Token: ${OPENBAO_TOKEN}" \
+    "${OPENBAO_ADDR}/v1/secret/data/${path}" 2>/dev/null || true
+}
+
+echo ">> Initializing OpenBao secret extraction..."
+
+OPENBAO_ADDR="${OPENBAO_ADDR:-http://openbao-internal.openbao:8200}"
+echo ">> Using OpenBao endpoint: ${OPENBAO_ADDR}"
+
 OPENBAO_ROLE="${OPENBAO_ROLE:-gitea-runner}"
 
 # Obtain Kubernetes ServiceAccount JWT token
@@ -30,31 +50,16 @@ fi
 
 # Fallback: obtain token via kubectl if not mounted
 if [ -z "${K8S_JWT}" ]; then
-  if ! command -v kubectl >/dev/null 2>&1; then
-    echo ">> Pod token not mounted and kubectl not in PATH; downloading static kubectl..."
-    ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-    if curl -fsSL -o /tmp/kubectl "https://dl.k8s.io/release/v1.31.0/bin/linux/${ARCH}/kubectl" 2>/dev/null; then
-      chmod +x /tmp/kubectl
-      export PATH="/tmp:$PATH"
-      echo ">> Downloaded kubectl into /tmp"
-    fi
-  fi
-
   if command -v kubectl >/dev/null 2>&1; then
-    echo ">> Checking kubectl for projected ServiceAccount token..."
-    for sa in "buildx-runner" "gitea-runner" "external-secrets" "default"; do
-      ns="gitea"
-      [ "$sa" = "external-secrets" ] && ns="external-secrets"
-      K8S_JWT=$(kubectl create token "$sa" -n "$ns" --audience=openbao 2>/dev/null || true)
-      if [ -n "${K8S_JWT}" ]; then
-        echo ">> Generated Kubernetes projected token for serviceaccount: ${ns}/${sa}"
-        break
-      fi
-    done
+    echo ">> Requesting projected token for buildx-runner via kubectl..."
+    K8S_JWT=$(kubectl create token buildx-runner -n gitea --audience=openbao --request-timeout=3s 2>/dev/null || true)
+    if [ -n "${K8S_JWT}" ]; then
+      echo ">> Generated Kubernetes projected token for serviceaccount: gitea/buildx-runner"
+    fi
 
     # Fallback to static ServiceAccount secret if projected token creation failed
     if [ -z "${K8S_JWT}" ]; then
-      K8S_JWT=$(kubectl get secret -n gitea buildx-runner-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
+      K8S_JWT=$(kubectl get secret -n gitea buildx-runner-token --request-timeout=3s -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
       if [ -n "${K8S_JWT}" ]; then
         echo ">> Loaded ServiceAccount token from secret: gitea/buildx-runner-token"
       fi
@@ -64,29 +69,11 @@ if [ -z "${K8S_JWT}" ]; then
   fi
 fi
 
-# Login to OpenBao via Kubernetes Auth
-login_openbao_k8s() {
-  local role="$1"
-  local jwt="$2"
-  local res
-  res=$(curl -sk -X POST \
-    -H "Content-Type: application/json" \
-    -d "{\"role\": \"${role}\", \"jwt\": \"${jwt}\"}" \
-    "${OPENBAO_ADDR}/v1/auth/kubernetes/login" 2>/dev/null || true)
-  if [ -z "$res" ] || [ "$(echo "$res" | jq -r '.auth.client_token // empty' 2>/dev/null)" = "" ]; then
-    res=$(curl -sk -X POST \
-      -H "Content-Type: application/json" \
-      -d "{\"role\": \"${role}\", \"jwt\": \"${jwt}\"}" \
-      "http://openbao-internal.openbao:8200/v1/auth/kubernetes/login" 2>/dev/null || true)
-  fi
-  echo "$res"
-}
-
 OPENBAO_TOKEN=""
 
 if [ -n "${K8S_JWT}" ]; then
   LAST_LOGIN_RESP=""
-  for role in "${OPENBAO_ROLE}" "gitea-runner" "external-secrets" "default"; do
+  for role in "${OPENBAO_ROLE}" "buildx-runner" "external-secrets"; do
     LOGIN_RESP=$(login_openbao_k8s "${role}" "${K8S_JWT}")
     TOKEN=$(echo "$LOGIN_RESP" | jq -r '.auth.client_token // empty' 2>/dev/null || true)
     if [ -n "$TOKEN" ]; then
@@ -98,21 +85,19 @@ if [ -n "${K8S_JWT}" ]; then
     fi
   done
   if [ -z "${OPENBAO_TOKEN}" ] && [ -n "${LAST_LOGIN_RESP}" ]; then
-    echo ">> Notice: Kubernetes auth login attempt failed. Last response: ${LAST_LOGIN_RESP}"
+    echo ">> Notice: Kubernetes auth login attempt failed. Response: ${LAST_LOGIN_RESP}"
   fi
 fi
 
-# Temporary fallback: If Kubernetes Auth didn't succeed, retrieve token via kubectl from cluster secrets
+# Fallback: If Kubernetes Auth didn't succeed, retrieve token via kubectl from cluster secrets
 if [ -z "${OPENBAO_TOKEN}" ] && command -v kubectl >/dev/null 2>&1; then
-  echo ">> Notice: Kubernetes auth did not return a token; falling back to in-cluster secret..."
-  OPENBAO_TOKEN=$(kubectl get secret -n external-secrets openbao-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
+  echo ">> Falling back to in-cluster secret via kubectl..."
+  OPENBAO_TOKEN=$(kubectl get secret -n external-secrets openbao-token --request-timeout=3s -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
   if [ -z "${OPENBAO_TOKEN}" ]; then
-    OPENBAO_TOKEN=$(kubectl get secret -n openbao openbao-unseal-keys -o jsonpath='{.data.root-token}' 2>/dev/null | base64 -d || true)
+    OPENBAO_TOKEN=$(kubectl get secret -n openbao openbao-unseal-keys --request-timeout=3s -o jsonpath='{.data.root-token}' 2>/dev/null | base64 -d || true)
   fi
   if [ -n "${OPENBAO_TOKEN}" ]; then
     echo ">> Retrieved fallback token from in-cluster secret"
-  else
-    echo ">> Could not retrieve token from cluster secrets via kubectl"
   fi
 fi
 
@@ -124,21 +109,10 @@ fi
 mask_var "${OPENBAO_TOKEN}"
 output_var "openbao_token" "${OPENBAO_TOKEN}"
 
-# Helper to fetch a JSON payload from OpenBao KV v2 (mount: secret)
-fetch_bao_path() {
-  local path="$1"
-  local res
-  res=$(curl -sk -H "X-Vault-Token: ${OPENBAO_TOKEN}" "${OPENBAO_ADDR}/v1/secret/data/${path}" 2>/dev/null || true)
-  if [ -z "$res" ] || [ "$(echo "$res" | jq -r '.data.data // empty' 2>/dev/null)" = "" ]; then
-    res=$(curl -sk -H "X-Vault-Token: ${OPENBAO_TOKEN}" "http://openbao-internal.openbao:8200/v1/secret/data/${path}" 2>/dev/null || true)
-  fi
-  echo "$res"
-}
-
-# Retrieve Garage Admin Token
+# Retrieve Garage Admin Token (primary: cl01tl/garage-operator/config)
 echo ">> Fetching Garage token from OpenBao..."
 GARAGE_TOKEN=""
-for path in "cl01tl/garage-operator/config" "garage/config" "garage/home-infra/admin"; do
+for path in "cl01tl/garage-operator/config" "garage/home-infra/admin" "garage/config"; do
   RESP=$(fetch_bao_path "$path")
   TOKEN=$(echo "$RESP" | jq -r '.data.data["admin-token"] // .data.data.admin_token // .data.data.token // empty' 2>/dev/null || true)
   if [ -n "$TOKEN" ]; then
@@ -155,7 +129,7 @@ else
   echo ">> Warning: Garage admin token not found in OpenBao"
 fi
 
-# Retrieve Backblaze B2 Credentials
+# Retrieve Backblaze B2 Credentials (primary: backblaze/home-infra/s3-exporter)
 echo ">> Fetching Backblaze credentials from OpenBao..."
 BACKBLAZE_KEY=""
 BACKBLAZE_SECRET=""
@@ -181,7 +155,7 @@ ensure_backblaze_cors() {
 
   echo ">> Checking Backblaze B2 bucket CORS configurations..."
   local auth_resp
-  auth_resp=$(curl -sk -u "${key}:${secret}" "https://api.backblazeb2.com/b2api/v3/b2_authorize_account" 2>/dev/null || true)
+  auth_resp=$(curl -sk --connect-timeout 4 --max-time 8 -u "${key}:${secret}" "https://api.backblazeb2.com/b2api/v3/b2_authorize_account" 2>/dev/null || true)
   local token api_url account_id
   token=$(echo "$auth_resp" | jq -r '.authorizationToken // empty' 2>/dev/null || true)
   api_url=$(echo "$auth_resp" | jq -r '.apiUrl // empty' 2>/dev/null || true)
@@ -193,7 +167,7 @@ ensure_backblaze_cors() {
   fi
 
   local buckets_resp
-  buckets_resp=$(curl -sk -H "Authorization: ${token}" \
+  buckets_resp=$(curl -sk --connect-timeout 4 --max-time 8 -H "Authorization: ${token}" \
     -H "Content-Type: application/json" \
     -d "{\"accountId\": \"${account_id}\"}" \
     "${api_url}/b2api/v3/b2_list_buckets" 2>/dev/null || true)
@@ -213,7 +187,7 @@ ensure_backblaze_cors() {
           --arg bid "$b_id" \
           '{accountId: $acct, bucketId: $bid, corsRules: [{corsRuleName: "s3-cors-default", allowedOrigins: ["*"], allowedOperations: ["s3_get", "s3_head"], maxAgeSeconds: 3600}]}')
         local update_resp
-        update_resp=$(curl -sk -H "Authorization: ${token}" \
+        update_resp=$(curl -sk --connect-timeout 4 --max-time 8 -H "Authorization: ${token}" \
           -H "Content-Type: application/json" \
           -d "$update_payload" \
           "${api_url}/b2api/v3/b2_update_bucket" 2>/dev/null || true)
@@ -240,6 +214,7 @@ else
 fi
 
 # Retrieve Garage S3 Admin Keys (for CORS/Website management)
+echo ">> Fetching Garage S3 admin keys from OpenBao..."
 GARAGE_ADMIN_RESP=$(fetch_bao_path "garage/home-infra/admin")
 GARAGE_S3_KEY=$(echo "$GARAGE_ADMIN_RESP" | jq -r '.data.data.ACCESS_KEY_ID // empty' 2>/dev/null || true)
 GARAGE_S3_SECRET=$(echo "$GARAGE_ADMIN_RESP" | jq -r '.data.data.ACCESS_SECRET_KEY // empty' 2>/dev/null || true)
