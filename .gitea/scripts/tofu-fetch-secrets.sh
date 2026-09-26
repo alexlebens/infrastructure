@@ -16,36 +16,72 @@ mask_var() {
   fi
 }
 
-echo ">> Connecting to OpenBao to retrieve OpenTofu secrets directly..."
+echo ">> Connecting to OpenBao using Kubernetes auth credentials..."
 
-# Resolve OpenBao Address and Token
 OPENBAO_ADDR="${OPENBAO_ADDR:-https://openbao.alexlebens.dev}"
 
-# Retrieve token from environment or authenticate using OpenBao token in cluster
+login_openbao_k8s() {
+  local role="$1"
+  local jwt="$2"
+  local res
+  res=$(curl -sk -X POST \
+    -H "Content-Type: application/json" \
+    -d "{\"role\": \"${role}\", \"jwt\": \"${jwt}\"}" \
+    "${OPENBAO_ADDR}/v1/auth/kubernetes/login" 2>/dev/null || true)
+  if [ -z "$res" ] || [ "$(echo "$res" | jq -r '.auth.client_token // empty' 2>/dev/null)" = "" ]; then
+    res=$(curl -sk -X POST \
+      -H "Content-Type: application/json" \
+      -d "{\"role\": \"${role}\", \"jwt\": \"${jwt}\"}" \
+      "http://openbao-internal.openbao:8200/v1/auth/kubernetes/login" 2>/dev/null || true)
+  fi
+  echo "$res" | jq -r '.auth.client_token // empty' 2>/dev/null || true
+}
+
 OPENBAO_TOKEN="${OPENBAO_TOKEN:-${VAULT_TOKEN:-}}"
+
 if [ -z "${OPENBAO_TOKEN}" ]; then
-  OPENBAO_TOKEN=$(kubectl get secret -n external-secrets openbao-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
-fi
-if [ -z "${OPENBAO_TOKEN}" ]; then
-  OPENBAO_TOKEN=$(kubectl get secret -n openbao openbao-unseal-keys -o jsonpath='{.data.root-token}' 2>/dev/null | base64 -d || true)
+  # Attempt Kubernetes Auth via ServiceAccount JWT token
+  K8S_JWT=""
+  # If running in-cluster, use pod's service account token
+  if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
+    K8S_JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+  fi
+
+  # If not found or if kubectl is available, generate token for external-secrets SA
+  if [ -z "${K8S_JWT}" ]; then
+    K8S_JWT=$(kubectl create token external-secrets -n external-secrets --audience=openbao 2>/dev/null || true)
+  fi
+
+  if [ -z "${K8S_JWT}" ]; then
+    K8S_JWT=$(kubectl create token default --audience=openbao 2>/dev/null || true)
+  fi
+
+  # Attempt login with available JWT
+  if [ -n "${K8S_JWT}" ]; then
+    for role in "${OPENBAO_K8S_ROLE:-external-secrets}" "external-secrets" "tofu" "default"; do
+      TOKEN=$(login_openbao_k8s "$role" "$K8S_JWT")
+      if [ -n "$TOKEN" ]; then
+        OPENBAO_TOKEN="$TOKEN"
+        echo ">> Successfully authenticated to OpenBao via Kubernetes Auth (role: ${role})"
+        break
+      fi
+    done
+  fi
 fi
 
 if [ -z "${OPENBAO_TOKEN}" ]; then
-  echo "Error: Unable to authenticate to OpenBao. No OPENBAO_TOKEN available." >&2
+  echo "Error: Unable to authenticate to OpenBao." >&2
   exit 1
 fi
 
 mask_var "${OPENBAO_TOKEN}"
 output_var "openbao_token" "${OPENBAO_TOKEN}"
-echo ">> Authenticated to OpenBao (${OPENBAO_ADDR})"
 
 # Helper to fetch a JSON payload from OpenBao KV v2 (mount: secret)
 fetch_bao_path() {
   local path="$1"
   local res
-  # Try public/configured endpoint first
   res=$(curl -sk -H "X-Vault-Token: ${OPENBAO_TOKEN}" "${OPENBAO_ADDR}/v1/secret/data/${path}" 2>/dev/null || true)
-  # If empty or not valid JSON with data, try internal cluster service
   if [ -z "$res" ] || [ "$(echo "$res" | jq -r '.data.data // empty' 2>/dev/null)" = "" ]; then
     res=$(curl -sk -H "X-Vault-Token: ${OPENBAO_TOKEN}" "http://openbao-internal.openbao:8200/v1/secret/data/${path}" 2>/dev/null || true)
   fi
