@@ -153,6 +153,14 @@ resource "b2_bucket" "d_cs01bb" {
       days_from_hiding_to_deleting  = 1
     }
   }
+
+  lifecycle {
+    ignore_changes = [
+      bucket_type,
+      file_lock_configuration,
+      default_server_side_encryption,
+    ]
+  }
 }
 
 # ==============================================================================

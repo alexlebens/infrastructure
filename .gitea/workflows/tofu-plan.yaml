@@ -19,12 +19,14 @@ env:
   KUBECTL_VERSION: "v1.36.5"
   TF_IN_AUTOMATION: "true"
   TF_PLUGIN_CACHE_DIR: "/tmp/terraform-plugin-cache"
-  TF_HTTP_PASSWORD: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
-  TF_HTTP_USERNAME: alexlebens
 
 jobs:
   plan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -70,19 +72,33 @@ jobs:
 
       - name: Retrieve Cluster Secrets
         id: cluster-secrets
+        env:
+          BACKBLAZE_ACCESS_KEY_ID: ${{ secrets.BACKBLAZE_ACCESS_KEY_ID }}
+          BACKBLAZE_SECRET_ACCESS_KEY: ${{ secrets.BACKBLAZE_SECRET_ACCESS_KEY }}
         run: ./.gitea/scripts/tofu-fetch-secrets.sh
 
       - name: Initialize OpenTofu
         working-directory: tofu/buckets
         env:
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.TOFU_TOKEN }}
         run: |
           tofu init -reconfigure \
             -backend-config="password=${GITEA_TOKEN}"
 
+      - name: Synchronize State
+        env:
+          TF_HTTP_USERNAME: alexlebens
+          TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
+          GARAGE_A_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_a_bucket_id }}
+          GARAGE_B_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_b_bucket_id }}
+        run: |
+          ./.gitea/scripts/tofu-sync-state.sh "tofu/buckets"
+
       - name: OpenTofu Plan & PR Comment
         env:
-          TF_VAR_gitea_token: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          TF_HTTP_USERNAME: alexlebens
+          TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
+          TF_VAR_gitea_token: ${{ secrets.TOFU_TOKEN }}
           TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
           TF_VAR_garage_a_ps02sn_token: ${{ steps.cluster-secrets.outputs.garage_token }}
           TF_VAR_garage_b_cl01tl_token: ${{ steps.cluster-secrets.outputs.garage_token }}
@@ -91,7 +107,13 @@ jobs:
             ${{ steps.cluster-secrets.outputs.backblaze_access_key_id || secrets.BACKBLAZE_ACCESS_KEY_ID }}
           TF_VAR_backblaze_d_cs01bb_secret_access_key:
             ${{ steps.cluster-secrets.outputs.backblaze_secret_access_key || secrets.BACKBLAZE_SECRET_ACCESS_KEY }}
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          TF_VAR_garage_a_ps02sn_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}
+          TF_VAR_garage_a_ps02sn_admin_secret_key: ${{ steps.cluster-secrets.outputs.garage_admin_secret_key }}
+          TF_VAR_garage_b_cl01tl_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}
+          TF_VAR_garage_b_cl01tl_admin_secret_key: ${{ steps.cluster-secrets.outputs.garage_admin_secret_key }}
+          TF_VAR_garage_c_ps10rp_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}
+          TF_VAR_garage_c_ps10rp_admin_secret_key: ${{ steps.cluster-secrets.outputs.garage_admin_secret_key }}
+          GITEA_TOKEN: ${{ secrets.TOFU_TOKEN }}
           PUBLIC_URL: ${{ vars.PUBLIC_URL }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
