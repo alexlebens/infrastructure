@@ -2,8 +2,7 @@ terraform {
   required_version = ">= 1.8.0"
 
   backend "http" {
-    address  = "https://gitea.alexlebens.dev/api/packages/alexlebens/terraform/state/s3-buckets"
-    username = "alexlebens"
+    address = "https://gitea.alexlebens.dev/api/packages/alexlebens/terraform/state/s3-buckets"
   }
 
   required_providers {

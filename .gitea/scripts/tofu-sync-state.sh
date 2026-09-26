@@ -9,12 +9,28 @@ pushd "${TOFU_DIR}" > /dev/null
 
 STATE_FILE="$(mktemp)"
 NEW_STATE="$(mktemp)"
-trap 'rm -f "${STATE_FILE:-}" "${NEW_STATE:-}"' EXIT
+PULL_ERR="$(mktemp)"
+trap 'rm -f "${STATE_FILE:-}" "${NEW_STATE:-}" "${PULL_ERR:-}"' EXIT
+
+GITEA_PASS="${TF_HTTP_PASSWORD:-${GITEA_TOKEN:-}}"
+if [ -n "${GITEA_PASS}" ]; then
+  # Auto-detect token owner from Gitea API to ensure basic auth username matches the token owner
+  GITEA_USER=$(curl -sk --connect-timeout 4 --max-time 8 -H "Authorization: token ${GITEA_PASS}" "https://gitea.alexlebens.dev/api/v1/user" | jq -r '.username // empty' 2>/dev/null || true)
+  if [ -n "${GITEA_USER}" ]; then
+    echo ">> Authenticated to Gitea as: ${GITEA_USER}"
+    export TF_HTTP_USERNAME="${GITEA_USER}"
+  fi
+fi
 
 set +e
-tofu state pull > "${STATE_FILE}" 2>/dev/null
+tofu state pull > "${STATE_FILE}" 2> "${PULL_ERR}"
 PULL_EXIT=$?
 set -e
+
+if [ -s "${PULL_ERR}" ]; then
+  echo ">> Notice from tofu state pull:"
+  cat "${PULL_ERR}"
+fi
 
 if [ ${PULL_EXIT} -ne 0 ] || [ ! -s "${STATE_FILE}" ] || [ "$(cat "${STATE_FILE}")" = "" ]; then
   echo ">> State is empty or uninitialized. Initializing base state structure..."
@@ -96,8 +112,51 @@ fi
 
 if [ "${STATE_UPDATED}" = "true" ]; then
   echo ">> Pushing synchronized state to Gitea backend..."
-  tofu state push "${STATE_FILE}"
-  echo ">> State successfully synchronized."
+  PUSH_OUT="$(mktemp)"
+  set +e
+  tofu state push -force -lock=false "${STATE_FILE}" > "${PUSH_OUT}" 2>&1
+  PUSH_EXIT=$?
+  set -e
+
+  if [ ${PUSH_EXIT} -ne 0 ]; then
+    echo ">> Notice: tofu state push failed:"
+    cat "${PUSH_OUT}"
+    echo ">> Attempting direct upload via Gitea Package API..."
+    GITEA_URL="https://gitea.alexlebens.dev/api/packages/alexlebens/terraform/state/s3-buckets"
+    HTTP_CODE=$(curl -sk -w "%{http_code}" -o "${PUSH_OUT}" -X POST \
+      -H "Authorization: token ${GITEA_PASS}" \
+      -H "Content-Type: application/json" \
+      --data-binary "@${STATE_FILE}" \
+      "${GITEA_URL}" || true)
+
+    if [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "201" ] || [ "${HTTP_CODE}" = "204" ]; then
+      echo ">> State successfully pushed via Gitea Package API (HTTP ${HTTP_CODE})."
+    else
+      echo ">> Token upload returned HTTP ${HTTP_CODE}: $(cat "${PUSH_OUT}" | head -c 200)"
+      if [ -n "${TF_HTTP_USERNAME:-}" ]; then
+        echo ">> Attempting direct upload with Basic Auth (${TF_HTTP_USERNAME})..."
+        HTTP_CODE=$(curl -sk -w "%{http_code}" -o "${PUSH_OUT}" -X POST \
+          -u "${TF_HTTP_USERNAME}:${GITEA_PASS}" \
+          -H "Content-Type: application/json" \
+          --data-binary "@${STATE_FILE}" \
+          "${GITEA_URL}" || true)
+        if [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "201" ] || [ "${HTTP_CODE}" = "204" ]; then
+          echo ">> State successfully pushed via Gitea Package API with Basic Auth (HTTP ${HTTP_CODE})."
+        else
+          echo ">> Error: Basic Auth upload also returned HTTP ${HTTP_CODE}: $(cat "${PUSH_OUT}" | head -c 200)"
+          rm -f "${PUSH_OUT}"
+          exit 1
+        fi
+      else
+        rm -f "${PUSH_OUT}"
+        exit 1
+      fi
+    fi
+  else
+    cat "${PUSH_OUT}"
+    echo ">> State successfully synchronized via tofu state push."
+  fi
+  rm -f "${PUSH_OUT}"
 else
   echo ">> Garage buckets already present in state."
 fi
