@@ -25,6 +25,7 @@ OPENBAO_ROLE="${OPENBAO_ROLE:-gitea-runner}"
 K8S_JWT=""
 if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
   K8S_JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+  echo ">> Loaded projected ServiceAccount token from /var/run/secrets/kubernetes.io/serviceaccount/token"
 fi
 
 if [ -z "${K8S_JWT}" ]; then
