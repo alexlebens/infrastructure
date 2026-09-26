@@ -29,24 +29,38 @@ if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
 fi
 
 # Fallback: obtain token via kubectl if not mounted
-if [ -z "${K8S_JWT}" ] && command -v kubectl >/dev/null 2>&1; then
-  echo ">> Pod token not mounted; checking kubectl for projected ServiceAccount token..."
-  for sa in "buildx-runner" "gitea-runner" "external-secrets" "default"; do
-    ns="gitea"
-    [ "$sa" = "external-secrets" ] && ns="external-secrets"
-    K8S_JWT=$(kubectl create token "$sa" -n "$ns" --audience=openbao 2>/dev/null || true)
-    if [ -n "${K8S_JWT}" ]; then
-      echo ">> Generated Kubernetes projected token for serviceaccount: ${ns}/${sa}"
-      break
+if [ -z "${K8S_JWT}" ]; then
+  if ! command -v kubectl >/dev/null 2>&1; then
+    echo ">> Pod token not mounted and kubectl not in PATH; downloading static kubectl..."
+    ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+    if curl -fsSL -o /tmp/kubectl "https://dl.k8s.io/release/v1.31.0/bin/linux/${ARCH}/kubectl" 2>/dev/null; then
+      chmod +x /tmp/kubectl
+      export PATH="/tmp:$PATH"
+      echo ">> Downloaded kubectl into /tmp"
     fi
-  done
+  fi
 
-  # Fallback to static ServiceAccount secret if projected token creation failed
-  if [ -z "${K8S_JWT}" ]; then
-    K8S_JWT=$(kubectl get secret -n gitea buildx-runner-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
-    if [ -n "${K8S_JWT}" ]; then
-      echo ">> Loaded ServiceAccount token from secret: gitea/buildx-runner-token"
+  if command -v kubectl >/dev/null 2>&1; then
+    echo ">> Checking kubectl for projected ServiceAccount token..."
+    for sa in "buildx-runner" "gitea-runner" "external-secrets" "default"; do
+      ns="gitea"
+      [ "$sa" = "external-secrets" ] && ns="external-secrets"
+      K8S_JWT=$(kubectl create token "$sa" -n "$ns" --audience=openbao 2>/dev/null || true)
+      if [ -n "${K8S_JWT}" ]; then
+        echo ">> Generated Kubernetes projected token for serviceaccount: ${ns}/${sa}"
+        break
+      fi
+    done
+
+    # Fallback to static ServiceAccount secret if projected token creation failed
+    if [ -z "${K8S_JWT}" ]; then
+      K8S_JWT=$(kubectl get secret -n gitea buildx-runner-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
+      if [ -n "${K8S_JWT}" ]; then
+        echo ">> Loaded ServiceAccount token from secret: gitea/buildx-runner-token"
+      fi
     fi
+  else
+    echo ">> Notice: kubectl is not available in environment"
   fi
 fi
 
@@ -71,6 +85,7 @@ login_openbao_k8s() {
 OPENBAO_TOKEN=""
 
 if [ -n "${K8S_JWT}" ]; then
+  LAST_LOGIN_RESP=""
   for role in "${OPENBAO_ROLE}" "gitea-runner" "external-secrets" "default"; do
     LOGIN_RESP=$(login_openbao_k8s "${role}" "${K8S_JWT}")
     TOKEN=$(echo "$LOGIN_RESP" | jq -r '.auth.client_token // empty' 2>/dev/null || true)
@@ -78,8 +93,13 @@ if [ -n "${K8S_JWT}" ]; then
       OPENBAO_TOKEN="$TOKEN"
       echo ">> Successfully authenticated to OpenBao using Kubernetes Auth role '${role}'"
       break
+    else
+      LAST_LOGIN_RESP="${LOGIN_RESP}"
     fi
   done
+  if [ -z "${OPENBAO_TOKEN}" ] && [ -n "${LAST_LOGIN_RESP}" ]; then
+    echo ">> Notice: Kubernetes auth login attempt failed. Last response: ${LAST_LOGIN_RESP}"
+  fi
 fi
 
 # Temporary fallback: If Kubernetes Auth didn't succeed, retrieve token via kubectl from cluster secrets
@@ -91,6 +111,8 @@ if [ -z "${OPENBAO_TOKEN}" ] && command -v kubectl >/dev/null 2>&1; then
   fi
   if [ -n "${OPENBAO_TOKEN}" ]; then
     echo ">> Retrieved fallback token from in-cluster secret"
+  else
+    echo ">> Could not retrieve token from cluster secrets via kubectl"
   fi
 fi
 
