@@ -172,7 +172,7 @@ resource "vault_kv_secret_v2" "cluster_b_credentials" {
 resource "vault_kv_secret_v2" "backblaze_credentials" {
   for_each = {
     for k, v in local.backblaze_buckets : k => v
-    if var.backblaze_access_key_id != "" && var.backblaze_secret_access_key != ""
+    if var.backblaze_access_key_id != ""
   }
   mount = "secret"
   name  = "backblaze/home-infra/${each.value.bucket_name}"

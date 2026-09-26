@@ -28,8 +28,8 @@ provider "aws" {
   skip_metadata_api_check     = true
   skip_region_validation      = true
   s3_use_path_style           = true
-  access_key                  = var.garage_synology_a_admin_access_key
-  secret_key                  = var.garage_synology_a_admin_secret_key
+  access_key                  = var.garage_synology_a_admin_access_key != "" ? var.garage_synology_a_admin_access_key : "mock_access_key"
+  secret_key                  = var.garage_synology_a_admin_secret_key != "" ? var.garage_synology_a_admin_secret_key : "mock_secret_key"
 }
 
 provider "aws" {
@@ -43,8 +43,8 @@ provider "aws" {
   skip_metadata_api_check     = true
   skip_region_validation      = true
   s3_use_path_style           = true
-  access_key                  = var.garage_cluster_b_admin_access_key
-  secret_key                  = var.garage_cluster_b_admin_secret_key
+  access_key                  = var.garage_cluster_b_admin_access_key != "" ? var.garage_cluster_b_admin_access_key : "mock_access_key"
+  secret_key                  = var.garage_cluster_b_admin_secret_key != "" ? var.garage_cluster_b_admin_secret_key : "mock_secret_key"
 }
 
 provider "aws" {
@@ -58,6 +58,6 @@ provider "aws" {
   skip_metadata_api_check     = true
   skip_region_validation      = true
   s3_use_path_style           = true
-  access_key                  = var.backblaze_access_key_id
-  secret_key                  = var.backblaze_secret_access_key
+  access_key                  = var.backblaze_access_key_id != "" ? var.backblaze_access_key_id : "mock_access_key"
+  secret_key                  = var.backblaze_secret_access_key != "" ? var.backblaze_secret_access_key : "mock_secret_key"
 }
