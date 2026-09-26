@@ -28,12 +28,13 @@ env:
   KUBECTL_VERSION: "v1.36.5"
   TF_IN_AUTOMATION: "true"
   TF_PLUGIN_CACHE_DIR: "/tmp/terraform-plugin-cache"
-  TF_HTTP_PASSWORD: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
-  TF_HTTP_USERNAME: alexlebens
 
 jobs:
   tofu:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -87,7 +88,7 @@ jobs:
       - name: Initialize OpenTofu
         working-directory: tofu/buckets
         env:
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          GITEA_TOKEN: ${{ secrets.TOFU_TOKEN }}
         run: |
           tofu init -reconfigure \
             -backend-config="password=${GITEA_TOKEN}"
@@ -95,7 +96,7 @@ jobs:
       - name: Synchronize State
         env:
           TF_HTTP_USERNAME: alexlebens
-          TF_HTTP_PASSWORD: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
           GARAGE_A_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_a_bucket_id }}
           GARAGE_B_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_b_bucket_id }}
         run: |
@@ -106,8 +107,8 @@ jobs:
         working-directory: tofu/buckets
         env:
           TF_HTTP_USERNAME: alexlebens
-          TF_HTTP_PASSWORD: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
-          TF_VAR_gitea_token: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
+          TF_VAR_gitea_token: ${{ secrets.TOFU_TOKEN }}
           TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
           TF_VAR_garage_a_ps02sn_token: ${{ steps.cluster-secrets.outputs.garage_token }}
           TF_VAR_garage_b_cl01tl_token: ${{ steps.cluster-secrets.outputs.garage_token }}
@@ -132,8 +133,8 @@ jobs:
         working-directory: tofu/buckets
         env:
           TF_HTTP_USERNAME: alexlebens
-          TF_HTTP_PASSWORD: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
-          TF_VAR_gitea_token: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
+          TF_VAR_gitea_token: ${{ secrets.TOFU_TOKEN }}
           TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
           TF_VAR_garage_a_ps02sn_token: ${{ steps.cluster-secrets.outputs.garage_token }}
           TF_VAR_garage_b_cl01tl_token: ${{ steps.cluster-secrets.outputs.garage_token }}
