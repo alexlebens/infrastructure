@@ -21,7 +21,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: 8091fb41700f8c9cd8c1863a9974261d0317a12c0df2046490d820ed8734c0dd
+        checksum/config: 91e3f6c7af223b9422755751ae7b43069128eb53e868c1f517bbe314c743b1b9
       labels:
         helm.sh/chart: gitea-actions-0.1.2
         app: gitea-actions-runner
@@ -32,6 +32,7 @@ spec:
         app.kubernetes.io/managed-by: Helm
     spec:
       restartPolicy: Always
+      serviceAccountName: "buildx-runner"
       initContainers:
         - name: reach-gitea
           image: "docker.io/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d"
@@ -73,6 +74,9 @@ spec:
               name: docker-socket
             - mountPath: /var/lib/docker
               name: docker-vol
+            - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              name: openbao-sa-token
+              readOnly: true
       containers:
         - name: runner
           image: "docker.io/gitea/runner:4.0.0@sha256:7b5aa1137a262c2ca452a420c645629c95c5277920d2bdeb90757cb5ea24689f"
@@ -144,6 +148,13 @@ spec:
                     storage: 50Gi
                 storageClassName: ceph-block
           name: docker-vol
+        - name: openbao-sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: openbao
+                  expirationSeconds: 7200
+                  path: token
   volumeClaimTemplates:
     - metadata:
         name: data-runner
