@@ -148,6 +148,7 @@ resource "b2_bucket" "d_cs01bb" {
   dynamic "lifecycle_rules" {
     for_each = each.value.backups.d_cs01bb.prune.enabled ? [1] : []
     content {
+      file_name_prefix              = ""
       days_from_uploading_to_hiding = tonumber(replace(each.value.backups.d_cs01bb.prune.age_to_prune, "d", ""))
       days_from_hiding_to_deleting  = 1
     }
