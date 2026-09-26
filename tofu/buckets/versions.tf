@@ -2,10 +2,8 @@ terraform {
   required_version = ">= 1.8.0"
 
   backend "http" {
-    address        = "https://gitea.alexlebens.dev/api/packages/alexlebens/terraform/state/s3-buckets"
-    lock_address   = "https://gitea.alexlebens.dev/api/packages/alexlebens/terraform/state/s3-buckets/lock"
-    unlock_address = "https://gitea.alexlebens.dev/api/packages/alexlebens/terraform/state/s3-buckets/lock"
-    username       = "alexlebens"
+    address  = "https://gitea.alexlebens.dev/api/packages/alexlebens/terraform/state/s3-buckets"
+    username = "alexlebens"
   }
 
   required_providers {

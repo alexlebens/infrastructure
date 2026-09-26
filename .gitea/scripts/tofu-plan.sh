@@ -52,7 +52,7 @@ echo ">> Running OpenTofu plan in ${TOFU_DIR} ..."
 pushd "${TOFU_DIR}" > /dev/null
 
 set +e
-tofu plan -no-color -detailed-exitcode > "${PLAN_OUT}" 2> "${PLAN_ERR}"
+tofu plan -no-color -detailed-exitcode -lock=false > "${PLAN_OUT}" 2> "${PLAN_ERR}"
 PLAN_EXIT=$?
 set -e
 
