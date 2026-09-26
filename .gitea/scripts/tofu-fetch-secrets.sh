@@ -172,11 +172,69 @@ for path in "backblaze/home-infra/s3-exporter" "backblaze/home-infra/talos-backu
   fi
 done
 
+ensure_backblaze_cors() {
+  local key="$1"
+  local secret="$2"
+  if [ -z "$key" ] || [ -z "$secret" ]; then
+    return 0
+  fi
+
+  echo ">> Checking Backblaze B2 bucket CORS configurations..."
+  local auth_resp
+  auth_resp=$(curl -sk -u "${key}:${secret}" "https://api.backblazeb2.com/b2api/v3/b2_authorize_account" 2>/dev/null || true)
+  local token api_url account_id
+  token=$(echo "$auth_resp" | jq -r '.authorizationToken // empty' 2>/dev/null || true)
+  api_url=$(echo "$auth_resp" | jq -r '.apiUrl // empty' 2>/dev/null || true)
+  account_id=$(echo "$auth_resp" | jq -r '.accountId // empty' 2>/dev/null || true)
+
+  if [ -z "$token" ] || [ -z "$api_url" ] || [ -z "$account_id" ]; then
+    echo ">> Notice: Unable to authorize with Backblaze B2 Native API to verify CORS."
+    return 0
+  fi
+
+  local buckets_resp
+  buckets_resp=$(curl -sk -H "Authorization: ${token}" \
+    -H "Content-Type: application/json" \
+    -d "{\"accountId\": \"${account_id}\"}" \
+    "${api_url}/b2api/v3/b2_list_buckets" 2>/dev/null || true)
+
+  for target_bucket in "web-assets-770aef58c931fcf4" "reactive-resume-assets-61758b59b4c7c893"; do
+    local b_info
+    b_info=$(echo "$buckets_resp" | jq -r --arg name "$target_bucket" '.buckets[] | select(.bucketName == $name) // empty' 2>/dev/null || true)
+    if [ -n "$b_info" ]; then
+      local b_id cors_count
+      b_id=$(echo "$b_info" | jq -r '.bucketId' 2>/dev/null || true)
+      cors_count=$(echo "$b_info" | jq -r '.corsRules | length' 2>/dev/null || 0)
+      if [ "$cors_count" -eq 0 ]; then
+        echo ">> Initializing default CORS rule on Backblaze B2 bucket: ${target_bucket}..."
+        local update_payload
+        update_payload=$(jq -n \
+          --arg acct "$account_id" \
+          --arg bid "$b_id" \
+          '{accountId: $acct, bucketId: $bid, corsRules: [{corsRuleName: "s3-cors-default", allowedOrigins: ["*"], allowedOperations: ["s3_get", "s3_head"], maxAgeSeconds: 3600}]}')
+        local update_resp
+        update_resp=$(curl -sk -H "Authorization: ${token}" \
+          -H "Content-Type: application/json" \
+          -d "$update_payload" \
+          "${api_url}/b2api/v3/b2_update_bucket" 2>/dev/null || true)
+        if [ "$(echo "$update_resp" | jq -r '.bucketId // empty' 2>/dev/null)" = "$b_id" ]; then
+          echo ">> Successfully initialized CORS rule on Backblaze B2 bucket: ${target_bucket}"
+        else
+          echo ">> Notice: Failed to update CORS on ${target_bucket}: ${update_resp}"
+        fi
+      else
+        echo ">> Backblaze B2 bucket ${target_bucket} already has CORS rules configured."
+      fi
+    fi
+  done
+}
+
 if [ -n "$BACKBLAZE_KEY" ]; then
   mask_var "${BACKBLAZE_KEY}"
   mask_var "${BACKBLAZE_SECRET}"
   output_var "backblaze_access_key_id" "${BACKBLAZE_KEY}"
   output_var "backblaze_secret_access_key" "${BACKBLAZE_SECRET}"
+  ensure_backblaze_cors "${BACKBLAZE_KEY}" "${BACKBLAZE_SECRET}"
 else
   echo ">> Notice: Backblaze credentials not found in OpenBao (falling back to workflow secret if defined)"
 fi
