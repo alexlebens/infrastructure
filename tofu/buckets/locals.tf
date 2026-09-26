@@ -36,12 +36,14 @@ locals {
 
       backups = {
         cluster_b = {
-          enabled  = try(cfg.backups.cluster_b.enabled, false)
-          schedule = try(cfg.backups.cluster_b.schedule, "0 1 * * *")
+          enabled            = try(cfg.backups.cluster_b.enabled, false)
+          schedule           = try(cfg.backups.cluster_b.schedule, "0 1 * * *")
+          destination_bucket = coalesce(try(cfg.backups.cluster_b.destination.bucketName, null), try(cfg.bucketName, null), app)
         }
         backblaze = {
-          enabled  = try(cfg.backups.backblaze.enabled, false)
-          schedule = try(cfg.backups.backblaze.schedule, "0 2 * * *")
+          enabled            = try(cfg.backups.backblaze.enabled, false)
+          schedule           = try(cfg.backups.backblaze.schedule, "0 2 * * *")
+          destination_bucket = coalesce(try(cfg.backups.backblaze.destination.bucketName, null), try(cfg.bucketName, null), app)
           prune = {
             enabled      = try(cfg.backups.backblaze.prune.enabled, false)
             age_to_prune = try(cfg.backups.backblaze.prune.ageToPrune, "90d")

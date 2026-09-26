@@ -116,7 +116,7 @@ resource "aws_s3_bucket_website_configuration" "cluster_b" {
 resource "aws_s3_bucket" "backblaze" {
   provider = aws.backblaze
   for_each = local.backblaze_buckets
-  bucket   = each.value.bucket_name
+  bucket   = each.value.backups.backblaze.destination_bucket
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "backblaze" {
