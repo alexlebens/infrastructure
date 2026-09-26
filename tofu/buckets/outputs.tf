@@ -1,27 +1,37 @@
-output "synology_buckets" {
-  description = "Summary of provisioned Synology A buckets"
+output "a_ps02sn_buckets" {
+  description = "Summary of provisioned Tier A (Synology ps02sn) buckets"
   value = {
-    for k, v in garage_bucket.synology : k => {
+    for k, v in garage_bucket.a_ps02sn : k => {
       id           = v.id
       global_alias = v.global_alias
     }
   }
 }
 
-output "cluster_b_buckets" {
-  description = "Summary of provisioned Cluster B buckets"
+output "b_cl01tl_buckets" {
+  description = "Summary of provisioned Tier B (Cluster cl01tl) buckets"
   value = {
-    for k, v in garage_bucket.cluster_b : k => {
+    for k, v in garage_bucket.b_cl01tl : k => {
       id           = v.id
       global_alias = v.global_alias
     }
   }
 }
 
-output "backblaze_buckets" {
-  description = "Summary of provisioned Backblaze DR buckets"
+output "c_ps10rp_buckets" {
+  description = "Summary of provisioned Tier C (Raspberry Pi ps10rp) buckets"
   value = {
-    for k, v in aws_s3_bucket.backblaze : k => {
+    for k, v in garage_bucket.c_ps10rp : k => {
+      id           = v.id
+      global_alias = v.global_alias
+    }
+  }
+}
+
+output "d_cs01bb_buckets" {
+  description = "Summary of provisioned Tier D (Backblaze B2 cs01bb) buckets"
+  value = {
+    for k, v in aws_s3_bucket.d_cs01bb : k => {
       id  = v.id
       arn = v.arn
     }

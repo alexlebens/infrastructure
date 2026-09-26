@@ -6,16 +6,16 @@
 # ==============================================================================
 
 # ==============================================================================
-# Pre-Existing Backblaze B2 Buckets
+# Pre-Existing Tier D (Backblaze B2 cs01bb) Buckets
 # Pre-existing cloud replica buckets are imported into state to avoid recreation.
 # ==============================================================================
 
 import {
-  to = aws_s3_bucket.backblaze["web-assets"]
+  to = aws_s3_bucket.d_cs01bb["web-assets"]
   id = "web-assets-770aef58c931fcf4"
 }
 
 import {
-  to = aws_s3_bucket.backblaze["reactive-resume"]
+  to = aws_s3_bucket.d_cs01bb["reactive-resume"]
   id = "reactive-resume-assets-61758b59b4c7c893"
 }

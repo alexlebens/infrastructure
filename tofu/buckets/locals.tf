@@ -17,7 +17,15 @@ locals {
     for app, cfg in local.discovered_s3_configs : app => {
       app_name    = app
       bucket_name = coalesce(try(cfg.bucketName, null), app)
-      target      = coalesce(try(cfg.target, null), "cluster-b") # Primary storage target: "synology-a" or "cluster-b"
+
+      # Target normalization: supports "a" / "a_ps02sn", "b" / "b_cl01tl", "c" / "c_ps10rp", "d" / "d_cs01bb"
+      target = (
+        contains(["a", "a_ps02sn", "synology-a", "synology_a"], try(cfg.target, "b")) ? "a_ps02sn" :
+        contains(["b", "b_cl01tl", "cluster-b", "cluster_b"], try(cfg.target, "b")) ? "b_cl01tl" :
+        contains(["c", "c_ps10rp"], try(cfg.target, "b")) ? "c_ps10rp" :
+        contains(["d", "d_cs01bb", "backblaze"], try(cfg.target, "b")) ? "d_cs01bb" :
+        try(cfg.target, "b_cl01tl")
+      )
 
       website = {
         enabled        = try(cfg.website.enabled, false)
@@ -35,53 +43,145 @@ locals {
       }
 
       backups = {
-        cluster_b = {
-          enabled            = try(cfg.backups.cluster_b.enabled, false)
-          schedule           = try(cfg.backups.cluster_b.schedule, "0 1 * * *")
-          destination_bucket = coalesce(try(cfg.backups.cluster_b.destination.bucketName, null), try(cfg.bucketName, null), app)
+        # Tier A: Synology NAS (a_ps02sn)
+        a_ps02sn = {
+          enabled = coalesce(
+            try(cfg.backups.a.enabled, null),
+            try(cfg.backups.a_ps02sn.enabled, null),
+            try(cfg.backups.synology_a.enabled, null),
+            false
+          )
+          schedule = coalesce(
+            try(cfg.backups.a.schedule, null),
+            try(cfg.backups.a_ps02sn.schedule, null),
+            try(cfg.backups.synology_a.schedule, null),
+            "0 3 * * *"
+          )
+          destination_bucket = coalesce(
+            try(cfg.backups.a.destination.bucketName, null),
+            try(cfg.backups.a_ps02sn.destination.bucketName, null),
+            try(cfg.backups.synology_a.destination.bucketName, null),
+            try(cfg.bucketName, null),
+            app
+          )
         }
-        backblaze = {
-          enabled            = try(cfg.backups.backblaze.enabled, false)
-          schedule           = try(cfg.backups.backblaze.schedule, "0 2 * * *")
-          destination_bucket = coalesce(try(cfg.backups.backblaze.destination.bucketName, null), try(cfg.bucketName, null), app)
+
+        # Tier B: Talos K8s cluster (b_cl01tl)
+        b_cl01tl = {
+          enabled = coalesce(
+            try(cfg.backups.b.enabled, null),
+            try(cfg.backups.b_cl01tl.enabled, null),
+            try(cfg.backups.cluster_b.enabled, null),
+            false
+          )
+          schedule = coalesce(
+            try(cfg.backups.b.schedule, null),
+            try(cfg.backups.b_cl01tl.schedule, null),
+            try(cfg.backups.cluster_b.schedule, null),
+            "0 1 * * *"
+          )
+          destination_bucket = coalesce(
+            try(cfg.backups.b.destination.bucketName, null),
+            try(cfg.backups.b_cl01tl.destination.bucketName, null),
+            try(cfg.backups.cluster_b.destination.bucketName, null),
+            try(cfg.bucketName, null),
+            app
+          )
+        }
+
+        # Tier C: Raspberry Pi (c_ps10rp)
+        c_ps10rp = {
+          enabled = coalesce(
+            try(cfg.backups.c.enabled, null),
+            try(cfg.backups.c_ps10rp.enabled, null),
+            false
+          )
+          schedule = coalesce(
+            try(cfg.backups.c.schedule, null),
+            try(cfg.backups.c_ps10rp.schedule, null),
+            "0 4 * * *"
+          )
+          destination_bucket = coalesce(
+            try(cfg.backups.c.destination.bucketName, null),
+            try(cfg.backups.c_ps10rp.destination.bucketName, null),
+            try(cfg.bucketName, null),
+            app
+          )
+        }
+
+        # Tier D: Backblaze B2 (d_cs01bb)
+        d_cs01bb = {
+          enabled = coalesce(
+            try(cfg.backups.d.enabled, null),
+            try(cfg.backups.d_cs01bb.enabled, null),
+            try(cfg.backups.backblaze.enabled, null),
+            false
+          )
+          schedule = coalesce(
+            try(cfg.backups.d.schedule, null),
+            try(cfg.backups.d_cs01bb.schedule, null),
+            try(cfg.backups.backblaze.schedule, null),
+            "0 2 * * *"
+          )
+          destination_bucket = coalesce(
+            try(cfg.backups.d.destination.bucketName, null),
+            try(cfg.backups.d_cs01bb.destination.bucketName, null),
+            try(cfg.backups.backblaze.destination.bucketName, null),
+            try(cfg.bucketName, null),
+            app
+          )
           prune = {
-            enabled      = try(cfg.backups.backblaze.prune.enabled, false)
-            age_to_prune = try(cfg.backups.backblaze.prune.ageToPrune, "90d")
+            enabled = coalesce(
+              try(cfg.backups.d.prune.enabled, null),
+              try(cfg.backups.d_cs01bb.prune.enabled, null),
+              try(cfg.backups.backblaze.prune.enabled, null),
+              false
+            )
+            age_to_prune = coalesce(
+              try(cfg.backups.d.prune.ageToPrune, null),
+              try(cfg.backups.d_cs01bb.prune.ageToPrune, null),
+              try(cfg.backups.backblaze.prune.ageToPrune, null),
+              "90d"
+            )
           }
         }
       }
     }
   }
 
-  # Filter buckets by primary placement tier
-  synology_buckets = {
-    for k, v in local.buckets : k => v if v.target == "synology-a"
+  # Filter buckets by placement tier (primary target or backup destination)
+  a_ps02sn_buckets = {
+    for k, v in local.buckets : k => v if v.target == "a_ps02sn" || v.backups.a_ps02sn.enabled
   }
 
-  cluster_b_buckets = {
-    for k, v in local.buckets : k => v if v.target == "cluster-b"
+  b_cl01tl_buckets = {
+    for k, v in local.buckets : k => v if v.target == "b_cl01tl" || v.backups.b_cl01tl.enabled
   }
 
-  # Buckets requiring Backblaze DR offsite replication
-  backblaze_buckets = {
-    for k, v in local.buckets : k => v if v.backups.backblaze.enabled
+  c_ps10rp_buckets = {
+    for k, v in local.buckets : k => v if v.target == "c_ps10rp" || v.backups.c_ps10rp.enabled
+  }
+
+  # Buckets requiring Tier D (Backblaze B2 cs01bb) offsite replication
+  d_cs01bb_buckets = {
+    for k, v in local.buckets : k => v if v.backups.d_cs01bb.enabled
   }
 
   # Buckets with CORS enabled
-  cors_synology_buckets = {
-    for k, v in local.synology_buckets : k => v if v.cors.enabled
+  cors_a_ps02sn_buckets = {
+    for k, v in local.a_ps02sn_buckets : k => v if v.cors.enabled
   }
 
-  cors_cluster_b_buckets = {
-    for k, v in local.cluster_b_buckets : k => v if v.cors.enabled
+  cors_b_cl01tl_buckets = {
+    for k, v in local.b_cl01tl_buckets : k => v if v.cors.enabled
   }
 
   # Buckets with Website enabled
-  website_synology_buckets = {
-    for k, v in local.synology_buckets : k => v if v.website.enabled
+  website_a_ps02sn_buckets = {
+    for k, v in local.a_ps02sn_buckets : k => v if v.website.enabled
   }
 
-  website_cluster_b_buckets = {
-    for k, v in local.cluster_b_buckets : k => v if v.website.enabled
+  website_b_cl01tl_buckets = {
+    for k, v in local.b_cl01tl_buckets : k => v if v.website.enabled
   }
 }
