@@ -83,6 +83,15 @@ jobs:
           tofu init -reconfigure \
             -backend-config="password=${GITEA_TOKEN}"
 
+      - name: Synchronize State
+        env:
+          TF_HTTP_USERNAME: alexlebens
+          TF_HTTP_PASSWORD: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          GARAGE_A_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_a_bucket_id }}
+          GARAGE_B_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_b_bucket_id }}
+        run: |
+          ./.gitea/scripts/tofu-sync-state.sh "tofu/buckets"
+
       - name: OpenTofu Plan & PR Comment
         env:
           TF_HTTP_USERNAME: alexlebens

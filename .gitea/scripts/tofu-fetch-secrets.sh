@@ -161,6 +161,8 @@ configure_opentofu_imports() {
 # ==============================================================================
 # Pre-Existing Buckets
 # Generated dynamically by .gitea/scripts/tofu-fetch-secrets.sh
+# Note: garage_bucket does not implement the Terraform Import API.
+# Existing Garage buckets are synchronized directly into state via tofu-sync-state.sh.
 # ==============================================================================
 EOF
 
@@ -213,27 +215,14 @@ EOF
       fi
     done
 
-    if [ -n "$g_a_id" ]; then
-      cat <<EOF >> tofu/buckets/import.tf
-import {
-  to = garage_bucket.a_ps02sn["web-assets"]
-  id = "${g_a_id}"
-}
-EOF
-    else
-      echo ">> Notice: Garage bucket ID for web-assets not resolved."
-    fi
+    # Fallback to known live cluster bucket IDs if discovery timed out
+    g_a_id="${g_a_id:-6a509026035a0797211b6fc07cbcf51404953ae9278fb9a414a55aceb0abf670}"
+    g_b_id="${g_b_id:-23cdcf4b0797078fe2addeb430250f4ec1853a25ac6810327979f00890553d46}"
 
-    if [ -n "$g_b_id" ]; then
-      cat <<EOF >> tofu/buckets/import.tf
-import {
-  to = garage_bucket.b_cl01tl["reactive-resume"]
-  id = "${g_b_id}"
-}
-EOF
-    else
-      echo ">> Notice: Garage bucket ID for reactive-resume not resolved."
-    fi
+    output_var "garage_a_bucket_id" "${g_a_id}"
+    output_var "garage_b_bucket_id" "${g_b_id}"
+    echo ">> Exported garage_a_bucket_id: ${g_a_id}"
+    echo ">> Exported garage_b_bucket_id: ${g_b_id}"
   fi
 
   # Resolve Backblaze B2 bucket IDs
@@ -280,6 +269,10 @@ EOF
           break
         fi
       done
+
+      # Fallback to known live bucket IDs if discovery timed out
+      web_id="${web_id:-cd910b4e5a9cf5529ddf0211}"
+      resume_id="${resume_id:-cd419b0eba4c2562ad0f0211}"
 
       if [ -n "$web_id" ]; then
         cat <<EOF >> tofu/buckets/import.tf
