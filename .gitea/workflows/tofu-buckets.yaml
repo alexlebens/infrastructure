@@ -53,29 +53,7 @@ jobs:
 
       - name: Retrieve Cluster Secrets
         id: cluster-secrets
-        run: |
-          set -e
-          # Extract admin token for Garage clusters
-          GARAGE_TOKEN=$(kubectl get secret -n garage-operator garage-operator-token -o jsonpath='{.data.admin-token}' | base64 -d)
-          echo "::add-mask::$GARAGE_TOKEN"
-          echo "garage_token=$GARAGE_TOKEN" >> $GITHUB_OUTPUT
-
-          # Extract OpenBao token if present
-          OPENBAO_TOKEN=$(kubectl get secret -n external-secrets openbao-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || echo "")
-          if [ -n "$OPENBAO_TOKEN" ]; then
-            echo "::add-mask::$OPENBAO_TOKEN"
-            echo "openbao_token=$OPENBAO_TOKEN" >> $GITHUB_OUTPUT
-          fi
-
-          # Extract Backblaze credentials if present
-          BACKBLAZE_KEY=$(kubectl get secret -n s3-exporter backblaze -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' 2>/dev/null | base64 -d || echo "")
-          BACKBLAZE_SECRET=$(kubectl get secret -n s3-exporter backblaze -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' 2>/dev/null | base64 -d || echo "")
-          if [ -n "$BACKBLAZE_KEY" ]; then
-            echo "::add-mask::$BACKBLAZE_KEY"
-            echo "::add-mask::$BACKBLAZE_SECRET"
-            echo "backblaze_access_key_id=$BACKBLAZE_KEY" >> $GITHUB_OUTPUT
-            echo "backblaze_secret_access_key=$BACKBLAZE_SECRET" >> $GITHUB_OUTPUT
-          fi
+        run: ./.gitea/scripts/tofu-fetch-secrets.sh
 
       - name: Initialize OpenTofu
         working-directory: tofu/buckets
