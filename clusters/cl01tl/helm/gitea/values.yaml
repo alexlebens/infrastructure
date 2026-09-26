@@ -180,6 +180,7 @@ gitea:
 gitea-actions:
   enabled: true
   statefulset:
+    serviceAccountName: buildx-runner
     replicas: 6
     timezone: America/Chicago
     resources:
@@ -220,6 +221,13 @@ gitea-actions:
               resources:
                 requests:
                   storage: 50Gi
+      - name: openbao-sa-token
+        projected:
+          sources:
+            - serviceAccountToken:
+                audience: openbao
+                expirationSeconds: 7200
+                path: token
     runner:
       registry: docker.io
       repository: gitea/runner
@@ -233,6 +241,10 @@ gitea-actions:
           level: debug
         cache:
           enabled: true
+        container:
+          valid_volumes:
+            - "/var/run/secrets/kubernetes.io/serviceaccount/**"
+          options: "-v /var/run/secrets/kubernetes.io/serviceaccount:/var/run/secrets/kubernetes.io/serviceaccount:ro"
         runner:
           labels:
             - "ubuntu-latest:docker://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04"
@@ -246,6 +258,9 @@ gitea-actions:
       extraVolumeMounts:
         - name: docker-vol
           mountPath: /var/lib/docker
+        - name: openbao-sa-token
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
     persistence:
       storageClass: ceph-block
       size: 10Gi

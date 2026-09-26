@@ -1,0 +1,122 @@
+name: tofu-buckets
+
+concurrency:
+  group: tofu-buckets-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "clusters/cl01tl/helm/**"
+      - "tofu/buckets/**"
+
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform (plan or apply)"
+        type: choice
+        options:
+          - apply
+          - plan
+        default: apply
+        required: true
+
+env:
+  TOFU_VERSION: "1.8.8"
+  KUBECTL_VERSION: "v1.36.5"
+  TF_IN_AUTOMATION: "true"
+  TF_PLUGIN_CACHE_DIR: "~/.terraform.d/plugin-cache"
+
+jobs:
+  tofu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Cache OpenTofu
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.local/bin/tofu
+          key: ${{ runner.os }}-tofu-${{ env.TOFU_VERSION }}
+
+      - name: Set Up OpenTofu
+        run: ./.gitea/scripts/install-tofu.sh
+
+      - name: Cache OpenTofu Plugins
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-tofu-plugins-${{ hashFiles('tofu/buckets/versions.tf') }}
+          restore-keys: |
+            ${{ runner.os }}-tofu-plugins-
+
+      - name: Create OpenTofu Plugin Cache Directory
+        run: mkdir -p ~/.terraform.d/plugin-cache
+
+      - name: Cache Kubectl
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.local/bin/kubectl
+          key: ${{ runner.os }}-kubectl-${{ env.KUBECTL_VERSION }}
+
+      - name: Set Up Kubectl
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
+        with:
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Configure Kubeconfig
+        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Retrieve Cluster Secrets
+        id: cluster-secrets
+        run: ./.gitea/scripts/tofu-fetch-secrets.sh
+
+      - name: Initialize OpenTofu
+        working-directory: tofu/buckets
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+        run: |
+          tofu init -reconfigure \
+            -backend-config="password=${GITEA_TOKEN}"
+
+      - name: OpenTofu Plan
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan'
+        working-directory: tofu/buckets
+        env:
+          TF_VAR_gitea_token: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
+          TF_VAR_garage_a_ps02sn_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_b_cl01tl_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_c_ps10rp_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_backblaze_d_cs01bb_access_key_id:
+            ${{ steps.cluster-secrets.outputs.backblaze_access_key_id || secrets.BACKBLAZE_ACCESS_KEY_ID }}
+          TF_VAR_backblaze_d_cs01bb_secret_access_key:
+            ${{ steps.cluster-secrets.outputs.backblaze_secret_access_key || secrets.BACKBLAZE_SECRET_ACCESS_KEY }}
+        run: |
+          tofu plan -no-color
+
+      - name: OpenTofu Apply
+        if:
+          github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action ==
+          'apply')
+        working-directory: tofu/buckets
+        env:
+          TF_VAR_gitea_token: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
+          TF_VAR_garage_a_ps02sn_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_b_cl01tl_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_c_ps10rp_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_backblaze_d_cs01bb_access_key_id:
+            ${{ steps.cluster-secrets.outputs.backblaze_access_key_id || secrets.BACKBLAZE_ACCESS_KEY_ID }}
+          TF_VAR_backblaze_d_cs01bb_secret_access_key:
+            ${{ steps.cluster-secrets.outputs.backblaze_secret_access_key || secrets.BACKBLAZE_SECRET_ACCESS_KEY }}
+        run: |
+          tofu apply -auto-approve -no-color
