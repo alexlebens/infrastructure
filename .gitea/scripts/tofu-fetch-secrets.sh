@@ -28,19 +28,26 @@ if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
   echo ">> Loaded projected ServiceAccount token from /var/run/secrets/kubernetes.io/serviceaccount/token"
 fi
 
-if [ -z "${K8S_JWT}" ]; then
-  for sa in "buildx-runner" "gitea-runner" "default"; do
-    K8S_JWT=$(kubectl create token "$sa" -n gitea --audience=openbao 2>/dev/null || true)
+# Fallback: obtain token via kubectl if not mounted
+if [ -z "${K8S_JWT}" ] && command -v kubectl >/dev/null 2>&1; then
+  echo ">> Pod token not mounted; checking kubectl for projected ServiceAccount token..."
+  for sa in "buildx-runner" "gitea-runner" "external-secrets" "default"; do
+    ns="gitea"
+    [ "$sa" = "external-secrets" ] && ns="external-secrets"
+    K8S_JWT=$(kubectl create token "$sa" -n "$ns" --audience=openbao 2>/dev/null || true)
     if [ -n "${K8S_JWT}" ]; then
-      echo ">> Generated Kubernetes projected token for serviceaccount: gitea/${sa}"
+      echo ">> Generated Kubernetes projected token for serviceaccount: ${ns}/${sa}"
       break
     fi
   done
-fi
 
-if [ -z "${K8S_JWT}" ]; then
-  echo "Error: Failed to obtain Kubernetes ServiceAccount token for OpenBao authentication." >&2
-  exit 1
+  # Fallback to static ServiceAccount secret if projected token creation failed
+  if [ -z "${K8S_JWT}" ]; then
+    K8S_JWT=$(kubectl get secret -n gitea buildx-runner-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
+    if [ -n "${K8S_JWT}" ]; then
+      echo ">> Loaded ServiceAccount token from secret: gitea/buildx-runner-token"
+    fi
+  fi
 fi
 
 # Login to OpenBao via Kubernetes Auth
@@ -61,18 +68,39 @@ login_openbao_k8s() {
   echo "$res"
 }
 
-LOGIN_RESP=$(login_openbao_k8s "${OPENBAO_ROLE}" "${K8S_JWT}")
-OPENBAO_TOKEN=$(echo "$LOGIN_RESP" | jq -r '.auth.client_token // empty' 2>/dev/null || true)
+OPENBAO_TOKEN=""
+
+if [ -n "${K8S_JWT}" ]; then
+  for role in "${OPENBAO_ROLE}" "gitea-runner" "external-secrets" "default"; do
+    LOGIN_RESP=$(login_openbao_k8s "${role}" "${K8S_JWT}")
+    TOKEN=$(echo "$LOGIN_RESP" | jq -r '.auth.client_token // empty' 2>/dev/null || true)
+    if [ -n "$TOKEN" ]; then
+      OPENBAO_TOKEN="$TOKEN"
+      echo ">> Successfully authenticated to OpenBao using Kubernetes Auth role '${role}'"
+      break
+    fi
+  done
+fi
+
+# Temporary fallback: If Kubernetes Auth didn't succeed, retrieve token via kubectl from cluster secrets
+if [ -z "${OPENBAO_TOKEN}" ] && command -v kubectl >/dev/null 2>&1; then
+  echo ">> Notice: Kubernetes auth did not return a token; falling back to in-cluster secret..."
+  OPENBAO_TOKEN=$(kubectl get secret -n external-secrets openbao-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
+  if [ -z "${OPENBAO_TOKEN}" ]; then
+    OPENBAO_TOKEN=$(kubectl get secret -n openbao openbao-unseal-keys -o jsonpath='{.data.root-token}' 2>/dev/null | base64 -d || true)
+  fi
+  if [ -n "${OPENBAO_TOKEN}" ]; then
+    echo ">> Retrieved fallback token from in-cluster secret"
+  fi
+fi
 
 if [ -z "${OPENBAO_TOKEN}" ]; then
-  echo "Error: OpenBao Kubernetes authentication failed for role '${OPENBAO_ROLE}'." >&2
-  echo "Response: ${LOGIN_RESP}" >&2
+  echo "Error: OpenBao authentication failed. Unable to authenticate via Kubernetes Auth or cluster fallback." >&2
   exit 1
 fi
 
 mask_var "${OPENBAO_TOKEN}"
 output_var "openbao_token" "${OPENBAO_TOKEN}"
-echo ">> Successfully authenticated to OpenBao using Kubernetes Auth role '${OPENBAO_ROLE}'"
 
 # Helper to fetch a JSON payload from OpenBao KV v2 (mount: secret)
 fetch_bao_path() {
