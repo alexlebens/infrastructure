@@ -16,13 +16,13 @@ resource "garage_key" "synology" {
 }
 
 resource "garage_bucket_key" "synology" {
-  provider  = garage.synology_a
-  for_each  = local.synology_buckets
-  bucket_id = garage_bucket.synology[each.key].id
-  key_id    = garage_key.synology[each.key].id
-  read      = true
-  write     = true
-  owner     = true
+  provider      = garage.synology_a
+  for_each      = local.synology_buckets
+  bucket_id     = garage_bucket.synology[each.key].id
+  access_key_id = garage_key.synology[each.key].access_key_id
+  read          = true
+  write         = true
+  owner         = true
 }
 
 resource "aws_s3_bucket_cors_configuration" "synology" {
@@ -71,13 +71,13 @@ resource "garage_key" "cluster_b" {
 }
 
 resource "garage_bucket_key" "cluster_b" {
-  provider  = garage.cluster_b
-  for_each  = local.cluster_b_buckets
-  bucket_id = garage_bucket.cluster_b[each.key].id
-  key_id    = garage_key.cluster_b[each.key].id
-  read      = true
-  write     = true
-  owner     = true
+  provider      = garage.cluster_b
+  for_each      = local.cluster_b_buckets
+  bucket_id     = garage_bucket.cluster_b[each.key].id
+  access_key_id = garage_key.cluster_b[each.key].access_key_id
+  read          = true
+  write         = true
+  owner         = true
 }
 
 resource "aws_s3_bucket_cors_configuration" "cluster_b" {
@@ -130,6 +130,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "backblaze" {
   rule {
     id     = "prune-old-backups"
     status = "Enabled"
+
+    filter {}
 
     expiration {
       days = tonumber(replace(each.value.backups.backblaze.prune.age_to_prune, "d", ""))
