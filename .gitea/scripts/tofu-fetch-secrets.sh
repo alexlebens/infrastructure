@@ -16,10 +16,33 @@ mask_var() {
   fi
 }
 
-echo ">> Connecting to OpenBao using Kubernetes auth credentials..."
+echo ">> Authenticating to OpenBao using Kubernetes Auth (role: gitea-runner)..."
 
 OPENBAO_ADDR="${OPENBAO_ADDR:-https://openbao.alexlebens.dev}"
+OPENBAO_ROLE="${OPENBAO_ROLE:-gitea-runner}"
 
+# Obtain Kubernetes ServiceAccount JWT token
+K8S_JWT=""
+if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
+  K8S_JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+fi
+
+if [ -z "${K8S_JWT}" ]; then
+  for sa in "buildx-runner" "gitea-runner" "default"; do
+    K8S_JWT=$(kubectl create token "$sa" -n gitea --audience=openbao 2>/dev/null || true)
+    if [ -n "${K8S_JWT}" ]; then
+      echo ">> Generated Kubernetes projected token for serviceaccount: gitea/${sa}"
+      break
+    fi
+  done
+fi
+
+if [ -z "${K8S_JWT}" ]; then
+  echo "Error: Failed to obtain Kubernetes ServiceAccount token for OpenBao authentication." >&2
+  exit 1
+fi
+
+# Login to OpenBao via Kubernetes Auth
 login_openbao_k8s() {
   local role="$1"
   local jwt="$2"
@@ -34,48 +57,21 @@ login_openbao_k8s() {
       -d "{\"role\": \"${role}\", \"jwt\": \"${jwt}\"}" \
       "http://openbao-internal.openbao:8200/v1/auth/kubernetes/login" 2>/dev/null || true)
   fi
-  echo "$res" | jq -r '.auth.client_token // empty' 2>/dev/null || true
+  echo "$res"
 }
 
-OPENBAO_TOKEN="${OPENBAO_TOKEN:-${VAULT_TOKEN:-}}"
+LOGIN_RESP=$(login_openbao_k8s "${OPENBAO_ROLE}" "${K8S_JWT}")
+OPENBAO_TOKEN=$(echo "$LOGIN_RESP" | jq -r '.auth.client_token // empty' 2>/dev/null || true)
 
 if [ -z "${OPENBAO_TOKEN}" ]; then
-  # Attempt Kubernetes Auth via ServiceAccount JWT token
-  K8S_JWT=""
-  # If running in-cluster, use pod's service account token
-  if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
-    K8S_JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-  fi
-
-  # If not found or if kubectl is available, generate token for external-secrets SA
-  if [ -z "${K8S_JWT}" ]; then
-    K8S_JWT=$(kubectl create token external-secrets -n external-secrets --audience=openbao 2>/dev/null || true)
-  fi
-
-  if [ -z "${K8S_JWT}" ]; then
-    K8S_JWT=$(kubectl create token default --audience=openbao 2>/dev/null || true)
-  fi
-
-  # Attempt login with available JWT
-  if [ -n "${K8S_JWT}" ]; then
-    for role in "${OPENBAO_K8S_ROLE:-external-secrets}" "external-secrets" "tofu" "default"; do
-      TOKEN=$(login_openbao_k8s "$role" "$K8S_JWT")
-      if [ -n "$TOKEN" ]; then
-        OPENBAO_TOKEN="$TOKEN"
-        echo ">> Successfully authenticated to OpenBao via Kubernetes Auth (role: ${role})"
-        break
-      fi
-    done
-  fi
-fi
-
-if [ -z "${OPENBAO_TOKEN}" ]; then
-  echo "Error: Unable to authenticate to OpenBao." >&2
+  echo "Error: OpenBao Kubernetes authentication failed for role '${OPENBAO_ROLE}'." >&2
+  echo "Response: ${LOGIN_RESP}" >&2
   exit 1
 fi
 
 mask_var "${OPENBAO_TOKEN}"
 output_var "openbao_token" "${OPENBAO_TOKEN}"
+echo ">> Successfully authenticated to OpenBao using Kubernetes Auth role '${OPENBAO_ROLE}'"
 
 # Helper to fetch a JSON payload from OpenBao KV v2 (mount: secret)
 fetch_bao_path() {
@@ -88,7 +84,7 @@ fetch_bao_path() {
   echo "$res"
 }
 
-# Retrieve Garage Admin Token directly from OpenBao
+# Retrieve Garage Admin Token
 echo ">> Fetching Garage token from OpenBao..."
 GARAGE_TOKEN=""
 for path in "cl01tl/garage-operator/config" "garage/config" "garage/home-infra/admin"; do
@@ -108,7 +104,7 @@ else
   echo ">> Warning: Garage admin token not found in OpenBao"
 fi
 
-# Retrieve Backblaze B2 Credentials directly from OpenBao
+# Retrieve Backblaze B2 Credentials
 echo ">> Fetching Backblaze credentials from OpenBao..."
 BACKBLAZE_KEY=""
 BACKBLAZE_SECRET=""
@@ -134,7 +130,7 @@ else
   echo ">> Notice: Backblaze credentials not found in OpenBao (falling back to workflow secret if defined)"
 fi
 
-# Retrieve Garage S3 Admin Keys directly from OpenBao (for CORS/Website management)
+# Retrieve Garage S3 Admin Keys (for CORS/Website management)
 GARAGE_ADMIN_RESP=$(fetch_bao_path "garage/home-infra/admin")
 GARAGE_S3_KEY=$(echo "$GARAGE_ADMIN_RESP" | jq -r '.data.data.ACCESS_KEY_ID // empty' 2>/dev/null || true)
 GARAGE_S3_SECRET=$(echo "$GARAGE_ADMIN_RESP" | jq -r '.data.data.ACCESS_SECRET_KEY // empty' 2>/dev/null || true)
@@ -152,6 +148,7 @@ if [ -n "${GITHUB_ENV:-}" ]; then
   if [ -n "${GARAGE_TOKEN}" ]; then
     echo "TF_VAR_garage_a_ps02sn_token=${GARAGE_TOKEN}" >> "${GITHUB_ENV}"
     echo "TF_VAR_garage_b_cl01tl_token=${GARAGE_TOKEN}" >> "${GITHUB_ENV}"
+    echo "TF_VAR_garage_c_ps10rp_token=${GARAGE_TOKEN}" >> "${GITHUB_ENV}"
   fi
   if [ -n "${BACKBLAZE_KEY}" ]; then
     echo "TF_VAR_backblaze_d_cs01bb_access_key_id=${BACKBLAZE_KEY}" >> "${GITHUB_ENV}"
@@ -162,6 +159,8 @@ if [ -n "${GITHUB_ENV:-}" ]; then
     echo "TF_VAR_garage_a_ps02sn_admin_secret_key=${GARAGE_S3_SECRET}" >> "${GITHUB_ENV}"
     echo "TF_VAR_garage_b_cl01tl_admin_access_key=${GARAGE_S3_KEY}" >> "${GITHUB_ENV}"
     echo "TF_VAR_garage_b_cl01tl_admin_secret_key=${GARAGE_S3_SECRET}" >> "${GITHUB_ENV}"
+    echo "TF_VAR_garage_c_ps10rp_admin_access_key=${GARAGE_S3_KEY}" >> "${GITHUB_ENV}"
+    echo "TF_VAR_garage_c_ps10rp_admin_secret_key=${GARAGE_S3_SECRET}" >> "${GITHUB_ENV}"
   fi
 fi
 
