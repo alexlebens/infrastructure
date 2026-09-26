@@ -134,7 +134,7 @@ echo ">> Fetching Backblaze credentials from OpenBao..."
 BACKBLAZE_KEY=""
 BACKBLAZE_SECRET=""
 
-for path in "backblaze/home-infra/s3-exporter" "backblaze/home-infra/talos-backups" "backblaze/home-infra/mariadb-backups" "backblaze/config"; do
+for path in "backblaze/home-infra/master" "backblaze/master" "backblaze/home-infra/s3-exporter" "backblaze/home-infra/talos-backups" "backblaze/home-infra/mariadb-backups" "backblaze/config"; do
   RESP=$(fetch_bao_path "$path")
   K=$(echo "$RESP" | jq -r '.data.data.ACCESS_KEY_ID // .data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
   S=$(echo "$RESP" | jq -r '.data.data.ACCESS_SECRET_KEY // .data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
@@ -146,60 +146,88 @@ for path in "backblaze/home-infra/s3-exporter" "backblaze/home-infra/talos-backu
   fi
 done
 
-configure_backblaze_b2_imports() {
+configure_opentofu_imports() {
   local key="$1"
   local secret="$2"
-  if [ -z "$key" ] || [ -z "$secret" ]; then
-    return 0
-  fi
 
-  echo ">> Resolving Backblaze B2 bucket IDs for OpenTofu..."
-  local auth_resp
-  auth_resp=$(curl -sk --connect-timeout 4 --max-time 8 -u "${key}:${secret}" "https://api.backblazeb2.com/b2api/v3/b2_authorize_account" 2>/dev/null || true)
-  local token api_url account_id
-  token=$(echo "$auth_resp" | jq -r '.authorizationToken // empty' 2>/dev/null || true)
-  api_url=$(echo "$auth_resp" | jq -r '.apiUrl // empty' 2>/dev/null || true)
-  account_id=$(echo "$auth_resp" | jq -r '.accountId // empty' 2>/dev/null || true)
-
-  if [ -z "$token" ] || [ -z "$api_url" ] || [ -z "$account_id" ]; then
-    echo ">> Notice: Unable to authorize with Backblaze B2 Native API to resolve bucket IDs."
-    return 0
-  fi
-
-  local buckets_resp
-  buckets_resp=$(curl -sk --connect-timeout 4 --max-time 8 -H "Authorization: ${token}" \
-    -H "Content-Type: application/json" \
-    -d "{\"accountId\": \"${account_id}\"}" \
-    "${api_url}/b2api/v3/b2_list_buckets" 2>/dev/null || true)
-
-  local web_id resume_id
-  web_id=$(echo "$buckets_resp" | jq -r '.buckets[] | select(.bucketName == "web-assets-770aef58c931fcf4") | .bucketId // empty' 2>/dev/null || true)
-  resume_id=$(echo "$buckets_resp" | jq -r '.buckets[] | select(.bucketName == "reactive-resume-assets-61758b59b4c7c893") | .bucketId // empty' 2>/dev/null || true)
-
-  if [ -n "$web_id" ] || [ -n "$resume_id" ]; then
-    cat <<EOF > tofu/buckets/import.tf
+  mkdir -p tofu/buckets
+  cat <<EOF > tofu/buckets/import.tf
 # ==============================================================================
-# Pre-Existing Tier D (Backblaze B2 cs01bb) Buckets
+# Pre-Existing Buckets
 # Generated dynamically by .gitea/scripts/tofu-fetch-secrets.sh
 # ==============================================================================
 EOF
-    if [ -n "$web_id" ]; then
+
+  # Resolve Garage bucket IDs if garage token is present
+  if [ -n "${GARAGE_TOKEN:-}" ]; then
+    echo ">> Resolving pre-existing Garage bucket IDs..."
+    local g_a_resp g_b_resp g_a_id g_b_id
+    g_a_resp=$(curl -sk --connect-timeout 2 --max-time 4 -H "Authorization: Bearer ${GARAGE_TOKEN}" "http://synology.alexlebens.dev:3903/v1/bucket?alias=web-assets" 2>/dev/null || true)
+    g_a_id=$(echo "$g_a_resp" | jq -r '.id // empty' 2>/dev/null || true)
+
+    g_b_resp=$(curl -sk --connect-timeout 2 --max-time 4 -H "Authorization: Bearer ${GARAGE_TOKEN}" "http://garage-cluster-b.garage-operator:3903/v1/bucket?alias=reactive-resume-assets" 2>/dev/null || true)
+    g_b_id=$(echo "$g_b_resp" | jq -r '.id // empty' 2>/dev/null || true)
+
+    if [ -n "$g_a_id" ]; then
       cat <<EOF >> tofu/buckets/import.tf
+import {
+  to = garage_bucket.a_ps02sn["web-assets"]
+  id = "${g_a_id}"
+}
+EOF
+      echo ">> Resolved Garage bucket ID for web-assets: ${g_a_id}"
+    fi
+
+    if [ -n "$g_b_id" ]; then
+      cat <<EOF >> tofu/buckets/import.tf
+import {
+  to = garage_bucket.b_cl01tl["reactive-resume"]
+  id = "${g_b_id}"
+}
+EOF
+      echo ">> Resolved Garage bucket ID for reactive-resume: ${g_b_id}"
+    fi
+  fi
+
+  # Resolve Backblaze B2 bucket IDs
+  if [ -n "$key" ] && [ -n "$secret" ]; then
+    echo ">> Resolving Backblaze B2 bucket IDs for OpenTofu..."
+    local auth_resp token api_url account_id
+    auth_resp=$(curl -sk --connect-timeout 4 --max-time 8 -u "${key}:${secret}" "https://api.backblazeb2.com/b2api/v3/b2_authorize_account" 2>/dev/null || true)
+    token=$(echo "$auth_resp" | jq -r '.authorizationToken // empty' 2>/dev/null || true)
+    api_url=$(echo "$auth_resp" | jq -r '.apiUrl // empty' 2>/dev/null || true)
+    account_id=$(echo "$auth_resp" | jq -r '.accountId // empty' 2>/dev/null || true)
+
+    if [ -n "$token" ] && [ -n "$api_url" ] && [ -n "$account_id" ]; then
+      local buckets_resp web_id resume_id
+      buckets_resp=$(curl -sk --connect-timeout 4 --max-time 8 -H "Authorization: ${token}" \
+        -H "Content-Type: application/json" \
+        -d "{\"accountId\": \"${account_id}\"}" \
+        "${api_url}/b2api/v3/b2_list_buckets" 2>/dev/null || true)
+
+      web_id=$(echo "$buckets_resp" | jq -r '.buckets[] | select(.bucketName == "web-assets-770aef58c931fcf4") | .bucketId // empty' 2>/dev/null || true)
+      resume_id=$(echo "$buckets_resp" | jq -r '.buckets[] | select(.bucketName == "reactive-resume-assets-61758b59b4c7c893") | .bucketId // empty' 2>/dev/null || true)
+
+      if [ -n "$web_id" ]; then
+        cat <<EOF >> tofu/buckets/import.tf
 import {
   to = b2_bucket.d_cs01bb["web-assets"]
   id = "${web_id}"
 }
 EOF
-      echo ">> Resolved Backblaze bucket ID for web-assets: ${web_id}"
-    fi
-    if [ -n "$resume_id" ]; then
-      cat <<EOF >> tofu/buckets/import.tf
+        echo ">> Resolved Backblaze bucket ID for web-assets: ${web_id}"
+      fi
+      if [ -n "$resume_id" ]; then
+        cat <<EOF >> tofu/buckets/import.tf
 import {
   to = b2_bucket.d_cs01bb["reactive-resume"]
   id = "${resume_id}"
 }
 EOF
-      echo ">> Resolved Backblaze bucket ID for reactive-resume: ${resume_id}"
+        echo ">> Resolved Backblaze bucket ID for reactive-resume: ${resume_id}"
+      fi
+    else
+      echo ">> Notice: Unable to authorize with Backblaze B2 Native API to resolve bucket IDs."
     fi
   fi
 }
@@ -209,9 +237,10 @@ if [ -n "$BACKBLAZE_KEY" ]; then
   mask_var "${BACKBLAZE_SECRET}"
   output_var "backblaze_access_key_id" "${BACKBLAZE_KEY}"
   output_var "backblaze_secret_access_key" "${BACKBLAZE_SECRET}"
-  configure_backblaze_b2_imports "${BACKBLAZE_KEY}" "${BACKBLAZE_SECRET}"
+  configure_opentofu_imports "${BACKBLAZE_KEY}" "${BACKBLAZE_SECRET}"
 else
   echo ">> Notice: Backblaze credentials not found in OpenBao (falling back to workflow secret if defined)"
+  configure_opentofu_imports "" ""
 fi
 
 # Retrieve Garage S3 Admin Keys (for CORS/Website management)
