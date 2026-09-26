@@ -7,7 +7,7 @@ provider "garage" {
   alias  = "a_ps02sn"
   host   = var.garage_a_ps02sn_host
   scheme = var.garage_a_ps02sn_scheme
-  token  = var.garage_a_ps02sn_token != "" ? var.garage_a_ps02sn_token : var.garage_synology_a_token
+  token  = var.garage_a_ps02sn_token
 }
 
 # Tier B: Talos Kubernetes Cluster (cl01tl)
@@ -15,7 +15,7 @@ provider "garage" {
   alias  = "b_cl01tl"
   host   = var.garage_b_cl01tl_host
   scheme = var.garage_b_cl01tl_scheme
-  token  = var.garage_b_cl01tl_token != "" ? var.garage_b_cl01tl_token : var.garage_cluster_b_token
+  token  = var.garage_b_cl01tl_token
 }
 
 # Tier C: Raspberry Pi storage node (ps10rp)
@@ -98,6 +98,6 @@ provider "aws" {
   skip_metadata_api_check     = true
   skip_region_validation      = true
   s3_use_path_style           = true
-  access_key                  = var.backblaze_d_cs01bb_access_key_id != "" ? var.backblaze_d_cs01bb_access_key_id : (var.backblaze_access_key_id != "" ? var.backblaze_access_key_id : "mock_access_key")
-  secret_key                  = var.backblaze_d_cs01bb_secret_access_key != "" ? var.backblaze_d_cs01bb_secret_access_key : (var.backblaze_secret_access_key != "" ? var.backblaze_secret_access_key : "mock_secret_key")
+  access_key                  = var.backblaze_d_cs01bb_access_key_id != "" ? var.backblaze_d_cs01bb_access_key_id : "mock_access_key"
+  secret_key                  = var.backblaze_d_cs01bb_secret_access_key != "" ? var.backblaze_d_cs01bb_secret_access_key : "mock_secret_key"
 }

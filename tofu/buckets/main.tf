@@ -211,14 +211,14 @@ resource "vault_kv_secret_v2" "c_ps10rp_credentials" {
 resource "vault_kv_secret_v2" "d_cs01bb_credentials" {
   for_each = {
     for k, v in local.d_cs01bb_buckets : k => v
-    if var.backblaze_d_cs01bb_access_key_id != "" || var.backblaze_access_key_id != ""
+    if var.backblaze_d_cs01bb_access_key_id != ""
   }
   mount = "secret"
   name  = "backblaze/home-infra/${each.value.bucket_name}"
 
   data_json = jsonencode({
-    AWS_ACCESS_KEY_ID     = coalesce(var.backblaze_d_cs01bb_access_key_id, var.backblaze_access_key_id)
-    AWS_SECRET_ACCESS_KEY = coalesce(var.backblaze_d_cs01bb_secret_access_key, var.backblaze_secret_access_key)
-    AWS_REGION            = coalesce(var.backblaze_d_cs01bb_region, var.backblaze_region)
+    AWS_ACCESS_KEY_ID     = var.backblaze_d_cs01bb_access_key_id
+    AWS_SECRET_ACCESS_KEY = var.backblaze_d_cs01bb_secret_access_key
+    AWS_REGION            = var.backblaze_d_cs01bb_region
   })
 }
