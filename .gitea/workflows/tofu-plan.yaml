@@ -1,0 +1,79 @@
+name: tofu-plan
+
+concurrency:
+  group: tofu-plan-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - "clusters/cl01tl/helm/**"
+      - "tofu/buckets/**"
+
+env:
+  TOFU_VERSION: "1.8.8"
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Cache OpenTofu
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.local/bin/tofu
+          key: ${{ runner.os }}-tofu-${{ env.TOFU_VERSION }}
+
+      - name: Set Up OpenTofu
+        run: ./.gitea/scripts/install-tofu.sh
+
+      - name: Configure Kubeconfig
+        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Retrieve Cluster Secrets
+        id: cluster-secrets
+        run: |
+          set -e
+          # Extract admin token for Garage clusters
+          GARAGE_TOKEN=$(kubectl get secret -n garage-operator garage-operator-token -o jsonpath='{.data.admin-token}' | base64 -d)
+          echo "::add-mask::$GARAGE_TOKEN"
+          echo "garage_token=$GARAGE_TOKEN" >> $GITHUB_OUTPUT
+
+          # Extract OpenBao token if present
+          OPENBAO_TOKEN=$(kubectl get secret -n external-secrets openbao-token -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || echo "")
+          if [ -n "$OPENBAO_TOKEN" ]; then
+            echo "::add-mask::$OPENBAO_TOKEN"
+            echo "openbao_token=$OPENBAO_TOKEN" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Initialize OpenTofu
+        working-directory: tofu/buckets
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+        run: |
+          tofu init \
+            -backend-config="password=${GITEA_TOKEN}"
+
+      - name: OpenTofu Plan & PR Comment
+        env:
+          TF_VAR_gitea_token: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          TF_VAR_garage_synology_a_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_cluster_b_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
+          TF_VAR_backblaze_access_key_id: ${{ secrets.BACKBLAZE_ACCESS_KEY_ID }}
+          TF_VAR_backblaze_secret_access_key: ${{ secrets.BACKBLAZE_SECRET_ACCESS_KEY }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN || secrets.BOT_TOKEN }}
+          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ./.gitea/scripts/tofu-plan.sh --dir "tofu/buckets"
