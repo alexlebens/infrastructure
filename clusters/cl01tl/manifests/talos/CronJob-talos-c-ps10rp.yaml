@@ -1,9 +1,9 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: talos-local
+  name: talos-c-ps10rp
   labels:
-    app.kubernetes.io/controller: local
+    app.kubernetes.io/controller: c-ps10rp
     app.kubernetes.io/instance: talos
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: talos
@@ -14,7 +14,7 @@ spec:
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 30
   timeZone: America/Chicago
-  schedule: "0 2 * * *"
+  schedule: "0 3 * * *"
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
@@ -23,7 +23,7 @@ spec:
       template:
         metadata:
           labels:
-            app.kubernetes.io/controller: local
+            app.kubernetes.io/controller: c-ps10rp
             app.kubernetes.io/instance: talos
             app.kubernetes.io/name: talos
         spec:
@@ -46,21 +46,41 @@ spec:
                 - /talos-backup
               env:
                 - name: CUSTOM_S3_ENDPOINT
-                  value: http://synology.alexlebens.dev:3900
+                  valueFrom:
+                    secretKeyRef:
+                      key: ENDPOINT
+                      name: talos-etcd-backup-c
                 - name: BUCKET
                   valueFrom:
                     secretKeyRef:
                       key: BUCKET_NAME
-                      name: talos-etcd-backup-local-config
+                      name: talos-etcd-backup-c
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      key: AWS_ACCESS_KEY_ID
+                      name: talos-etcd-backup-c
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: AWS_SECRET_ACCESS_KEY
+                      name: talos-etcd-backup-c
+                - name: AWS_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      key: AWS_REGION
+                      name: talos-etcd-backup-c
+                - name: AGE_X25519_PUBLIC_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: AGE_X25519_PUBLIC_KEY
+                      name: talos-etcd-backup-c
                 - name: S3_PREFIX
                   value: cl01tl/etcd
                 - name: CLUSTER_NAME
                   value: cl01tl
                 - name: USE_PATH_STYLE
                   value: "false"
-              envFrom:
-                - secretRef:
-                    name: talos-etcd-backup-local-config
               image: ghcr.io/siderolabs/talos-backup:v0.1.0-beta.3-10-gb9fd478@sha256:7fc186ff37a3137f470082cb609bf1dc3bcece13dd9a6421ec09cfdf4f33ae6c
               name: backup
               securityContext:
@@ -89,19 +109,19 @@ spec:
                 - /bin/sh
               env:
                 - name: TARGET
-                  value: Local
+                  value: c-ps10rp
                 - name: DATE_RANGE_SECONDS
                   value: "2419200"
               envFrom:
                 - secretRef:
-                    name: talos-etcd-backup-local-config
+                    name: talos-etcd-backup-c
                 - secretRef:
-                    name: talos-ntfy-config
+                    name: talos-ntfy
               image: d3fk/s3cmd:latest@sha256:030ce3dbdfc0908f0bd6e8b08679bb11474b086a10e163a29c5e97a927afef48
               name: s3-prune
               volumeMounts:
                 - mountPath: /root/.s3cfg
-                  name: etcd-backup-local-config
+                  name: etcd-backup-c-config
                   readOnly: true
                   subPath: .s3cfg
                 - mountPath: /scripts/prune.sh
@@ -112,8 +132,8 @@ spec:
                 driver: secrets-store.csi.k8s.io
                 readOnly: true
                 volumeAttributes:
-                  secretProviderClass: talos-etcd-backup-local-config
-              name: etcd-backup-local-config
+                  secretProviderClass: talos-etcd-backup-c
+              name: etcd-backup-c-config
             - configMap:
                 defaultMode: 493
                 name: talos-prune-script
