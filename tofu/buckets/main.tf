@@ -232,7 +232,7 @@ resource "vault_kv_secret_v2" "d_cs01bb_keys" {
     if var.backblaze_d_cs01bb_access_key_id != ""
   }
   mount = "secret"
-  name  = "cs01bb/s3/keys/${each.value.bucket_name}"
+  name  = "cs01bb/s3/keys/${each.value.backups.d_cs01bb.destination_bucket}"
 
   data_json = jsonencode({
     BUCKET_NAME           = each.value.backups.d_cs01bb.destination_bucket
@@ -292,7 +292,7 @@ resource "vault_kv_secret_v2" "d_cs01bb_credentials" {
     if var.backblaze_d_cs01bb_access_key_id != ""
   }
   mount    = "secret"
-  name     = "backblaze/home-infra/${each.value.bucket_name}"
+  name     = "backblaze/home-infra/${each.value.backups.d_cs01bb.destination_bucket}"
 
   data_json = jsonencode({
     AWS_ACCESS_KEY_ID     = var.backblaze_d_cs01bb_access_key_id
