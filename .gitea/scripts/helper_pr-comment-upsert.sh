@@ -18,7 +18,7 @@ upsert_pr_comment() {
 
   local EXISTING_COMMENT_ID
   EXISTING_COMMENT_ID=$(curl -s -H "Authorization: token ${GITEA_TOKEN}" "${COMMENTS_URL}" \
-    | jq -r ".[] | select(.body | contains(\"${TAG}\")) | .id" | head -n 1 || true)
+    | jq -r --arg tag "${TAG}" 'if type == "array" then .[] | select((.body? // "") | contains($tag)) | .id else empty end' 2>/dev/null | head -n 1 || true)
 
   if [ -n "${EXISTING_COMMENT_ID}" ] && [ "${EXISTING_COMMENT_ID}" != "null" ]; then
     echo ">> Updating existing PR comment #${EXISTING_COMMENT_ID} ..."
