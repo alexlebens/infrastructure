@@ -39,7 +39,7 @@ echo ">> Initializing OpenBao secret extraction..."
 OPENBAO_ADDR="${OPENBAO_ADDR:-http://openbao-internal.openbao:8200}"
 echo ">> Using OpenBao endpoint: ${OPENBAO_ADDR}"
 
-OPENBAO_ROLE="${OPENBAO_ROLE:-buildx-runner}"
+OPENBAO_ROLE="${OPENBAO_ROLE:-gitea-runner}"
 
 # Obtain Kubernetes ServiceAccount JWT token
 TOKEN_FILE="/var/run/secrets/kubernetes.io/serviceaccount/token"
