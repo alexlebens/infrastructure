@@ -40,6 +40,10 @@ if [ ! -d "${TOFU_DIR}" ]; then
   exit 1
 fi
 
+if [ -n "${TF_PLUGIN_CACHE_DIR:-}" ]; then
+  mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+fi
+
 PLAN_OUT="$(mktemp)"
 PLAN_ERR="$(mktemp)"
 
