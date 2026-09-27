@@ -39,70 +39,37 @@ echo ">> Initializing OpenBao secret extraction..."
 OPENBAO_ADDR="${OPENBAO_ADDR:-http://openbao-internal.openbao:8200}"
 echo ">> Using OpenBao endpoint: ${OPENBAO_ADDR}"
 
-OPENBAO_ROLE="${OPENBAO_ROLE:-gitea-runner}"
+OPENBAO_ROLE="${OPENBAO_ROLE:-buildx-runner}"
 
 # Obtain Kubernetes ServiceAccount JWT token
-K8S_JWT=""
-if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
-  K8S_JWT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-  echo ">> Loaded projected ServiceAccount token from /var/run/secrets/kubernetes.io/serviceaccount/token"
+TOKEN_FILE="/var/run/secrets/kubernetes.io/serviceaccount/token"
+if [ ! -f "${TOKEN_FILE}" ]; then
+  echo "Error: Projected ServiceAccount token not found at ${TOKEN_FILE}." >&2
+  echo "Ensure the runner pod mounts the projected serviceaccount token with audience 'openbao'." >&2
+  exit 1
 fi
 
-# Fallback: obtain token via kubectl if not mounted
-if [ -z "${K8S_JWT}" ]; then
-  if command -v kubectl >/dev/null 2>&1; then
-    echo ">> Requesting projected token for buildx-runner via kubectl..."
-    K8S_JWT=$(kubectl create token buildx-runner -n gitea --audience=openbao --request-timeout=3s 2>/dev/null || true)
-    if [ -n "${K8S_JWT}" ]; then
-      echo ">> Generated Kubernetes projected token for serviceaccount: gitea/buildx-runner"
-    fi
-
-    # Fallback to static ServiceAccount secret if projected token creation failed
-    if [ -z "${K8S_JWT}" ]; then
-      K8S_JWT=$(kubectl get secret -n gitea buildx-runner-token --request-timeout=3s -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
-      if [ -n "${K8S_JWT}" ]; then
-        echo ">> Loaded ServiceAccount token from secret: gitea/buildx-runner-token"
-      fi
-    fi
-  else
-    echo ">> Notice: kubectl is not available in environment"
-  fi
-fi
+K8S_JWT=$(cat "${TOKEN_FILE}")
+echo ">> Loaded ServiceAccount token from ${TOKEN_FILE}"
 
 OPENBAO_TOKEN=""
+LAST_LOGIN_RESP=""
 
-if [ -n "${K8S_JWT}" ]; then
-  LAST_LOGIN_RESP=""
-  for role in "${OPENBAO_ROLE}" "buildx-runner" "external-secrets"; do
-    LOGIN_RESP=$(login_openbao_k8s "${role}" "${K8S_JWT}")
-    TOKEN=$(echo "$LOGIN_RESP" | jq -r '.auth.client_token // empty' 2>/dev/null || true)
-    if [ -n "$TOKEN" ]; then
-      OPENBAO_TOKEN="$TOKEN"
-      echo ">> Successfully authenticated to OpenBao using Kubernetes Auth role '${role}'"
-      break
-    else
-      LAST_LOGIN_RESP="${LOGIN_RESP}"
-    fi
-  done
-  if [ -z "${OPENBAO_TOKEN}" ] && [ -n "${LAST_LOGIN_RESP}" ]; then
-    echo ">> Notice: Kubernetes auth login attempt failed. Response: ${LAST_LOGIN_RESP}"
+for role in "${OPENBAO_ROLE}" "gitea-runner"; do
+  LOGIN_RESP=$(login_openbao_k8s "${role}" "${K8S_JWT}")
+  TOKEN=$(echo "$LOGIN_RESP" | jq -r '.auth.client_token // empty' 2>/dev/null || true)
+  if [ -n "$TOKEN" ]; then
+    OPENBAO_TOKEN="$TOKEN"
+    echo ">> Successfully authenticated to OpenBao using Kubernetes Auth role '${role}'"
+    break
+  else
+    LAST_LOGIN_RESP="${LOGIN_RESP}"
   fi
-fi
-
-# Fallback: If Kubernetes Auth didn't succeed, retrieve token via kubectl from cluster secrets
-if [ -z "${OPENBAO_TOKEN}" ] && command -v kubectl >/dev/null 2>&1; then
-  echo ">> Falling back to in-cluster secret via kubectl..."
-  OPENBAO_TOKEN=$(kubectl get secret -n external-secrets openbao-token --request-timeout=3s -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
-  if [ -z "${OPENBAO_TOKEN}" ]; then
-    OPENBAO_TOKEN=$(kubectl get secret -n openbao openbao-unseal-keys --request-timeout=3s -o jsonpath='{.data.root-token}' 2>/dev/null | base64 -d || true)
-  fi
-  if [ -n "${OPENBAO_TOKEN}" ]; then
-    echo ">> Retrieved fallback token from in-cluster secret"
-  fi
-fi
+done
 
 if [ -z "${OPENBAO_TOKEN}" ]; then
-  echo "Error: OpenBao authentication failed. Unable to authenticate via Kubernetes Auth or cluster fallback." >&2
+  echo "Error: OpenBao authentication failed for role '${OPENBAO_ROLE}'." >&2
+  echo "Response from OpenBao: ${LAST_LOGIN_RESP}" >&2
   exit 1
 fi
 
