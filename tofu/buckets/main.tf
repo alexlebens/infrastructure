@@ -234,8 +234,5 @@ resource "vault_kv_secret_v2" "d_cs01bb_keys" {
     AWS_ACCESS_KEY_ID     = b2_application_key.d_cs01bb[each.key].application_key_id
     AWS_SECRET_ACCESS_KEY = b2_application_key.d_cs01bb[each.key].application_key
     AWS_REGION            = var.backblaze_d_cs01bb_region
-    ACCESS_KEY_ID         = b2_application_key.d_cs01bb[each.key].application_key_id
-    ACCESS_SECRET_KEY     = b2_application_key.d_cs01bb[each.key].application_key
-    ACCESS_REGION         = var.backblaze_d_cs01bb_region
   })
 }
