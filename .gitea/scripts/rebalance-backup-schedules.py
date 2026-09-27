@@ -17,18 +17,24 @@ import re
 import sys
 
 
-def parse_yaml_backup_targets(file_path: Path) -> tuple[list[dict], list[dict]]:
-  """Parses Postgres and Volsync backup target configurations from a values.yaml file."""
+def parse_yaml_backup_targets(
+    file_path: Path,
+) -> tuple[list[dict], list[dict], list[dict]]:
+  """Parses Postgres, Volsync, and S3-Bucket backup target configurations from a values.yaml file."""
   lines = file_path.read_text(encoding="utf-8").splitlines(keepends=True)
 
   postgres_targets = []
   volsync_targets = []
+  s3_targets = []
 
   current_section = None
   section_indent = 0
   sub_section = None
+  sub_section_indent = 0
   volsync_type = None
   volsync_type_indent = 0
+  s3_target = None
+  s3_target_indent = 0
 
   for idx, line in enumerate(lines):
     indent = len(line) - len(line.lstrip(" "))
@@ -43,7 +49,10 @@ def parse_yaml_backup_targets(file_path: Path) -> tuple[list[dict], list[dict]]:
     ):
       current_section = None
       sub_section = None
+      sub_section_indent = 0
       volsync_type = None
+      s3_target = None
+      s3_target_indent = 0
 
     # Match top-level Postgres cluster (e.g., postgres-18-cluster:, postgres-cluster:)
     m_pg = re.match(r"^(\s*)(postgres[\w-]*cluster):\s*(?:#.*)?$", line)
@@ -60,6 +69,17 @@ def parse_yaml_backup_targets(file_path: Path) -> tuple[list[dict], list[dict]]:
       section_indent = len(m_vs.group(1))
       sub_section = None
       volsync_type = None
+      continue
+
+    # Match top-level S3 bucket target (e.g., s3-bucket:)
+    m_s3 = re.match(r"^(\s*)(s3-bucket):\s*(?:#.*)?$", line)
+    if m_s3:
+      current_section = ("s3", m_s3.group(2))
+      section_indent = len(m_s3.group(1))
+      sub_section = None
+      sub_section_indent = 0
+      s3_target = None
+      s3_target_indent = 0
       continue
 
     if not current_section or not stripped or stripped.startswith("#"):
@@ -114,7 +134,42 @@ def parse_yaml_backup_targets(file_path: Path) -> tuple[list[dict], list[dict]]:
           })
           volsync_type = None
 
-  return postgres_targets, volsync_targets
+    elif sec_type == "s3":
+      if re.match(r"^\s*backups:\s*(?:#.*)?$", line):
+        sub_section = "backups"
+        sub_section_indent = indent
+        s3_target = None
+        continue
+
+      if sub_section == "backups":
+        if indent <= sub_section_indent:
+          sub_section = None
+          s3_target = None
+          continue
+
+        m_target = re.match(r"^\s*([a-zA-Z0-9_-]+):\s*(?:#.*)?$", line)
+        if m_target and (s3_target is None or indent <= s3_target_indent):
+          s3_target = m_target.group(1)
+          s3_target_indent = indent
+          continue
+
+        if s3_target and indent > s3_target_indent:
+          m_sched = re.match(
+              r"^(\s*schedule:\s*)([\"']?)([^\"'\n]+)([\"']?)(.*)$", line
+          )
+          if m_sched:
+            s3_targets.append({
+                "file": file_path,
+                "line_idx": idx,
+                "prefix": m_sched.group(1),
+                "quote": m_sched.group(2) or m_sched.group(4) or '"',
+                "current": m_sched.group(3),
+                "suffix": m_sched.group(5),
+                "section": sec_name,
+                "target": s3_target,
+            })
+
+  return postgres_targets, volsync_targets, s3_targets
 
 
 def format_cst_time(hour: int, minute: int) -> str:
@@ -138,6 +193,10 @@ def rebalance_schedules(
     ext_start_min: int = 30,
     rem_start_hour: int = 10,
     rem_start_min: int = 30,
+    s3_onprem_start_hour: int = 3,
+    s3_onprem_start_min: int = 0,
+    s3_cloud_start_hour: int = 2,
+    s3_cloud_start_min: int = 0,
     interval_minutes: int = 5,
 ) -> tuple[list[dict], int]:
   """Computes non-overlapping schedules and optionally modifies values.yaml files."""
@@ -148,10 +207,11 @@ def rebalance_schedules(
 
   all_pg: list[tuple[str, dict]] = []
   all_vs: dict[tuple[str, str], dict[str, dict]] = {}
+  all_s3: list[tuple[str, dict]] = []
 
   for yml in sorted(helm_dir.glob("*/values.yaml")):
     chart_name = yml.parent.name
-    pg_targets, vs_targets = parse_yaml_backup_targets(yml)
+    pg_targets, vs_targets, s3_targets = parse_yaml_backup_targets(yml)
     for pg in pg_targets:
       all_pg.append((chart_name, pg))
     for vs in vs_targets:
@@ -159,9 +219,12 @@ def rebalance_schedules(
       if key not in all_vs:
         all_vs[key] = {}
       all_vs[key][vs["type"]] = vs
+    for s3 in s3_targets:
+      all_s3.append((chart_name, s3))
 
   all_pg.sort(key=lambda x: x[0])
   sorted_vs_keys = sorted(all_vs.keys(), key=lambda x: (x[0], x[1]))
+  all_s3.sort(key=lambda x: (x[0], x[1]["target"]))
 
   table_rows = []
   file_modifications: dict[Path, list[tuple[int, str]]] = {}
@@ -296,6 +359,73 @@ def rebalance_schedules(
           "cst": format_cst_time(h, m),
           "changed": changed,
       })
+
+  # 3. Allocate S3 Bucket Backups (On-Prem Daily, Cloud DR Weekly/Daily)
+  onprem_idx = 0
+  cloud_idx = 0
+
+  for chart, s3 in all_s3:
+    tier = s3["target"].lower()
+    is_cloud = tier in ("d", "d_cs01bb", "backblaze")
+
+    # Detect if currently configured as weekly (5 fields, 5th field is day of week != *)
+    cron_parts = s3["current"].strip().split()
+    is_weekly = len(cron_parts) == 5 and cron_parts[4] != "*"
+
+    if is_cloud:
+      if is_weekly:
+        dow = 6  # Saturday by default for cloud DR
+        try:
+          dow = int(cron_parts[4])
+        except ValueError:
+          pass
+        total_m = (
+            s3_cloud_start_hour * 60 + s3_cloud_start_min
+        ) + cloud_idx * interval_minutes
+        h = (total_m // 60) % 24
+        m = total_m % 60
+        new_sched = f"{m} {h} * * {dow}"
+        freq_str = f"Weekly ({dow_names[dow % 7]})"
+      else:
+        total_m = (
+            s3_cloud_start_hour * 60 + s3_cloud_start_min
+        ) + cloud_idx * interval_minutes
+        h = (total_m // 60) % 24
+        m = total_m % 60
+        new_sched = f"{m} {h} * * *"
+        freq_str = "Daily"
+      cloud_idx += 1
+    else:
+      # On-prem S3 backup
+      total_m = (
+          s3_onprem_start_hour * 60 + s3_onprem_start_min
+      ) + onprem_idx * interval_minutes
+      h = (total_m // 60) % 24
+      m = total_m % 60
+      new_sched = f"{m} {h} * * *"
+      freq_str = "Daily"
+      onprem_idx += 1
+
+    changed = new_sched != s3["current"]
+    quote = s3["quote"] or '"'
+    new_line = f'{s3["prefix"]}{quote}{new_sched}{quote}{s3["suffix"]}\n'
+
+    fpath = s3["file"]
+    if fpath not in file_modifications:
+      file_modifications[fpath] = []
+    file_modifications[fpath].append((s3["line_idx"], new_line))
+    if changed:
+      changed_files.add(fpath)
+
+    table_rows.append({
+        "app": chart,
+        "target": f"s3-bucket ({s3['target']})",
+        "kind": "S3",
+        "freq": freq_str,
+        "utc": new_sched,
+        "cst": format_cst_time(h, m),
+        "changed": changed,
+    })
 
   # Apply modifications in-place if not dry-run
   if not dry_run:

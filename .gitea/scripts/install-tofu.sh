@@ -21,6 +21,9 @@ VERSION="${VERSION:-${TOFU_VERSION:-1.8.8}}"
 VERSION_NO_V="${VERSION#v}"
 BIN_DIR="${HOME}/.local/bin"
 mkdir -p "${BIN_DIR}"
+if [ -n "${TF_PLUGIN_CACHE_DIR:-}" ]; then
+  mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+fi
 
 if [ -n "${GITHUB_PATH:-}" ]; then
   echo "${BIN_DIR}" >> "${GITHUB_PATH}"

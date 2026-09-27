@@ -3,6 +3,10 @@ set -euo pipefail
 
 TOFU_DIR="${1:-tofu/buckets}"
 
+if [ -n "${TF_PLUGIN_CACHE_DIR:-}" ]; then
+  mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+fi
+
 echo ">> Synchronizing OpenTofu state for pre-existing Garage buckets in ${TOFU_DIR}..."
 
 pushd "${TOFU_DIR}" > /dev/null

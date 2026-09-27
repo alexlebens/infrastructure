@@ -165,7 +165,89 @@ resource "b2_bucket" "d_cs01bb" {
 
 # ==============================================================================
 # 5. OpenBao (Vault KV) Secrets Management
-# Sync credentials directly to /garage/home-infra/<bucket> and /backblaze/home-infra/<bucket>
+#
+# Standardized Path Scheme: /<id>/<service>/keys/<bucket-name>
+# - ps02sn/garage/keys/<bucket-name>
+# - cl01tl/garage/keys/<bucket-name>
+# - ps10rp/garage/keys/<bucket-name>
+# - cs01bb/s3/keys/<bucket-name>
+# Contains BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+# ==============================================================================
+
+# --- Standardized Path: Tier A Synology NAS (ps02sn/garage/keys/<bucket>) ---
+resource "vault_kv_secret_v2" "a_ps02sn_keys" {
+  for_each = local.a_ps02sn_buckets
+  mount    = "secret"
+  name     = "ps02sn/garage/keys/${each.value.bucket_name}"
+
+  data_json = jsonencode({
+    BUCKET_NAME           = each.value.bucket_name
+    AWS_ACCESS_KEY_ID     = garage_key.a_ps02sn[each.key].access_key_id
+    AWS_SECRET_ACCESS_KEY = garage_key.a_ps02sn[each.key].secret_access_key
+    AWS_REGION            = "garage"
+    ACCESS_KEY_ID         = garage_key.a_ps02sn[each.key].access_key_id
+    ACCESS_SECRET_KEY     = garage_key.a_ps02sn[each.key].secret_access_key
+    ACCESS_REGION         = "garage"
+  })
+}
+
+# --- Standardized Path: Tier B Talos Cluster (cl01tl/garage/keys/<bucket>) ---
+resource "vault_kv_secret_v2" "b_cl01tl_keys" {
+  for_each = local.b_cl01tl_buckets
+  mount    = "secret"
+  name     = "cl01tl/garage/keys/${each.value.bucket_name}"
+
+  data_json = jsonencode({
+    BUCKET_NAME           = each.value.bucket_name
+    AWS_ACCESS_KEY_ID     = garage_key.b_cl01tl[each.key].access_key_id
+    AWS_SECRET_ACCESS_KEY = garage_key.b_cl01tl[each.key].secret_access_key
+    AWS_REGION            = "garage"
+    ACCESS_KEY_ID         = garage_key.b_cl01tl[each.key].access_key_id
+    ACCESS_SECRET_KEY     = garage_key.b_cl01tl[each.key].secret_access_key
+    ACCESS_REGION         = "garage"
+  })
+}
+
+# --- Standardized Path: Tier C Raspberry Pi (ps10rp/garage/keys/<bucket>) ---
+resource "vault_kv_secret_v2" "c_ps10rp_keys" {
+  for_each = local.c_ps10rp_buckets
+  mount    = "secret"
+  name     = "ps10rp/garage/keys/${each.value.bucket_name}"
+
+  data_json = jsonencode({
+    BUCKET_NAME           = each.value.bucket_name
+    AWS_ACCESS_KEY_ID     = garage_key.c_ps10rp[each.key].access_key_id
+    AWS_SECRET_ACCESS_KEY = garage_key.c_ps10rp[each.key].secret_access_key
+    AWS_REGION            = "garage"
+    ACCESS_KEY_ID         = garage_key.c_ps10rp[each.key].access_key_id
+    ACCESS_SECRET_KEY     = garage_key.c_ps10rp[each.key].secret_access_key
+    ACCESS_REGION         = "garage"
+  })
+}
+
+# --- Standardized Path: Tier D Backblaze B2 (cs01bb/s3/keys/<bucket>) ---
+resource "vault_kv_secret_v2" "d_cs01bb_keys" {
+  for_each = {
+    for k, v in local.d_cs01bb_buckets : k => v
+    if var.backblaze_d_cs01bb_access_key_id != ""
+  }
+  mount = "secret"
+  name  = "cs01bb/s3/keys/${each.value.bucket_name}"
+
+  data_json = jsonencode({
+    BUCKET_NAME           = each.value.backups.d_cs01bb.destination_bucket
+    AWS_ACCESS_KEY_ID     = var.backblaze_d_cs01bb_access_key_id
+    AWS_SECRET_ACCESS_KEY = var.backblaze_d_cs01bb_secret_access_key
+    AWS_REGION            = var.backblaze_d_cs01bb_region
+    ACCESS_KEY_ID         = var.backblaze_d_cs01bb_access_key_id
+    ACCESS_SECRET_KEY     = var.backblaze_d_cs01bb_secret_access_key
+    ACCESS_REGION         = var.backblaze_d_cs01bb_region
+  })
+}
+
+# ==============================================================================
+# 6. Legacy Paths (Maintained during per-bucket migration phase)
+# Legacy paths: /garage/home-infra/<bucket> and /backblaze/home-infra/<bucket>
 # ==============================================================================
 
 resource "vault_kv_secret_v2" "a_ps02sn_credentials" {
@@ -204,14 +286,13 @@ resource "vault_kv_secret_v2" "c_ps10rp_credentials" {
   })
 }
 
-# When Tier D (Backblaze B2) is enabled, ensure /backblaze/home-infra/<bucket> is stored
 resource "vault_kv_secret_v2" "d_cs01bb_credentials" {
   for_each = {
     for k, v in local.d_cs01bb_buckets : k => v
     if var.backblaze_d_cs01bb_access_key_id != ""
   }
-  mount = "secret"
-  name  = "backblaze/home-infra/${each.value.bucket_name}"
+  mount    = "secret"
+  name     = "backblaze/home-infra/${each.value.bucket_name}"
 
   data_json = jsonencode({
     AWS_ACCESS_KEY_ID     = var.backblaze_d_cs01bb_access_key_id

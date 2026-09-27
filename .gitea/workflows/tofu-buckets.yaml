@@ -25,7 +25,6 @@ on:
 
 env:
   TOFU_VERSION: "1.8.8"
-  KUBECTL_VERSION: "v1.36.5"
   TF_IN_AUTOMATION: "true"
   TF_PLUGIN_CACHE_DIR: "/tmp/terraform-plugin-cache"
 
@@ -41,17 +40,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Retrieve Cluster Secrets
+        id: cluster-secrets
+        run: ./.gitea/scripts/tofu-fetch-secrets.sh
+
       - name: Cache OpenTofu
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
         with:
           path: ~/.local/bin/tofu
           key: ${{ runner.os }}-tofu-${{ env.TOFU_VERSION }}
 
+      - name: Create OpenTofu Plugin Cache Directory
+        run: mkdir -p "${TF_PLUGIN_CACHE_DIR:-/tmp/terraform-plugin-cache}"
+
       - name: Set Up OpenTofu
         run: ./.gitea/scripts/install-tofu.sh
-
-      - name: Create OpenTofu Plugin Cache Directory
-        run: mkdir -p /tmp/terraform-plugin-cache
 
       - name: Cache OpenTofu Plugins
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
@@ -61,35 +64,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-tofu-plugins-
 
-      - name: Cache Kubectl
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
-        with:
-          path: ~/.local/bin/kubectl
-          key: ${{ runner.os }}-kubectl-${{ env.KUBECTL_VERSION }}
-
-      - name: Set Up Kubectl
-        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
-        with:
-          version: ${{ env.KUBECTL_VERSION }}
-
-      - name: Configure Kubeconfig
-        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBECONFIG }}
-
-      - name: Retrieve Cluster Secrets
-        id: cluster-secrets
-        env:
-          BACKBLAZE_ACCESS_KEY_ID: ${{ secrets.BACKBLAZE_ACCESS_KEY_ID }}
-          BACKBLAZE_SECRET_ACCESS_KEY: ${{ secrets.BACKBLAZE_SECRET_ACCESS_KEY }}
-        run: ./.gitea/scripts/tofu-fetch-secrets.sh
-
       - name: Initialize OpenTofu
         working-directory: tofu/buckets
         env:
           GITEA_TOKEN: ${{ secrets.TOFU_TOKEN }}
         run: |
+          mkdir -p "${TF_PLUGIN_CACHE_DIR:-/tmp/terraform-plugin-cache}"
           tofu init -reconfigure \
             -backend-config="password=${GITEA_TOKEN}"
 
@@ -113,10 +93,8 @@ jobs:
           TF_VAR_garage_a_ps02sn_token: ${{ steps.cluster-secrets.outputs.garage_token }}
           TF_VAR_garage_b_cl01tl_token: ${{ steps.cluster-secrets.outputs.garage_token }}
           TF_VAR_garage_c_ps10rp_token: ${{ steps.cluster-secrets.outputs.garage_token }}
-          TF_VAR_backblaze_d_cs01bb_access_key_id:
-            ${{ steps.cluster-secrets.outputs.backblaze_access_key_id || secrets.BACKBLAZE_ACCESS_KEY_ID }}
-          TF_VAR_backblaze_d_cs01bb_secret_access_key:
-            ${{ steps.cluster-secrets.outputs.backblaze_secret_access_key || secrets.BACKBLAZE_SECRET_ACCESS_KEY }}
+          TF_VAR_backblaze_d_cs01bb_access_key_id: ${{ steps.cluster-secrets.outputs.backblaze_access_key_id }}
+          TF_VAR_backblaze_d_cs01bb_secret_access_key: ${{ steps.cluster-secrets.outputs.backblaze_secret_access_key }}
           TF_VAR_garage_a_ps02sn_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}
           TF_VAR_garage_a_ps02sn_admin_secret_key: ${{ steps.cluster-secrets.outputs.garage_admin_secret_key }}
           TF_VAR_garage_b_cl01tl_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}
@@ -139,10 +117,8 @@ jobs:
           TF_VAR_garage_a_ps02sn_token: ${{ steps.cluster-secrets.outputs.garage_token }}
           TF_VAR_garage_b_cl01tl_token: ${{ steps.cluster-secrets.outputs.garage_token }}
           TF_VAR_garage_c_ps10rp_token: ${{ steps.cluster-secrets.outputs.garage_token }}
-          TF_VAR_backblaze_d_cs01bb_access_key_id:
-            ${{ steps.cluster-secrets.outputs.backblaze_access_key_id || secrets.BACKBLAZE_ACCESS_KEY_ID }}
-          TF_VAR_backblaze_d_cs01bb_secret_access_key:
-            ${{ steps.cluster-secrets.outputs.backblaze_secret_access_key || secrets.BACKBLAZE_SECRET_ACCESS_KEY }}
+          TF_VAR_backblaze_d_cs01bb_access_key_id: ${{ steps.cluster-secrets.outputs.backblaze_access_key_id }}
+          TF_VAR_backblaze_d_cs01bb_secret_access_key: ${{ steps.cluster-secrets.outputs.backblaze_secret_access_key }}
           TF_VAR_garage_a_ps02sn_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}
           TF_VAR_garage_a_ps02sn_admin_secret_key: ${{ steps.cluster-secrets.outputs.garage_admin_secret_key }}
           TF_VAR_garage_b_cl01tl_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}

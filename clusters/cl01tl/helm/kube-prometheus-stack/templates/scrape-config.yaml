@@ -82,6 +82,31 @@ spec:
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: ScrapeConfig
 metadata:
+  name: garage-http
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: garage-http
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  staticConfigs:
+    - labels:
+        job: garage
+        instance: ps02sn
+      targets:
+        - ps02sn{{ include "custom.domain" . }}:3903
+  metricsPath: /metrics
+  scrapeInterval: 1m
+  scheme: HTTP
+  authorization:
+    type: Bearer
+    credentials:
+      key: ps02sn-token
+      name: garage-metric-token
+
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
   name: pikvm-https
   namespace: {{ .Release.Namespace }}
   labels:
