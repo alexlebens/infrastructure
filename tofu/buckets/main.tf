@@ -1,5 +1,5 @@
 # ==============================================================================
-# 1. Primary S3 Storage: Tier A - Synology A (a_ps02sn)
+# Primary S3 Storage: Tier A - Synology A (a_ps02sn)
 # Heavy stores, bulk backups, Loki, Thanos, Prometheus, etc.
 # ==============================================================================
 
@@ -54,7 +54,7 @@ resource "aws_s3_bucket_website_configuration" "a_ps02sn" {
 }
 
 # ==============================================================================
-# 2. Primary S3 Storage: Tier B - Cluster B (b_cl01tl)
+# Primary S3 Storage: Tier B - Cluster B (b_cl01tl)
 # Low-latency, in-cluster lightweight app assets (Reactive Resume, Memos, etc.)
 # ==============================================================================
 
@@ -109,7 +109,7 @@ resource "aws_s3_bucket_website_configuration" "b_cl01tl" {
 }
 
 # ==============================================================================
-# 3. Secondary S3 Storage: Tier C - Raspberry Pi (c_ps10rp)
+# Secondary S3 Storage: Tier C - Raspberry Pi (c_ps10rp)
 # Storage node replication & secondary on-prem targets
 # ==============================================================================
 
@@ -136,7 +136,7 @@ resource "garage_bucket_key" "c_ps10rp" {
 }
 
 # ==============================================================================
-# 4. Offsite DR Storage: Tier D - Backblaze B2 (d_cs01bb)
+# Offsite DR Storage: Tier D - Backblaze B2 (d_cs01bb)
 # Cloud replica bucket creation and optional prune lifecycle policies
 # ==============================================================================
 
@@ -171,7 +171,7 @@ resource "b2_application_key" "d_cs01bb" {
 }
 
 # ==============================================================================
-# 5. OpenBao (Vault KV) Secrets Management
+# OpenBao (Vault KV) Secrets Management
 #
 # Standardized Path Scheme: /<id>/<service>/keys/<bucket-name>
 # - ps02sn/garage/keys/<bucket-name>
@@ -192,9 +192,6 @@ resource "vault_kv_secret_v2" "a_ps02sn_keys" {
     AWS_ACCESS_KEY_ID     = garage_key.a_ps02sn[each.key].access_key_id
     AWS_SECRET_ACCESS_KEY = garage_key.a_ps02sn[each.key].secret_access_key
     AWS_REGION            = "garage"
-    ACCESS_KEY_ID         = garage_key.a_ps02sn[each.key].access_key_id
-    ACCESS_SECRET_KEY     = garage_key.a_ps02sn[each.key].secret_access_key
-    ACCESS_REGION         = "garage"
   })
 }
 
@@ -209,9 +206,6 @@ resource "vault_kv_secret_v2" "b_cl01tl_keys" {
     AWS_ACCESS_KEY_ID     = garage_key.b_cl01tl[each.key].access_key_id
     AWS_SECRET_ACCESS_KEY = garage_key.b_cl01tl[each.key].secret_access_key
     AWS_REGION            = "garage"
-    ACCESS_KEY_ID         = garage_key.b_cl01tl[each.key].access_key_id
-    ACCESS_SECRET_KEY     = garage_key.b_cl01tl[each.key].secret_access_key
-    ACCESS_REGION         = "garage"
   })
 }
 
@@ -226,9 +220,6 @@ resource "vault_kv_secret_v2" "c_ps10rp_keys" {
     AWS_ACCESS_KEY_ID     = garage_key.c_ps10rp[each.key].access_key_id
     AWS_SECRET_ACCESS_KEY = garage_key.c_ps10rp[each.key].secret_access_key
     AWS_REGION            = "garage"
-    ACCESS_KEY_ID         = garage_key.c_ps10rp[each.key].access_key_id
-    ACCESS_SECRET_KEY     = garage_key.c_ps10rp[each.key].secret_access_key
-    ACCESS_REGION         = "garage"
   })
 }
 
@@ -246,58 +237,5 @@ resource "vault_kv_secret_v2" "d_cs01bb_keys" {
     ACCESS_KEY_ID         = b2_application_key.d_cs01bb[each.key].application_key_id
     ACCESS_SECRET_KEY     = b2_application_key.d_cs01bb[each.key].application_key
     ACCESS_REGION         = var.backblaze_d_cs01bb_region
-  })
-}
-
-# ==============================================================================
-# 6. Legacy Paths (Maintained during per-bucket migration phase)
-# Legacy paths: /garage/home-infra/<bucket> and /backblaze/home-infra/<bucket>
-# ==============================================================================
-
-resource "vault_kv_secret_v2" "a_ps02sn_credentials" {
-  for_each = local.a_ps02sn_buckets
-  mount    = "secret"
-  name     = "garage/home-infra/${each.value.bucket_name}"
-
-  data_json = jsonencode({
-    ACCESS_KEY_ID     = garage_key.a_ps02sn[each.key].access_key_id
-    ACCESS_SECRET_KEY = garage_key.a_ps02sn[each.key].secret_access_key
-    ACCESS_REGION     = "garage"
-  })
-}
-
-resource "vault_kv_secret_v2" "b_cl01tl_credentials" {
-  for_each = local.b_cl01tl_buckets
-  mount    = "secret"
-  name     = "garage/home-infra/${each.value.bucket_name}"
-
-  data_json = jsonencode({
-    ACCESS_KEY_ID     = garage_key.b_cl01tl[each.key].access_key_id
-    ACCESS_SECRET_KEY = garage_key.b_cl01tl[each.key].secret_access_key
-    ACCESS_REGION     = "garage"
-  })
-}
-
-resource "vault_kv_secret_v2" "c_ps10rp_credentials" {
-  for_each = local.c_ps10rp_buckets
-  mount    = "secret"
-  name     = "garage/home-infra/${each.value.bucket_name}"
-
-  data_json = jsonencode({
-    ACCESS_KEY_ID     = garage_key.c_ps10rp[each.key].access_key_id
-    ACCESS_SECRET_KEY = garage_key.c_ps10rp[each.key].secret_access_key
-    ACCESS_REGION     = "garage"
-  })
-}
-
-resource "vault_kv_secret_v2" "d_cs01bb_credentials" {
-  for_each = local.d_cs01bb_buckets
-  mount    = "secret"
-  name     = "backblaze/home-infra/${each.value.backups.d_cs01bb.destination_bucket}"
-
-  data_json = jsonencode({
-    AWS_ACCESS_KEY_ID     = b2_application_key.d_cs01bb[each.key].application_key_id
-    AWS_SECRET_ACCESS_KEY = b2_application_key.d_cs01bb[each.key].application_key
-    AWS_REGION            = var.backblaze_d_cs01bb_region
   })
 }
