@@ -167,21 +167,21 @@ locals {
     for k, v in local.buckets : k => v if v.backups.d_cs01bb.enabled
   }
 
-  # Buckets with CORS enabled
+  # Buckets with CORS enabled (primary target only)
   cors_a_ps02sn_buckets = {
-    for k, v in local.a_ps02sn_buckets : k => v if v.cors.enabled
+    for k, v in local.buckets : k => v if v.target == "a_ps02sn" && v.cors.enabled
   }
 
   cors_b_cl01tl_buckets = {
-    for k, v in local.b_cl01tl_buckets : k => v if v.cors.enabled
+    for k, v in local.buckets : k => v if v.target == "b_cl01tl" && v.cors.enabled
   }
 
-  # Buckets with Website enabled
+  # Buckets with Website enabled (primary target only)
   website_a_ps02sn_buckets = {
-    for k, v in local.a_ps02sn_buckets : k => v if v.website.enabled
+    for k, v in local.buckets : k => v if v.target == "a_ps02sn" && v.website.enabled
   }
 
   website_b_cl01tl_buckets = {
-    for k, v in local.b_cl01tl_buckets : k => v if v.website.enabled
+    for k, v in local.buckets : k => v if v.target == "b_cl01tl" && v.website.enabled
   }
 }
