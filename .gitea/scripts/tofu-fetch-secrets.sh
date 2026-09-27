@@ -113,12 +113,6 @@ for path in "backblaze/home-infra/master" "backblaze/master" "backblaze/home-inf
   fi
 done
 
-if [ -z "$BACKBLAZE_KEY" ] && [ -n "${BACKBLAZE_ACCESS_KEY_ID:-}" ]; then
-  BACKBLAZE_KEY="${BACKBLAZE_ACCESS_KEY_ID}"
-  BACKBLAZE_SECRET="${BACKBLAZE_SECRET_ACCESS_KEY:-}"
-  echo ">> Loaded Backblaze credentials from environment fallback"
-fi
-
 configure_opentofu_imports() {
   local key="$1"
   local secret="$2"
