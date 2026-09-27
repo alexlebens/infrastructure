@@ -8,7 +8,7 @@ etcd-backup:
         operator: Exists
         effect: NoSchedule
   controllers:
-    local:
+    a-ps02sn:
       type: cronjob
       cronjob:
         suspend: false
@@ -33,17 +33,37 @@ etcd-backup:
                 - ALL
             seccompProfile:
               type: RuntimeDefault
-          envFrom:
-            - secretRef:
-                name: talos-etcd-backup-local-config
           env:
             - name: CUSTOM_S3_ENDPOINT
-              value: http://synology.alexlebens.dev:3900
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-a
+                  key: ENDPOINT
             - name: BUCKET
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-local-config
+                  name: talos-etcd-backup-a
                   key: BUCKET_NAME
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-a
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-a
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-a
+                  key: AWS_REGION
+            - name: AGE_X25519_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-a
+                  key: AGE_X25519_PUBLIC_KEY
             - name: S3_PREFIX
               value: "cl01tl/etcd"
             - name: CLUSTER_NAME
@@ -61,15 +81,15 @@ etcd-backup:
             - /scripts/prune.sh
           envFrom:
             - secretRef:
-                name: talos-etcd-backup-local-config
+                name: talos-etcd-backup-a
             - secretRef:
-                name: talos-ntfy-config
+                name: talos-ntfy
           env:
             - name: TARGET
-              value: Local
+              value: a-ps02sn
             - name: DATE_RANGE_SECONDS
               value: "2419200"
-    remote:
+    c-ps10rp:
       type: cronjob
       cronjob:
         suspend: false
@@ -94,17 +114,37 @@ etcd-backup:
                 - ALL
             seccompProfile:
               type: RuntimeDefault
-          envFrom:
-            - secretRef:
-                name: talos-etcd-backup-remote-config
           env:
             - name: CUSTOM_S3_ENDPOINT
-              value: https://garage-ps10rp.boreal-beaufort.ts.net:3900
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-c
+                  key: ENDPOINT
             - name: BUCKET
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-remote-config
+                  name: talos-etcd-backup-c
                   key: BUCKET_NAME
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-c
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-c
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-c
+                  key: AWS_REGION
+            - name: AGE_X25519_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-c
+                  key: AGE_X25519_PUBLIC_KEY
             - name: S3_PREFIX
               value: "cl01tl/etcd"
             - name: CLUSTER_NAME
@@ -122,15 +162,15 @@ etcd-backup:
             - /scripts/prune.sh
           envFrom:
             - secretRef:
-                name: talos-etcd-backup-remote-config
+                name: talos-etcd-backup-c
             - secretRef:
-                name: talos-ntfy-config
+                name: talos-ntfy
           env:
             - name: TARGET
-              value: Remote
+              value: c-ps10rp
             - name: DATE_RANGE_SECONDS
               value: "2419200"
-    external:
+    d-cs01bb:
       type: cronjob
       cronjob:
         suspend: false
@@ -155,17 +195,37 @@ etcd-backup:
                 - ALL
             seccompProfile:
               type: RuntimeDefault
-          envFrom:
-            - secretRef:
-                name: talos-etcd-backup-external-config
           env:
             - name: CUSTOM_S3_ENDPOINT
-              value: https://s3.us-east-005.backblazeb2.com
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-d
+                  key: ENDPOINT
             - name: BUCKET
               valueFrom:
                 secretKeyRef:
-                  name: talos-etcd-backup-external-config
+                  name: talos-etcd-backup-d
                   key: BUCKET_NAME
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-d
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-d
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-d
+                  key: AWS_REGION
+            - name: AGE_X25519_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: talos-etcd-backup-d
+                  key: AGE_X25519_PUBLIC_KEY
             - name: S3_PREFIX
               value: "cl01tl/etcd"
             - name: CLUSTER_NAME
@@ -183,12 +243,12 @@ etcd-backup:
             - /scripts/prune.sh
           envFrom:
             - secretRef:
-                name: talos-etcd-backup-external-config
+                name: talos-etcd-backup-d
             - secretRef:
-                name: talos-ntfy-config
+                name: talos-ntfy
           env:
             - name: TARGET
-              value: External
+              value: d-cs01bb
             - name: DATE_RANGE_SECONDS
               value: "1209600"
   persistence:
@@ -197,15 +257,15 @@ etcd-backup:
       type: secret
       name: talos-backup-secrets
       advancedMounts:
-        local:
+        a-ps02sn:
           backup:
             - path: /var/run/secrets/talos.dev
               readOnly: true
-        remote:
+        c-ps10rp:
           backup:
             - path: /var/run/secrets/talos.dev
               readOnly: true
-        external:
+        d-cs01bb:
           backup:
             - path: /var/run/secrets/talos.dev
               readOnly: true
@@ -215,56 +275,56 @@ etcd-backup:
       name: talos-prune-script
       defaultMode: 0755
       advancedMounts:
-        local:
+        a-ps02sn:
           s3-prune:
             - path: /scripts/prune.sh
               subPath: prune.sh
-        remote:
+        c-ps10rp:
           s3-prune:
             - path: /scripts/prune.sh
               subPath: prune.sh
-        external:
+        d-cs01bb:
           s3-prune:
             - path: /scripts/prune.sh
               subPath: prune.sh
-    etcd-backup-local-config:
+    etcd-backup-a-config:
       type: custom
       volumeSpec:
         csi:
           driver: secrets-store.csi.k8s.io
           readOnly: true
           volumeAttributes:
-            secretProviderClass: talos-etcd-backup-local-config
+            secretProviderClass: talos-etcd-backup-a
       advancedMounts:
-        local:
+        a-ps02sn:
           s3-prune:
             - path: /root/.s3cfg
               subPath: .s3cfg
               readOnly: true
-    etcd-backup-remote-config:
+    etcd-backup-c-config:
       type: custom
       volumeSpec:
         csi:
           driver: secrets-store.csi.k8s.io
           readOnly: true
           volumeAttributes:
-            secretProviderClass: talos-etcd-backup-remote-config
+            secretProviderClass: talos-etcd-backup-c
       advancedMounts:
-        remote:
+        c-ps10rp:
           s3-prune:
             - path: /root/.s3cfg
               subPath: .s3cfg
               readOnly: true
-    etcd-backup-external-config:
+    etcd-backup-d-config:
       type: custom
       volumeSpec:
         csi:
           driver: secrets-store.csi.k8s.io
           readOnly: true
           volumeAttributes:
-            secretProviderClass: talos-etcd-backup-external-config
+            secretProviderClass: talos-etcd-backup-d
       advancedMounts:
-        external:
+        d-cs01bb:
           s3-prune:
             - path: /root/.s3cfg
               subPath: .s3cfg
@@ -273,26 +333,26 @@ etcd-backup:
       type: emptyDir
       medium: Memory
       advancedMounts:
-        local:
+        a-ps02sn:
           backup:
             - path: /tmp
-        remote:
+        c-ps10rp:
           backup:
             - path: /tmp
-        external:
+        d-cs01bb:
           backup:
             - path: /tmp
     talos:
       type: emptyDir
       medium: Memory
       advancedMounts:
-        local:
+        a-ps02sn:
           backup:
             - path: /.talos
-        remote:
+        c-ps10rp:
           backup:
             - path: /.talos
-        external:
+        d-cs01bb:
           backup:
             - path: /.talos
 etcd-defrag:
