@@ -141,6 +141,12 @@ variable "backblaze_d_cs01bb_region" {
   default     = "us-east-005"
 }
 
+variable "backblaze_d_cs01bb_endpoint" {
+  description = "Backblaze B2 S3 API endpoint"
+  type        = string
+  default     = "https://s3.us-east-005.backblazeb2.com"
+}
+
 variable "backblaze_d_cs01bb_access_key_id" {
   description = "Backblaze B2 Application Key ID"
   type        = string

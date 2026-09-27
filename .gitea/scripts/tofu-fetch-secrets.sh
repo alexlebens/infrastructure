@@ -76,12 +76,12 @@ fi
 mask_var "${OPENBAO_TOKEN}"
 output_var "openbao_token" "${OPENBAO_TOKEN}"
 
-# Retrieve Garage Admin Token (primary: cl01tl/garage-operator/config)
+# Retrieve Garage Admin Token (primary: ps02sn/garage/token or cl01tl/garage-operator/config)
 echo ">> Fetching Garage token from OpenBao..."
 GARAGE_TOKEN=""
-for path in "cl01tl/garage-operator/config" "garage/home-infra/admin" "garage/config"; do
+for path in "ps02sn/garage/token" "cl01tl/garage/token" "cl01tl/garage-operator/config" "garage/home-infra/admin" "garage/config"; do
   RESP=$(fetch_bao_path "$path")
-  TOKEN=$(echo "$RESP" | jq -r '.data.data["admin-token"] // .data.data.admin_token // .data.data.token // empty' 2>/dev/null || true)
+  TOKEN=$(echo "$RESP" | jq -r '.data.data.admin // .data.data["admin-token"] // .data.data.admin_token // .data.data.token // empty' 2>/dev/null || true)
   if [ -n "$TOKEN" ]; then
     GARAGE_TOKEN="$TOKEN"
     echo ">> Loaded Garage admin token from OpenBao: secret/${path}"
@@ -96,15 +96,45 @@ else
   echo ">> Warning: Garage admin token not found in OpenBao"
 fi
 
-# Retrieve Backblaze B2 Credentials (primary: backblaze/home-infra/s3-exporter)
+# Retrieve S3 / Garage Endpoints from OpenBao if available
+echo ">> Checking for storage endpoints in OpenBao..."
+GARAGE_A_EP=$(echo "$(fetch_bao_path "ps02sn/garage/config")" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
+GARAGE_B_EP=$(echo "$(fetch_bao_path "cl01tl/garage/config")" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
+BACKBLAZE_EP=$(echo "$(fetch_bao_path "cs01bb/s3/config")" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
+
+if [ -n "${GARAGE_A_EP}" ]; then
+  echo ">> Loaded Synology A S3 endpoint from OpenBao: ${GARAGE_A_EP}"
+  output_var "garage_a_s3_endpoint" "${GARAGE_A_EP}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_garage_a_ps02sn_s3_endpoint=${GARAGE_A_EP}" >> "${GITHUB_ENV}"
+  fi
+fi
+
+if [ -n "${GARAGE_B_EP}" ]; then
+  echo ">> Loaded Cluster B S3 endpoint from OpenBao: ${GARAGE_B_EP}"
+  output_var "garage_b_s3_endpoint" "${GARAGE_B_EP}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_garage_b_cl01tl_s3_endpoint=${GARAGE_B_EP}" >> "${GITHUB_ENV}"
+  fi
+fi
+
+if [ -n "${BACKBLAZE_EP}" ]; then
+  echo ">> Loaded Backblaze B2 endpoint from OpenBao: ${BACKBLAZE_EP}"
+  output_var "backblaze_endpoint" "${BACKBLAZE_EP}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_backblaze_d_cs01bb_endpoint=${BACKBLAZE_EP}" >> "${GITHUB_ENV}"
+  fi
+fi
+
+# Retrieve Backblaze B2 Credentials (primary: cs01bb/s3/keys/master or backblaze/home-infra/s3-exporter)
 echo ">> Fetching Backblaze credentials from OpenBao..."
 BACKBLAZE_KEY=""
 BACKBLAZE_SECRET=""
 
-for path in "backblaze/home-infra/master" "backblaze/master" "backblaze/home-infra/s3-exporter" "backblaze/home-infra/talos-backups" "backblaze/home-infra/mariadb-backups" "backblaze/config"; do
+for path in "cs01bb/s3/keys/master" "cs01bb/s3/keys/admin" "backblaze/home-infra/master" "backblaze/master" "backblaze/home-infra/s3-exporter" "backblaze/home-infra/talos-backups" "backblaze/home-infra/mariadb-backups" "backblaze/config"; do
   RESP=$(fetch_bao_path "$path")
-  K=$(echo "$RESP" | jq -r '.data.data.ACCESS_KEY_ID // .data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
-  S=$(echo "$RESP" | jq -r '.data.data.ACCESS_SECRET_KEY // .data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
+  K=$(echo "$RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // .data.data.ACCESS_KEY_ID // empty' 2>/dev/null || true)
+  S=$(echo "$RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // .data.data.ACCESS_SECRET_KEY // empty' 2>/dev/null || true)
   if [ -n "$K" ] && [ -n "$S" ]; then
     BACKBLAZE_KEY="$K"
     BACKBLAZE_SECRET="$S"
