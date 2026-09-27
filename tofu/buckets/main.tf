@@ -163,6 +163,13 @@ resource "b2_bucket" "d_cs01bb" {
   }
 }
 
+resource "b2_application_key" "d_cs01bb" {
+  for_each     = local.d_cs01bb_buckets
+  key_name     = "${each.value.backups.d_cs01bb.destination_bucket}-key"
+  capabilities = ["listBuckets", "listFiles", "readFiles", "writeFiles", "deleteFiles"]
+  bucket_id    = b2_bucket.d_cs01bb[each.key].id
+}
+
 # ==============================================================================
 # 5. OpenBao (Vault KV) Secrets Management
 #
@@ -227,20 +234,17 @@ resource "vault_kv_secret_v2" "c_ps10rp_keys" {
 
 # --- Standardized Path: Tier D Backblaze B2 (cs01bb/s3/keys/<bucket>) ---
 resource "vault_kv_secret_v2" "d_cs01bb_keys" {
-  for_each = {
-    for k, v in local.d_cs01bb_buckets : k => v
-    if var.backblaze_d_cs01bb_access_key_id != ""
-  }
-  mount = "secret"
-  name  = "cs01bb/s3/keys/${each.value.backups.d_cs01bb.destination_bucket}"
+  for_each = local.d_cs01bb_buckets
+  mount    = "secret"
+  name     = "cs01bb/s3/keys/${each.value.backups.d_cs01bb.destination_bucket}"
 
   data_json = jsonencode({
     BUCKET_NAME           = each.value.backups.d_cs01bb.destination_bucket
-    AWS_ACCESS_KEY_ID     = var.backblaze_d_cs01bb_access_key_id
-    AWS_SECRET_ACCESS_KEY = var.backblaze_d_cs01bb_secret_access_key
+    AWS_ACCESS_KEY_ID     = b2_application_key.d_cs01bb[each.key].application_key_id
+    AWS_SECRET_ACCESS_KEY = b2_application_key.d_cs01bb[each.key].application_key
     AWS_REGION            = var.backblaze_d_cs01bb_region
-    ACCESS_KEY_ID         = var.backblaze_d_cs01bb_access_key_id
-    ACCESS_SECRET_KEY     = var.backblaze_d_cs01bb_secret_access_key
+    ACCESS_KEY_ID         = b2_application_key.d_cs01bb[each.key].application_key_id
+    ACCESS_SECRET_KEY     = b2_application_key.d_cs01bb[each.key].application_key
     ACCESS_REGION         = var.backblaze_d_cs01bb_region
   })
 }
@@ -287,16 +291,13 @@ resource "vault_kv_secret_v2" "c_ps10rp_credentials" {
 }
 
 resource "vault_kv_secret_v2" "d_cs01bb_credentials" {
-  for_each = {
-    for k, v in local.d_cs01bb_buckets : k => v
-    if var.backblaze_d_cs01bb_access_key_id != ""
-  }
+  for_each = local.d_cs01bb_buckets
   mount    = "secret"
   name     = "backblaze/home-infra/${each.value.backups.d_cs01bb.destination_bucket}"
 
   data_json = jsonencode({
-    AWS_ACCESS_KEY_ID     = var.backblaze_d_cs01bb_access_key_id
-    AWS_SECRET_ACCESS_KEY = var.backblaze_d_cs01bb_secret_access_key
+    AWS_ACCESS_KEY_ID     = b2_application_key.d_cs01bb[each.key].application_key_id
+    AWS_SECRET_ACCESS_KEY = b2_application_key.d_cs01bb[each.key].application_key
     AWS_REGION            = var.backblaze_d_cs01bb_region
   })
 }
