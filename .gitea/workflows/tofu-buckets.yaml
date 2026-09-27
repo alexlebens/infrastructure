@@ -26,7 +26,7 @@ on:
 env:
   TOFU_VERSION: "1.8.8"
   TF_IN_AUTOMATION: "true"
-  TF_PLUGIN_CACHE_DIR: "/tmp/terraform-plugin-cache"
+  TF_PLUGIN_CACHE_DIR: "${{ github.workspace }}/.terraform-plugin-cache"
 
 jobs:
   tofu:
@@ -51,7 +51,7 @@ jobs:
           key: ${{ runner.os }}-tofu-${{ env.TOFU_VERSION }}
 
       - name: Create OpenTofu Plugin Cache Directory
-        run: mkdir -p "${TF_PLUGIN_CACHE_DIR:-/tmp/terraform-plugin-cache}"
+        run: mkdir -p "${TF_PLUGIN_CACHE_DIR}"
 
       - name: Set Up OpenTofu
         run: ./.gitea/scripts/install-tofu.sh
@@ -59,7 +59,9 @@ jobs:
       - name: Cache OpenTofu Plugins
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
         with:
-          path: /tmp/terraform-plugin-cache
+          path: |
+            ${{ github.workspace }}/.terraform-plugin-cache
+            tofu/buckets/.terraform
           key: ${{ runner.os }}-tofu-plugins-${{ hashFiles('tofu/buckets/versions.tf') }}
           restore-keys: |
             ${{ runner.os }}-tofu-plugins-
@@ -69,7 +71,7 @@ jobs:
         env:
           GITEA_TOKEN: ${{ secrets.TOFU_TOKEN }}
         run: |
-          mkdir -p "${TF_PLUGIN_CACHE_DIR:-/tmp/terraform-plugin-cache}"
+          mkdir -p "${TF_PLUGIN_CACHE_DIR}"
           tofu init -reconfigure \
             -backend-config="password=${GITEA_TOKEN}"
 
@@ -90,9 +92,16 @@ jobs:
           TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
           TF_VAR_gitea_token: ${{ secrets.TOFU_TOKEN }}
           TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
-          TF_VAR_garage_a_ps02sn_token: ${{ steps.cluster-secrets.outputs.garage_token }}
-          TF_VAR_garage_b_cl01tl_token: ${{ steps.cluster-secrets.outputs.garage_token }}
-          TF_VAR_garage_c_ps10rp_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_a_ps02sn_token:
+            ${{ steps.cluster-secrets.outputs.garage_a_token || steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_b_cl01tl_token:
+            ${{ steps.cluster-secrets.outputs.garage_b_token || steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_c_ps10rp_token:
+            ${{ steps.cluster-secrets.outputs.garage_c_token || steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_a_ps02sn_s3_endpoint: ${{ steps.cluster-secrets.outputs.garage_a_s3_endpoint }}
+          TF_VAR_garage_b_cl01tl_s3_endpoint: ${{ steps.cluster-secrets.outputs.garage_b_s3_endpoint }}
+          TF_VAR_garage_c_ps10rp_s3_endpoint: ${{ steps.cluster-secrets.outputs.garage_c_s3_endpoint }}
+          TF_VAR_backblaze_d_cs01bb_endpoint: ${{ steps.cluster-secrets.outputs.backblaze_endpoint }}
           TF_VAR_backblaze_d_cs01bb_access_key_id: ${{ steps.cluster-secrets.outputs.backblaze_access_key_id }}
           TF_VAR_backblaze_d_cs01bb_secret_access_key: ${{ steps.cluster-secrets.outputs.backblaze_secret_access_key }}
           TF_VAR_garage_a_ps02sn_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}
@@ -114,9 +123,16 @@ jobs:
           TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
           TF_VAR_gitea_token: ${{ secrets.TOFU_TOKEN }}
           TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
-          TF_VAR_garage_a_ps02sn_token: ${{ steps.cluster-secrets.outputs.garage_token }}
-          TF_VAR_garage_b_cl01tl_token: ${{ steps.cluster-secrets.outputs.garage_token }}
-          TF_VAR_garage_c_ps10rp_token: ${{ steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_a_ps02sn_token:
+            ${{ steps.cluster-secrets.outputs.garage_a_token || steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_b_cl01tl_token:
+            ${{ steps.cluster-secrets.outputs.garage_b_token || steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_c_ps10rp_token:
+            ${{ steps.cluster-secrets.outputs.garage_c_token || steps.cluster-secrets.outputs.garage_token }}
+          TF_VAR_garage_a_ps02sn_s3_endpoint: ${{ steps.cluster-secrets.outputs.garage_a_s3_endpoint }}
+          TF_VAR_garage_b_cl01tl_s3_endpoint: ${{ steps.cluster-secrets.outputs.garage_b_s3_endpoint }}
+          TF_VAR_garage_c_ps10rp_s3_endpoint: ${{ steps.cluster-secrets.outputs.garage_c_s3_endpoint }}
+          TF_VAR_backblaze_d_cs01bb_endpoint: ${{ steps.cluster-secrets.outputs.backblaze_endpoint }}
           TF_VAR_backblaze_d_cs01bb_access_key_id: ${{ steps.cluster-secrets.outputs.backblaze_access_key_id }}
           TF_VAR_backblaze_d_cs01bb_secret_access_key: ${{ steps.cluster-secrets.outputs.backblaze_secret_access_key }}
           TF_VAR_garage_a_ps02sn_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}

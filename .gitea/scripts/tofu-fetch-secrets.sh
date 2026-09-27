@@ -39,7 +39,7 @@ echo ">> Initializing OpenBao secret extraction..."
 OPENBAO_ADDR="${OPENBAO_ADDR:-http://openbao-internal.openbao:8200}"
 echo ">> Using OpenBao endpoint: ${OPENBAO_ADDR}"
 
-OPENBAO_ROLE="${OPENBAO_ROLE:-buildx-runner}"
+OPENBAO_ROLE="${OPENBAO_ROLE:-gitea-runner}"
 
 # Obtain Kubernetes ServiceAccount JWT token
 TOKEN_FILE="/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -76,31 +76,96 @@ fi
 mask_var "${OPENBAO_TOKEN}"
 output_var "openbao_token" "${OPENBAO_TOKEN}"
 
-# Retrieve Garage Admin Token (primary: ps02sn/garage/token or cl01tl/garage-operator/config)
-echo ">> Fetching Garage token from OpenBao..."
-GARAGE_TOKEN=""
-for path in "ps02sn/garage/token" "cl01tl/garage/token" "cl01tl/garage-operator/config" "garage/home-infra/admin" "garage/config"; do
+# Retrieve Garage Admin Tokens per Storage Tier
+echo ">> Fetching Garage admin tokens from OpenBao..."
+
+# Tier A: Synology NAS (ps02sn)
+GARAGE_A_TOKEN=""
+for path in "ps02sn/garage/token" "garage/home-infra/admin" "garage/config"; do
   RESP=$(fetch_bao_path "$path")
-  TOKEN=$(echo "$RESP" | jq -r '.data.data.admin // .data.data["admin-token"] // .data.data.admin_token // .data.data.token // empty' 2>/dev/null || true)
-  if [ -n "$TOKEN" ]; then
-    GARAGE_TOKEN="$TOKEN"
-    echo ">> Loaded Garage admin token from OpenBao: secret/${path}"
+  T=$(echo "$RESP" | jq -r '.data.data.admin // .data.data["admin-token"] // .data.data.admin_token // .data.data.token // empty' 2>/dev/null || true)
+  if [ -n "$T" ]; then
+    GARAGE_A_TOKEN="$T"
+    echo ">> Loaded Garage A (ps02sn) admin token from OpenBao: secret/${path}"
     break
   fi
 done
 
+# Tier B: Talos Kubernetes (cl01tl)
+GARAGE_B_TOKEN=""
+for path in "cl01tl/garage/token" "cl01tl/garage-operator/config" "garage/home-infra/admin" "garage/config"; do
+  RESP=$(fetch_bao_path "$path")
+  T=$(echo "$RESP" | jq -r '.data.data.admin // .data.data["admin-token"] // .data.data.admin_token // .data.data.token // empty' 2>/dev/null || true)
+  if [ -n "$T" ]; then
+    GARAGE_B_TOKEN="$T"
+    echo ">> Loaded Garage B (cl01tl) admin token from OpenBao: secret/${path}"
+    break
+  fi
+done
+
+# Tier C: Remote Raspberry Pi (ps10rp)
+GARAGE_C_TOKEN=""
+for path in "ps10rp/garage/token" "garage/home-infra/admin" "garage/config"; do
+  RESP=$(fetch_bao_path "$path")
+  T=$(echo "$RESP" | jq -r '.data.data.admin // .data.data["admin-token"] // .data.data.admin_token // .data.data.token // empty' 2>/dev/null || true)
+  if [ -n "$T" ]; then
+    GARAGE_C_TOKEN="$T"
+    echo ">> Loaded Garage C (ps10rp) admin token from OpenBao: secret/${path}"
+    break
+  fi
+done
+
+if [ -n "${GARAGE_A_TOKEN}" ]; then
+  mask_var "${GARAGE_A_TOKEN}"
+  output_var "garage_a_token" "${GARAGE_A_TOKEN}"
+fi
+
+if [ -n "${GARAGE_B_TOKEN}" ]; then
+  mask_var "${GARAGE_B_TOKEN}"
+  output_var "garage_b_token" "${GARAGE_B_TOKEN}"
+fi
+
+if [ -n "${GARAGE_C_TOKEN}" ]; then
+  mask_var "${GARAGE_C_TOKEN}"
+  output_var "garage_c_token" "${GARAGE_C_TOKEN}"
+fi
+
+# Fallback token for backward compatibility
+GARAGE_TOKEN="${GARAGE_B_TOKEN:-${GARAGE_A_TOKEN:-${GARAGE_C_TOKEN:-}}}"
 if [ -n "${GARAGE_TOKEN}" ]; then
-  mask_var "${GARAGE_TOKEN}"
   output_var "garage_token" "${GARAGE_TOKEN}"
-else
-  echo ">> Warning: Garage admin token not found in OpenBao"
 fi
 
 # Retrieve S3 / Garage Endpoints from OpenBao if available
 echo ">> Checking for storage endpoints in OpenBao..."
-GARAGE_A_EP=$(echo "$(fetch_bao_path "ps02sn/garage/config")" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
-GARAGE_B_EP=$(echo "$(fetch_bao_path "cl01tl/garage/config")" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
-BACKBLAZE_EP=$(echo "$(fetch_bao_path "cs01bb/s3/config")" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
+
+# Tier A (ps02sn)
+GARAGE_A_CFG=$(fetch_bao_path "ps02sn/garage/config")
+GARAGE_A_EP=$(echo "$GARAGE_A_CFG" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
+if [ -z "${GARAGE_A_EP}" ]; then
+  GARAGE_A_EP=$(fetch_bao_path "garage/config" | jq -r '.data.data.ENDPOINT_CLUSTER_A // empty' 2>/dev/null || true)
+fi
+
+# Tier B (cl01tl)
+GARAGE_B_CFG=$(fetch_bao_path "cl01tl/garage/config")
+GARAGE_B_EP=$(echo "$GARAGE_B_CFG" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
+if [ -z "${GARAGE_B_EP}" ]; then
+  GARAGE_B_EP=$(fetch_bao_path "garage/config" | jq -r '.data.data.ENDPOINT_CLUSTER_B // empty' 2>/dev/null || true)
+fi
+
+# Tier C (ps10rp - Remote Garage)
+GARAGE_C_CFG=$(fetch_bao_path "ps10rp/garage/config")
+GARAGE_C_EP=$(echo "$GARAGE_C_CFG" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
+if [ -z "${GARAGE_C_EP}" ]; then
+  GARAGE_C_EP=$(fetch_bao_path "garage/config" | jq -r '.data.data.ENDPOINT_REMOTE // empty' 2>/dev/null || true)
+fi
+
+# Tier D (cs01bb - Backblaze B2)
+BACKBLAZE_CFG=$(fetch_bao_path "cs01bb/s3/config")
+BACKBLAZE_EP=$(echo "$BACKBLAZE_CFG" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
+if [ -z "${BACKBLAZE_EP}" ]; then
+  BACKBLAZE_EP=$(fetch_bao_path "backblaze/config" | jq -r '.data.data.ENDPOINT // empty' 2>/dev/null || true)
+fi
 
 if [ -n "${GARAGE_A_EP}" ]; then
   echo ">> Loaded Synology A S3 endpoint from OpenBao: ${GARAGE_A_EP}"
@@ -115,6 +180,14 @@ if [ -n "${GARAGE_B_EP}" ]; then
   output_var "garage_b_s3_endpoint" "${GARAGE_B_EP}"
   if [ -n "${GITHUB_ENV:-}" ]; then
     echo "TF_VAR_garage_b_cl01tl_s3_endpoint=${GARAGE_B_EP}" >> "${GITHUB_ENV}"
+  fi
+fi
+
+if [ -n "${GARAGE_C_EP}" ]; then
+  echo ">> Loaded Remote Garage C (ps10rp) S3 endpoint from OpenBao: ${GARAGE_C_EP}"
+  output_var "garage_c_s3_endpoint" "${GARAGE_C_EP}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_garage_c_ps10rp_s3_endpoint=${GARAGE_C_EP}" >> "${GITHUB_ENV}"
   fi
 fi
 
@@ -325,9 +398,19 @@ fi
 # Export TF_VARs directly to GITHUB_ENV if running in GitHub/Gitea Actions
 if [ -n "${GITHUB_ENV:-}" ]; then
   echo "TF_VAR_openbao_token=${OPENBAO_TOKEN}" >> "${GITHUB_ENV}"
-  if [ -n "${GARAGE_TOKEN}" ]; then
+  if [ -n "${GARAGE_A_TOKEN}" ]; then
+    echo "TF_VAR_garage_a_ps02sn_token=${GARAGE_A_TOKEN}" >> "${GITHUB_ENV}"
+  elif [ -n "${GARAGE_TOKEN}" ]; then
     echo "TF_VAR_garage_a_ps02sn_token=${GARAGE_TOKEN}" >> "${GITHUB_ENV}"
+  fi
+  if [ -n "${GARAGE_B_TOKEN}" ]; then
+    echo "TF_VAR_garage_b_cl01tl_token=${GARAGE_B_TOKEN}" >> "${GITHUB_ENV}"
+  elif [ -n "${GARAGE_TOKEN}" ]; then
     echo "TF_VAR_garage_b_cl01tl_token=${GARAGE_TOKEN}" >> "${GITHUB_ENV}"
+  fi
+  if [ -n "${GARAGE_C_TOKEN}" ]; then
+    echo "TF_VAR_garage_c_ps10rp_token=${GARAGE_C_TOKEN}" >> "${GITHUB_ENV}"
+  elif [ -n "${GARAGE_TOKEN}" ]; then
     echo "TF_VAR_garage_c_ps10rp_token=${GARAGE_TOKEN}" >> "${GITHUB_ENV}"
   fi
   if [ -n "${BACKBLAZE_KEY}" ]; then
