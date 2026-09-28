@@ -96,7 +96,7 @@ variable "garage_b_cl01tl_admin_secret_key" {
 variable "garage_c_ps10rp_host" {
   description = "Host and port for Garage Admin API on Raspberry Pi (ps10rp)"
   type        = string
-  default     = "ps10rp.alexlebens.dev:3903"
+  default     = "garage-ps10rp.boreal-beaufort.ts.net:3900"
 }
 
 variable "garage_c_ps10rp_scheme" {
@@ -115,7 +115,7 @@ variable "garage_c_ps10rp_token" {
 variable "garage_c_ps10rp_s3_endpoint" {
   description = "S3 API endpoint for Raspberry Pi"
   type        = string
-  default     = "http://ps10rp.alexlebens.dev:3900"
+  default     = "https://garage-ps10rp.boreal-beaufort.ts.net:3900"
 }
 
 variable "garage_c_ps10rp_admin_access_key" {
