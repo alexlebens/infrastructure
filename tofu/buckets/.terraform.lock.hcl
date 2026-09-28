@@ -3,7 +3,7 @@
 
 provider "registry.opentofu.org/backblaze/b2" {
   version     = "0.14.0"
-  constraints = "~> 0.14"
+  constraints = "0.14.0"
   hashes = [
     "h1:/DBlyQgzoUA4F9XLQByPgROfIuUMXzFKHoBiFuxWEjI=",
     "h1:46Uwjs9cGzh4SfDdfNYE/b8jGVJK5s9tv3hQuRaSDOA=",
@@ -20,7 +20,7 @@ provider "registry.opentofu.org/backblaze/b2" {
 
 provider "registry.opentofu.org/hashicorp/aws" {
   version     = "6.66.0"
-  constraints = "~> 6.0"
+  constraints = "6.66.0"
   hashes = [
     "h1:A2L/03k6fbOyb8Pg6224b9vajh285FZDvlWdgaO2Fkw=",
     "h1:HbcFNt1OvD4MBknLg/m0rg7grEaKlaSUbnecF3vxvx0=",
@@ -57,7 +57,7 @@ provider "registry.opentofu.org/hashicorp/aws" {
 
 provider "registry.opentofu.org/hashicorp/random" {
   version     = "3.9.1"
-  constraints = "~> 3.6"
+  constraints = "3.9.1"
   hashes = [
     "h1:38E2VQmQDhws/3AL3D/EzBGuCseepyZRIswAOx8CqoQ=",
     "h1:7+qv9kpOpBC9EUPCubnPxh603tu3l9EIMMBkpbt1H1Y=",
@@ -94,7 +94,7 @@ provider "registry.opentofu.org/hashicorp/random" {
 
 provider "registry.opentofu.org/hashicorp/vault" {
   version     = "5.12.0"
-  constraints = "~> 5.0"
+  constraints = "5.12.0"
   hashes = [
     "h1:/IgXoZMeZzl5GOrA8QRarffyoUFxYOXZATdGFi8QD5g=",
     "h1:05VDSpWjVxJ/h69glB75y2KuzzO2I7vg0Z2c2EAoTJg=",
@@ -131,7 +131,7 @@ provider "registry.opentofu.org/hashicorp/vault" {
 
 provider "registry.terraform.io/arsolitt/garagehq" {
   version     = "1.2.0"
-  constraints = "~> 1.2.0"
+  constraints = "1.2.0"
   hashes = [
     "h1:0WCqzbH6qjaqi58iWHVL3Bbh8WXJw+wj0gVe2AHY3tA=",
     "h1:UnZ3BZ1emXk1wV/JeebHVKRhVsh/ag6+1USDgT4ZZ8Q=",
