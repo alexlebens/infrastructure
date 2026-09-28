@@ -208,3 +208,24 @@ resource "vault_kv_secret_v2" "d_cs01bb_keys" {
     AWS_REGION            = var.backblaze_d_cs01bb_region
   })
 }
+
+# ==============================================================================
+# Removals
+# ==============================================================================
+
+removed {
+  from = aws_s3_bucket_website_configuration.a_ps02sn["web-assets"]
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = aws_s3_bucket_website_configuration.b_cl01tl["web-assets"]
+
+  lifecycle {
+    destroy = false
+  }
+}
+g
