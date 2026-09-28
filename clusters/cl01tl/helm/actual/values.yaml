@@ -3,8 +3,22 @@ actual:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          fsGroup: 1001
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/actualbudget/actual
             tag: 26.9.0@sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3
@@ -42,6 +56,12 @@ actual:
                 initialDelaySeconds: 60
                 timeoutSeconds: 10
         metrics:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: sakowicz/actual-budget-prometheus-exporter
             tag: 1.2.15@sha256:389519f6a5428d790eff83e94d3c83cb62ccce96fd8fcbac16b3951f9390e7fc
@@ -107,6 +127,14 @@ actual:
         main:
           main:
             - path: /data
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+          metrics:
+            - path: /tmp
 
 pocket-id-client:
   mode: oidc
@@ -121,6 +149,10 @@ pocket-id-client:
 
 volsync-target-data:
   pvcTarget: actual-data
+  moverSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
   local:
     enabled: true
     schedule: 30 7 * * *
