@@ -9,11 +9,11 @@ resource "garage_bucket" "a_ps02sn" {
   global_alias = each.value.bucket_name
 
   dynamic "website_access" {
-    for_each = try(each.value.website, null) != null ? [each.value.website] : []
+    for_each = (each.value.target == "a_ps02sn" && each.value.website.enabled) ? [each.value.website] : []
     content {
       enabled        = true
-      index_document = try(website_access.value.index_document, "index.html")
-      error_document = try(website_access.value.error_document, "error.html")
+      index_document = website_access.value.index_document
+      error_document = website_access.value.error_document
     }
   }
 }
@@ -59,11 +59,11 @@ resource "garage_bucket" "b_cl01tl" {
   global_alias = each.value.bucket_name
 
   dynamic "website_access" {
-    for_each = try(each.value.website, null) != null ? [each.value.website] : []
+    for_each = (each.value.target == "b_cl01tl" && each.value.website.enabled) ? [each.value.website] : []
     content {
       enabled        = true
-      index_document = try(website_access.value.index_document, "index.html")
-      error_document = try(website_access.value.error_document, "error.html")
+      index_document = website_access.value.index_document
+      error_document = website_access.value.error_document
     }
   }
 }
