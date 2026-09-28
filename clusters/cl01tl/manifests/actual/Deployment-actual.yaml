@@ -29,6 +29,13 @@ spec:
       enableServiceLinks: false
       serviceAccountName: actual
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1001
+        runAsGroup: 1001
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -64,11 +71,49 @@ spec:
           resources:
             requests:
               cpu: 25m
-              memory: 50Mi
+              memory: 90Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /data
               name: data
+            - mountPath: /tmp
+              name: tmp
+        - env:
+            - name: ACTUAL_SERVER_URL
+              value: http://localhost:5006
+            - name: ACTUAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: actual-metrics
+            - name: ACTUAL_BUDGET_ID_1
+              valueFrom:
+                secretKeyRef:
+                  key: budget-id
+                  name: actual-metrics
+          image: sakowicz/actual-budget-prometheus-exporter:1.2.15@sha256:389519f6a5428d790eff83e94d3c83cb62ccce96fd8fcbac16b3951f9390e7fc
+          name: metrics
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: actual-data
+        - emptyDir: {}
+          name: tmp
