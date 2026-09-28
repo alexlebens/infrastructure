@@ -214,7 +214,7 @@ resource "vault_kv_secret_v2" "d_cs01bb_keys" {
 # ==============================================================================
 
 removed {
-  from = aws_s3_bucket_website_configuration.a_ps02sn["web-assets"]
+  from = aws_s3_bucket_website_configuration.a_ps02sn
 
   lifecycle {
     destroy = false
@@ -222,10 +222,9 @@ removed {
 }
 
 removed {
-  from = aws_s3_bucket_website_configuration.b_cl01tl["web-assets"]
+  from = aws_s3_bucket_website_configuration.b_cl01tl
 
   lifecycle {
     destroy = false
   }
 }
-g
