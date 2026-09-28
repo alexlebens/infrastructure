@@ -7,6 +7,15 @@ resource "garage_bucket" "a_ps02sn" {
   provider     = garage.a_ps02sn
   for_each     = local.a_ps02sn_buckets
   global_alias = each.value.bucket_name
+
+  dynamic "website_access" {
+    for_each = try(each.value.website, null) != null ? [each.value.website] : []
+    content {
+      enabled        = true
+      index_document = try(website_access.value.index_document, "index.html")
+      error_document = try(website_access.value.error_document, "error.html")
+    }
+  }
 }
 
 resource "garage_key" "a_ps02sn" {
@@ -48,6 +57,15 @@ resource "garage_bucket" "b_cl01tl" {
   provider     = garage.b_cl01tl
   for_each     = local.b_cl01tl_buckets
   global_alias = each.value.bucket_name
+
+  dynamic "website_access" {
+    for_each = try(each.value.website, null) != null ? [each.value.website] : []
+    content {
+      enabled        = true
+      index_document = try(website_access.value.index_document, "index.html")
+      error_document = try(website_access.value.error_document, "error.html")
+    }
+  }
 }
 
 resource "garage_key" "b_cl01tl" {
