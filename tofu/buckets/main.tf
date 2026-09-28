@@ -173,19 +173,19 @@ resource "b2_application_key" "d_cs01bb" {
 # ==============================================================================
 # OpenBao (Vault KV) Secrets Management
 #
-# Standardized Path Scheme: /<id>/<service>/keys/<bucket-name>
-# - ps02sn/garage/keys/<bucket-name>
-# - cl01tl/garage/keys/<bucket-name>
-# - ps10rp/garage/keys/<bucket-name>
-# - cs01bb/s3/keys/<bucket-name>
+# Standardized Path Scheme: /<id>/<service>/keys/<dataset-id>
+# - ps02sn/garage/keys/<dataset-id>
+# - cl01tl/garage/keys/<dataset-id>
+# - ps10rp/garage/keys/<dataset-id>
+# - cs01bb/s3/keys/<dataset-id>
 # Contains BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
 # ==============================================================================
 
-# --- Standardized Path: Tier A Synology NAS (ps02sn/garage/keys/<bucket>) ---
+# --- Standardized Path: Tier A Synology NAS (ps02sn/garage/keys/<id>) ---
 resource "vault_kv_secret_v2" "a_ps02sn_keys" {
   for_each = local.a_ps02sn_buckets
   mount    = "secret"
-  name     = "ps02sn/garage/keys/${each.value.bucket_name}"
+  name     = "ps02sn/garage/keys/${each.key}"
 
   data_json = jsonencode({
     BUCKET_NAME           = each.value.bucket_name
@@ -195,11 +195,11 @@ resource "vault_kv_secret_v2" "a_ps02sn_keys" {
   })
 }
 
-# --- Standardized Path: Tier B Talos Cluster (cl01tl/garage/keys/<bucket>) ---
+# --- Standardized Path: Tier B Talos Cluster (cl01tl/garage/keys/<id>) ---
 resource "vault_kv_secret_v2" "b_cl01tl_keys" {
   for_each = local.b_cl01tl_buckets
   mount    = "secret"
-  name     = "cl01tl/garage/keys/${each.value.bucket_name}"
+  name     = "cl01tl/garage/keys/${each.key}"
 
   data_json = jsonencode({
     BUCKET_NAME           = each.value.bucket_name
@@ -209,11 +209,11 @@ resource "vault_kv_secret_v2" "b_cl01tl_keys" {
   })
 }
 
-# --- Standardized Path: Tier C Raspberry Pi (ps10rp/garage/keys/<bucket>) ---
+# --- Standardized Path: Tier C Raspberry Pi (ps10rp/garage/keys/<id>) ---
 resource "vault_kv_secret_v2" "c_ps10rp_keys" {
   for_each = local.c_ps10rp_buckets
   mount    = "secret"
-  name     = "ps10rp/garage/keys/${each.value.bucket_name}"
+  name     = "ps10rp/garage/keys/${each.key}"
 
   data_json = jsonencode({
     BUCKET_NAME           = each.value.bucket_name
@@ -223,11 +223,11 @@ resource "vault_kv_secret_v2" "c_ps10rp_keys" {
   })
 }
 
-# --- Standardized Path: Tier D Backblaze B2 (cs01bb/s3/keys/<bucket>) ---
+# --- Standardized Path: Tier D Backblaze B2 (cs01bb/s3/keys/<id>) ---
 resource "vault_kv_secret_v2" "d_cs01bb_keys" {
   for_each = local.d_cs01bb_buckets
   mount    = "secret"
-  name     = "cs01bb/s3/keys/${each.value.backups.d_cs01bb.destination_bucket}"
+  name     = "cs01bb/s3/keys/${each.key}"
 
   data_json = jsonencode({
     BUCKET_NAME           = each.value.backups.d_cs01bb.destination_bucket
