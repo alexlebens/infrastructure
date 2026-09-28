@@ -15,17 +15,12 @@ on:
       - ".gitea/scripts/tofu-*.sh"
 
 env:
-  TOFU_VERSION: "1.8.8"
-  TF_IN_AUTOMATION: "true"
-  TF_PLUGIN_CACHE_DIR: "${{ github.workspace }}/.terraform-plugin-cache"
+  TOFU_VERSION: "1.12.6"
+  TF_PLUGIN_CACHE_DIR: "${{ runner.temp }}/.opentofu-plugin-cache"
 
 jobs:
   plan:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -42,26 +37,24 @@ jobs:
           path: ~/.local/bin/tofu
           key: ${{ runner.os }}-tofu-${{ env.TOFU_VERSION }}
 
-      - name: Create OpenTofu Plugin Cache Directory
-        run: mkdir -p "${TF_PLUGIN_CACHE_DIR}"
-
-      - name: Set Up OpenTofu
-        run: ./.gitea/scripts/install-tofu.sh
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
 
       - name: Cache OpenTofu Plugins
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        uses: actions/cache@v4
         with:
-          path: |
-            ${{ github.workspace }}/.terraform-plugin-cache
-            tofu/buckets/.terraform
-          key: ${{ runner.os }}-tofu-plugins-${{ hashFiles('tofu/buckets/versions.tf') }}
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: opentofu-${{ runner.os }}-${{ hashFiles('tofu/buckets/.terraform.lock.hcl') }}
           restore-keys: |
-            ${{ runner.os }}-tofu-plugins-
+            opentofu-${{ runner.os }}-
 
       - name: Initialize OpenTofu
         working-directory: tofu/buckets
         env:
           GITEA_TOKEN: ${{ secrets.TOFU_TOKEN }}
+          TF_PLUGIN_CACHE_DIR: ${{ env.TF_PLUGIN_CACHE_DIR }}
         run: |
           mkdir -p "${TF_PLUGIN_CACHE_DIR}"
           tofu init -reconfigure \
