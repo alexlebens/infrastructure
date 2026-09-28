@@ -367,9 +367,9 @@ fi
 
 # Retrieve Garage S3 Admin Keys (for CORS/Website management)
 echo ">> Fetching Garage S3 admin keys from OpenBao..."
-GARAGE_ADMIN_RESP=$(fetch_bao_path "garage/home-infra/admin")
-GARAGE_S3_KEY=$(echo "$GARAGE_ADMIN_RESP" | jq -r '.data.data.ACCESS_KEY_ID // empty' 2>/dev/null || true)
-GARAGE_S3_SECRET=$(echo "$GARAGE_ADMIN_RESP" | jq -r '.data.data.ACCESS_SECRET_KEY // empty' 2>/dev/null || true)
+GARAGE_ADMIN_RESP=$(fetch_bao_path "cl01tl/garage/keys/admin")
+GARAGE_S3_KEY=$(echo "$GARAGE_ADMIN_RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
+GARAGE_S3_SECRET=$(echo "$GARAGE_ADMIN_RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
 if [ -n "$GARAGE_S3_KEY" ] && [ -n "$GARAGE_S3_SECRET" ]; then
   mask_var "${GARAGE_S3_KEY}"
   mask_var "${GARAGE_S3_SECRET}"
