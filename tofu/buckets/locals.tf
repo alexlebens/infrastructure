@@ -27,12 +27,6 @@ locals {
         try(cfg.target, "b_cl01tl")
       )
 
-      website = {
-        enabled        = try(cfg.website.enabled, false)
-        index_document = try(cfg.website.indexDocument, "index.html")
-        error_document = try(cfg.website.errorDocument, "error.html")
-      }
-
       cors = {
         enabled         = try(cfg.cors.enabled, false)
         allowed_origins = try(cfg.cors.allowedOrigins, ["*"])
@@ -174,14 +168,5 @@ locals {
 
   cors_b_cl01tl_buckets = {
     for k, v in local.buckets : k => v if v.target == "b_cl01tl" && v.cors.enabled
-  }
-
-  # Buckets with Website enabled (primary target only)
-  website_a_ps02sn_buckets = {
-    for k, v in local.buckets : k => v if v.target == "a_ps02sn" && v.website.enabled
-  }
-
-  website_b_cl01tl_buckets = {
-    for k, v in local.buckets : k => v if v.target == "b_cl01tl" && v.website.enabled
   }
 }

@@ -39,20 +39,6 @@ resource "aws_s3_bucket_cors_configuration" "a_ps02sn" {
   }
 }
 
-resource "aws_s3_bucket_website_configuration" "a_ps02sn" {
-  provider = aws.a_ps02sn
-  for_each = local.website_a_ps02sn_buckets
-  bucket   = garage_bucket.a_ps02sn[each.key].global_alias
-
-  index_document {
-    suffix = each.value.website.index_document
-  }
-
-  error_document {
-    key = each.value.website.error_document
-  }
-}
-
 # ==============================================================================
 # Primary S3 Storage: Tier B - Cluster B (b_cl01tl)
 # Low-latency, in-cluster lightweight app assets (Reactive Resume, Memos, etc.)
@@ -91,20 +77,6 @@ resource "aws_s3_bucket_cors_configuration" "b_cl01tl" {
     allowed_origins = each.value.cors.allowed_origins
     expose_headers  = each.value.cors.expose_headers
     max_age_seconds = each.value.cors.max_age_seconds
-  }
-}
-
-resource "aws_s3_bucket_website_configuration" "b_cl01tl" {
-  provider = aws.b_cl01tl
-  for_each = local.website_b_cl01tl_buckets
-  bucket   = garage_bucket.b_cl01tl[each.key].global_alias
-
-  index_document {
-    suffix = each.value.website.index_document
-  }
-
-  error_document {
-    key = each.value.website.error_document
   }
 }
 
