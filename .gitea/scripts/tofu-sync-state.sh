@@ -114,6 +114,36 @@ if [ -z "${HAS_B_BUCKET}" ] && [ -n "${GARAGE_B_ID}" ]; then
   STATE_UPDATED=true
 fi
 
+# 3. Garage Tier C: web-assets on c_ps10rp
+GARAGE_C_ID="${GARAGE_C_BUCKET_ID:-<YOUR_HEX_ID_HERE>}"
+HAS_C_BUCKET=$(jq -r '.resources[]? | select(.type == "garage_bucket" and .name == "c_ps10rp") | .instances[]? | select(.index_key == "web-assets") | .attributes.id // empty' "${STATE_FILE}" 2>/dev/null || true)
+
+if [ -z "${HAS_C_BUCKET}" ] && [ -n "${GARAGE_C_ID}" ]; then
+  echo ">> Injecting garage_bucket.c_ps10rp[\"web-assets\"] (id: ${GARAGE_C_ID}) into state..."
+  jq --arg id "${GARAGE_C_ID}" '
+    .serial += 1 |
+    .resources += [{
+      "mode": "managed",
+      "type": "garage_bucket",
+      "name": "c_ps10rp",
+      "provider": "provider[\"registry.terraform.io/arsolitt/garagehq\"].c_ps10rp",
+      "instances": [{
+        "index_key": "web-assets",
+        "schema_version": 0,
+        "attributes": {
+          "bytes": 0,
+          "global_alias": "web-assets",
+          "id": $id,
+          "objects": 0
+        },
+        "sensitive_attributes": []
+      }]
+    }]
+  ' "${STATE_FILE}" > "${NEW_STATE}"
+  cp "${NEW_STATE}" "${STATE_FILE}"
+  STATE_UPDATED=true
+fi
+
 if [ "${STATE_UPDATED}" = "true" ]; then
   echo ">> Pushing synchronized state to Gitea backend..."
   PUSH_OUT="$(mktemp)"

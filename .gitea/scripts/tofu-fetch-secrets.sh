@@ -213,54 +213,85 @@ configure_opentofu_imports() {
 # ==============================================================================
 EOF
 
-  # Resolve Garage bucket IDs if garage token is present
-  if [ -n "${GARAGE_TOKEN:-}" ]; then
+  local a_token="${GARAGE_A_TOKEN:-${GARAGE_TOKEN:-}}"
+  local b_token="${GARAGE_B_TOKEN:-${GARAGE_TOKEN:-}}"
+  local c_token="${GARAGE_C_TOKEN:-${GARAGE_TOKEN:-}}"
+
+  # Resolve Garage bucket IDs if any garage token is present
+  if [ -n "${a_token}" ] || [ -n "${b_token}" ] || [ -n "${c_token}" ]; then
     echo ">> Resolving pre-existing Garage bucket IDs..."
     local g_a_id=""
     local g_b_id=""
+    local g_c_id=""
 
     # Tier A: Synology NAS
-    for ep in "http://synology.alexlebens.dev:3903/v2/GetBucketInfo?globalAlias=web-assets" \
-              "http://synology.alexlebens.dev:3903/v2/GetBucketInfo?search=web-assets" \
-              "http://synology.alexlebens.dev:3903/v1/bucket?alias=web-assets" \
-              "http://synology.alexlebens.dev:3903/v2/ListBuckets" \
-              "http://synology.alexlebens.dev:3903/v1/bucket"; do
-      echo ">> Checking Synology A for bucket web-assets at ${ep}..."
-      resp=$(curl -sk --connect-timeout 5 --max-time 10 -H "Authorization: Bearer ${GARAGE_TOKEN}" "${ep}" || true)
-      if echo "$resp" | jq -e 'type == "array"' >/dev/null 2>&1; then
-        id=$(echo "$resp" | jq -r '.[] | select((.globalAliases[]? // empty) == "web-assets" or .name == "web-assets") | .id // empty' 2>/dev/null | head -n 1 || true)
-      else
-        id=$(echo "$resp" | jq -r '.id // empty' 2>/dev/null || true)
-      fi
-      if [ -n "$id" ]; then
-        g_a_id="$id"
-        echo ">> Successfully resolved Garage bucket ID for web-assets: ${g_a_id}"
-        break
-      fi
-    done
+    if [ -n "${a_token}" ]; then
+      for ep in "http://synology.alexlebens.dev:3903/v2/GetBucketInfo?globalAlias=web-assets" \
+                "http://synology.alexlebens.dev:3903/v2/GetBucketInfo?search=web-assets" \
+                "http://synology.alexlebens.dev:3903/v1/bucket?alias=web-assets" \
+                "http://synology.alexlebens.dev:3903/v2/ListBuckets" \
+                "http://synology.alexlebens.dev:3903/v1/bucket"; do
+        echo ">> Checking Synology A for bucket web-assets at ${ep}..."
+        resp=$(curl -sk --connect-timeout 5 --max-time 10 -H "Authorization: Bearer ${a_token}" "${ep}" || true)
+        if echo "$resp" | jq -e 'type == "array"' >/dev/null 2>&1; then
+          id=$(echo "$resp" | jq -r '.[] | select((.globalAliases[]? // empty) == "web-assets" or .name == "web-assets") | .id // empty' 2>/dev/null | head -n 1 || true)
+        else
+          id=$(echo "$resp" | jq -r '.id // empty' 2>/dev/null || true)
+        fi
+        if [ -n "$id" ]; then
+          g_a_id="$id"
+          echo ">> Successfully resolved Garage bucket ID for Tier A web-assets: ${g_a_id}"
+          break
+        fi
+      done
+    fi
 
     # Tier B: Kubernetes Cluster
-    for ep in "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v2/GetBucketInfo?globalAlias=reactive-resume-assets" \
-              "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v2/GetBucketInfo?search=reactive-resume-assets" \
-              "http://garage-cluster-b.garage-operator:3903/v2/GetBucketInfo?globalAlias=reactive-resume-assets" \
-              "http://garage-cluster-b.garage-operator:3903/v2/GetBucketInfo?search=reactive-resume-assets" \
-              "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v1/bucket?alias=reactive-resume-assets" \
-              "http://garage-cluster-b.garage-operator:3903/v1/bucket?alias=reactive-resume-assets" \
-              "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v2/ListBuckets" \
-              "http://garage-cluster-b.garage-operator:3903/v2/ListBuckets"; do
-      echo ">> Checking Cluster B for bucket reactive-resume-assets at ${ep}..."
-      resp=$(curl -sk --connect-timeout 5 --max-time 10 -H "Authorization: Bearer ${GARAGE_TOKEN}" "${ep}" || true)
-      if echo "$resp" | jq -e 'type == "array"' >/dev/null 2>&1; then
-        id=$(echo "$resp" | jq -r '.[] | select((.globalAliases[]? // empty) == "reactive-resume-assets" or .name == "reactive-resume-assets") | .id // empty' 2>/dev/null | head -n 1 || true)
-      else
-        id=$(echo "$resp" | jq -r '.id // empty' 2>/dev/null || true)
-      fi
-      if [ -n "$id" ]; then
-        g_b_id="$id"
-        echo ">> Successfully resolved Garage bucket ID for reactive-resume: ${g_b_id}"
-        break
-      fi
-    done
+    if [ -n "${b_token}" ]; then
+      for ep in "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v2/GetBucketInfo?globalAlias=reactive-resume-assets" \
+                "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v2/GetBucketInfo?search=reactive-resume-assets" \
+                "http://garage-cluster-b.garage-operator:3903/v2/GetBucketInfo?globalAlias=reactive-resume-assets" \
+                "http://garage-cluster-b.garage-operator:3903/v2/GetBucketInfo?search=reactive-resume-assets" \
+                "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v1/bucket?alias=reactive-resume-assets" \
+                "http://garage-cluster-b.garage-operator:3903/v1/bucket?alias=reactive-resume-assets" \
+                "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v2/ListBuckets" \
+                "http://garage-cluster-b.garage-operator:3903/v2/ListBuckets"; do
+        echo ">> Checking Cluster B for bucket reactive-resume-assets at ${ep}..."
+        resp=$(curl -sk --connect-timeout 5 --max-time 10 -H "Authorization: Bearer ${b_token}" "${ep}" || true)
+        if echo "$resp" | jq -e 'type == "array"' >/dev/null 2>&1; then
+          id=$(echo "$resp" | jq -r '.[] | select((.globalAliases[]? // empty) == "reactive-resume-assets" or .name == "reactive-resume-assets") | .id // empty' 2>/dev/null | head -n 1 || true)
+        else
+          id=$(echo "$resp" | jq -r '.id // empty' 2>/dev/null || true)
+        fi
+        if [ -n "$id" ]; then
+          g_b_id="$id"
+          echo ">> Successfully resolved Garage bucket ID for Tier B reactive-resume: ${g_b_id}"
+          break
+        fi
+      done
+    fi
+
+    # Tier C: Raspberry Pi (ps10rp)
+    if [ -n "${c_token}" ]; then
+      for ep in "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v2/GetBucketInfo?globalAlias=web-assets" \
+                "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v2/GetBucketInfo?search=web-assets" \
+                "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v1/bucket?alias=web-assets" \
+                "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v2/ListBuckets" \
+                "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v1/bucket"; do
+        echo ">> Checking Raspberry Pi C for bucket web-assets at ${ep}..."
+        resp=$(curl -sk --connect-timeout 5 --max-time 10 -H "Authorization: Bearer ${c_token}" "${ep}" || true)
+        if echo "$resp" | jq -e 'type == "array"' >/dev/null 2>&1; then
+          id=$(echo "$resp" | jq -r '.[] | select((.globalAliases[]? // empty) == "web-assets" or .name == "web-assets") | .id // empty' 2>/dev/null | head -n 1 || true)
+        else
+          id=$(echo "$resp" | jq -r '.id // empty' 2>/dev/null || true)
+        fi
+        if [ -n "$id" ]; then
+          g_c_id="$id"
+          echo ">> Successfully resolved Garage bucket ID for Tier C web-assets: ${g_c_id}"
+          break
+        fi
+      done
+    fi
 
     # Fallback to known live cluster bucket IDs if discovery timed out
     g_a_id="${g_a_id:-6a509026035a0797211b6fc07cbcf51404953ae9278fb9a414a55aceb0abf670}"
@@ -268,85 +299,15 @@ EOF
 
     output_var "garage_a_bucket_id" "${g_a_id}"
     output_var "garage_b_bucket_id" "${g_b_id}"
+    output_var "garage_c_bucket_id" "${g_c_id}"
     echo ">> Exported garage_a_bucket_id: ${g_a_id}"
     echo ">> Exported garage_b_bucket_id: ${g_b_id}"
-  fi
+    echo ">> Exported garage_c_bucket_id: ${g_c_id}"
 
-  # Resolve Backblaze B2 bucket IDs
-  if [ -n "$key" ] && [ -n "$secret" ]; then
-    echo ">> Resolving Backblaze B2 bucket IDs for OpenTofu..."
-    local auth_resp="" token="" api_url="" account_id=""
-
-    for version in "v4" "v2" "v3"; do
-      echo ">> Attempting Backblaze B2 authorization via ${version}..."
-      auth_resp=$(curl -sk --connect-timeout 6 --max-time 12 -u "${key}:${secret}" "https://api.backblazeb2.com/b2api/${version}/b2_authorize_account" || true)
-      token=$(echo "$auth_resp" | jq -r '.authorizationToken // empty' 2>/dev/null || true)
-      api_url=$(echo "$auth_resp" | jq -r '.apiInfo.storageApi.apiUrl // .apiUrl // empty' 2>/dev/null || true)
-      account_id=$(echo "$auth_resp" | jq -r '.accountId // empty' 2>/dev/null || true)
-      if [ -n "$token" ] && [ -n "$api_url" ] && [ -n "$account_id" ]; then
-        echo ">> Successfully authorized with Backblaze B2 API (${version})"
-        break
-      fi
-    done
-
-    if [ -n "$token" ] && [ -n "$api_url" ] && [ -n "$account_id" ]; then
-      local buckets_resp="" web_id="" resume_id=""
-
-      for version in "v4" "v2"; do
-        echo ">> Listing Backblaze B2 buckets via ${version}..."
-        buckets_resp=$(curl -sk --connect-timeout 6 --max-time 12 \
-          -H "Authorization: ${token}" \
-          "${api_url}/b2api/${version}/b2_list_buckets?accountId=${account_id}" || true)
-
-        web_id=$(echo "$buckets_resp" | jq -r '.buckets[]? | select(.bucketName == "web-assets-770aef58c931fcf4") | .bucketId // empty' 2>/dev/null || true)
-        resume_id=$(echo "$buckets_resp" | jq -r '.buckets[]? | select(.bucketName == "reactive-resume-assets-61758b59b4c7c893") | .bucketId // empty' 2>/dev/null || true)
-
-        if [ -z "$web_id" ] && [ -z "$resume_id" ]; then
-          buckets_resp=$(curl -sk --connect-timeout 6 --max-time 12 -X POST \
-            -H "Authorization: ${token}" \
-            -H "Content-Type: application/json" \
-            -d "{\"accountId\": \"${account_id}\"}" \
-            "${api_url}/b2api/${version}/b2_list_buckets" || true)
-          web_id=$(echo "$buckets_resp" | jq -r '.buckets[]? | select(.bucketName == "web-assets-770aef58c931fcf4") | .bucketId // empty' 2>/dev/null || true)
-          resume_id=$(echo "$buckets_resp" | jq -r '.buckets[]? | select(.bucketName == "reactive-resume-assets-61758b59b4c7c893") | .bucketId // empty' 2>/dev/null || true)
-        fi
-
-        if [ -n "$web_id" ] || [ -n "$resume_id" ]; then
-          echo ">> Found B2 buckets in listing (${version})"
-          break
-        fi
-      done
-
-      # Fallback to known live bucket IDs if discovery timed out
-      web_id="${web_id:-cd910b4e5a9cf5529ddf0211}"
-      resume_id="${resume_id:-cd419b0eba4c2562ad0f0211}"
-
-      if [ -n "$web_id" ]; then
-        cat <<EOF >> tofu/buckets/import.tf
-import {
-  to = b2_bucket.d_cs01bb["web-assets"]
-  id = "${web_id}"
-}
-EOF
-        echo ">> Resolved Backblaze bucket ID for web-assets: ${web_id}"
-      else
-        echo ">> Notice: Backblaze bucket ID for web-assets not resolved."
-      fi
-
-      if [ -n "$resume_id" ]; then
-        cat <<EOF >> tofu/buckets/import.tf
-import {
-  to = b2_bucket.d_cs01bb["reactive-resume"]
-  id = "${resume_id}"
-}
-EOF
-        echo ">> Resolved Backblaze bucket ID for reactive-resume: ${resume_id}"
-      else
-        echo ">> Notice: Backblaze bucket ID for reactive-resume not resolved."
-      fi
-    else
-      echo ">> Notice: Unable to authorize with Backblaze B2 Native API to resolve bucket IDs."
-      echo ">> Backblaze auth response was: $(echo "${auth_resp:-empty}" | head -c 200)"
+    if [ -n "${GITHUB_ENV:-}" ]; then
+      echo "GARAGE_A_BUCKET_ID=${g_a_id}" >> "${GITHUB_ENV}"
+      echo "GARAGE_B_BUCKET_ID=${g_b_id}" >> "${GITHUB_ENV}"
+      echo "GARAGE_C_BUCKET_ID=${g_c_id}" >> "${GITHUB_ENV}"
     fi
   fi
 
