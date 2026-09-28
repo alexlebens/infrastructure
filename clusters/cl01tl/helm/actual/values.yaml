@@ -3,8 +3,22 @@ actual:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          fsGroup: 1001
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/actualbudget/actual
             tag: 26.9.0@sha256:552beab3dec8c93d46b8b9245612d63c3f123b8a45063a474f53e229b17621d3
@@ -27,7 +41,7 @@ actual:
           resources:
             requests:
               cpu: 25m
-              memory: 50Mi
+              memory: 90Mi
           probes:
             liveness:
               enabled: true
@@ -41,15 +55,59 @@ actual:
                     - node src/scripts/health-check.js
                 initialDelaySeconds: 60
                 timeoutSeconds: 10
+        metrics:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: sakowicz/actual-budget-prometheus-exporter
+            tag: 1.2.15@sha256:389519f6a5428d790eff83e94d3c83cb62ccce96fd8fcbac16b3951f9390e7fc
+          env:
+            - name: ACTUAL_SERVER_URL
+              value: http://localhost:5006
+            - name: ACTUAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: actual-metrics
+                  key: password
+            - name: ACTUAL_BUDGET_ID_1
+              valueFrom:
+                secretKeyRef:
+                  name: actual-metrics
+                  key: budget-id
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
   service:
     main:
+      forceRename: actual
       ports:
         http:
           port: 80
           targetPort: 5006
+        metrics:
+          port: 3001
+  serviceMonitor:
+    main:
+      serviceName: actual
+      endpoints:
+        - port: metrics
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Budgeting"
+        gethomepage.dev/description: "Actual"
+        gethomepage.dev/group: "Knowledge"
+        gethomepage.dev/icon: "sh-actual-budget.webp"
+        gethomepage.dev/siteMonitor: "http://actual.actual:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "350"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -73,8 +131,32 @@ actual:
         main:
           main:
             - path: /data
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+          metrics:
+            - path: /tmp
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Actual Budget"
+    description: "A super fast and privacy-focused app for managing finances."
+    clientID: 60AE6E81-9F22-4E5D-8F8F-0816D8646B5C
+    callbackUrls:
+      - https://actual.alexlebens.dev/openid/callback
+    logo:
+      selfhstLogoName: actual-budget
+
 volsync-target-data:
   pvcTarget: actual-data
+  moverSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
   local:
     enabled: true
     schedule: 30 7 * * *
@@ -84,3 +166,8 @@ volsync-target-data:
   external:
     enabled: true
     schedule: 30 9 * * 0
+
+common-helpers:
+  probe:
+    internal: http://actual.actual:80
+    external: https://actual.alexlebens.dev
