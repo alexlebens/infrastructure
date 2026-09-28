@@ -81,36 +81,12 @@ echo ">> Fetching Garage admin tokens from OpenBao..."
 
 # Tier A: Synology NAS (ps02sn)
 GARAGE_A_TOKEN=""
-for path in "ps02sn/garage/token" "garage/home-infra/admin" "garage/config"; do
+for path in "ps02sn/garage/token"; do
   RESP=$(fetch_bao_path "$path")
-  T=$(echo "$RESP" | jq -r '.data.data.admin // .data.data["admin-token"] // .data.data.admin_token // .data.data.token // empty' 2>/dev/null || true)
+  T=$(echo "$RESP" | jq -r '.data.data.admin // empty' 2>/dev/null || true)
   if [ -n "$T" ]; then
     GARAGE_A_TOKEN="$T"
-    echo ">> Loaded Garage A (ps02sn) admin token from OpenBao: secret/${path}"
-    break
-  fi
-done
-
-# Tier B: Talos Kubernetes (cl01tl)
-GARAGE_B_TOKEN=""
-for path in "cl01tl/garage/token" "cl01tl/garage-operator/config" "garage/home-infra/admin" "garage/config"; do
-  RESP=$(fetch_bao_path "$path")
-  T=$(echo "$RESP" | jq -r '.data.data.admin // .data.data["admin-token"] // .data.data.admin_token // .data.data.token // empty' 2>/dev/null || true)
-  if [ -n "$T" ]; then
-    GARAGE_B_TOKEN="$T"
-    echo ">> Loaded Garage B (cl01tl) admin token from OpenBao: secret/${path}"
-    break
-  fi
-done
-
-# Tier C: Remote Raspberry Pi (ps10rp)
-GARAGE_C_TOKEN=""
-for path in "ps10rp/garage/token" "garage/home-infra/admin" "garage/config"; do
-  RESP=$(fetch_bao_path "$path")
-  T=$(echo "$RESP" | jq -r '.data.data.admin // .data.data["admin-token"] // .data.data.admin_token // .data.data.token // empty' 2>/dev/null || true)
-  if [ -n "$T" ]; then
-    GARAGE_C_TOKEN="$T"
-    echo ">> Loaded Garage C (ps10rp) admin token from OpenBao: secret/${path}"
+    echo ">> Loaded Tier A (ps02sn) admin token from OpenBao: secret/${path}"
     break
   fi
 done
@@ -120,94 +96,49 @@ if [ -n "${GARAGE_A_TOKEN}" ]; then
   output_var "garage_a_token" "${GARAGE_A_TOKEN}"
 fi
 
+# Tier B: Kubernetes (cl01tl)
+GARAGE_B_TOKEN=""
+for path in "cl01tl/garage/token"; do
+  RESP=$(fetch_bao_path "$path")
+  T=$(echo "$RESP" | jq -r '.data.data.admin // empty' 2>/dev/null || true)
+  if [ -n "$T" ]; then
+    GARAGE_B_TOKEN="$T"
+    echo ">> Loaded Tier B (cl01tl) admin token from OpenBao: secret/${path}"
+    break
+  fi
+done
+
 if [ -n "${GARAGE_B_TOKEN}" ]; then
   mask_var "${GARAGE_B_TOKEN}"
   output_var "garage_b_token" "${GARAGE_B_TOKEN}"
 fi
+
+# Tier C: Raspberry Pi (ps10rp)
+GARAGE_C_TOKEN=""
+for path in "ps10rp/garage/token"; do
+  RESP=$(fetch_bao_path "$path")
+  T=$(echo "$RESP" | jq -r '.data.data.admin // empty' 2>/dev/null || true)
+  if [ -n "$T" ]; then
+    GARAGE_C_TOKEN="$T"
+    echo ">> Loaded Tier C (ps10rp) admin token from OpenBao: secret/${path}"
+    break
+  fi
+done
 
 if [ -n "${GARAGE_C_TOKEN}" ]; then
   mask_var "${GARAGE_C_TOKEN}"
   output_var "garage_c_token" "${GARAGE_C_TOKEN}"
 fi
 
-# Fallback token for backward compatibility
-GARAGE_TOKEN="${GARAGE_B_TOKEN:-${GARAGE_A_TOKEN:-${GARAGE_C_TOKEN:-}}}"
-if [ -n "${GARAGE_TOKEN}" ]; then
-  output_var "garage_token" "${GARAGE_TOKEN}"
-fi
-
-# Retrieve S3 / Garage Endpoints from OpenBao if available
-echo ">> Checking for storage endpoints in OpenBao..."
-
-# Tier A (ps02sn)
-GARAGE_A_CFG=$(fetch_bao_path "ps02sn/garage/config")
-GARAGE_A_EP=$(echo "$GARAGE_A_CFG" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
-if [ -z "${GARAGE_A_EP}" ]; then
-  GARAGE_A_EP=$(fetch_bao_path "garage/config" | jq -r '.data.data.ENDPOINT_CLUSTER_A // empty' 2>/dev/null || true)
-fi
-
-# Tier B (cl01tl)
-GARAGE_B_CFG=$(fetch_bao_path "cl01tl/garage/config")
-GARAGE_B_EP=$(echo "$GARAGE_B_CFG" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
-if [ -z "${GARAGE_B_EP}" ]; then
-  GARAGE_B_EP=$(fetch_bao_path "garage/config" | jq -r '.data.data.ENDPOINT_CLUSTER_B // empty' 2>/dev/null || true)
-fi
-
-# Tier C (ps10rp - Remote Garage)
-GARAGE_C_CFG=$(fetch_bao_path "ps10rp/garage/config")
-GARAGE_C_EP=$(echo "$GARAGE_C_CFG" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
-if [ -z "${GARAGE_C_EP}" ]; then
-  GARAGE_C_EP=$(fetch_bao_path "garage/config" | jq -r '.data.data.ENDPOINT_REMOTE // empty' 2>/dev/null || true)
-fi
-
-# Tier D (cs01bb - Backblaze B2)
-BACKBLAZE_CFG=$(fetch_bao_path "cs01bb/s3/config")
-BACKBLAZE_EP=$(echo "$BACKBLAZE_CFG" | jq -r '.data.data.ENDPOINT // .data.data.endpoint // empty' 2>/dev/null || true)
-if [ -z "${BACKBLAZE_EP}" ]; then
-  BACKBLAZE_EP=$(fetch_bao_path "backblaze/config" | jq -r '.data.data.ENDPOINT // empty' 2>/dev/null || true)
-fi
-
-if [ -n "${GARAGE_A_EP}" ]; then
-  echo ">> Loaded Synology A S3 endpoint from OpenBao: ${GARAGE_A_EP}"
-  output_var "garage_a_s3_endpoint" "${GARAGE_A_EP}"
-  if [ -n "${GITHUB_ENV:-}" ]; then
-    echo "TF_VAR_garage_a_ps02sn_s3_endpoint=${GARAGE_A_EP}" >> "${GITHUB_ENV}"
-  fi
-fi
-
-if [ -n "${GARAGE_B_EP}" ]; then
-  echo ">> Loaded Cluster B S3 endpoint from OpenBao: ${GARAGE_B_EP}"
-  output_var "garage_b_s3_endpoint" "${GARAGE_B_EP}"
-  if [ -n "${GITHUB_ENV:-}" ]; then
-    echo "TF_VAR_garage_b_cl01tl_s3_endpoint=${GARAGE_B_EP}" >> "${GITHUB_ENV}"
-  fi
-fi
-
-if [ -n "${GARAGE_C_EP}" ]; then
-  echo ">> Loaded Remote Garage C (ps10rp) S3 endpoint from OpenBao: ${GARAGE_C_EP}"
-  output_var "garage_c_s3_endpoint" "${GARAGE_C_EP}"
-  if [ -n "${GITHUB_ENV:-}" ]; then
-    echo "TF_VAR_garage_c_ps10rp_s3_endpoint=${GARAGE_C_EP}" >> "${GITHUB_ENV}"
-  fi
-fi
-
-if [ -n "${BACKBLAZE_EP}" ]; then
-  echo ">> Loaded Backblaze B2 endpoint from OpenBao: ${BACKBLAZE_EP}"
-  output_var "backblaze_endpoint" "${BACKBLAZE_EP}"
-  if [ -n "${GITHUB_ENV:-}" ]; then
-    echo "TF_VAR_backblaze_d_cs01bb_endpoint=${BACKBLAZE_EP}" >> "${GITHUB_ENV}"
-  fi
-fi
-
-# Retrieve Backblaze B2 Credentials (primary: cs01bb/s3/keys/master or backblaze/home-infra/s3-exporter)
+# Retrieve Backblaze B2 Credentials
 echo ">> Fetching Backblaze credentials from OpenBao..."
 BACKBLAZE_KEY=""
 BACKBLAZE_SECRET=""
 
-for path in "cs01bb/s3/keys/master" "cs01bb/s3/keys/admin" "backblaze/home-infra/master" "backblaze/master" "backblaze/home-infra/s3-exporter" "backblaze/home-infra/talos-backups" "backblaze/home-infra/mariadb-backups" "backblaze/config"; do
+for path in "cs01bb/s3/keys/admin"; do
   RESP=$(fetch_bao_path "$path")
-  K=$(echo "$RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // .data.data.ACCESS_KEY_ID // empty' 2>/dev/null || true)
-  S=$(echo "$RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // .data.data.ACCESS_SECRET_KEY // empty' 2>/dev/null || true)
+  K=$(echo "$RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
+  S=$(echo "$RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
   if [ -n "$K" ] && [ -n "$S" ]; then
     BACKBLAZE_KEY="$K"
     BACKBLAZE_SECRET="$S"
@@ -216,6 +147,58 @@ for path in "cs01bb/s3/keys/master" "cs01bb/s3/keys/admin" "backblaze/home-infra
   fi
 done
 
+# Retrieve S3 / Garage Endpoints from OpenBao if available
+echo ">> Checking for storage endpoints in OpenBao..."
+
+# Tier A (ps02sn)
+GARAGE_A_CFG=$(fetch_bao_path "ps02sn/garage/config")
+GARAGE_A_EP=$(echo "$GARAGE_A_CFG" | jq -r '.data.data.ENDPOINT // empty' 2>/dev/null || true)
+
+if [ -n "${GARAGE_A_EP}" ]; then
+  echo ">> Loaded Tier A S3 endpoint from OpenBao: ${GARAGE_A_EP}"
+  output_var "garage_a_s3_endpoint" "${GARAGE_A_EP}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_garage_a_ps02sn_s3_endpoint=${GARAGE_A_EP}" >> "${GITHUB_ENV}"
+  fi
+fi
+
+# Tier B (cl01tl)
+GARAGE_B_CFG=$(fetch_bao_path "cl01tl/garage/config")
+GARAGE_B_EP=$(echo "$GARAGE_B_CFG" | jq -r '.data.data.ENDPOINT // empty' 2>/dev/null || true)
+
+if [ -n "${GARAGE_B_EP}" ]; then
+  echo ">> Loaded Tier B S3 endpoint from OpenBao: ${GARAGE_B_EP}"
+  output_var "garage_b_s3_endpoint" "${GARAGE_B_EP}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_garage_b_cl01tl_s3_endpoint=${GARAGE_B_EP}" >> "${GITHUB_ENV}"
+  fi
+fi
+
+# Tier C (ps10rp - Remote Garage)
+GARAGE_C_CFG=$(fetch_bao_path "ps10rp/garage/config")
+GARAGE_C_EP=$(echo "$GARAGE_C_CFG" | jq -r '.data.data.ENDPOINT // empty' 2>/dev/null || true)
+
+if [ -n "${GARAGE_C_EP}" ]; then
+  echo ">> Loaded Tier C (ps10rp) S3 endpoint from OpenBao: ${GARAGE_C_EP}"
+  output_var "garage_c_s3_endpoint" "${GARAGE_C_EP}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_garage_c_ps10rp_s3_endpoint=${GARAGE_C_EP}" >> "${GITHUB_ENV}"
+  fi
+fi
+
+# Tier D (cs01bb - Backblaze B2)
+BACKBLAZE_CFG=$(fetch_bao_path "cs01bb/s3/config")
+BACKBLAZE_EP=$(echo "$BACKBLAZE_CFG" | jq -r '.data.data.ENDPOINT // empty' 2>/dev/null || true)
+
+if [ -n "${BACKBLAZE_EP}" ]; then
+  echo ">> Loaded Tier D endpoint from OpenBao: ${BACKBLAZE_EP}"
+  output_var "backblaze_endpoint" "${BACKBLAZE_EP}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_backblaze_d_cs01bb_endpoint=${BACKBLAZE_EP}" >> "${GITHUB_ENV}"
+  fi
+fi
+
+# Configure imports from existing resources
 configure_opentofu_imports() {
   local key="$1"
   local secret="$2"
@@ -256,7 +239,7 @@ EOF
       fi
     done
 
-    # Tier B: Talos Cluster B
+    # Tier B: Kubernetes Cluster
     for ep in "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v2/GetBucketInfo?globalAlias=reactive-resume-assets" \
               "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v2/GetBucketInfo?search=reactive-resume-assets" \
               "http://garage-cluster-b.garage-operator:3903/v2/GetBucketInfo?globalAlias=reactive-resume-assets" \
