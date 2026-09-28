@@ -39,18 +39,13 @@ resource "aws_s3_bucket_cors_configuration" "a_ps02sn" {
   }
 }
 
-resource "aws_s3_bucket_website_configuration" "a_ps02sn" {
-  provider = aws.a_ps02sn
+resource "garage_bucket_website" "a_ps02sn" {
+  provider = garage.a_ps02sn
   for_each = local.website_a_ps02sn_buckets
-  bucket   = garage_bucket.a_ps02sn[each.key].global_alias
+  bucket_id      = garage_bucket.a_ps02sn[each.key].id
 
-  index_document {
-    suffix = each.value.website.index_document
-  }
-
-  error_document {
-    key = each.value.website.error_document
-  }
+  index_document = each.value.website.index_document
+  error_document = each.value.website.error_document
 }
 
 # ==============================================================================
@@ -94,18 +89,13 @@ resource "aws_s3_bucket_cors_configuration" "b_cl01tl" {
   }
 }
 
-resource "aws_s3_bucket_website_configuration" "b_cl01tl" {
-  provider = aws.b_cl01tl
+resource "garage_bucket_website" "b_cl01tl" {
+  provider = garage.b_cl01tl
   for_each = local.website_b_cl01tl_buckets
-  bucket   = garage_bucket.b_cl01tl[each.key].global_alias
+  bucket_id      = garage_bucket.b_cl01tl[each.key].id
 
-  index_document {
-    suffix = each.value.website.index_document
-  }
-
-  error_document {
-    key = each.value.website.error_document
-  }
+  index_document = each.value.website.index_document
+  error_document = each.value.website.error_document
 }
 
 # ==============================================================================
