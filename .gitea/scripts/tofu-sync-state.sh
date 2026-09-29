@@ -52,14 +52,14 @@ fi
 
 STATE_UPDATED=false
 
-# 1. Garage Tier A: web-assets on a_ps02sn
+# 1. Garage Tier A (a_ps02sn): web-assets
 # Discovered ID: 6a509026035a0797211b6fc07cbcf51404953ae9278fb9a414a55aceb0abf670
-GARAGE_A_ID="${GARAGE_A_BUCKET_ID:-6a509026035a0797211b6fc07cbcf51404953ae9278fb9a414a55aceb0abf670}"
-HAS_A_BUCKET=$(jq -r '.resources[]? | select(.type == "garage_bucket" and .name == "a_ps02sn") | .instances[]? | select(.index_key == "web-assets") | .attributes.id // empty' "${STATE_FILE}" 2>/dev/null || true)
+GARAGE_A_WEB_ID="${GARAGE_A_WEB_ASSETS_BUCKET_ID:-${GARAGE_A_BUCKET_ID:-6a509026035a0797211b6fc07cbcf51404953ae9278fb9a414a55aceb0abf670}}"
+HAS_A_WEB_BUCKET=$(jq -r '.resources[]? | select(.type == "garage_bucket" and .name == "a_ps02sn") | .instances[]? | select(.index_key == "web-assets") | .attributes.id // empty' "${STATE_FILE}" 2>/dev/null || true)
 
-if [ -z "${HAS_A_BUCKET}" ] && [ -n "${GARAGE_A_ID}" ]; then
-  echo ">> Injecting garage_bucket.a_ps02sn[\"web-assets\"] (id: ${GARAGE_A_ID}) into state..."
-  jq --arg id "${GARAGE_A_ID}" '
+if [ -z "${HAS_A_WEB_BUCKET}" ] && [ -n "${GARAGE_A_WEB_ID}" ]; then
+  echo ">> Injecting garage_bucket.a_ps02sn[\"web-assets\"] (id: ${GARAGE_A_WEB_ID}) into state..."
+  jq --arg id "${GARAGE_A_WEB_ID}" '
     .serial += 1 |
     .resources += [{
       "mode": "managed",
@@ -83,7 +83,37 @@ if [ -z "${HAS_A_BUCKET}" ] && [ -n "${GARAGE_A_ID}" ]; then
   STATE_UPDATED=true
 fi
 
-# 2. Garage Tier B: reactive-resume on b_cl01tl
+# 2. Garage Tier A (a_ps02sn): affine-assets
+GARAGE_A_AFFINE_ID="${GARAGE_A_AFFINE_ASSETS_BUCKET_ID:-}"
+HAS_A_AFFINE_BUCKET=$(jq -r '.resources[]? | select(.type == "garage_bucket" and .name == "a_ps02sn") | .instances[]? | select(.index_key == "affine") | .attributes.id // empty' "${STATE_FILE}" 2>/dev/null || true)
+
+if [ -z "${HAS_A_AFFINE_BUCKET}" ] && [ -n "${GARAGE_A_AFFINE_ID}" ]; then
+  echo ">> Injecting garage_bucket.a_ps02sn[\"affine\"] (id: ${GARAGE_A_AFFINE_ID}) into state..."
+  jq --arg id "${GARAGE_A_AFFINE_ID}" '
+    .serial += 1 |
+    .resources += [{
+      "mode": "managed",
+      "type": "garage_bucket",
+      "name": "a_ps02sn",
+      "provider": "provider[\"registry.terraform.io/arsolitt/garagehq\"].a_ps02sn",
+      "instances": [{
+        "index_key": "affine",
+        "schema_version": 0,
+        "attributes": {
+          "bytes": 0,
+          "global_alias": "affine-assets",
+          "id": $id,
+          "objects": 0
+        },
+        "sensitive_attributes": []
+      }]
+    }]
+  ' "${STATE_FILE}" > "${NEW_STATE}"
+  cp "${NEW_STATE}" "${STATE_FILE}"
+  STATE_UPDATED=true
+fi
+
+# 3. Garage Tier B (b_cl01tl): reactive-resume
 # Discovered ID: 23cdcf4b0797078fe2addeb430250f4ec1853a25ac6810327979f00890553d46
 GARAGE_B_ID="${GARAGE_B_BUCKET_ID:-23cdcf4b0797078fe2addeb430250f4ec1853a25ac6810327979f00890553d46}"
 HAS_B_BUCKET=$(jq -r '.resources[]? | select(.type == "garage_bucket" and .name == "b_cl01tl") | .instances[]? | select(.index_key == "reactive-resume") | .attributes.id // empty' "${STATE_FILE}" 2>/dev/null || true)
@@ -114,13 +144,13 @@ if [ -z "${HAS_B_BUCKET}" ] && [ -n "${GARAGE_B_ID}" ]; then
   STATE_UPDATED=true
 fi
 
-# 3. Garage Tier C: web-assets on c_ps10rp
-GARAGE_C_ID="${GARAGE_C_BUCKET_ID:-<YOUR_HEX_ID_HERE>}"
-HAS_C_BUCKET=$(jq -r '.resources[]? | select(.type == "garage_bucket" and .name == "c_ps10rp") | .instances[]? | select(.index_key == "web-assets") | .attributes.id // empty' "${STATE_FILE}" 2>/dev/null || true)
+# 4. Garage Tier C (c_ps10rp): web-assets
+GARAGE_C_WEB_ID="${GARAGE_C_WEB_ASSETS_BUCKET_ID:-${GARAGE_C_BUCKET_ID:-}}"
+HAS_C_WEB_BUCKET=$(jq -r '.resources[]? | select(.type == "garage_bucket" and .name == "c_ps10rp") | .instances[]? | select(.index_key == "web-assets") | .attributes.id // empty' "${STATE_FILE}" 2>/dev/null || true)
 
-if [ -z "${HAS_C_BUCKET}" ] && [ -n "${GARAGE_C_ID}" ]; then
-  echo ">> Injecting garage_bucket.c_ps10rp[\"web-assets\"] (id: ${GARAGE_C_ID}) into state..."
-  jq --arg id "${GARAGE_C_ID}" '
+if [ -z "${HAS_C_WEB_BUCKET}" ] && [ -n "${GARAGE_C_WEB_ID}" ]; then
+  echo ">> Injecting garage_bucket.c_ps10rp[\"web-assets\"] (id: ${GARAGE_C_WEB_ID}) into state..."
+  jq --arg id "${GARAGE_C_WEB_ID}" '
     .serial += 1 |
     .resources += [{
       "mode": "managed",
@@ -133,6 +163,36 @@ if [ -z "${HAS_C_BUCKET}" ] && [ -n "${GARAGE_C_ID}" ]; then
         "attributes": {
           "bytes": 0,
           "global_alias": "web-assets",
+          "id": $id,
+          "objects": 0
+        },
+        "sensitive_attributes": []
+      }]
+    }]
+  ' "${STATE_FILE}" > "${NEW_STATE}"
+  cp "${NEW_STATE}" "${STATE_FILE}"
+  STATE_UPDATED=true
+fi
+
+# 5. Garage Tier C (c_ps10rp): affine-assets
+GARAGE_C_AFFINE_ID="${GARAGE_C_AFFINE_ASSETS_BUCKET_ID:-}"
+HAS_C_AFFINE_BUCKET=$(jq -r '.resources[]? | select(.type == "garage_bucket" and .name == "c_ps10rp") | .instances[]? | select(.index_key == "affine") | .attributes.id // empty' "${STATE_FILE}" 2>/dev/null || true)
+
+if [ -z "${HAS_C_AFFINE_BUCKET}" ] && [ -n "${GARAGE_C_AFFINE_ID}" ]; then
+  echo ">> Injecting garage_bucket.c_ps10rp[\"affine\"] (id: ${GARAGE_C_AFFINE_ID}) into state..."
+  jq --arg id "${GARAGE_C_AFFINE_ID}" '
+    .serial += 1 |
+    .resources += [{
+      "mode": "managed",
+      "type": "garage_bucket",
+      "name": "c_ps10rp",
+      "provider": "provider[\"registry.terraform.io/arsolitt/garagehq\"].c_ps10rp",
+      "instances": [{
+        "index_key": "affine",
+        "schema_version": 0,
+        "attributes": {
+          "bytes": 0,
+          "global_alias": "affine-assets",
           "id": $id,
           "objects": 0
         },

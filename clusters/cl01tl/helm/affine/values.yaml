@@ -8,6 +8,25 @@ affine:
           seccompProfile:
             type: RuntimeDefault
       initContainers:
+        init-copy-config:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: busybox
+            tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cp -f /tmp/config.json /root/.affine/config/config.json
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
         migration:
           securityContext:
             allowPrivilegeEscalation: false
@@ -175,11 +194,8 @@ affine:
                 name: affine-config
       advancedMounts:
         main:
-          migration:
-            - path: /root/.affine/config
-              readOnly: true
-          main:
-            - path: /root/.affine/config
+          init-copy-config:
+            - path: /tmp
               readOnly: true
     storage:
       forceRename: affine-storage
@@ -188,6 +204,10 @@ affine:
       size: 1Gi
       advancedMounts:
         main:
+          init-copy-config:
+            - path: /root/.affine/storage
+          migration:
+            - path: /root/.affine/storage
           main:
             - path: /root/.affine/storage
     tmp:
