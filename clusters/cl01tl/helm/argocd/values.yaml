@@ -400,9 +400,9 @@ argocd-mcp:
       pod:
         securityContext:
           runAsNonRoot: true
-          runAsUser: 1001
-          runAsGroup: 1001
-          fsGroup: 1001
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
           seccompProfile:
             type: RuntimeDefault
       containers:
@@ -416,9 +416,11 @@ argocd-mcp:
           image:
             repository: ghcr.io/argoproj-labs/mcp-for-argocd
             tag: 0.9.0@sha256:dffc6c719d8635be2d5f2c8ad1c0178540325da4b40da0b373307e12b4c48f86
+          args:
+            - "http"
           env:
             - name: ARGOCD_BASE_URL
-              value: "https://argocd-server.argocd.svc.cluster.local"
+              value: "http://argocd-server.argocd.svc.cluster.local"
             - name: ARGOCD_API_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -437,25 +439,19 @@ argocd-mcp:
             requests:
               cpu: 25m
               memory: 90Mi
-          probes:
-            liveness:
-              enabled: true
-              custom: true
-              spec:
-                exec:
-                  command:
-                    - /usr/bin/env
-                    - bash
-                    - -c
-                    - node src/scripts/health-check.js
-                initialDelaySeconds: 60
-                timeoutSeconds: 10
   service:
     main:
       forceRename: argocd-mcp
       ports:
         http:
           port: 8080
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
 
 pocket-id-client:
   mode: oidc
