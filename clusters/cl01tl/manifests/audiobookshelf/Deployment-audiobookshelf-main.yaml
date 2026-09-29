@@ -33,7 +33,10 @@ spec:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
         runAsGroup: 1000
+        runAsNonRoot: true
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -59,6 +62,19 @@ spec:
                   name: audiobookshelf-config-apprise
           image: ghcr.io/caronc/apprise:v2.0.0@sha256:cc5ef662ad2a4a25958f1eddbf87f2e95f9bf637ea481f1adcec18312ad262f5
           name: apprise-api
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: main-tmp
         - env:
             - name: TZ
               value: America/Chicago
@@ -76,8 +92,14 @@ spec:
               port: 80
           resources:
             requests:
-              cpu: 1m
+              cpu: 10m
               memory: 200Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           startupProbe:
             failureThreshold: 30
             httpGet:
@@ -92,10 +114,36 @@ spec:
               readOnly: true
             - mountPath: /config
               name: config
+            - mountPath: /tmp
+              name: main-tmp
             - mountPath: /metadata
               name: metadata
             - mountPath: /mnt/store/Podcasts
               name: podcasts
+        - env:
+            - name: ABS_URL
+              value: http://localhost:80
+            - name: ABS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: api-key
+                  name: audiobookshelf-metrics
+            - name: EXPORTER_PORT
+              value: "9860"
+            - name: SCRAPE_INTERVAL_SECONDS
+              value: "300"
+          image: ghcr.io/operationeth/audiobookshelf-exporter:v0.1.7@sha256:42ab5693b38d8b1fadc4277204f1bdcc730ec54040a0d6472f6771ef71ee793d
+          name: metrics
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
       volumes:
         - name: audiobooks
           persistentVolumeClaim:
@@ -106,6 +154,8 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: audiobookshelf-config
+        - emptyDir: {}
+          name: main-tmp
         - name: metadata
           persistentVolumeClaim:
             claimName: audiobookshelf-metadata
