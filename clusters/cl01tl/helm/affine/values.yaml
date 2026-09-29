@@ -22,7 +22,7 @@ affine:
             - /bin/sh
             - -ec
             - |
-              cp -f /tmp/config.json /root/.affine/config/config.json
+              cp -f /tmp/config/config.json /root/.affine/config/config.json
           resources:
             requests:
               cpu: 10m
@@ -186,6 +186,16 @@ affine:
                 value: /
   persistence:
     config:
+      type: emptyDir
+      advancedMounts:
+        main:
+          init-copy-config:
+            - path: /root/.affine/config
+          migration:
+            - path: /root/.affine/config
+          main:
+            - path: /root/.affine/config
+    config-secret:
       type: custom
       volumeSpec:
         projected:
@@ -195,7 +205,7 @@ affine:
       advancedMounts:
         main:
           init-copy-config:
-            - path: /tmp
+            - path: /tmp/config
               readOnly: true
     storage:
       forceRename: affine-storage
@@ -204,8 +214,6 @@ affine:
       size: 1Gi
       advancedMounts:
         main:
-          init-copy-config:
-            - path: /root/.affine/storage
           migration:
             - path: /root/.affine/storage
           main:
@@ -214,6 +222,8 @@ affine:
       type: emptyDir
       advancedMounts:
         main:
+          init-copy-config:
+            - path: /tmp
           migration:
             - path: /tmp
           main:
