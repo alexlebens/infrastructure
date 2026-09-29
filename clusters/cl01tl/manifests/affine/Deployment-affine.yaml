@@ -29,95 +29,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: affine
       automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
       initContainers:
-        - args:
-            - |
-              cat <<EOF > /root/.affine/config/config.json
-              {
-                "server": {
-                  "externalUrl": "https://affine.alexlebens.dev",
-                  "port": 3010
-                },
-                "storages": {
-                  "blob.storage": {
-                    "provider": "aws-s3",
-                    "bucket": "${S3_BUCKET}",
-                    "config": {
-                      "endpoint": "${S3_ENDPOINT}",
-                      "region": "garage",
-                      "forcePathStyle": true,
-                      "credentials": {
-                        "accessKeyId": "${S3_ACCESS_KEY_ID}",
-                        "secretAccessKey": "${S3_SECRET_ACCESS_KEY}"
-                      }
-                    }
-                  },
-                  "avatar.storage": {
-                    "provider": "fs",
-                    "bucket": "avatars",
-                    "config": {
-                      "path": "/root/.affine/storage"
-                    }
-                  }
-                },
-                "copilot": {
-                  "enabled": true,
-                  "storage": {
-                    "provider": "aws-s3",
-                    "bucket": "${S3_BUCKET}",
-                    "config": {
-                      "endpoint": "${S3_ENDPOINT}",
-                      "region": "garage",
-                      "forcePathStyle": true,
-                      "credentials": {
-                        "accessKeyId": "${S3_ACCESS_KEY_ID}",
-                        "secretAccessKey": "${S3_SECRET_ACCESS_KEY}"
-                      }
-                    }
-                  },
-                  "byok": {
-                    "enabled": true,
-                    "allowCustomEndpoint": true,
-                    "allowPrivateEndpoint": true
-                  }
-                },
-                "indexer": {
-                  "enabled": false
-                }
-              }
-              EOF
-          command:
-            - /bin/sh
-            - -c
-          env:
-            - name: S3_BUCKET
-              value: affine-assets
-            - name: S3_ENDPOINT
-              value: https://a.s3.alexlebens.dev
-            - name: S3_REGION
-              valueFrom:
-                secretKeyRef:
-                  key: region
-                  name: affine-assets-key
-            - name: S3_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  key: access-key-id
-                  name: affine-assets-key
-            - name: S3_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: secret-access-key
-                  name: affine-assets-key
-          image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
-          name: init-config
-          volumeMounts:
-            - mountPath: /root/.affine/config
-              name: config
         - command:
             - node
             - ./scripts/self-host-predeploy.js
@@ -139,19 +58,32 @@ spec:
               value: "false"
           image: ghcr.io/toeverything/affine:0.27.4@sha256:b649f5ce2384ffdf13c23bccf81d759e15973d59d0b0058af65d895a84373099
           name: migration
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /root/.affine/config
               name: config
+              readOnly: true
+            - mountPath: /tmp
+              name: tmp
       containers:
         - env:
+            - name: TZ
+              value: America/Chicago
+            - name: NODE_ENV
+              value: production
             - name: DEPLOYMENT_TYPE
               value: selfhosted
             - name: AFFINE_CONFIG_PATH
               value: /root/.affine/config
-            - name: NODE_ENV
-              value: production
-            - name: TZ
-              value: America/Chicago
             - name: AFFINE_SERVER_EXTERNAL_URL
               value: https://affine.alexlebens.dev
             - name: AFFINE_SERVER_PORT
@@ -206,8 +138,14 @@ spec:
             timeoutSeconds: 5
           resources:
             requests:
-              cpu: 50m
-              memory: 500Mi
+              cpu: 30m
+              memory: 400Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           startupProbe:
             failureThreshold: 30
             httpGet:
@@ -219,11 +157,19 @@ spec:
           volumeMounts:
             - mountPath: /root/.affine/config
               name: config
+              readOnly: true
             - mountPath: /root/.affine/storage
               name: storage
+            - mountPath: /tmp
+              name: tmp
       volumes:
-        - emptyDir: {}
-          name: config
+        - name: config
+          projected:
+            sources:
+              - secret:
+                  name: affine-config
         - name: storage
           persistentVolumeClaim:
             claimName: affine-storage
+        - emptyDir: {}
+          name: tmp
