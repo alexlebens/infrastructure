@@ -21,6 +21,7 @@ argocd:
       admin.enabled: true
       accounts.gitea: apiKey
       accounts.homepage: apiKey
+      accounts.mcp: apiKey
       url: https://argocd.alexlebens.dev
       statusbadge.url: https://argocd.alexlebens.dev/
       statusbadge.enabled: true
@@ -108,6 +109,7 @@ argocd:
         p, role:ci-diff, applications, sync, */*, allow
         p, role:ci-diff, projects, get, *, allow
         g, gitea, role:ci-diff
+        g, mcp, role:readonly
         g, homepage, role:readonly
   controller:
     resources:
@@ -389,6 +391,71 @@ argocd:
                 "priority": 3,
                 "click": "{{.context.argocdUrl}}/applications/{{.app.metadata.namespace}}/{{.app.metadata.name}}?operation=true"
               }
+
+argocd-mcp:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          fsGroup: 1001
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: ghcr.io/argoproj-labs/mcp-for-argocd
+            tag: 0.9.0@sha256:dffc6c719d8635be2d5f2c8ad1c0178540325da4b40da0b373307e12b4c48f86
+          env:
+            - name: ARGOCD_BASE_URL
+              value: "https://argocd-server.argocd.svc.cluster.local"
+            - name: ARGOCD_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: argocd-mcp-secret
+                  key: ARGOCD_API_TOKEN
+            - name: MCP_BIND_ADDRESS
+              value: "0.0.0.0"
+            - name: PORT
+              value: "8080"
+            - name: MCP_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: argocd-mcp-secret
+                  key: MCP_AUTH_TOKEN
+          resources:
+            requests:
+              cpu: 25m
+              memory: 90Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                exec:
+                  command:
+                    - /usr/bin/env
+                    - bash
+                    - -c
+                    - node src/scripts/health-check.js
+                initialDelaySeconds: 60
+                timeoutSeconds: 10
+  service:
+    main:
+      forceRename: argocd-mcp
+      ports:
+        http:
+          port: 8080
 
 pocket-id-client:
   mode: oidc
