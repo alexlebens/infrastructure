@@ -38,6 +38,29 @@ spec:
       dnsPolicy: ClusterFirst
       initContainers:
         - command:
+            - /bin/sh
+            - -ec
+            - |
+              cp -f /tmp/config.json /root/.affine/config/config.json
+          image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+          name: init-copy-config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: config
+              readOnly: true
+            - mountPath: /root/.affine/storage
+              name: storage
+        - command:
             - node
             - ./scripts/self-host-predeploy.js
           env:
@@ -69,9 +92,8 @@ spec:
                 - ALL
             readOnlyRootFilesystem: true
           volumeMounts:
-            - mountPath: /root/.affine/config
-              name: config
-              readOnly: true
+            - mountPath: /root/.affine/storage
+              name: storage
             - mountPath: /tmp
               name: tmp
       containers:
@@ -155,9 +177,6 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 5
           volumeMounts:
-            - mountPath: /root/.affine/config
-              name: config
-              readOnly: true
             - mountPath: /root/.affine/storage
               name: storage
             - mountPath: /tmp
