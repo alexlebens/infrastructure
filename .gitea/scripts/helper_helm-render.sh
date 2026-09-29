@@ -108,6 +108,14 @@ render_helm_chart() {
     for file in "${SPLIT_DIR}"*; do
       if [ -f "${file}" ]; then
         yq -i '... comments=""' "${file}" > /dev/null 2>&1 || true
+        # Inject metadata.namespace if omitted
+        case "$(basename "${file}")" in
+          CustomResourceDefinition-*|ClusterRole-*|ClusterRoleBinding-*|ClusterSecretStore-*|ClusterIssuer-*|Namespace-*|StorageClass-*|PersistentVolume-*)
+            ;;
+          *)
+            NAMESPACE="${NAMESPACE}" yq -i '.metadata.namespace = (.metadata.namespace // env(NAMESPACE))' "${file}" > /dev/null 2>&1 || true
+            ;;
+        esac
       fi
     done
 
