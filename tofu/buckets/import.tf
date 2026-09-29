@@ -10,8 +10,3 @@
 # Pre-existing cloud replica buckets are imported into state by bucket ID.
 # Configured / generated dynamically by .gitea/scripts/tofu-fetch-secrets.sh.
 # ==============================================================================
-
-import {
-  to = garage_bucket.c_ps10rp["web-assets"]
-  id = "web-assets"
-}
