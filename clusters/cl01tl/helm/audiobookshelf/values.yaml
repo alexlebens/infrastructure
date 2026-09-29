@@ -88,6 +88,32 @@ audiobookshelf:
             requests:
               cpu: 1m
               memory: 10Mi
+        metrics:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: ghcr.io/operationeth/audiobookshelf-exporter
+            tag: v0.1.7@sha256:42ab5693b38d8b1fadc4277204f1bdcc730ec54040a0d6472f6771ef71ee793d
+          env:
+            - name: ABS_URL
+              value: http://localhost:80
+            - name: ABS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: audiobookshelf-metrics
+                  key: api-key
+            - name: EXPORTER_PORT
+              value: 9860
+            - name: SCRAPE_INTERVAL_SECONDS
+              value: 300
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
     libation:
       type: cronjob
       cronjob:
@@ -150,11 +176,15 @@ audiobookshelf:
           port: 80
         apprise:
           port: 8000
+        metrics:
+          port: 9860
   serviceMonitor:
     main:
       serviceName: audiobookshelf
       endpoints:
         - port: apprise
+        - port: metrics
+          interval: 5m
   route:
     main:
       kind: HTTPRoute
