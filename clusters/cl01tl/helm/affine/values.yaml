@@ -3,8 +3,18 @@ affine:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       initContainers:
         migration:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/toeverything/affine
             tag: 0.27.4@sha256:b649f5ce2384ffdf13c23bccf81d759e15973d59d0b0058af65d895a84373099
@@ -27,8 +37,18 @@ affine:
               value: "6379"
             - name: AFFINE_INDEXER_ENABLED
               value: "false"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/toeverything/affine
             tag: 0.27.4@sha256:b649f5ce2384ffdf13c23bccf81d759e15973d59d0b0058af65d895a84373099
@@ -170,6 +190,14 @@ affine:
         main:
           main:
             - path: /root/.affine/storage
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          migration:
+            - path: /tmp
+          main:
+            - path: /tmp
 
 pocket-id-client:
   mode: oidc
