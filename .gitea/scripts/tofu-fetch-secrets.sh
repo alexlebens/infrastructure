@@ -224,7 +224,9 @@ EOF
     local g_b_id=""
     local g_c_id=""
 
-    # Tier A: Synology NAS
+    # Tier A: Synology NAS (ps02sn)
+    local g_a_web_id=""
+    local g_a_affine_id=""
     if [ -n "${a_token}" ]; then
       for ep in "http://synology.alexlebens.dev:3903/v2/GetBucketInfo?globalAlias=web-assets" \
                 "http://synology.alexlebens.dev:3903/v2/GetBucketInfo?search=web-assets" \
@@ -239,14 +241,33 @@ EOF
           id=$(echo "$resp" | jq -r '.id // empty' 2>/dev/null || true)
         fi
         if [ -n "$id" ]; then
-          g_a_id="$id"
-          echo ">> Successfully resolved Garage bucket ID for Tier A web-assets: ${g_a_id}"
+          g_a_web_id="$id"
+          echo ">> Successfully resolved Garage bucket ID for Tier A web-assets: ${g_a_web_id}"
+          break
+        fi
+      done
+
+      for ep in "http://synology.alexlebens.dev:3903/v2/GetBucketInfo?globalAlias=affine-assets" \
+                "http://synology.alexlebens.dev:3903/v2/GetBucketInfo?search=affine-assets" \
+                "http://synology.alexlebens.dev:3903/v1/bucket?alias=affine-assets" \
+                "http://synology.alexlebens.dev:3903/v2/ListBuckets" \
+                "http://synology.alexlebens.dev:3903/v1/bucket"; do
+        echo ">> Checking Synology A for bucket affine-assets at ${ep}..."
+        resp=$(curl -sk --connect-timeout 5 --max-time 10 -H "Authorization: Bearer ${a_token}" "${ep}" || true)
+        if echo "$resp" | jq -e 'type == "array"' >/dev/null 2>&1; then
+          id=$(echo "$resp" | jq -r '.[] | select((.globalAliases[]? // empty) == "affine-assets" or .name == "affine-assets") | .id // empty' 2>/dev/null | head -n 1 || true)
+        else
+          id=$(echo "$resp" | jq -r '.id // empty' 2>/dev/null || true)
+        fi
+        if [ -n "$id" ]; then
+          g_a_affine_id="$id"
+          echo ">> Successfully resolved Garage bucket ID for Tier A affine-assets: ${g_a_affine_id}"
           break
         fi
       done
     fi
 
-    # Tier B: Kubernetes Cluster
+    # Tier B: Kubernetes Cluster (cl01tl)
     if [ -n "${b_token}" ]; then
       for ep in "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v2/GetBucketInfo?globalAlias=reactive-resume-assets" \
                 "http://garage-cluster-b.garage-operator.svc.cluster.local:3903/v2/GetBucketInfo?search=reactive-resume-assets" \
@@ -272,6 +293,8 @@ EOF
     fi
 
     # Tier C: Raspberry Pi (ps10rp)
+    local g_c_web_id=""
+    local g_c_affine_id=""
     if [ -n "${c_token}" ]; then
       for ep in "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v2/GetBucketInfo?globalAlias=web-assets" \
                 "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v2/GetBucketInfo?search=web-assets" \
@@ -286,28 +309,64 @@ EOF
           id=$(echo "$resp" | jq -r '.id // empty' 2>/dev/null || true)
         fi
         if [ -n "$id" ]; then
-          g_c_id="$id"
-          echo ">> Successfully resolved Garage bucket ID for Tier C web-assets: ${g_c_id}"
+          g_c_web_id="$id"
+          echo ">> Successfully resolved Garage bucket ID for Tier C web-assets: ${g_c_web_id}"
+          break
+        fi
+      done
+
+      for ep in "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v2/GetBucketInfo?globalAlias=affine-assets" \
+                "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v2/GetBucketInfo?search=affine-assets" \
+                "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v1/bucket?alias=affine-assets" \
+                "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v2/ListBuckets" \
+                "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v1/bucket"; do
+        echo ">> Checking Raspberry Pi C for bucket affine-assets at ${ep}..."
+        resp=$(curl -sk --connect-timeout 5 --max-time 10 -H "Authorization: Bearer ${c_token}" "${ep}" || true)
+        if echo "$resp" | jq -e 'type == "array"' >/dev/null 2>&1; then
+          id=$(echo "$resp" | jq -r '.[] | select((.globalAliases[]? // empty) == "affine-assets" or .name == "affine-assets") | .id // empty' 2>/dev/null | head -n 1 || true)
+        else
+          id=$(echo "$resp" | jq -r '.id // empty' 2>/dev/null || true)
+        fi
+        if [ -n "$id" ]; then
+          g_c_affine_id="$id"
+          echo ">> Successfully resolved Garage bucket ID for Tier C affine-assets: ${g_c_affine_id}"
           break
         fi
       done
     fi
 
     # Fallback to known live cluster bucket IDs if discovery timed out
-    g_a_id="${g_a_id:-6a509026035a0797211b6fc07cbcf51404953ae9278fb9a414a55aceb0abf670}"
+    g_a_web_id="${g_a_web_id:-6a509026035a0797211b6fc07cbcf51404953ae9278fb9a414a55aceb0abf670}"
     g_b_id="${g_b_id:-23cdcf4b0797078fe2addeb430250f4ec1853a25ac6810327979f00890553d46}"
 
+    # Legacy variables for web-assets
+    g_a_id="${g_a_web_id}"
+    g_c_id="${g_c_web_id}"
+
     output_var "garage_a_bucket_id" "${g_a_id}"
+    output_var "garage_a_web_assets_bucket_id" "${g_a_web_id}"
+    output_var "garage_a_affine_assets_bucket_id" "${g_a_affine_id}"
     output_var "garage_b_bucket_id" "${g_b_id}"
     output_var "garage_c_bucket_id" "${g_c_id}"
+    output_var "garage_c_web_assets_bucket_id" "${g_c_web_id}"
+    output_var "garage_c_affine_assets_bucket_id" "${g_c_affine_id}"
+
     echo ">> Exported garage_a_bucket_id: ${g_a_id}"
+    echo ">> Exported garage_a_web_assets_bucket_id: ${g_a_web_id}"
+    echo ">> Exported garage_a_affine_assets_bucket_id: ${g_a_affine_id}"
     echo ">> Exported garage_b_bucket_id: ${g_b_id}"
     echo ">> Exported garage_c_bucket_id: ${g_c_id}"
+    echo ">> Exported garage_c_web_assets_bucket_id: ${g_c_web_id}"
+    echo ">> Exported garage_c_affine_assets_bucket_id: ${g_c_affine_id}"
 
     if [ -n "${GITHUB_ENV:-}" ]; then
       echo "GARAGE_A_BUCKET_ID=${g_a_id}" >> "${GITHUB_ENV}"
+      echo "GARAGE_A_WEB_ASSETS_BUCKET_ID=${g_a_web_id}" >> "${GITHUB_ENV}"
+      echo "GARAGE_A_AFFINE_ASSETS_BUCKET_ID=${g_a_affine_id}" >> "${GITHUB_ENV}"
       echo "GARAGE_B_BUCKET_ID=${g_b_id}" >> "${GITHUB_ENV}"
       echo "GARAGE_C_BUCKET_ID=${g_c_id}" >> "${GITHUB_ENV}"
+      echo "GARAGE_C_WEB_ASSETS_BUCKET_ID=${g_c_web_id}" >> "${GITHUB_ENV}"
+      echo "GARAGE_C_AFFINE_ASSETS_BUCKET_ID=${g_c_affine_id}" >> "${GITHUB_ENV}"
     fi
   fi
 
