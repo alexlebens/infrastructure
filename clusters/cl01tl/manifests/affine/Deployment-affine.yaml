@@ -41,7 +41,7 @@ spec:
             - /bin/sh
             - -ec
             - |
-              cp -f /tmp/config.json /root/.affine/config/config.json
+              cp -f /tmp/config/config.json /root/.affine/config/config.json
           image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
           name: init-copy-config
           resources:
@@ -55,11 +55,13 @@ spec:
                 - ALL
             readOnlyRootFilesystem: true
           volumeMounts:
-            - mountPath: /tmp
+            - mountPath: /root/.affine/config
               name: config
+            - mountPath: /tmp/config
+              name: config-secret
               readOnly: true
-            - mountPath: /root/.affine/storage
-              name: storage
+            - mountPath: /tmp
+              name: tmp
         - command:
             - node
             - ./scripts/self-host-predeploy.js
@@ -92,6 +94,8 @@ spec:
                 - ALL
             readOnlyRootFilesystem: true
           volumeMounts:
+            - mountPath: /root/.affine/config
+              name: config
             - mountPath: /root/.affine/storage
               name: storage
             - mountPath: /tmp
@@ -177,12 +181,16 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 5
           volumeMounts:
+            - mountPath: /root/.affine/config
+              name: config
             - mountPath: /root/.affine/storage
               name: storage
             - mountPath: /tmp
               name: tmp
       volumes:
-        - name: config
+        - emptyDir: {}
+          name: config
+        - name: config-secret
           projected:
             sources:
               - secret:
