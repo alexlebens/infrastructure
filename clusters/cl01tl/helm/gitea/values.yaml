@@ -372,6 +372,64 @@ anubis:
           main:
             - path: /tmp
 
+gitea-mcp:
+  global:
+    nameOverride: gitea-mcp
+    fullnameOverride: gitea-mcp
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: gitea/gitea-mcp-server
+            tag: 1.7.0@sha256:273827c5cf8fec3846c09bd35461b59bdd06941bdcfcfefd388cbc22f2343f6b
+          args:
+            - "-t"
+            - "http"
+          env:
+            - name: MCP_MODE
+              value: http
+            - name: GITEA_URL
+              value: http://gitea-http.gitea.svc.cluster.local:3000
+            - name: GITEA_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-mcp-secret
+                  key: GITEA_TOKEN
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+  service:
+    main:
+      forceRename: gitea-mcp
+      ports:
+        http:
+          port: 8080
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
 pocket-id-client:
   mode: oidc
   client:
