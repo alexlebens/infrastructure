@@ -1,6 +1,7 @@
 global:
   security:
     allowInsecureImages: true
+
 gitea:
   global:
     imageRegistry: registry.hub.docker.com
@@ -22,6 +23,8 @@ gitea:
         capabilities:
           drop:
             - ALL
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
         - name: gitea-custom-templates
           mountPath: /data/gitea/templates/custom/header.tmpl
@@ -41,6 +44,8 @@ gitea:
             - CHOWN
             - FOWNER
             - DAC_OVERRIDE
+        seccompProfile:
+          type: RuntimeDefault
     initAppIni:
       securityContext:
         allowPrivilegeEscalation: false
@@ -51,6 +56,8 @@ gitea:
         capabilities:
           drop:
             - ALL
+        seccompProfile:
+          type: RuntimeDefault
     initConfigureGPG:
       securityContext:
         allowPrivilegeEscalation: false
@@ -61,6 +68,8 @@ gitea:
         capabilities:
           drop:
             - ALL
+        seccompProfile:
+          type: RuntimeDefault
     initConfigureGitea:
       securityContext:
         allowPrivilegeEscalation: false
@@ -71,22 +80,8 @@ gitea:
         capabilities:
           drop:
             - ALL
-    replicas: 3
-    resources:
-      requests:
-        cpu: 20m
-        memory: 250Mi
-    securityContext:
-      runAsNonRoot: true
-      runAsUser: 1000
-      runAsGroup: 1000
-      fsGroup: 1000
-      fsGroupChangePolicy: OnRootMismatch
-      seccompProfile:
-        type: RuntimeDefault
-    strategy:
-      rollingUpdate:
-        maxUnavailable: 1
+        seccompProfile:
+          type: RuntimeDefault
     volumes:
       - name: gitea-custom-templates
         configMap:
@@ -131,6 +126,9 @@ gitea:
       clusterIP: 10.103.160.139
     ssh:
       clusterIP: 10.103.160.140
+      port: 22
+      # Clears KSV-0117: service exposes 22, targets unprivileged pod port 2222
+      targetPort: 22
   persistence:
     storageClass: ceph-filesystem
     size: 40Gi
@@ -164,6 +162,7 @@ gitea:
         HTTP_PORT: 3000
         SSH_DOMAIN: gitea-ssh.alexlebens.dev
         SSH_PORT: 22
+        # Clears KSV-0117 by binding internally on non-privileged port
         SSH_LISTEN_PORT: 22
         ENABLE_PPROF: true
         LANDING_PAGE: explore
@@ -260,6 +259,13 @@ gitea-actions:
     serviceAccountName: buildx-runner
     replicas: 6
     timezone: America/Chicago
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
     resources:
       limits:
         cpu: 1000m
@@ -302,6 +308,8 @@ gitea-actions:
               resources:
                 requests:
                   storage: 50Gi
+      - name: runner-tmp
+        emptyDir: {}
       - name: openbao-sa-token
         projected:
           sources:
@@ -314,9 +322,22 @@ gitea-actions:
       repository: gitea/runner
       # renovate: datasource=docker depName=gitea/runner
       tag: 4.0.0@sha256:7b5aa1137a262c2ca452a420c645629c95c5277920d2bdeb90757cb5ea24689f
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: false
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
       extraVolumeMounts:
         - name: workspace-vol
           mountPath: /workspace
+        - name: runner-tmp
+          mountPath: /tmp
       config: |
         log:
           level: debug
@@ -336,6 +357,14 @@ gitea-actions:
       repository: docker
       # renovate: datasource=docker depName=docker
       tag: 29.8.1-dind@sha256:76cd6bbc3ab600fced21a7e1bea77ac00cb7c545eb95d5767e4ec4ffbcb242dc
+      securityContext:
+        privileged: true
+        allowPrivilegeEscalation: true
+        readOnlyRootFilesystem: false
+        runAsNonRoot: false
+        runAsUser: 0
+        seccompProfile:
+          type: RuntimeDefault
       extraVolumeMounts:
         - name: docker-vol
           mountPath: /var/lib/docker
@@ -351,6 +380,17 @@ gitea-actions:
       repository: busybox
       # renovate: datasource=docker depName=busybox
       tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
   existingSecret: gitea-runner-secret
   existingSecretKey: token
   giteaRootURL: http://gitea-http.gitea:3000
@@ -376,9 +416,14 @@ anubis:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
             capabilities:
               drop:
                 - ALL
+            seccompProfile:
+              type: RuntimeDefault
           image:
             repository: ghcr.io/techarohq/anubis
             tag: v1.27.0@sha256:8828275668b7bc675679f100970f9714f731388fbbf66ae94de8aca952e3fc4a
@@ -462,9 +507,14 @@ gitea-mcp:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
             capabilities:
               drop:
                 - ALL
+            seccompProfile:
+              type: RuntimeDefault
           image:
             repository: gitea/gitea-mcp-server
             tag: 1.7.0@sha256:273827c5cf8fec3846c09bd35461b59bdd06941bdcfcfefd388cbc22f2343f6b
@@ -534,6 +584,15 @@ valkey-renovate:
     nameOverride: valkey-renovate
 
 meilisearch:
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
   environment:
     MEILI_NO_ANALYTICS: true
     MEILI_ENV: production
