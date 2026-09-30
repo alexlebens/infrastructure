@@ -60,7 +60,6 @@ VALID_CHARTS=$(echo "${VALID_CHARTS}" | xargs)
 
 if [ -n "${VALID_CHARTS}" ]; then
   CHARTS_JSON=$(printf '%s\n' ${VALID_CHARTS} | jq -R -s -c 'split("\n") | map(select(length > 0))')
-  CHARTS_B64=$(printf '%s' "${VALID_CHARTS}" | base64 | tr -d '\r\n')
 
   echo ""
   echo ">> Charts to test:"
@@ -72,7 +71,6 @@ if [ -n "${VALID_CHARTS}" ]; then
     echo "changes-detected=true" >> "${GITHUB_OUTPUT}"
     echo "matrix=${CHARTS_JSON}" >> "${GITHUB_OUTPUT}"
     echo "charts=${VALID_CHARTS}" >> "${GITHUB_OUTPUT}"
-    echo "charts-b64=${CHARTS_B64}" >> "${GITHUB_OUTPUT}"
   fi
 else
   echo ""
@@ -84,6 +82,5 @@ else
     echo "changes-detected=false" >> "${GITHUB_OUTPUT}"
     echo "matrix=[]" >> "${GITHUB_OUTPUT}"
     echo "charts=" >> "${GITHUB_OUTPUT}"
-    echo "charts-b64=" >> "${GITHUB_OUTPUT}"
   fi
 fi

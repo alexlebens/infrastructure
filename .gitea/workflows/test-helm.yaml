@@ -26,7 +26,6 @@ jobs:
     outputs:
       matrix: ${{ steps.check-dir-changes.outputs.matrix }}
       charts: ${{ steps.check-dir-changes.outputs.charts }}
-      charts-b64: ${{ steps.check-dir-changes.outputs.charts-b64 }}
       changes-detected: ${{ steps.check-dir-changes.outputs.changes-detected }}
     steps:
       - name: Checkout
@@ -40,7 +39,6 @@ jobs:
         # Step Outputs:
         #   - changes-detected: 'true' | 'false'
         #   - charts: space-separated chart names
-        #   - charts-b64: base64-encoded space-separated chart names
         #   - matrix: JSON array of chart names
         env:
           CLUSTER: ${{ env.CLUSTER }}
@@ -61,7 +59,7 @@ jobs:
     #   matrix:
     #     chart: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
     env:
-      CHARTS_B64: ${{ needs.detect-changes.outputs.charts-b64 }}
+      CHARTS: ${{ needs.detect-changes.outputs.charts }}
       FAILED_CHART: ""
       FAILED_STAGE: "Initialization"
     steps:
@@ -69,14 +67,6 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 1
-
-      - name: Decode Chart List
-        run: |
-          CHARTS="$(echo "${CHARTS_B64}" | base64 -d)"
-          echo ">> Decoded charts to test: ${CHARTS}"
-          echo ""
-          echo "----"
-          echo "CHARTS=${CHARTS}" >> $GITHUB_ENV
 
       - name: Set Up Helm
         uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
