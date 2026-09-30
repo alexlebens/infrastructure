@@ -5,87 +5,51 @@ global:
 gitea:
   global:
     imageRegistry: registry.hub.docker.com
-  deployment:
-    gitea:
-      image:
-        repository: gitea/gitea
-        tag: 28.0.0
-      resources:
-        requests:
-          cpu: 20m
-          memory: 250Mi
-      securityContext:
-        allowPrivilegeEscalation: false
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        capabilities:
-          drop:
-            - ALL
-        seccompProfile:
-          type: RuntimeDefault
-      volumeMounts:
-        - name: gitea-custom-templates
-          mountPath: /data/gitea/templates/custom/header.tmpl
-          subPath: header.tmpl
-          readOnly: true
-    initDirectories:
-      securityContext:
-        allowPrivilegeEscalation: false
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        capabilities:
-          drop:
-            - ALL
-          add:
-            - CHOWN
-            - FOWNER
-            - DAC_OVERRIDE
-        seccompProfile:
-          type: RuntimeDefault
-    initAppIni:
-      securityContext:
-        allowPrivilegeEscalation: false
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        capabilities:
-          drop:
-            - ALL
-        seccompProfile:
-          type: RuntimeDefault
-    initConfigureGPG:
-      securityContext:
-        allowPrivilegeEscalation: false
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        capabilities:
-          drop:
-            - ALL
-        seccompProfile:
-          type: RuntimeDefault
-    initConfigureGitea:
-      securityContext:
-        allowPrivilegeEscalation: false
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        capabilities:
-          drop:
-            - ALL
-        seccompProfile:
-          type: RuntimeDefault
-    volumes:
-      - name: gitea-custom-templates
-        configMap:
-          name: gitea-custom-templates
+  replicaCount: 3
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+  image:
+    repository: gitea/gitea
+    tag: 28.0.0
+  service:
+    http:
+      clusterIP: 10.103.160.139
+    ssh:
+      clusterIP: 10.103.160.140
+      port: 22
+      # Clears KSV-0117: service exposes 22, targets unprivileged pod port 2222
+      targetPort: 22
+  resources:
+    requests:
+      cpu: 20m
+      memory: 250Mi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  extraContainerVolumeMounts:
+    - name: gitea-custom-templates
+      mountPath: /data/gitea/templates/custom/header.tmpl
+      subPath: header.tmpl
+      readOnly: true
+  extraVolumes:
+    - name: gitea-custom-templates
+      configMap:
+        name: gitea-custom-templates
   gatewayAPI:
     enabled: true
     core:
@@ -121,14 +85,6 @@ gitea:
             name: cilium-ssh-gateway
             namespace: kube-system
             sectionName: ssh
-  service:
-    http:
-      clusterIP: 10.103.160.139
-    ssh:
-      clusterIP: 10.103.160.140
-      port: 22
-      # Clears KSV-0117: service exposes 22, targets unprivileged pod port 2222
-      targetPort: 22
   persistence:
     storageClass: ceph-filesystem
     size: 40Gi
