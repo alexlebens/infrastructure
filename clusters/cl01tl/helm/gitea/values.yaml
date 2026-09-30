@@ -10,7 +10,7 @@ gitea:
       maxUnavailable: 1
   image:
     repository: gitea/gitea
-    tag: 1.27.3
+    tag: 28.0.0
   service:
     http:
       clusterIP: 10.103.160.139
@@ -22,6 +22,18 @@ gitea:
       httpRoute:
         enabled: true
         tls: true
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/name: "Code"
+          gethomepage.dev/description: "Gitea"
+          gethomepage.dev/group: "Tools"
+          gethomepage.dev/icon: "sh-gitea.webp"
+          gethomepage.dev/siteMonitor: "https://gitea.alexlebens.dev"
+          gethomepage.dev/statusStyle: "dot"
+          gethomepage.dev/weight: "50"
+          gethomepage.dev/widget.type: "gitea"
+          gethomepage.dev/widget.url: "http://gitea-http.gitea:3000"
+          gethomepage.dev/widget.key: "{{HOMEPAGE_VAR_GITEA_API_TOKEN}}"
         parentRefs:
           - group: gateway.networking.k8s.io
             kind: Gateway
@@ -41,8 +53,8 @@ gitea:
             sectionName: ssh
   resources:
     requests:
-      cpu: 500m
-      memory: 450Mi
+      cpu: 20m
+      memory: 250Mi
   podSecurityContext:
     fsGroupChangePolicy: OnRootMismatch
   persistence:
@@ -95,30 +107,29 @@ gitea:
         SCHEMA: public
       oauth2_client:
         ENABLE_AUTO_REGISTRATION: true
+      redis:
+        CONN_STR: redis://gitea-valkey.gitea:6379
       cache:
         ENABLED: true
         ADAPTER: redis
-        HOST: redis://gitea-valkey.gitea:6379
       queue:
         TYPE: redis
-        CONN_STR: redis://gitea-valkey.gitea:6379
       session:
         PROVIDER: redis
-        PROVIDER_CONFIG: redis://gitea-valkey.gitea:6379
       indexer:
         ISSUE_INDEXER_ENABLED: true
         ISSUE_INDEXER_TYPE: meilisearch
         REPO_INDEXER_ENABLED: false
       actions:
         ENABLED: true
+        RUN_RETENTION_DAYS: 30
       service:
         REGISTER_MANUAL_CONFIRM: true
         SHOW_REGISTRATION_BUTTON: false
         ALLOW_ONLY_EXTERNAL_REGISTRATION: true
-      explore:
         REQUIRE_SIGNIN_VIEW: true
       security:
-        ALLOWED_HOST_LIST: "*,loopback,private,external"
+        ALLOWED_HOST_LIST: "loopback,private"
       ui:
         DEFAULT_THEME: gitea-auto
       mirror:
@@ -177,6 +188,7 @@ gitea:
     enabled: false
   postgresql:
     enabled: false
+
 gitea-actions:
   enabled: true
   statefulset:
@@ -273,6 +285,7 @@ gitea-actions:
   existingSecret: gitea-runner-secret
   existingSecretKey: token
   giteaRootURL: http://gitea-http.gitea:3000
+
 anubis:
   global:
     nameOverride: anubis
@@ -284,13 +297,19 @@ anubis:
       strategy: RollingUpdate
       pod:
         securityContext:
+          runAsNonRoot: true
           runAsUser: 1000
           runAsGroup: 1000
-          runAsNonRoot: true
           seccompProfile:
             type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/techarohq/anubis
             tag: v1.27.0@sha256:8828275668b7bc675679f100970f9714f731388fbbf66ae94de8aca952e3fc4a
@@ -314,11 +333,6 @@ anubis:
               value: true
             - name: OG_EXPIRY_TIME
               value: 24h
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
           resources:
             requests:
               cpu: 20m
@@ -338,6 +352,7 @@ anubis:
                   port: 8080
   service:
     main:
+      forceRename: anubis
       ports:
         http:
           port: 80
@@ -346,13 +361,54 @@ anubis:
           port: 9090
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: anubis
-          app.kubernetes.io/instance: anubis
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: anubis
       endpoints:
         - port: metrics
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Gitea"
+    description: "Git with a cup of tea!"
+    clientID: D7ED367E-759B-4316-83A8-C7F17F240E53
+    callbackUrls:
+      - https://gitea.alexlebens.dev/user/oauth2/AlexAuth/callback
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
+      - name: user
+        namespace: pocket-id-operator
+
+cloudflared:
+  probe:
+    enabled: true
+    targetUrl: https://gitea.alexlebens.dev/explore/repos
+  resources:
+    requests:
+      cpu: 100m
+      memory: 30Mi
+
+valkey-gitea:
+  valkey:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+    valkeyConfig: |
+      maxmemory 2gb
+      maxmemory-policy allkeys-lru
+
+valkey-renovate:
+  valkey:
+    nameOverride: valkey-renovate
+
 meilisearch:
   environment:
     MEILI_NO_ANALYTICS: true
@@ -370,14 +426,7 @@ meilisearch:
       memory: 150Mi
   serviceMonitor:
     enabled: true
-cloudflared:
-  probe:
-    enabled: true
-    targetUrl: https://gitea.alexlebens.dev/explore/repos
-  resources:
-    requests:
-      cpu: 100m
-      memory: 30Mi
+
 postgres-18-cluster:
   mode: recovery
   cluster:
@@ -410,18 +459,28 @@ postgres-18-cluster:
         enabled: true
         podMonitor:
           enabled: true
-valkey-gitea:
-  valkey:
-    resources:
-      requests:
-        cpu: 200m
-        memory: 1Gi
-    valkeyConfig: |
-      maxmemory 2gb
-      maxmemory-policy allkeys-lru
-valkey-renovate:
-  valkey:
-    nameOverride: valkey-renovate
+
+garage-bucket-gitea-assets:
+  bucketName: gitea-assets
+  garageCluster:
+    name: garage-cluster-b
+    namespace: garage-operator
+  backups:
+    primary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: gitea-assets
+    secondary:
+      enabled: true
+      cronJob:
+        suspend: false
+        schedule: 0 0 * * *
+      destination:
+        bucketName: gitea-assets-6670d003410bb125
+
 volsync-target-storage:
   pvcTarget: gitea-shared-storage
   moverSecurityContext:
@@ -448,23 +507,8 @@ volsync-target-storage:
     enabled: false
   remote:
     enabled: false
-garage-bucket-gitea-assets:
-  bucketName: gitea-assets
-  garageCluster:
-    name: garage-cluster-b
-    namespace: garage-operator
-  backups:
-    primary:
-      enabled: true
-      cronJob:
-        suspend: false
-        schedule: 0 0 * * *
-      destination:
-        bucketName: gitea-assets
-    secondary:
-      enabled: true
-      cronJob:
-        suspend: false
-        schedule: 0 0 * * *
-      destination:
-        bucketName: gitea-assets-6670d003410bb125
+
+common-helpers:
+  probe:
+    internal: http://gitea-http.gitea:3000
+    external: https://gitea.alexlebens.dev
