@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: argocd
+  name: gitea-mcp
   labels:
     app.kubernetes.io/controller: main
-    app.kubernetes.io/instance: argocd
+    app.kubernetes.io/instance: gitea
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: argocd
-    helm.sh/chart: argocd-mcp-5.2.1
-  namespace: argocd
+    app.kubernetes.io/name: gitea-mcp
+    helm.sh/chart: gitea-mcp-5.2.1
+  namespace: gitea
 spec:
   revisionHistoryLimit: 3
   replicas: 1
@@ -17,17 +17,17 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/controller: main
-      app.kubernetes.io/name: argocd
-      app.kubernetes.io/instance: argocd
+      app.kubernetes.io/name: gitea-mcp
+      app.kubernetes.io/instance: gitea
   template:
     metadata:
       labels:
         app.kubernetes.io/controller: main
-        app.kubernetes.io/instance: argocd
-        app.kubernetes.io/name: argocd
+        app.kubernetes.io/instance: gitea
+        app.kubernetes.io/name: gitea-mcp
     spec:
       enableServiceLinks: false
-      serviceAccountName: argocd
+      serviceAccountName: gitea-mcp
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
@@ -42,36 +42,35 @@ spec:
       dnsPolicy: ClusterFirst
       containers:
         - args:
+            - -t
             - http
           env:
-            - name: ARGOCD_BASE_URL
-              value: http://argocd-server.argocd.svc.cluster.local
-            - name: ARGOCD_API_TOKEN
+            - name: MCP_MODE
+              value: http
+            - name: GITEA_URL
+              value: http://gitea-http.gitea.svc.cluster.local:3000
+            - name: GITEA_TOKEN
               valueFrom:
                 secretKeyRef:
-                  key: ARGOCD_API_TOKEN
-                  name: argocd-mcp-secret
-            - name: MCP_BIND_ADDRESS
-              value: 0.0.0.0
-            - name: PORT
-              value: "8080"
-            - name: MCP_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  key: MCP_AUTH_TOKEN
-                  name: argocd-mcp-secret
-          image: ghcr.io/argoproj-labs/mcp-for-argocd:0.9.0@sha256:dffc6c719d8635be2d5f2c8ad1c0178540325da4b40da0b373307e12b4c48f86
+                  key: GITEA_TOKEN
+                  name: gitea-mcp-secret
+          image: gitea/gitea-mcp-server:1.7.0@sha256:273827c5cf8fec3846c09bd35461b59bdd06941bdcfcfefd388cbc22f2343f6b
           name: main
           resources:
             requests:
-              cpu: 25m
-              memory: 90Mi
+              cpu: 10m
+              memory: 50Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - mountPath: /tmp
               name: tmp

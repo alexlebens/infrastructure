@@ -9,8 +9,8 @@ metadata:
     app: gitea
     app.kubernetes.io/name: gitea
     app.kubernetes.io/instance: gitea
-    app.kubernetes.io/version: "1.27.3"
-    version: "1.27.3"
+    app.kubernetes.io/version: "28.0.0"
+    version: "28.0.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 3
@@ -26,23 +26,27 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: 4295615bcf2a6c8948164edbfd0ee7c3339c5553bba470e957434cf69fb32b58
+        checksum/config: 156f5215092221d05cc0180c70b18c70cf4efb7c5946c8eb26beeaca3c72e120
         checksum/oauth_0: 34f40882b9c365fc493c925557ddd72f86007c8d39d27fe85b49bb6a3bb86c20
       labels:
         helm.sh/chart: gitea-12.7.0
         app: gitea
         app.kubernetes.io/name: gitea
         app.kubernetes.io/instance: gitea
-        app.kubernetes.io/version: "1.27.3"
-        version: "1.27.3"
+        app.kubernetes.io/version: "28.0.0"
+        version: "28.0.0"
         app.kubernetes.io/managed-by: Helm
     spec:
       securityContext:
         fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: init-directories
-          image: "registry.hub.docker.com/gitea/gitea:1.27.3-rootless"
+          image: "registry.hub.docker.com/gitea/gitea:28.0.0-rootless"
           imagePullPolicy: IfNotPresent
           command:
             - "/usr/sbinx/init_directory_structure.sh"
@@ -62,13 +66,24 @@ spec:
               mountPath: /tmp
             - name: data
               mountPath: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             limits: {}
             requests:
               cpu: 100m
               memory: 128Mi
         - name: init-app-ini
-          image: "registry.hub.docker.com/gitea/gitea:1.27.3-rootless"
+          image: "registry.hub.docker.com/gitea/gitea:28.0.0-rootless"
           imagePullPolicy: IfNotPresent
           command:
             - "/usr/sbinx/config_environment.sh"
@@ -129,18 +144,38 @@ spec:
               mountPath: /data
             - name: inline-config-sources
               mountPath: /env-to-ini-mounts/inlines/
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             limits: {}
             requests:
               cpu: 100m
               memory: 128Mi
         - name: configure-gitea
-          image: "registry.hub.docker.com/gitea/gitea:1.27.3-rootless"
+          image: "registry.hub.docker.com/gitea/gitea:28.0.0-rootless"
           command:
             - "/usr/sbinx/configure_gitea.sh"
           imagePullPolicy: IfNotPresent
           securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
             runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: GITEA_APP_INI
               value: /data/gitea/conf/app.ini
@@ -183,11 +218,11 @@ spec:
       terminationGracePeriodSeconds: 60
       containers:
         - name: gitea
-          image: "registry.hub.docker.com/gitea/gitea:1.27.3-rootless"
+          image: "registry.hub.docker.com/gitea/gitea:28.0.0-rootless"
           imagePullPolicy: IfNotPresent
           env:
             - name: SSH_LISTEN_PORT
-              value: "22"
+              value: "2222"
             - name: SSH_PORT
               value: "22"
             - name: GITEA_APP_INI
@@ -204,7 +239,7 @@ spec:
               value: /data/gitea/git
           ports:
             - name: ssh
-              containerPort: 22
+              containerPort: 2222
             - name: http
               containerPort: 3000
             - name: profiler
@@ -227,8 +262,19 @@ spec:
             timeoutSeconds: 1
           resources:
             requests:
-              cpu: 500m
-              memory: 450Mi
+              cpu: 20m
+              memory: 250Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: temp
               mountPath: /tmp
