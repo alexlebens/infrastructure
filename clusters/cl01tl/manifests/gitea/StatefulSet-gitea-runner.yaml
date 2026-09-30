@@ -33,6 +33,13 @@ spec:
     spec:
       restartPolicy: Always
       serviceAccountName: "buildx-runner"
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: reach-gitea
           image: "docker.io/busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d"
@@ -67,8 +74,11 @@ spec:
           resources:
             limits:
               ephemeral-storage: 15Gi
+              memory: 1000Mi
             requests:
+              cpu: 5m
               ephemeral-storage: 2Gi
+              memory: 70Mi
           volumeMounts:
             - mountPath: /var/run/
               name: docker-socket
@@ -97,8 +107,11 @@ spec:
           resources:
             limits:
               ephemeral-storage: 15Gi
+              memory: 1000Mi
             requests:
+              cpu: 5m
               ephemeral-storage: 2Gi
+              memory: 70Mi
           volumeMounts:
             - mountPath: /runner/config.yaml
               name: runner-config
@@ -110,6 +123,8 @@ spec:
               name: data-runner
             - mountPath: /workspace
               name: workspace-vol
+            - mountPath: /tmp
+              name: runner-tmp
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -148,6 +163,8 @@ spec:
                     storage: 50Gi
                 storageClassName: ceph-block
           name: docker-vol
+        - emptyDir: {}
+          name: runner-tmp
         - name: openbao-sa-token
           projected:
             sources:
