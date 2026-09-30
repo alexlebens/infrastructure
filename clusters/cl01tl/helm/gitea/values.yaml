@@ -4,18 +4,93 @@ global:
 gitea:
   global:
     imageRegistry: registry.hub.docker.com
-  replicaCount: 3
-  strategy:
-    rollingUpdate:
-      maxUnavailable: 1
-  image:
-    repository: gitea/gitea
-    tag: 28.0.0
-  service:
-    http:
-      clusterIP: 10.103.160.139
-    ssh:
-      clusterIP: 10.103.160.140
+  deployment:
+    gitea:
+      image:
+        repository: gitea/gitea
+        tag: 28.0.0
+      resources:
+        requests:
+          cpu: 20m
+          memory: 250Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        capabilities:
+          drop:
+            - ALL
+      volumeMounts:
+        - name: gitea-custom-templates
+          mountPath: /data/gitea/templates/custom/header.tmpl
+          subPath: header.tmpl
+          readOnly: true
+    initDirectories:
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        capabilities:
+          drop:
+            - ALL
+          add:
+            - CHOWN
+            - FOWNER
+            - DAC_OVERRIDE
+    initAppIni:
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        capabilities:
+          drop:
+            - ALL
+    initConfigureGPG:
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        capabilities:
+          drop:
+            - ALL
+    initConfigureGitea:
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        capabilities:
+          drop:
+            - ALL
+    replicas: 3
+    resources:
+      requests:
+        cpu: 20m
+        memory: 250Mi
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+      seccompProfile:
+        type: RuntimeDefault
+    strategy:
+      rollingUpdate:
+        maxUnavailable: 1
+    volumes:
+      - name: gitea-custom-templates
+        configMap:
+          name: gitea-custom-templates
   gatewayAPI:
     enabled: true
     core:
@@ -51,42 +126,17 @@ gitea:
             name: cilium-ssh-gateway
             namespace: kube-system
             sectionName: ssh
-  resources:
-    requests:
-      cpu: 20m
-      memory: 250Mi
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
-    fsGroupChangePolicy: OnRootMismatch
-    seccompProfile:
-      type: RuntimeDefault
+  service:
+    http:
+      clusterIP: 10.103.160.139
+    ssh:
+      clusterIP: 10.103.160.140
   persistence:
     storageClass: ceph-filesystem
     size: 40Gi
     accessModes:
       - ReadWriteMany
-  extraVolumes:
-    - name: gitea-custom-templates
-      configMap:
-        name: gitea-custom-templates
-  extraContainerVolumeMounts:
-    - name: gitea-custom-templates
-      mountPath: /data/gitea/templates/custom/header.tmpl
-      subPath: header.tmpl
-      readOnly: true
   gitea:
-    securityContext:
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      runAsNonRoot: true
-      runAsUser: 1000
-      runAsGroup: 1000
-      capabilities:
-        drop:
-          - ALL
     metrics:
       enabled: true
       serviceMonitor:
@@ -196,8 +246,6 @@ gitea:
             name: gitea-s3-secret
             key: GITEA__STORAGE__MINIO_SECRET_ACCESS_KEY
   valkey:
-    enabled: false
-  valkey-cluster:
     enabled: false
   postgresql-ha:
     enabled: false
