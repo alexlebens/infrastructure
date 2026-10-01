@@ -1,0 +1,43 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: thanos
+  namespace: thanos
+  labels:
+    app.kubernetes.io/name: thanos
+    app.kubernetes.io/instance: thanos
+    app.kubernetes.io/part-of: thanos
+spec:
+  groups:
+    - name: thanos.rules
+      rules:
+        - alert: ThanosCompactHalted
+          annotations:
+            summary: Thanos Compactor has halted.
+            description: >-
+              Thanos Compactor {{ $labels.instance }} has halted due to a critical error. Compactions and downsampling are stalled.
+          expr: |
+            thanos_compact_halted == 1
+          for: 5m
+          labels:
+            severity: critical
+        - alert: ThanosCompactHighCompactionFailures
+          annotations:
+            summary: Thanos Compactor is encountering compaction failures.
+            description: >-
+              Thanos Compactor {{ $labels.instance }} is encountering group compaction failures.
+          expr: |
+            rate(thanos_compact_group_compactions_failures_total[5m]) > 0
+          for: 15m
+          labels:
+            severity: warning
+        - alert: ThanosSidecarUploadFailures
+          annotations:
+            summary: Thanos Sidecar is failing to upload TSDB blocks.
+            description: >-
+              Thanos Sidecar on {{ $labels.pod }} has failing block uploads to object storage.
+          expr: |
+            rate(thanos_shipper_upload_failures_total[5m]) > 0
+          for: 15m
+          labels:
+            severity: critical
