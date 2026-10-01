@@ -17,6 +17,7 @@ on:
 env:
   TOFU_VERSION: "1.12.6"
   TF_PLUGIN_CACHE_DIR: "${{ runner.temp }}/.opentofu-plugin-cache"
+  TF_HTTP_USERNAME: "${{ vars.TF_HTTP_USERNAME || github.repository_owner }}"
 
 jobs:
   plan:
@@ -53,16 +54,19 @@ jobs:
       - name: Initialize OpenTofu
         working-directory: tofu/buckets
         env:
+          TF_HTTP_USERNAME: ${{ vars.TF_HTTP_USERNAME || github.repository_owner }}
+          TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
           GITEA_TOKEN: ${{ secrets.TOFU_TOKEN }}
           TF_PLUGIN_CACHE_DIR: ${{ env.TF_PLUGIN_CACHE_DIR }}
         run: |
           mkdir -p "${TF_PLUGIN_CACHE_DIR}"
           tofu init -reconfigure \
+            -backend-config="username=${TF_HTTP_USERNAME}" \
             -backend-config="password=${GITEA_TOKEN}"
 
       - name: Synchronize State
         env:
-          TF_HTTP_USERNAME: alexlebens
+          TF_HTTP_USERNAME: ${{ vars.TF_HTTP_USERNAME || github.repository_owner }}
           TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
           GARAGE_A_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_a_bucket_id }}
           GARAGE_A_WEB_ASSETS_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_a_web_assets_bucket_id }}
@@ -76,7 +80,7 @@ jobs:
 
       - name: OpenTofu Plan & PR Comment
         env:
-          TF_HTTP_USERNAME: alexlebens
+          TF_HTTP_USERNAME: ${{ vars.TF_HTTP_USERNAME || github.repository_owner }}
           TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
           TF_VAR_gitea_token: ${{ secrets.TOFU_TOKEN }}
           TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
