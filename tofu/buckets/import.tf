@@ -17,10 +17,10 @@ import {
   id = "6a509026035a0797211b6fc07cbcf51404953ae9278fb9a414a55aceb0abf670"
 }
 
-# import {
-#   to = garage_bucket.a_ps02sn["affine"]
-#   id = "<SYNOLOGY_A_AFFINE_ASSETS_HEX_BUCKET_ID>"
-# }
+import {
+  to = garage_bucket.a_ps02sn["volsync"]
+  id = "c73ae1750f8a5d2548011700a30bd5c281997a24c7d6c64dfe8efdd848081299"
+}
 
 # ------------------------------------------------------------------------------
 # Primary S3 Storage: Tier B - Talos K8s Cluster (b_cl01tl)
@@ -40,18 +40,10 @@ import {
 #   id = "<CLUSTER_B_AFFINE_ASSETS_HEX_BUCKET_ID>"
 # }
 
-# ------------------------------------------------------------------------------
-# Secondary S3 Storage: Tier C - Raspberry Pi (c_ps10rp)
-# ------------------------------------------------------------------------------
-# import {
-#   to = garage_bucket.c_ps10rp["web-assets"]
-#   id = "<RASPBERRY_PI_C_WEB_ASSETS_HEX_BUCKET_ID>"
-# }
-
-# import {
-#   to = garage_bucket.c_ps10rp["affine"]
-#   id = "<RASPBERRY_PI_C_AFFINE_ASSETS_HEX_BUCKET_ID>"
-# }
+import {
+  to = garage_bucket.c_ps10rp["volsync"]
+  id = "963a8d928b04d0c91f8a787849d71755eababf661f1742a0ab2e6fd7f0c99ac2"
+}
 
 # ------------------------------------------------------------------------------
 # Offsite DR Storage: Tier D - Backblaze B2 (d_cs01bb)
@@ -72,6 +64,11 @@ import {
   id = "cd910b4e5a9cf5529ddf0211" # web-assets-770aef58c931fcf4
 }
 
+import {
+  to = b2_bucket.d_cs01bb["volsync"]
+  id = "cdd1eb7e3a7cf5529ddf0211" # volsync-backups-c1c03d37545d9c27
+}
+
 # ------------------------------------------------------------------------------
 # Future Migrations:
 # Uncomment these import blocks as each app is migrated from `garage-bucket` to `s3-bucket`:
@@ -86,4 +83,3 @@ import {
 # import { to = b2_bucket.d_cs01bb["pocket-id"] id = "6de1eb0e1a2cd5d29dff0211" } # pocket-id-assets-708b709d424a4664
 # import { to = b2_bucket.d_cs01bb["postgres"]  id = "1d312bce3a2cf5529ddf0211" } # postgres-backups-775957147abfbc73
 # import { to = b2_bucket.d_cs01bb["talos"]     id = "cd111b9e3a9cf5529ddf0211" } # talos-backups-8c38c0f91be53b11
-# import { to = b2_bucket.d_cs01bb["volsync"]   id = "cdd1eb7e3a7cf5529ddf0211" } # volsync-backups-c1c03d37545d9c27
