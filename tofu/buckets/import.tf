@@ -13,15 +13,10 @@
 # 4. Once `tofu apply` succeeds and the resources exist in state, DELETE these
 #    import blocks from this file.
 # ==============================================================================
-
-# ------------------------------------------------------------------------------
-# Offsite DR Storage: Tier D - Backblaze B2 (d_cs01bb)
-# Only apps with `s3-bucket: enabled: true` are declared in Tofu.
-# ------------------------------------------------------------------------------
-import {
-  to = b2_bucket.d_cs01bb["volsync"]
-  id = "cdd1eb7e3a7cf5529ddf0211" # volsync-backups-c1c03d37545d9c27
-}
+# import {
+#   to = b2_bucket.d_cs01bb["volsync"]
+#   id = "cdd1eb7e3a7cf5529ddf0211" # volsync-backups-c1c03d37545d9c27
+# }
 
 # ------------------------------------------------------------------------------
 # Future Migrations:
