@@ -175,3 +175,34 @@ variable "openbao_token" {
   sensitive   = true
   default     = ""
 }
+
+# ==============================================================================
+# VolSync Restic Passwords (per Storage Tier)
+# ==============================================================================
+variable "volsync_restic_password_a_ps02sn" {
+  description = "Restic repository password for VolSync backups on Tier A (Synology NAS)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "volsync_restic_password_b_cl01tl" {
+  description = "Restic repository password for VolSync backups on Tier B (Talos Cluster)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "volsync_restic_password_c_ps10rp" {
+  description = "Restic repository password for VolSync backups on Tier C (Raspberry Pi)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "volsync_restic_password_d_cs01bb" {
+  description = "Restic repository password for VolSync backups on Tier D (Backblaze B2)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
