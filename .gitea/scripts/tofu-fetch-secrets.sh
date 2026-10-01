@@ -220,6 +220,85 @@ if [ -n "$GARAGE_S3_KEY" ] && [ -n "$GARAGE_S3_SECRET" ]; then
   echo ">> Loaded Garage S3 admin keys from OpenBao: secret/garage/home-infra/admin"
 fi
 
+# Retrieve VolSync Restic Passwords per Storage Tier
+echo ">> Fetching VolSync Restic passwords from OpenBao..."
+
+# Tier A: Synology NAS (ps02sn)
+VOLSYNC_RESTIC_A=""
+for path in "ps02sn/garage/keys/volsync-backups" "garage/home-infra/volsync-backups"; do
+  RESP=$(fetch_bao_path "$path")
+  P=$(echo "$RESP" | jq -r '.data.data.RESTIC_PASSWORD // .data.data.RESTIC_PASSWORD_LOCAL // empty' 2>/dev/null || true)
+  if [ -n "$P" ]; then
+    VOLSYNC_RESTIC_A="$P"
+    echo ">> Loaded Tier A VolSync Restic password from OpenBao: secret/${path}"
+    break
+  fi
+done
+if [ -n "${VOLSYNC_RESTIC_A}" ]; then
+  mask_var "${VOLSYNC_RESTIC_A}"
+  output_var "volsync_restic_password_a_ps02sn" "${VOLSYNC_RESTIC_A}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_volsync_restic_password_a_ps02sn=${VOLSYNC_RESTIC_A}" >> "${GITHUB_ENV}"
+  fi
+fi
+
+# Tier B: Talos Cluster (cl01tl)
+VOLSYNC_RESTIC_B=""
+for path in "cl01tl/garage/keys/volsync-backups" "garage/home-infra/volsync-backups"; do
+  RESP=$(fetch_bao_path "$path")
+  P=$(echo "$RESP" | jq -r '.data.data.RESTIC_PASSWORD // .data.data.RESTIC_PASSWORD_LOCAL // empty' 2>/dev/null || true)
+  if [ -n "$P" ]; then
+    VOLSYNC_RESTIC_B="$P"
+    echo ">> Loaded Tier B VolSync Restic password from OpenBao: secret/${path}"
+    break
+  fi
+done
+if [ -n "${VOLSYNC_RESTIC_B}" ]; then
+  mask_var "${VOLSYNC_RESTIC_B}"
+  output_var "volsync_restic_password_b_cl01tl" "${VOLSYNC_RESTIC_B}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_volsync_restic_password_b_cl01tl=${VOLSYNC_RESTIC_B}" >> "${GITHUB_ENV}"
+  fi
+fi
+
+# Tier C: Raspberry Pi (ps10rp)
+VOLSYNC_RESTIC_C=""
+for path in "ps10rp/garage/keys/volsync-backups" "garage/home-infra/volsync-backups"; do
+  RESP=$(fetch_bao_path "$path")
+  P=$(echo "$RESP" | jq -r '.data.data.RESTIC_PASSWORD // .data.data.RESTIC_PASSWORD_REMOTE // empty' 2>/dev/null || true)
+  if [ -n "$P" ]; then
+    VOLSYNC_RESTIC_C="$P"
+    echo ">> Loaded Tier C VolSync Restic password from OpenBao: secret/${path}"
+    break
+  fi
+done
+if [ -n "${VOLSYNC_RESTIC_C}" ]; then
+  mask_var "${VOLSYNC_RESTIC_C}"
+  output_var "volsync_restic_password_c_ps10rp" "${VOLSYNC_RESTIC_C}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_volsync_restic_password_c_ps10rp=${VOLSYNC_RESTIC_C}" >> "${GITHUB_ENV}"
+  fi
+fi
+
+# Tier D: Backblaze B2 (cs01bb)
+VOLSYNC_RESTIC_D=""
+for path in "cs01bb/s3/keys/volsync-backups" "backblaze/home-infra/volsync-backups"; do
+  RESP=$(fetch_bao_path "$path")
+  P=$(echo "$RESP" | jq -r '.data.data.RESTIC_PASSWORD // empty' 2>/dev/null || true)
+  if [ -n "$P" ]; then
+    VOLSYNC_RESTIC_D="$P"
+    echo ">> Loaded Tier D VolSync Restic password from OpenBao: secret/${path}"
+    break
+  fi
+done
+if [ -n "${VOLSYNC_RESTIC_D}" ]; then
+  mask_var "${VOLSYNC_RESTIC_D}"
+  output_var "volsync_restic_password_d_cs01bb" "${VOLSYNC_RESTIC_D}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_volsync_restic_password_d_cs01bb=${VOLSYNC_RESTIC_D}" >> "${GITHUB_ENV}"
+  fi
+fi
+
 # Export TF_VARs directly to GITHUB_ENV if running in GitHub/Gitea Actions
 if [ -n "${GITHUB_ENV:-}" ]; then
   echo "TF_VAR_openbao_token=${OPENBAO_TOKEN}" >> "${GITHUB_ENV}"

@@ -41,8 +41,8 @@ provider "vault" {
 
 # Tier A: Synology S3 API
 provider "aws" {
-  alias                       = "a_ps02sn"
-  region                      = "garage"
+  alias  = "a_ps02sn"
+  region = "garage"
   endpoints {
     s3 = var.garage_a_ps02sn_s3_endpoint
   }
@@ -57,8 +57,8 @@ provider "aws" {
 
 # Tier B: Cluster B S3 API
 provider "aws" {
-  alias                       = "b_cl01tl"
-  region                      = "garage"
+  alias  = "b_cl01tl"
+  region = "garage"
   endpoints {
     s3 = var.garage_b_cl01tl_s3_endpoint
   }
@@ -73,8 +73,8 @@ provider "aws" {
 
 # Tier C: Raspberry Pi S3 API
 provider "aws" {
-  alias                       = "c_ps10rp"
-  region                      = "garage"
+  alias  = "c_ps10rp"
+  region = "garage"
   endpoints {
     s3 = var.garage_c_ps10rp_s3_endpoint
   }

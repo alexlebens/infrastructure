@@ -177,12 +177,17 @@ resource "vault_kv_secret_v2" "a_ps02sn_keys" {
   mount    = "secret"
   name     = "ps02sn/garage/keys/${each.value.bucket_name}"
 
-  data_json = jsonencode({
-    BUCKET_NAME           = each.value.bucket_name
-    AWS_ACCESS_KEY_ID     = garage_key.a_ps02sn[each.key].access_key_id
-    AWS_SECRET_ACCESS_KEY = garage_key.a_ps02sn[each.key].secret_access_key
-    AWS_REGION            = "garage"
-  })
+  data_json = jsonencode(merge(
+    {
+      BUCKET_NAME           = each.value.bucket_name
+      AWS_ACCESS_KEY_ID     = garage_key.a_ps02sn[each.key].access_key_id
+      AWS_SECRET_ACCESS_KEY = garage_key.a_ps02sn[each.key].secret_access_key
+      AWS_REGION            = "garage"
+    },
+    (each.key == "volsync" || startswith(each.value.bucket_name, "volsync")) && var.volsync_restic_password_a_ps02sn != "" ? {
+      RESTIC_PASSWORD = var.volsync_restic_password_a_ps02sn
+    } : {}
+  ))
 }
 
 # --- Standardized Path: Tier B Talos Cluster (cl01tl/garage/keys/<id>) ---
@@ -191,12 +196,17 @@ resource "vault_kv_secret_v2" "b_cl01tl_keys" {
   mount    = "secret"
   name     = "cl01tl/garage/keys/${each.value.bucket_name}"
 
-  data_json = jsonencode({
-    BUCKET_NAME           = each.value.bucket_name
-    AWS_ACCESS_KEY_ID     = garage_key.b_cl01tl[each.key].access_key_id
-    AWS_SECRET_ACCESS_KEY = garage_key.b_cl01tl[each.key].secret_access_key
-    AWS_REGION            = "garage"
-  })
+  data_json = jsonencode(merge(
+    {
+      BUCKET_NAME           = each.value.bucket_name
+      AWS_ACCESS_KEY_ID     = garage_key.b_cl01tl[each.key].access_key_id
+      AWS_SECRET_ACCESS_KEY = garage_key.b_cl01tl[each.key].secret_access_key
+      AWS_REGION            = "garage"
+    },
+    (each.key == "volsync" || startswith(each.value.bucket_name, "volsync")) && var.volsync_restic_password_b_cl01tl != "" ? {
+      RESTIC_PASSWORD = var.volsync_restic_password_b_cl01tl
+    } : {}
+  ))
 }
 
 # --- Standardized Path: Tier C Raspberry Pi (ps10rp/garage/keys/<id>) ---
@@ -205,12 +215,17 @@ resource "vault_kv_secret_v2" "c_ps10rp_keys" {
   mount    = "secret"
   name     = "ps10rp/garage/keys/${each.value.bucket_name}"
 
-  data_json = jsonencode({
-    BUCKET_NAME           = each.value.bucket_name
-    AWS_ACCESS_KEY_ID     = garage_key.c_ps10rp[each.key].access_key_id
-    AWS_SECRET_ACCESS_KEY = garage_key.c_ps10rp[each.key].secret_access_key
-    AWS_REGION            = "garage"
-  })
+  data_json = jsonencode(merge(
+    {
+      BUCKET_NAME           = each.value.bucket_name
+      AWS_ACCESS_KEY_ID     = garage_key.c_ps10rp[each.key].access_key_id
+      AWS_SECRET_ACCESS_KEY = garage_key.c_ps10rp[each.key].secret_access_key
+      AWS_REGION            = "garage"
+    },
+    (each.key == "volsync" || startswith(each.value.bucket_name, "volsync")) && var.volsync_restic_password_c_ps10rp != "" ? {
+      RESTIC_PASSWORD = var.volsync_restic_password_c_ps10rp
+    } : {}
+  ))
 }
 
 # --- Standardized Path: Tier D Backblaze B2 (cs01bb/s3/keys/<id>) ---
@@ -219,12 +234,17 @@ resource "vault_kv_secret_v2" "d_cs01bb_keys" {
   mount    = "secret"
   name     = "cs01bb/s3/keys/${each.value.bucket_name}"
 
-  data_json = jsonencode({
-    BUCKET_NAME           = each.value.backups.d_cs01bb.destination_bucket
-    AWS_ACCESS_KEY_ID     = b2_application_key.d_cs01bb[each.key].application_key_id
-    AWS_SECRET_ACCESS_KEY = b2_application_key.d_cs01bb[each.key].application_key
-    AWS_REGION            = var.backblaze_d_cs01bb_region
-  })
+  data_json = jsonencode(merge(
+    {
+      BUCKET_NAME           = each.value.backups.d_cs01bb.destination_bucket
+      AWS_ACCESS_KEY_ID     = b2_application_key.d_cs01bb[each.key].application_key_id
+      AWS_SECRET_ACCESS_KEY = b2_application_key.d_cs01bb[each.key].application_key
+      AWS_REGION            = var.backblaze_d_cs01bb_region
+    },
+    (each.key == "volsync" || startswith(each.value.bucket_name, "volsync") || startswith(each.value.backups.d_cs01bb.destination_bucket, "volsync")) && var.volsync_restic_password_d_cs01bb != "" ? {
+      RESTIC_PASSWORD = var.volsync_restic_password_d_cs01bb
+    } : {}
+  ))
 }
 
 # ==============================================================================
