@@ -20,6 +20,8 @@ env:
   TOFU_VERSION: "1.12.6"
   TF_PLUGIN_CACHE_DIR: "${{ runner.temp }}/.opentofu-plugin-cache"
   TF_HTTP_USERNAME: "${{ vars.TF_HTTP_USERNAME || github.repository_owner }}"
+  TF_HTTP_PASSWORD: "${{ secrets.TOFU_TOKEN }}"
+  TF_VAR_gitea_token: "${{ secrets.TOFU_TOKEN }}"
 
 jobs:
   plan:
@@ -55,55 +57,14 @@ jobs:
 
       - name: Initialize OpenTofu
         working-directory: tofu/buckets
-        env:
-          TF_HTTP_USERNAME: ${{ vars.TF_HTTP_USERNAME || github.repository_owner }}
-          TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
-          GITEA_TOKEN: ${{ secrets.TOFU_TOKEN }}
-          TF_PLUGIN_CACHE_DIR: ${{ env.TF_PLUGIN_CACHE_DIR }}
         run: |
           mkdir -p "${TF_PLUGIN_CACHE_DIR}"
           tofu init -reconfigure \
             -backend-config="username=${TF_HTTP_USERNAME}" \
-            -backend-config="password=${GITEA_TOKEN}"
-
-      - name: Synchronize State
-        env:
-          TF_HTTP_USERNAME: ${{ vars.TF_HTTP_USERNAME || github.repository_owner }}
-          TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
-          GARAGE_A_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_a_bucket_id }}
-          GARAGE_A_WEB_ASSETS_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_a_web_assets_bucket_id }}
-          GARAGE_A_AFFINE_ASSETS_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_a_affine_assets_bucket_id }}
-          GARAGE_B_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_b_bucket_id }}
-          GARAGE_C_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_c_bucket_id }}
-          GARAGE_C_WEB_ASSETS_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_c_web_assets_bucket_id }}
-          GARAGE_C_AFFINE_ASSETS_BUCKET_ID: ${{ steps.cluster-secrets.outputs.garage_c_affine_assets_bucket_id }}
-        run: |
-          ./.gitea/scripts/tofu-sync-state.sh "tofu/buckets"
+            -backend-config="password=${TF_HTTP_PASSWORD}"
 
       - name: OpenTofu Plan & PR Comment
         env:
-          TF_HTTP_USERNAME: ${{ vars.TF_HTTP_USERNAME || github.repository_owner }}
-          TF_HTTP_PASSWORD: ${{ secrets.TOFU_TOKEN }}
-          TF_VAR_gitea_token: ${{ secrets.TOFU_TOKEN }}
-          TF_VAR_openbao_token: ${{ steps.cluster-secrets.outputs.openbao_token }}
-          TF_VAR_garage_a_ps02sn_token:
-            ${{ steps.cluster-secrets.outputs.garage_a_token || steps.cluster-secrets.outputs.garage_token }}
-          TF_VAR_garage_b_cl01tl_token:
-            ${{ steps.cluster-secrets.outputs.garage_b_token || steps.cluster-secrets.outputs.garage_token }}
-          TF_VAR_garage_c_ps10rp_token:
-            ${{ steps.cluster-secrets.outputs.garage_c_token || steps.cluster-secrets.outputs.garage_token }}
-          TF_VAR_garage_a_ps02sn_s3_endpoint: ${{ steps.cluster-secrets.outputs.garage_a_s3_endpoint }}
-          TF_VAR_garage_b_cl01tl_s3_endpoint: ${{ steps.cluster-secrets.outputs.garage_b_s3_endpoint }}
-          TF_VAR_garage_c_ps10rp_s3_endpoint: ${{ steps.cluster-secrets.outputs.garage_c_s3_endpoint }}
-          TF_VAR_backblaze_d_cs01bb_endpoint: ${{ steps.cluster-secrets.outputs.backblaze_endpoint }}
-          TF_VAR_backblaze_d_cs01bb_access_key_id: ${{ steps.cluster-secrets.outputs.backblaze_access_key_id }}
-          TF_VAR_backblaze_d_cs01bb_secret_access_key: ${{ steps.cluster-secrets.outputs.backblaze_secret_access_key }}
-          TF_VAR_garage_a_ps02sn_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}
-          TF_VAR_garage_a_ps02sn_admin_secret_key: ${{ steps.cluster-secrets.outputs.garage_admin_secret_key }}
-          TF_VAR_garage_b_cl01tl_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}
-          TF_VAR_garage_b_cl01tl_admin_secret_key: ${{ steps.cluster-secrets.outputs.garage_admin_secret_key }}
-          TF_VAR_garage_c_ps10rp_admin_access_key: ${{ steps.cluster-secrets.outputs.garage_admin_access_key }}
-          TF_VAR_garage_c_ps10rp_admin_secret_key: ${{ steps.cluster-secrets.outputs.garage_admin_secret_key }}
           GITEA_TOKEN: ${{ secrets.TOFU_TOKEN }}
           PUBLIC_URL: ${{ vars.PUBLIC_URL }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
