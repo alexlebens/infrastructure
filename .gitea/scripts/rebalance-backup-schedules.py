@@ -193,10 +193,12 @@ def rebalance_schedules(
     ext_start_min: int = 30,
     rem_start_hour: int = 10,
     rem_start_min: int = 30,
-    s3_onprem_start_hour: int = 3,
-    s3_onprem_start_min: int = 0,
+    s3_daily_start_hour: int = 3,
+    s3_daily_start_min: int = 0,
     s3_cloud_start_hour: int = 2,
     s3_cloud_start_min: int = 0,
+    s3_remote_start_hour: int = 2,
+    s3_remote_start_min: int = 30,
     interval_minutes: int = 5,
 ) -> tuple[list[dict], int]:
   """Computes non-overlapping schedules and optionally modifies values.yaml files."""
@@ -224,7 +226,16 @@ def rebalance_schedules(
 
   all_pg.sort(key=lambda x: x[0])
   sorted_vs_keys = sorted(all_vs.keys(), key=lambda x: (x[0], x[1]))
-  all_s3.sort(key=lambda x: (x[0], x[1]["target"]))
+
+  all_s3_grouped: dict[tuple[str, str], dict[str, dict]] = {}
+  for chart_name, s3 in all_s3:
+    key = (chart_name, s3["section"])
+    if key not in all_s3_grouped:
+      all_s3_grouped[key] = {}
+    tier = s3["target"].lower().split("_")[0]
+    all_s3_grouped[key][tier] = s3
+
+  sorted_s3_keys = sorted(all_s3_grouped.keys(), key=lambda x: (x[0], x[1]))
 
   table_rows = []
   file_modifications: dict[Path, list[tuple[int, str]]] = {}
@@ -360,72 +371,80 @@ def rebalance_schedules(
           "changed": changed,
       })
 
-  # 3. Allocate S3 Bucket Backups (On-Prem Daily, Cloud DR Weekly/Daily)
-  onprem_idx = 0
-  cloud_idx = 0
+  # 3. Allocate S3 Bucket Backups (Daily local tiers A/B, Weekly remote tiers C/D staggered by day)
+  daily_s3_idx = 0
 
-  for chart, s3 in all_s3:
-    tier = s3["target"].lower()
-    is_cloud = tier in ("d", "d_cs01bb", "backblaze")
+  for j, (chart, sec_name) in enumerate(sorted_s3_keys):
+    targets = all_s3_grouped[(chart, sec_name)]
+    dow = j % 7
+    slot_idx = j // 7
 
-    # Detect if currently configured as weekly (5 fields, 5th field is day of week != *)
-    cron_parts = s3["current"].strip().split()
-    is_weekly = len(cron_parts) == 5 and cron_parts[4] != "*"
+    def schedule_s3(s3_dict: dict, sched_str: str, freq: str, hour: int, minute: int):
+      chg = sched_str != s3_dict["current"]
+      q = s3_dict["quote"] or '"'
+      nl = f'{s3_dict["prefix"]}{q}{sched_str}{q}{s3_dict["suffix"]}\n'
+      fp = s3_dict["file"]
+      if fp not in file_modifications:
+        file_modifications[fp] = []
+      file_modifications[fp].append((s3_dict["line_idx"], nl))
+      if chg:
+        changed_files.add(fp)
+      table_rows.append({
+          "app": chart,
+          "target": f"{sec_name} ({s3_dict['target']})",
+          "kind": "S3",
+          "freq": freq,
+          "utc": sched_str,
+          "cst": format_cst_time(hour, minute),
+          "changed": chg,
+      })
 
-    if is_cloud:
-      if is_weekly:
-        dow = 6  # Saturday by default for cloud DR
-        try:
-          dow = int(cron_parts[4])
-        except ValueError:
-          pass
+    # Tier D: Weekly Cloud DR (02:00 UTC, staggered by day of week)
+    if "d" in targets:
+      s3 = targets["d"]
+      total_m = (
+          s3_cloud_start_hour * 60 + s3_cloud_start_min
+      ) + slot_idx * interval_minutes
+      h = (total_m // 60) % 24
+      m = total_m % 60
+      new_sched = f"{m} {h} * * {dow}"
+      schedule_s3(s3, new_sched, f"Weekly ({dow_names[dow]})", h, m)
+
+    # Tier C: Weekly Remote On-Prem (02:30 UTC, same day of week as Tier D)
+    if "c" in targets:
+      s3 = targets["c"]
+      total_m = (
+          s3_remote_start_hour * 60 + s3_remote_start_min
+      ) + slot_idx * interval_minutes
+      h = (total_m // 60) % 24
+      m = total_m % 60
+      new_sched = f"{m} {h} * * {dow}"
+      schedule_s3(s3, new_sched, f"Weekly ({dow_names[dow]})", h, m)
+
+    # Tier A / B: Daily On-Prem (03:00 UTC, staggered by 5-minute interval)
+    for tier in ("a", "b"):
+      if tier in targets:
+        s3 = targets[tier]
         total_m = (
-            s3_cloud_start_hour * 60 + s3_cloud_start_min
-        ) + cloud_idx * interval_minutes
-        h = (total_m // 60) % 24
-        m = total_m % 60
-        new_sched = f"{m} {h} * * {dow}"
-        freq_str = f"Weekly ({dow_names[dow % 7]})"
-      else:
-        total_m = (
-            s3_cloud_start_hour * 60 + s3_cloud_start_min
-        ) + cloud_idx * interval_minutes
+            s3_daily_start_hour * 60 + s3_daily_start_min
+        ) + daily_s3_idx * interval_minutes
         h = (total_m // 60) % 24
         m = total_m % 60
         new_sched = f"{m} {h} * * *"
-        freq_str = "Daily"
-      cloud_idx += 1
-    else:
-      # On-prem S3 backup
-      total_m = (
-          s3_onprem_start_hour * 60 + s3_onprem_start_min
-      ) + onprem_idx * interval_minutes
-      h = (total_m // 60) % 24
-      m = total_m % 60
-      new_sched = f"{m} {h} * * *"
-      freq_str = "Daily"
-      onprem_idx += 1
+        schedule_s3(s3, new_sched, "Daily", h, m)
+        daily_s3_idx += 1
 
-    changed = new_sched != s3["current"]
-    quote = s3["quote"] or '"'
-    new_line = f'{s3["prefix"]}{quote}{new_sched}{quote}{s3["suffix"]}\n'
-
-    fpath = s3["file"]
-    if fpath not in file_modifications:
-      file_modifications[fpath] = []
-    file_modifications[fpath].append((s3["line_idx"], new_line))
-    if changed:
-      changed_files.add(fpath)
-
-    table_rows.append({
-        "app": chart,
-        "target": f"s3-bucket ({s3['target']})",
-        "kind": "S3",
-        "freq": freq_str,
-        "utc": new_sched,
-        "cst": format_cst_time(h, m),
-        "changed": changed,
-    })
+    # Any other custom tiers
+    for tier, s3 in targets.items():
+      if tier not in ("a", "b", "c", "d"):
+        total_m = (
+            s3_daily_start_hour * 60 + s3_daily_start_min
+        ) + daily_s3_idx * interval_minutes
+        h = (total_m // 60) % 24
+        m = total_m % 60
+        new_sched = f"{m} {h} * * *"
+        schedule_s3(s3, new_sched, "Daily", h, m)
+        daily_s3_idx += 1
 
   # Apply modifications in-place if not dry-run
   if not dry_run:
