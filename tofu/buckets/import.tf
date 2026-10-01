@@ -55,19 +55,35 @@ import {
 
 # ------------------------------------------------------------------------------
 # Offsite DR Storage: Tier D - Backblaze B2 (d_cs01bb)
-# Note: Backblaze B2 bucket import requires the B2 Bucket ID (found in B2 Console / CLI)
+# Only apps with `s3-bucket: enabled: true` are declared in Tofu.
 # ------------------------------------------------------------------------------
-# import {
-#   to = b2_bucket.d_cs01bb["web-assets"]
-#   id = "<B2_WEB_ASSETS_BUCKET_ID>" # target bucket: web-assets-770aef58c931fcf4
-# }
+import {
+  to = b2_bucket.d_cs01bb["affine"]
+  id = "5d710b5eea3ce5a2ad0f0211" # affine-assets-6dd4468fad57973f
+}
 
-# import {
-#   to = b2_bucket.d_cs01bb["reactive-resume"]
-#   id = "<B2_REACTIVE_RESUME_BUCKET_ID>" # target bucket: reactive-resume-assets-61758b59b4c7c893
-# }
+import {
+  to = b2_bucket.d_cs01bb["reactive-resume"]
+  id = "cd419b0eba4c2562ad0f0211" # reactive-resume-assets-61758b59b4c7c893
+}
 
-# import {
-#   to = b2_bucket.d_cs01bb["affine"]
-#   id = "<B2_AFFINE_ASSETS_BUCKET_ID>" # target bucket: affine-assets-6dd4468fad57973f
-# }
+import {
+  to = b2_bucket.d_cs01bb["web-assets"]
+  id = "cd910b4e5a9cf5529ddf0211" # web-assets-770aef58c931fcf4
+}
+
+# ------------------------------------------------------------------------------
+# Future Migrations:
+# Uncomment these import blocks as each app is migrated from `garage-bucket` to `s3-bucket`:
+# ------------------------------------------------------------------------------
+# import { to = b2_bucket.d_cs01bb["backrest"]  id = "6d111bce3a8cf5529ddf0211" } # backrest-def20def9a764fc3
+# import { to = b2_bucket.d_cs01bb["gitea"]     id = "3db1ebbe5a2c25c2ad0f0211" } # gitea-assets-6670d003410bb125
+# import { to = b2_bucket.d_cs01bb["kaneo"]     id = "2da12b0eda7ce5c29def0211" } # kaneo-asssets-47edc3f232f2797f
+# import { to = b2_bucket.d_cs01bb["karakeep"]  id = "2dd16bbe3abcf5529ddf0211" } # karakeep-assets-bcb0bc04dac3e3fd
+# import { to = b2_bucket.d_cs01bb["mariadb"]   id = "2db19b2e3a8cf5529ddf0211" } # mariadb-backups-6e3b78870f7af040
+# import { to = b2_bucket.d_cs01bb["openbao"]   id = "0d81cbee3a8cf5529ddf0211" } # openbao-backups-038053cd180284dc
+# import { to = b2_bucket.d_cs01bb["outline"]   id = "1db16b6eea4cf5d29dff0211" } # outline-assets-2ac99fb083071f74
+# import { to = b2_bucket.d_cs01bb["pocket-id"] id = "6de1eb0e1a2cd5d29dff0211" } # pocket-id-assets-708b709d424a4664
+# import { to = b2_bucket.d_cs01bb["postgres"]  id = "1d312bce3a2cf5529ddf0211" } # postgres-backups-775957147abfbc73
+# import { to = b2_bucket.d_cs01bb["talos"]     id = "cd111b9e3a9cf5529ddf0211" } # talos-backups-8c38c0f91be53b11
+# import { to = b2_bucket.d_cs01bb["volsync"]   id = "cdd1eb7e3a7cf5529ddf0211" } # volsync-backups-c1c03d37545d9c27
