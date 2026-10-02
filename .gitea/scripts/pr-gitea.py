@@ -432,16 +432,30 @@ def main():
                 merge_url, token, method="POST", data={"Do": "merge"}
             )
 
-            if merge_status == 200:
+            if merge_status in (200, 201):
                 print(f">> Pull Request #{pr_number} merged successfully!", flush=True)
                 pr_operation = "merged"
                 merged = True
                 break
 
-            # Transient merge conflicts / locks / pending checks:
+            # Check if the PR was actually merged despite any non-200 response
+            # (e.g., Gitea returns HTTP 500 if an internal race condition closed the issue
+            # or post-receive hooks executed concurrently during the merge)
+            time.sleep(1.0)
+            verify_status, _ = gitea_api_request(merge_url, token, method="GET")
+            if verify_status == 204:
+                print(
+                    f">> Pull Request #{pr_number} merged successfully (verified via GET)!",
+                    flush=True,
+                )
+                pr_operation = "merged"
+                merged = True
+                break
+
+            # Transient merge conflicts / locks / pending checks / server errors:
             # 405 (Method Not Allowed - merge check in progress), 409 (Conflict - ref lock / push rejected),
-            # 422 (Unprocessable Entity - PR checking or not ready), 423 (Locked)
-            if merge_status in (405, 409, 422, 423) and attempt < max_retries:
+            # 422 (Unprocessable Entity - PR checking or not ready), 423 (Locked), 500 (Internal Server Error / race)
+            if merge_status in (405, 409, 422, 423, 500) and attempt < max_retries:
                 delay = base_delay + (attempt * 1.5) + random.uniform(0.5, 2.0)
                 print(
                     f">> Automerge attempt {attempt}/{max_retries} for PR #{pr_number} returned HTTP {merge_status} ({merge_data})."
