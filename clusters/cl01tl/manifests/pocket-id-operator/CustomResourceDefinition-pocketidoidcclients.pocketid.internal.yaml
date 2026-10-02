@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: pocketidoidcclients.pocketid.internal
 spec:
   group: pocketid.internal
@@ -155,6 +155,9 @@ spec:
                       - message: 'clientAccess: false conflicts with clientPermissions; drop the permissions to revoke the flow, or remove the flag to grant them'
                         rule: '!has(self.clientAccess) || self.clientAccess || !has(self.clientPermissions) || size(self.clientPermissions) == 0'
                   type: array
+                backchannelLogoutUrl:
+                  description: Back-channel logout URL Pocket-ID notifies when a user's session for the client ends
+                  type: string
                 callbackUrls:
                   description: Callback URLs for the client
                   items:
@@ -276,8 +279,77 @@ spec:
                         description: Issuer is the OIDC issuer for the identity
                         type: string
                       jwks:
-                        description: JWKS is the URL or JSON for the identity's JWKS
+                        description: JWKS is the URL of the identity's JWKS. Defaults to the issuer's /.well-known/jwks.json
                         type: string
+                      publicKeys:
+                        description: PublicKeys are the keys that verify the identity's assertions, used instead of a JWKS URL
+                        items:
+                          description: OIDCClientPublicKey is a public key given inline or read from a ConfigMap or Secret.
+                          properties:
+                            value:
+                              description: Value is a JWK
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                            valueFrom:
+                              description: |-
+                                ValueFrom reads a JWK, or a JWKS whose keys are all used, from a ConfigMap or Secret.
+                                It is re-read on every reconcile, so key rotation is picked up on the next resync.
+                              properties:
+                                configMapKeyRef:
+                                  description: Selects a key from a ConfigMap.
+                                  properties:
+                                    key:
+                                      description: |-
+                                        The key to select from the ConfigMap's Data field.
+                                        Keys in the BinaryData field are not currently propagated to container env vars.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the ConfigMap or its key must be defined
+                                      type: boolean
+                                  required:
+                                    - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                secretKeyRef:
+                                  description: SecretKeySelector selects a key of a Secret.
+                                  properties:
+                                    key:
+                                      description: The key of the secret to select from.  Must be a valid secret key.
+                                      type: string
+                                    name:
+                                      default: ""
+                                      description: |-
+                                        Name of the referent.
+                                        This field is effectively required, but due to backwards compatibility is
+                                        allowed to be empty. Instances of this type with an empty value here are
+                                        almost certainly wrong.
+                                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                      type: string
+                                    optional:
+                                      description: Specify whether the Secret or its key must be defined
+                                      type: boolean
+                                  required:
+                                    - key
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                              type: object
+                              x-kubernetes-validations:
+                                - message: exactly one of configMapKeyRef or secretKeyRef must be set
+                                  rule: has(self.configMapKeyRef) != has(self.secretKeyRef)
+                          type: object
+                          x-kubernetes-validations:
+                            - message: exactly one of value or valueFrom must be set
+                              rule: has(self.value) != has(self.valueFrom)
+                        type: array
                       replayProtection:
                         default: false
                         description: ReplayProtection requires client assertions to carry a jti and rejects replays
@@ -578,8 +650,8 @@ spec:
                   rule: '!has(self.clientSecretRef) || !has(self.clientSecretRotation) || !self.clientSecretRotation.enabled'
                 - message: clientID must be at most 128 characters unless it is a client ID metadata document URL
                   rule: '!has(self.clientID) || self.clientID.startsWith(''https://'') || self.clientID.size() <= 128'
-                - message: name, callbackUrls, logoutCallbackUrls, federatedIdentities, isPublic, and pkceEnabled are owned by the client ID metadata document and must not be set on a CIMD client
-                  rule: '!(has(self.clientID) && self.clientID.startsWith(''https://'')) || (!has(self.name) && !has(self.callbackUrls) && !has(self.logoutCallbackUrls) && !has(self.federatedIdentities) && !self.isPublic && !self.pkceEnabled)'
+                - message: name, callbackUrls, logoutCallbackUrls, backchannelLogoutUrl, federatedIdentities, isPublic, and pkceEnabled are owned by the client ID metadata document and must not be set on a CIMD client
+                  rule: '!(has(self.clientID) && self.clientID.startsWith(''https://'')) || (!has(self.name) && !has(self.callbackUrls) && !has(self.logoutCallbackUrls) && !has(self.backchannelLogoutUrl) && !has(self.federatedIdentities) && !self.isPublic && !self.pkceEnabled)'
                 - message: a CIMD client is always public and has no client secret, so clientSecretRef and clientSecretRotation are not supported
                   rule: '!(has(self.clientID) && self.clientID.startsWith(''https://'')) || (!has(self.clientSecretRef) && (!has(self.clientSecretRotation) || !self.clientSecretRotation.enabled))'
                 - message: clientPermissions and clientAccess require a confidential client, and a CIMD client is always public
