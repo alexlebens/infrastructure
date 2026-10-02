@@ -34,6 +34,8 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
         runAsGroup: 1000
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -72,7 +74,7 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 250Mi
+              memory: 300Mi
           startupProbe:
             exec:
               command:
@@ -86,6 +88,8 @@ spec:
               name: config
             - mountPath: /mnt/store
               name: media
+            - mountPath: /tmp
+              name: tmp
         - args:
             - bazarr
           env:
@@ -104,6 +108,16 @@ spec:
               value: "false"
           image: ghcr.io/onedr0p/exportarr:v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
           name: metrics
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
         - env:
             - name: OAUTH2_PROXY_HTTP_ADDRESS
               value: 0.0.0.0:4180
@@ -132,6 +146,19 @@ spec:
             httpGet:
               path: /ready
               port: 4180
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: config
           persistentVolumeClaim:
@@ -139,3 +166,5 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: bazarr-nfs-storage
+        - emptyDir: {}
+          name: tmp
