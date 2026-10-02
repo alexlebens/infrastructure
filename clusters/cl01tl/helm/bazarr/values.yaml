@@ -9,6 +9,8 @@ bazarr:
           runAsGroup: 1000
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -29,7 +31,7 @@ bazarr:
           resources:
             requests:
               cpu: 10m
-              memory: 250Mi
+              memory: 300Mi
           probes:
             liveness:
               enabled: true
@@ -65,6 +67,12 @@ bazarr:
                 initialDelaySeconds: 60
                 timeoutSeconds: 10
         metrics:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/onedr0p/exportarr
             tag: v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
@@ -83,7 +91,17 @@ bazarr:
               value: false
             - name: ENABLE_UNKNOWN_QUEUE_ITEMS
               value: false
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -105,6 +123,10 @@ bazarr:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
           probes:
             liveness:
               enabled: true
@@ -182,6 +204,14 @@ bazarr:
         main:
           main:
             - path: /mnt/store
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+          oauth:
+            - path: /tmp
 
 pocket-id-client:
   client:
