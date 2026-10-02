@@ -29,6 +29,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: backrest
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -56,7 +64,13 @@ spec:
           resources:
             requests:
               cpu: 1m
-              memory: 40Mi
+              memory: 30Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /cache
               name: cache
@@ -100,6 +114,19 @@ spec:
             httpGet:
               path: /ready
               port: 4180
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - emptyDir: {}
           name: cache
