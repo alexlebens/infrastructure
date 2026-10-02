@@ -1,17 +1,17 @@
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDashboard
 metadata:
-  name: backrest
+  name: oauth2-proxy
   namespace: grafana-operator
   labels:
-    app.kubernetes.io/name: backrest
-    app.kubernetes.io/instance: backrest
-    app.kubernetes.io/part-of: backrest
+    app.kubernetes.io/name: oauth2-proxy
+    app.kubernetes.io/instance: pocket-id-operator
+    app.kubernetes.io/part-of: pocket-id-operator
 spec:
   instanceSelector:
     matchLabels:
       app: grafana-main
-  folderUID: grafana-folder-service
+  folderUID: grafana-folder-platform
   resyncPeriod: 6h
   json: |-
     {
@@ -34,76 +34,26 @@ spec:
       "editable": false,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 0,
-      "liveNow": false,
+      "links": [],
       "panels": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "kube-prometheus-stack"
-          },
-          "description": "Total bytes processed across all backups",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
+          "collapsed": false,
           "gridPos": {
-            "h": 4,
-            "w": 5,
+            "h": 1,
+            "w": 24,
             "x": 0,
             "y": 0
           },
           "id": 1,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "reduceOptions": {
-              "calcs": ["lastNotNull"],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "auto"
-          },
-          "pluginVersion": "11.0.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "kube-prometheus-stack"
-              },
-              "editorMode": "code",
-              "expr": "sum(backrest_backup_bytes_processed{namespace=\"backrest\", plan_id=~\"$plan\", repo_id=~\"$repo\"}) or vector(0)",
-              "instant": false,
-              "legendFormat": "Processed",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Data Processed",
-          "type": "stat"
+          "title": "Overview",
+          "type": "row"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Total new/deduplicated bytes added to repositories",
+          "description": "Total incoming request rate across OAuth2 Proxy sidecars",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -119,15 +69,15 @@ spec:
                   }
                 ]
               },
-              "unit": "bytes"
+              "unit": "reqps"
             },
             "overrides": []
           },
           "gridPos": {
             "h": 4,
             "w": 5,
-            "x": 5,
-            "y": 0
+            "x": 0,
+            "y": 1
           },
           "id": 2,
           "options": {
@@ -150,14 +100,13 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "sum(backrest_backup_bytes_added{namespace=\"backrest\", plan_id=~\"$plan\", repo_id=~\"$repo\"}) or vector(0)",
-              "instant": false,
-              "legendFormat": "Added",
+              "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
+              "legendFormat": "Total Requests",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Data Added",
+          "title": "Request Rate",
           "type": "stat"
         },
         {
@@ -165,39 +114,41 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Total file warnings logged during backups",
+          "description": "Percentage of requests returning HTTP 2xx or 3xx",
           "fieldConfig": {
             "defaults": {
               "color": {
                 "mode": "thresholds"
               },
               "mappings": [],
+              "max": 100,
+              "min": 0,
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
+                    "color": "red",
                     "value": null
                   },
                   {
-                    "color": "orange",
-                    "value": 1
+                    "color": "yellow",
+                    "value": 95
                   },
                   {
-                    "color": "red",
-                    "value": 5
+                    "color": "green",
+                    "value": 99
                   }
                 ]
               },
-              "unit": "short"
+              "unit": "percent"
             },
             "overrides": []
           },
           "gridPos": {
             "h": 4,
-            "w": 4,
-            "x": 10,
-            "y": 0
+            "w": 5,
+            "x": 5,
+            "y": 1
           },
           "id": 3,
           "options": {
@@ -220,14 +171,13 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "sum(backrest_backup_file_warnings{namespace=\"backrest\", plan_id=~\"$plan\", repo_id=~\"$repo\"}) or vector(0)",
-              "instant": false,
-              "legendFormat": "Warnings",
+              "expr": "(sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"[23]..\"}[5m])) / (sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) > 0)) * 100",
+              "legendFormat": "Success Rate",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Backup Warnings",
+          "title": "Success Rate",
           "type": "stat"
         },
         {
@@ -235,31 +185,39 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Resident memory consumption of the Backrest container",
+          "description": "Rate of client errors (HTTP 4xx, e.g. 401 Unauthorized / 403 Forbidden)",
           "fieldConfig": {
             "defaults": {
               "color": {
-                "mode": "palette-classic"
+                "mode": "thresholds"
               },
               "mappings": [],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "purple",
+                    "color": "green",
                     "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 0.1
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
                   }
                 ]
               },
-              "unit": "bytes"
+              "unit": "reqps"
             },
             "overrides": []
           },
           "gridPos": {
             "h": 4,
             "w": 5,
-            "x": 14,
-            "y": 0
+            "x": 10,
+            "y": 1
           },
           "id": 4,
           "options": {
@@ -282,14 +240,13 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "sum(process_resident_memory_bytes{namespace=\"backrest\"})",
-              "instant": false,
-              "legendFormat": "RSS Memory",
+              "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"4..\"}[5m])) or vector(0)",
+              "legendFormat": "4xx Errors",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Memory Usage (RSS)",
+          "title": "4xx Client Errors",
           "type": "stat"
         },
         {
@@ -297,7 +254,76 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Time elapsed since the Backrest instance started",
+          "description": "Rate of server errors (HTTP 5xx, e.g. 500 / 502 upstream errors)",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.5
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 5,
+            "x": 15,
+            "y": 1
+          },
+          "id": 5,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "11.0.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "kube-prometheus-stack"
+              },
+              "editorMode": "code",
+              "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"5..\"}[5m])) or vector(0)",
+              "legendFormat": "5xx Errors",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "5xx Server Errors",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "kube-prometheus-stack"
+          },
+          "description": "Total number of namespaces with active OAuth2 Proxy instances",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -308,22 +334,22 @@ spec:
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
+                    "color": "purple",
                     "value": null
                   }
                 ]
               },
-              "unit": "s"
+              "unit": "short"
             },
             "overrides": []
           },
           "gridPos": {
             "h": 4,
-            "w": 5,
-            "x": 19,
-            "y": 0
+            "w": 4,
+            "x": 20,
+            "y": 1
           },
-          "id": 5,
+          "id": 6,
           "options": {
             "colorMode": "value",
             "graphMode": "none",
@@ -344,14 +370,13 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "time() - max(process_start_time_seconds{namespace=\"backrest\"})",
-              "instant": true,
-              "legendFormat": "Uptime",
-              "range": false,
+              "expr": "count(count by (namespace) (oauth2_proxy_requests_total))",
+              "legendFormat": "Protected Services",
+              "range": true,
               "refId": "A"
             }
           ],
-          "title": "Instance Uptime",
+          "title": "Protected Services",
           "type": "stat"
         },
         {
@@ -360,10 +385,10 @@ spec:
             "h": 1,
             "w": 24,
             "x": 0,
-            "y": 4
+            "y": 5
           },
-          "id": 100,
-          "title": "Backup Plans & Data Volume",
+          "id": 7,
+          "title": "Traffic & Authentication Activity",
           "type": "row"
         },
         {
@@ -371,7 +396,7 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Historical volume of data processed by each backup plan",
+          "description": "Rate of incoming requests grouped by application namespace",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -401,7 +426,7 @@ spec:
                   }
                 ]
               },
-              "unit": "bytes"
+              "unit": "reqps"
             },
             "overrides": []
           },
@@ -409,161 +434,7 @@ spec:
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 5
-          },
-          "id": 6,
-          "options": {
-            "legend": {
-              "calcs": ["lastNotNull", "max"],
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "11.0.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "kube-prometheus-stack"
-              },
-              "editorMode": "code",
-              "expr": "backrest_backup_bytes_processed{namespace=\"backrest\", plan_id=~\"$plan\", repo_id=~\"$repo\"}",
-              "legendFormat": "{{plan_id}} ({{repo_id}})",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Data Processed by Plan",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "kube-prometheus-stack"
-          },
-          "description": "Historical volume of new data added to repository by each backup plan",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "fillOpacity": 15,
-                "gradientMode": "opacity",
-                "lineInterpolation": "smooth",
-                "lineWidth": 2,
-                "pointSize": 5,
-                "showPoints": "auto",
-                "spanNulls": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "blue",
-                    "value": null
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 5
-          },
-          "id": 7,
-          "options": {
-            "legend": {
-              "calcs": ["lastNotNull", "max"],
-              "displayMode": "table",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "11.0.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "kube-prometheus-stack"
-              },
-              "editorMode": "code",
-              "expr": "backrest_backup_bytes_added{namespace=\"backrest\", plan_id=~\"$plan\", repo_id=~\"$repo\"}",
-              "legendFormat": "{{plan_id}} ({{repo_id}})",
-              "range": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Data Added by Plan",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "kube-prometheus-stack"
-          },
-          "description": "File warnings encountered during backup runs",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "lineInterpolation": "linear",
-                "lineWidth": 2,
-                "pointSize": 5,
-                "showPoints": "auto",
-                "spanNulls": false
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 1
-                  }
-                ]
-              },
-              "unit": "short"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 7,
-            "w": 12,
-            "x": 0,
-            "y": 13
+            "y": 6
           },
           "id": 8,
           "options": {
@@ -574,8 +445,8 @@ spec:
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
-              "sort": "none"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
           "pluginVersion": "11.0.0",
@@ -586,13 +457,13 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "backrest_backup_file_warnings{namespace=\"backrest\", plan_id=~\"$plan\", repo_id=~\"$repo\"}",
-              "legendFormat": "{{plan_id}} ({{repo_id}})",
+              "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) by (namespace)",
+              "legendFormat": "{{namespace}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "File Warnings by Plan",
+          "title": "Request Rate by Service",
           "type": "timeseries"
         },
         {
@@ -600,211 +471,7 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Summary table of current backup plan statistics",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Value #A"
-                },
-                "properties": [
-                  {
-                    "id": "displayName",
-                    "value": "Processed Bytes"
-                  },
-                  {
-                    "id": "unit",
-                    "value": "bytes"
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Value #B"
-                },
-                "properties": [
-                  {
-                    "id": "displayName",
-                    "value": "Added Bytes"
-                  },
-                  {
-                    "id": "unit",
-                    "value": "bytes"
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Value #C"
-                },
-                "properties": [
-                  {
-                    "id": "displayName",
-                    "value": "Warnings"
-                  },
-                  {
-                    "id": "unit",
-                    "value": "short"
-                  }
-                ]
-              }
-            ]
-          },
-          "gridPos": {
-            "h": 7,
-            "w": 12,
-            "x": 12,
-            "y": 13
-          },
-          "id": 9,
-          "options": {
-            "cellHeight": "sm",
-            "footer": {
-              "countRows": false,
-              "fields": "",
-              "reducer": ["sum"],
-              "show": false
-            },
-            "showHeader": true,
-            "sortBy": []
-          },
-          "pluginVersion": "11.0.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "kube-prometheus-stack"
-              },
-              "editorMode": "code",
-              "expr": "backrest_backup_bytes_processed{namespace=\"backrest\", plan_id=~\"$plan\", repo_id=~\"$repo\"}",
-              "format": "table",
-              "instant": true,
-              "legendFormat": "__auto",
-              "range": false,
-              "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "kube-prometheus-stack"
-              },
-              "editorMode": "code",
-              "expr": "backrest_backup_bytes_added{namespace=\"backrest\", plan_id=~\"$plan\", repo_id=~\"$repo\"}",
-              "format": "table",
-              "instant": true,
-              "legendFormat": "__auto",
-              "range": false,
-              "refId": "B"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "kube-prometheus-stack"
-              },
-              "editorMode": "code",
-              "expr": "backrest_backup_file_warnings{namespace=\"backrest\", plan_id=~\"$plan\", repo_id=~\"$repo\"}",
-              "format": "table",
-              "instant": true,
-              "legendFormat": "__auto",
-              "range": false,
-              "refId": "C"
-            }
-          ],
-          "title": "Current Plan Status",
-          "transformations": [
-            {
-              "id": "joinByField",
-              "options": {
-                "byField": "plan_id",
-                "mode": "outer"
-              }
-            },
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Time 1": true,
-                  "Time 2": true,
-                  "Time 3": true,
-                  "__name__ 1": true,
-                  "__name__ 2": true,
-                  "__name__ 3": true,
-                  "container 1": true,
-                  "container 2": true,
-                  "container 3": true,
-                  "endpoint 1": true,
-                  "endpoint 2": true,
-                  "endpoint 3": true,
-                  "instance 1": true,
-                  "instance 2": true,
-                  "instance 3": true,
-                  "job 1": true,
-                  "job 2": true,
-                  "job 3": true,
-                  "namespace 1": true,
-                  "namespace 2": true,
-                  "namespace 3": true,
-                  "pod 1": true,
-                  "pod 2": true,
-                  "pod 3": true,
-                  "repo_id 2": true,
-                  "repo_id 3": true,
-                  "service 1": true,
-                  "service 2": true,
-                  "service 3": true
-                },
-                "indexByName": {
-                  "plan_id": 0,
-                  "repo_id 1": 1,
-                  "Value #A": 2,
-                  "Value #B": 3,
-                  "Value #C": 4
-                },
-                "renameByName": {
-                  "plan_id": "Plan",
-                  "repo_id 1": "Repository"
-                }
-              }
-            }
-          ],
-          "type": "table"
-        },
-        {
-          "collapsed": false,
-          "gridPos": {
-            "h": 1,
-            "w": 24,
-            "x": 0,
-            "y": 20
-          },
-          "id": 101,
-          "title": "Application Resources & Health",
-          "type": "row"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "kube-prometheus-stack"
-          },
-          "description": "CPU usage rate by container in the backrest pod",
+          "description": "Rate of requests categorized by HTTP status code",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -834,17 +501,17 @@ spec:
                   }
                 ]
               },
-              "unit": "percentunit"
+              "unit": "reqps"
             },
             "overrides": []
           },
           "gridPos": {
-            "h": 7,
-            "w": 8,
-            "x": 0,
-            "y": 21
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 6
           },
-          "id": 10,
+          "id": 9,
           "options": {
             "legend": {
               "calcs": ["lastNotNull", "max"],
@@ -853,8 +520,8 @@ spec:
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
-              "sort": "none"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
           "pluginVersion": "11.0.0",
@@ -865,21 +532,33 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "sum(rate(process_cpu_seconds_total{namespace=\"backrest\"}[2m])) by (pod, container)",
-              "legendFormat": "{{container}}",
+              "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) by (status_code)",
+              "legendFormat": "HTTP {{status_code}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "CPU Utilization",
+          "title": "Requests by HTTP Status Code",
           "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 14
+          },
+          "id": 10,
+          "title": "Upstream Requests & Forwarding",
+          "type": "row"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Resident Set Size (RSS) memory consumption",
+          "description": "Requests forwarded upstream to backends grouped by namespace and upstream URL",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -904,20 +583,20 @@ spec:
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "purple",
+                    "color": "green",
                     "value": null
                   }
                 ]
               },
-              "unit": "bytes"
+              "unit": "reqps"
             },
             "overrides": []
           },
           "gridPos": {
-            "h": 7,
-            "w": 8,
-            "x": 8,
-            "y": 21
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 15
           },
           "id": 11,
           "options": {
@@ -928,8 +607,8 @@ spec:
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
-              "sort": "none"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
           "pluginVersion": "11.0.0",
@@ -940,13 +619,13 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "process_resident_memory_bytes{namespace=\"backrest\"}",
-              "legendFormat": "{{pod}} ({{container}})",
+              "expr": "sum(rate(oauth2_proxy_upstream_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) by (namespace, upstream)",
+              "legendFormat": "{{namespace}} → {{upstream}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Memory Usage (RSS)",
+          "title": "Upstream Forwarded Requests by Backend",
           "type": "timeseries"
         },
         {
@@ -954,7 +633,7 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Active Go goroutines and open file descriptors",
+          "description": "HTTP status codes returned by backend applications to the proxy",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -966,8 +645,8 @@ spec:
                 "axisColorMode": "text",
                 "axisLabel": "",
                 "axisPlacement": "auto",
-                "fillOpacity": 10,
-                "gradientMode": "none",
+                "fillOpacity": 15,
+                "gradientMode": "opacity",
                 "lineInterpolation": "smooth",
                 "lineWidth": 2,
                 "pointSize": 5,
@@ -984,15 +663,15 @@ spec:
                   }
                 ]
               },
-              "unit": "short"
+              "unit": "reqps"
             },
             "overrides": []
           },
           "gridPos": {
-            "h": 7,
-            "w": 8,
-            "x": 16,
-            "y": 21
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 15
           },
           "id": 12,
           "options": {
@@ -1003,8 +682,8 @@ spec:
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
-              "sort": "none"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
           "pluginVersion": "11.0.0",
@@ -1015,31 +694,20 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "go_goroutines{namespace=\"backrest\"}",
-              "legendFormat": "Goroutines ({{container}})",
+              "expr": "sum(rate(oauth2_proxy_upstream_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) by (status_code)",
+              "legendFormat": "Upstream HTTP {{status_code}}",
               "range": true,
               "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "kube-prometheus-stack"
-              },
-              "editorMode": "code",
-              "expr": "process_open_fds{namespace=\"backrest\"}",
-              "legendFormat": "Open FDs ({{container}})",
-              "range": true,
-              "refId": "B"
             }
           ],
-          "title": "Goroutines & Open File Descriptors",
+          "title": "Upstream Response Status Codes",
           "type": "timeseries"
         }
       ],
       "preload": true,
       "refresh": "",
       "schemaVersion": 42,
-      "tags": ["service", "backup", "storage"],
+      "tags": ["platform", "authentication"],
       "templating": {
         "list": [
           {
@@ -1053,15 +721,15 @@ spec:
               "type": "prometheus",
               "uid": "kube-prometheus-stack"
             },
-            "definition": "label_values(backrest_backup_bytes_processed{namespace=\"backrest\"}, plan_id)",
+            "definition": "label_values(oauth2_proxy_requests_total, namespace)",
             "hide": 0,
             "includeAll": true,
-            "label": "Plan",
+            "label": "Namespace",
             "multi": true,
-            "name": "plan",
+            "name": "namespace",
             "options": [],
             "query": {
-              "query": "label_values(backrest_backup_bytes_processed{namespace=\"backrest\"}, plan_id)",
+              "query": "label_values(oauth2_proxy_requests_total, namespace)",
               "refId": "PrometheusVariableQueryEditor-VariableQuery"
             },
             "refresh": 1,
@@ -1081,15 +749,15 @@ spec:
               "type": "prometheus",
               "uid": "kube-prometheus-stack"
             },
-            "definition": "label_values(backrest_backup_bytes_processed{namespace=\"backrest\"}, repo_id)",
+            "definition": "label_values(oauth2_proxy_requests_total{namespace=~\"$namespace\"}, pod)",
             "hide": 0,
             "includeAll": true,
-            "label": "Repository",
+            "label": "Pod",
             "multi": true,
-            "name": "repo",
+            "name": "pod",
             "options": [],
             "query": {
-              "query": "label_values(backrest_backup_bytes_processed{namespace=\"backrest\"}, repo_id)",
+              "query": "label_values(oauth2_proxy_requests_total{namespace=~\"$namespace\"}, pod)",
               "refId": "PrometheusVariableQueryEditor-VariableQuery"
             },
             "refresh": 1,
@@ -1101,12 +769,12 @@ spec:
         ]
       },
       "time": {
-        "from": "now-7d",
+        "from": "now-24h",
         "to": "now"
       },
       "timepicker": {},
       "timezone": "browser",
-      "title": "Backrest",
-      "uid": "d237fd855bf651f054cd6fdcb83d3267",
-      "id": 1997903457339648
+      "title": "OAuth2 Proxy",
+      "uid": "3acb0657098ae92fc12fd75b2f83d7ed",
+      "id": 1522856787955328
     }

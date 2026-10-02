@@ -5,10 +5,10 @@ metadata:
   namespace: bazarr
   labels:
     app.kubernetes.io/name: bazarr-config-backup
-    helm.sh/chart: volsync-target-config-2.4.0
+    helm.sh/chart: volsync-target-config-3.0.0
     app.kubernetes.io/instance: bazarr
     app.kubernetes.io/part-of: bazarr
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'bazarr-config'.
               Target: bazarr-config-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="bazarr-config-backup-source-a", obj_namespace="bazarr"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="bazarr", job_name=~"volsync-.*bazarr-config-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: bazarr-config
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'bazarr-config' has not completed successfully in 36h (schedule: '0 8 * * *').
+              Target: bazarr-config-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="bazarr-config-backup-source-c", obj_namespace="bazarr"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="bazarr", job_name=~"volsync-.*bazarr-config-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: bazarr-config
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'bazarr-config' has not completed successfully in 8d (schedule: '30 10 * * 6').
+              Target: bazarr-config-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="bazarr-config-backup-source-d", obj_namespace="bazarr"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="bazarr", job_name=~"volsync-.*bazarr-config-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: bazarr-config
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'bazarr-config' has not completed successfully in 8d (schedule: '30 9 * * 6').
+              Target: bazarr-config-backup-source-d
               Namespace: {{ $labels.namespace }}
