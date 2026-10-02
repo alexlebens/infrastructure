@@ -13,7 +13,7 @@ bentopdf:
               value: America/Chicago
           resources:
             requests:
-              cpu: 10m
+              cpu: 1m
               memory: 10Mi
           probes:
             liveness:
@@ -52,6 +52,10 @@ bentopdf:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
           probes:
             liveness:
               enabled: true
@@ -69,6 +73,7 @@ bentopdf:
                   port: 4180
   service:
     main:
+      forceRename: bentopdf
       ports:
         http:
           port: 80
@@ -79,16 +84,22 @@ bentopdf:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: bentopdf
-          app.kubernetes.io/instance: bentopdf
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: bentopdf
       endpoints:
         - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "PDF Tools"
+        gethomepage.dev/description: "BentoPDF"
+        gethomepage.dev/group: "Tools"
+        gethomepage.dev/icon: "sh-bentopdf.webp"
+        gethomepage.dev/href: "https://bentopdf.alexlebens.dev/#tools-header"
+        gethomepage.dev/siteMonitor: "http://bentopdf.bentopdf:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "200"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -102,8 +113,17 @@ bentopdf:
             - path:
                 type: PathPrefix
                 value: /
+
 pocket-id-client:
   client:
     displayName: "BentoPDF"
     description: "A privacy first PDF toolkit."
     clientID: 42E8BB2A-F67C-4AA5-8A4C-D8317AEE10AE
+    allowedUserGroups:
+      - name: user
+        namespace: pocket-id-operator
+
+common-helpers:
+  probe:
+    internal: http://bentopdf.bentopdf:80
+    external: https://bentopdf.alexlebens.dev
