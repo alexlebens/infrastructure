@@ -3,8 +3,23 @@ backrest:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/garethgeorge/backrest
             tag: v1.14.1@sha256:b852979754281026230cc69fb11428e6d57c9a97784ab4a444ffc7934c53a215
@@ -22,7 +37,7 @@ backrest:
           resources:
             requests:
               cpu: 1m
-              memory: 40Mi
+              memory: 30Mi
           probes:
             liveness:
               enabled: true
@@ -37,6 +52,12 @@ backrest:
                 tcpSocket:
                   port: 9898
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -58,6 +79,10 @@ backrest:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
           probes:
             liveness:
               enabled: true
@@ -75,6 +100,7 @@ backrest:
                   port: 4180
   service:
     main:
+      forceRename: backrest
       ports:
         http:
           port: 80
@@ -85,19 +111,25 @@ backrest:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: backrest
-          app.kubernetes.io/instance: backrest
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: backrest
       endpoints:
         - port: http
-          interval: 300s
-          scrapeTimeout: 15s
+          interval: 5m
         - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Backups"
+        gethomepage.dev/description: "Backrest"
+        gethomepage.dev/group: "Storage"
+        gethomepage.dev/icon: "sh-backrest-light.webp"
+        gethomepage.dev/siteMonitor: "http://backrest.backrest:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "300"
+        gethomepage.dev/widget.type: "backrest"
+        gethomepage.dev/widget.url: "http://backrest.backrest:80"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -142,6 +174,8 @@ backrest:
         main:
           main:
             - path: /tmp
+          oauth:
+            - path: /tmp
     storage:
       existingClaim: backrest-nfs-storage
       advancedMounts:
@@ -156,25 +190,41 @@ backrest:
           main:
             - path: /mnt/share
               readOnly: true
+
+pocket-id-client:
+  client:
+    displayName: "Backrest"
+    description: "A web-accessible backup solution built on top of restic."
+    clientID: 92B85CB6-7104-4271-9F02-C44A538C3F88
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
+
 volsync-target-data:
   pvcTarget: backrest-data
-  local:
+  a:
     enabled: true
     schedule: 55 7 * * *
-  remote:
+  c:
     enabled: true
     schedule: 30 10 * * 5
-  external:
+  d:
     enabled: true
     schedule: 30 9 * * 5
+
 volsync-target-config:
   pvcTarget: backrest-config
-  local:
+  a:
     enabled: true
     schedule: 50 7 * * *
-  remote:
+  c:
     enabled: true
     schedule: 30 10 * * 4
-  external:
+  d:
     enabled: true
     schedule: 30 9 * * 4
+
+common-helpers:
+  probe:
+    internal: http://backrest.backrest:80
+    external: https://backrest.alexlebens.dev
