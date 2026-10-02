@@ -5,10 +5,10 @@ metadata:
   namespace: audiobookshelf
   labels:
     app.kubernetes.io/name: audiobookshelf-metadata-backup
-    helm.sh/chart: volsync-target-metadata-2.4.0
+    helm.sh/chart: volsync-target-metadata-3.0.0
     app.kubernetes.io/instance: audiobookshelf
     app.kubernetes.io/part-of: audiobookshelf
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'audiobookshelf-metadata'.
               Target: audiobookshelf-metadata-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="audiobookshelf-metadata-backup-source-a", obj_namespace="audiobookshelf"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="audiobookshelf", job_name=~"volsync-.*audiobookshelf-metadata-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: audiobookshelf-metadata
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'audiobookshelf-metadata' has not completed successfully in 36h (schedule: '45 7 * * *').
+              Target: audiobookshelf-metadata-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="audiobookshelf-metadata-backup-source-c", obj_namespace="audiobookshelf"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="audiobookshelf", job_name=~"volsync-.*audiobookshelf-metadata-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: audiobookshelf-metadata
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'audiobookshelf-metadata' has not completed successfully in 8d (schedule: '30 10 * * 3').
+              Target: audiobookshelf-metadata-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="audiobookshelf-metadata-backup-source-d", obj_namespace="audiobookshelf"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="audiobookshelf", job_name=~"volsync-.*audiobookshelf-metadata-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: audiobookshelf-metadata
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'audiobookshelf-metadata' has not completed successfully in 8d (schedule: '30 9 * * 3').
+              Target: audiobookshelf-metadata-backup-source-d
               Namespace: {{ $labels.namespace }}
