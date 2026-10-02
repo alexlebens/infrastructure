@@ -3,8 +3,23 @@ backrest:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/garethgeorge/backrest
             tag: v1.14.1@sha256:b852979754281026230cc69fb11428e6d57c9a97784ab4a444ffc7934c53a215
@@ -22,7 +37,7 @@ backrest:
           resources:
             requests:
               cpu: 1m
-              memory: 40Mi
+              memory: 30Mi
           probes:
             liveness:
               enabled: true
@@ -37,6 +52,12 @@ backrest:
                 tcpSocket:
                   port: 9898
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -58,6 +79,10 @@ backrest:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
           probes:
             liveness:
               enabled: true
@@ -148,6 +173,8 @@ backrest:
       advancedMounts:
         main:
           main:
+            - path: /tmp
+          oauth:
             - path: /tmp
     storage:
       existingClaim: backrest-nfs-storage
