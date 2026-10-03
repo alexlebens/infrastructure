@@ -12,7 +12,7 @@ spec:
     - name: EmbeddedExporter
       rules:
         - alert: ClickHouseNodeDown
-          expr: up{job="clickhouse"} == 0
+          expr: up{service="rybbit-clickhouse"} == 0
           for: 2m
           labels:
             severity: critical
@@ -51,38 +51,6 @@ spec:
           annotations:
             summary: ClickHouse Disk Space Critical on Default (instance {{ $labels.instance }})
             description: "Disk space on default disk is critically low, below 10%.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-        - alert: ClickHouseDiskSpaceLowOnBackups
-          expr: ClickHouseAsyncMetrics_DiskAvailable_backups / (ClickHouseAsyncMetrics_DiskAvailable_backups + ClickHouseAsyncMetrics_DiskUsed_backups) * 100 < 20 and (ClickHouseAsyncMetrics_DiskAvailable_backups + ClickHouseAsyncMetrics_DiskUsed_backups) > 0
-          for: 2m
-          labels:
-            severity: warning
-          annotations:
-            summary: ClickHouse Disk Space Low on Backups (instance {{ $labels.instance }})
-            description: "Disk space on backups is below 20%.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-        - alert: ClickHouseReplicaErrors
-          expr: ClickHouseErrorMetric_ALL_REPLICAS_ARE_STALE == 1 or ClickHouseErrorMetric_ALL_REPLICAS_LOST == 1
-          for: 0m
-          labels:
-            severity: critical
-          annotations:
-            summary: ClickHouse Replica Errors (instance {{ $labels.instance }})
-            description: "Critical replica errors detected, either all replicas are stale or lost.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-        - alert: ClickHouseNoAvailableReplicas
-          expr: ClickHouseErrorMetric_NO_AVAILABLE_REPLICA == 1
-          for: 0m
-          labels:
-            severity: critical
-          annotations:
-            summary: ClickHouse No Available Replicas (instance {{ $labels.instance }})
-            description: "No available replicas in ClickHouse.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-        - alert: ClickHouseNoLiveReplicas
-          expr: ClickHouseErrorMetric_TOO_FEW_LIVE_REPLICAS == 1
-          for: 0m
-          labels:
-            severity: critical
-          annotations:
-            summary: ClickHouse No Live Replicas (instance {{ $labels.instance }})
-            description: "There are too few live replicas available, risking data loss and service disruption.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
         - alert: ClickHouseHighTCPConnections
           expr: ClickHouseMetrics_TCPConnection > 400
           for: 5m
@@ -91,22 +59,6 @@ spec:
           annotations:
             summary: ClickHouse High TCP Connections (instance {{ $labels.instance }})
             description: "High number of TCP connections, indicating heavy client or inter-cluster communication.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-        - alert: ClickHouseInterserverConnectionIssues
-          expr: ClickHouseMetrics_InterserverConnection > 50
-          for: 5m
-          labels:
-            severity: warning
-          annotations:
-            summary: ClickHouse Interserver Connection Issues (instance {{ $labels.instance }})
-            description: "High number of interserver connections may indicate replication or distributed query handling issues.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-        - alert: ClickHouseZooKeeperConnectionIssues
-          expr: ClickHouseMetrics_ZooKeeperSession != 1
-          for: 3m
-          labels:
-            severity: warning
-          annotations:
-            summary: ClickHouse ZooKeeper Connection Issues (instance {{ $labels.instance }})
-            description: "ClickHouse is experiencing issues with ZooKeeper connections, which may affect cluster state and coordination.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
         - alert: ClickHouseAuthenticationFailures
           expr: increase(ClickHouseErrorMetric_AUTHENTICATION_FAILED[5m]) > 3
           for: 0m
@@ -139,19 +91,3 @@ spec:
           annotations:
             summary: ClickHouse delayed insert queries (instance {{ $labels.instance }})
             description: "INSERTs delayed due to high number of active parts.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-        - alert: ClickHouseZookeeperHardwareException
-          expr: increase(ClickHouseProfileEvents_ZooKeeperHardwareExceptions[1m]) > 0
-          for: 1m
-          labels:
-            severity: critical
-          annotations:
-            summary: ClickHouse zookeeper hardware exception (instance {{ $labels.instance }})
-            description: "Zookeeper hardware exception: network issues communicating with ZooKeeper\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-        - alert: ClickHouseDistributedRejectedInserts
-          expr: increase(ClickHouseProfileEvents_DistributedRejectedInserts[5m]) > 3
-          for: 2m
-          labels:
-            severity: critical
-          annotations:
-            summary: ClickHouse distributed rejected inserts (instance {{ $labels.instance }})
-            description: "INSERTs into Distributed tables rejected due to pending bytes limit.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
