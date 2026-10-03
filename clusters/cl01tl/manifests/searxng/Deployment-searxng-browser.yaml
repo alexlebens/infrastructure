@@ -30,7 +30,7 @@ spec:
     spec:
       enableServiceLinks: false
       serviceAccountName: searxng
-      automountServiceAccountToken: false
+      automountServiceAccountToken: true
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -48,6 +48,9 @@ spec:
           volumeMounts:
             - mountPath: /etc/searxng
               name: browser-data
+            - mountPath: /etc/searxng/
+              name: config-browser
+              readOnly: true
         - env:
             - name: SEARXNG_BASE_URL
               value: https://searxng.alexlebens.dev/
@@ -78,6 +81,9 @@ spec:
           volumeMounts:
             - mountPath: /etc/searxng
               name: browser-data
+            - mountPath: /etc/searxng/
+              name: config-browser
+              readOnly: true
         - env:
             - name: OAUTH2_PROXY_HTTP_ADDRESS
               value: 0.0.0.0:4180
@@ -127,6 +133,12 @@ spec:
         - name: browser-data
           persistentVolumeClaim:
             claimName: searxng-browser-data
+        - csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: searxng-browser-config
+          name: config-browser
         - name: valkey-data
           persistentVolumeClaim:
             claimName: searxng-valkey-data
