@@ -161,6 +161,7 @@ searxng:
       staticToken: true
   service:
     browser:
+      forceRename: searxng-browser
       controller: browser
       ports:
         http:
@@ -170,17 +171,14 @@ searxng:
         oauth-metrics:
           port: 44180
     api:
+      forceRename: searxng-api
       controller: api
       ports:
-        mail:
+        http:
           port: 8080
   serviceMonitor:
-    main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: searxng-browser
-          app.kubernetes.io/instance: searxng-browser
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+    browser:
+      serviceName: searxng-browser
       endpoints:
         - port: http
           basicAuth:
@@ -191,6 +189,17 @@ searxng:
               name: searxng-browser-metrics-credentials
               key: metrics-username
         - port: oauth-metrics
+    api:
+      serviceName: searxng-api
+      endpoints:
+        - port: http
+          basicAuth:
+            password:
+              name: searxng-browser-metrics-credentials
+              key: metrics-password
+            username:
+              name: searxng-browser-metrics-credentials
+              key: metrics-username
   route:
     main:
       kind: HTTPRoute
