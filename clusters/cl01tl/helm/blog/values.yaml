@@ -6,8 +6,23 @@ blog:
       type: deployment
       replicas: 3
       strategy: RollingUpdate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: harbor.alexlebens.dev/images/blog
             tag: 3.49.3@sha256:c4d7190c09f2e73fd45753c00bbde9fdbc6cd299961c2654bedcb54c528ffc7e
@@ -32,6 +47,7 @@ blog:
                   port: 4321
   service:
     main:
+      forceRename: blog
       ports:
         http:
           port: 80
@@ -39,6 +55,15 @@ blog:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Blog"
+        gethomepage.dev/description: "Posts and Info"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "https://web-assets.alexlebens.dev/logo/logo.webp"
+        gethomepage.dev/siteMonitor: "https://www.alexlebens.dev"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "50"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -53,7 +78,20 @@ blog:
             - path:
                 type: PathPrefix
                 value: /
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
 cloudflared:
   probe:
     enabled: true
     targetUrl: https://www.alexlebens.dev
+
+common-helpers:
+  probe:
+    internal: http://blog.blog:80
+    external: https://www.alexlebens.dev
