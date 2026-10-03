@@ -29,6 +29,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: bentopdf
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -49,8 +57,17 @@ spec:
               port: 8080
           resources:
             requests:
-              cpu: 10m
+              cpu: 1m
               memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
         - env:
             - name: OAUTH2_PROXY_HTTP_ADDRESS
               value: 0.0.0.0:4180
@@ -79,3 +96,19 @@ spec:
             httpGet:
               path: /ready
               port: 4180
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - emptyDir: {}
+          name: tmp
