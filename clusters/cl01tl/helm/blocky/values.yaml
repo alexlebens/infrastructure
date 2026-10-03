@@ -4,8 +4,19 @@ blocky:
       type: deployment
       replicas: 3
       strategy: RollingUpdate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/0xerr0r/blocky
             tag: v0.35.0@sha256:4f165b63db0d76c96ecc47c7a8f57caeedc003a912bdce29abb0e283ce02e16b
@@ -154,6 +165,7 @@ blocky:
   service:
     dns-external:
       type: LoadBalancer
+      forceRename: blocky-dns-external
       annotations:
         tailscale.com/expose: "true"
         lbipam.cilium.io/ips: "10.234.0.32"
@@ -166,16 +178,13 @@ blocky:
           port: 53
           protocol: UDP
     metrics:
+      forceRename: blocky-metrics
       controller: main
       ports:
         metrics:
           port: 4000
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: blocky
-          app.kubernetes.io/instance: blocky
       serviceName: blocky-metrics
       endpoints:
         - port: metrics
@@ -190,6 +199,13 @@ blocky:
             - path: /app/config.yml
               subPath: config.yml
               readOnly: true
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
 powerdns:
   fullnameOverride: powerdns
   controllers:
@@ -197,8 +213,19 @@ powerdns:
       type: deployment
       replicas: 3
       strategy: RollingUpdate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: powerdns/pdns-auth-51
             tag: 5.1.4@sha256:bb5b1c133bcca1dd455075321de7d55db4945a8d7f2ba23339e3c7bbe416b205
@@ -243,7 +270,7 @@ powerdns:
                   key: password
           resources:
             requests:
-              cpu: 10m
+              cpu: 15m
               memory: 50Mi
           probes:
             liveness:
@@ -264,6 +291,7 @@ powerdns:
                     - rping
   service:
     main:
+      forceRename: powerdns
       controller: powerdns
       ports:
         http:
@@ -274,6 +302,15 @@ powerdns:
         dns-udp:
           port: 53
           protocol: UDP
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        powerdns:
+          main:
+            - path: /tmp
+            - path: /var/run
+
 powerdns-postgres-18-cluster:
   nameOverride: powerdns-postgresql-18
   mode: recovery
