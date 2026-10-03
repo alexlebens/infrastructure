@@ -9,8 +9,8 @@ prometheus-blackbox-exporter-local:
   configExistingSecretName: blackbox-exporter-config
   resources:
     requests:
-      cpu: 20m
-      memory: 50Mi
+      cpu: 3m
+      memory: 30Mi
   replicas: 2
   serviceMonitor:
     selfMonitor:
@@ -42,6 +42,7 @@ prometheus-blackbox-exporter-local:
         annotations:
           summary: "SSL Certificate for {{ $labels.instance }} expires soon"
           description: "The SSL certificate for {{ $labels.instance }} will expire in less than 7 days."
+
 prometheus-blackbox-exporter-cloudflare:
   fullnameOverride: blackbox-cloudflare
   revisionHistoryLimit: 3
@@ -57,18 +58,20 @@ prometheus-blackbox-exporter-cloudflare:
       - 1.0.0.1
   resources:
     requests:
-      cpu: 20m
-      memory: 50Mi
+      cpu: 3m
+      memory: 30Mi
   replicas: 2
   serviceMonitor:
     selfMonitor:
       enabled: true
   prometheusRule:
     enabled: false
+
 probers:
   ps08rp: ps08rp.alexlebens.dev:9115
   ps09rp: ps09rp.alexlebens.dev:9115
   ps10rp: blackbox-exporter-ps10rp.boreal-beaufort.ts.net:9115
+
 probes:
   hardware:
     module: http_2xx
@@ -122,6 +125,8 @@ probes:
         url: http://ps08rp.alexlebens.dev:9100
       - name: ps09rp-node-exporter
         url: http://ps09rp.alexlebens.dev:9100
+      - name: ps02sn-node-exporter
+        url: http://synology.alexlebens.dev:9100
       - name: ps08rp-blackbox-exporter
         url: http://ps08rp.alexlebens.dev:9115
       - name: ps09rp-blackbox-exporter
@@ -130,8 +135,11 @@ probes:
         url: http://ps08rp.alexlebens.dev:12345
       - name: ps09rp-alloy
         url: http://ps09rp.alexlebens.dev:12345
+      - name: ps02sn-alloy
+        url: http://synology.alexlebens.dev:12345
       - name: ps08rp-ups-exporter
         url: http://ps08rp.alexlebens.dev:9199
+
   cluster_nodes:
     module: http_401_insecure
     probers:
@@ -158,6 +166,10 @@ probes:
         url: ps08rp.alexlebens.dev:3493
       - name: ps09rp-mediamtx
         url: ps09rp.alexlebens.dev:8554
+      - name: ps02sn-garage-rpc
+        url: synology.alexlebens.dev:3901
+      - name: ps02sn-garage
+        url: http://synology.alexlebens.dev:3903/health
       - name: cl01tl-talos-api
         url: cl01tl.alexlebens.dev:50000
       - name: cl01tl-endpoint-talos-api
@@ -168,9 +180,9 @@ probes:
       - ps08rp
       - ps09rp
     targets:
-      - name: ps08rp-syncthing
+      - name: ps08rp-chrony-nts
         url: ps08rp.alexlebens.dev:4460
-      - name: ps09rp-syncthing
+      - name: ps09rp-chrony-nts
         url: ps09rp.alexlebens.dev:4460
   remote_home_http:
     module: http_2xx
