@@ -3,6 +3,8 @@ searxng:
     browser:
       type: deployment
       strategy: Recreate
+      pod:
+        automountServiceAccountToken: true
       containers:
         main:
           image:
@@ -217,7 +219,7 @@ searxng:
                 type: PathPrefix
                 value: /
   persistence:
-    config:
+    config-api:
       type: custom
       volumeSpec:
         csi:
@@ -228,6 +230,22 @@ searxng:
       advancedMounts:
         api:
           main:
+            - path: /etc/searxng/
+              readOnly: true
+    config-browser:
+      type: custom
+      volumeSpec:
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: searxng-browser-config
+      advancedMounts:
+        browser:
+          main:
+            - path: /etc/searxng/
+              readOnly: true
+          debug:
             - path: /etc/searxng/
               readOnly: true
     api-data:
