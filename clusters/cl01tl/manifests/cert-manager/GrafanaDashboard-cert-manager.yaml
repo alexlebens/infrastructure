@@ -40,35 +40,34 @@ spec:
       "editable": false,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 0,
-      "links": [],
+      "liveNow": false,
       "panels": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "The number if available certificates",
+          "description": "Total number of certificates with Ready condition True",
           "fieldConfig": {
             "defaults": {
               "color": {
                 "mode": "thresholds"
               },
-              "mappings": [],
               "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": 0
                   }
                 ]
               }
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
-            "h": 7,
-            "w": 8,
+            "h": 4,
+            "w": 4,
             "x": 0,
             "y": 0
           },
@@ -88,25 +87,19 @@ spec:
             "textMode": "value",
             "wideLayout": true
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "13.2.3",
           "targets": [
             {
               "datasource": {
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "disableTextWrap": false,
               "editorMode": "code",
-              "exemplar": false,
-              "expr": "count(certmanager_certificate_ready_status{condition=\"True\", cluster=~\"$cluster\", namespace=~\"$namespace\"})",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
+              "expr": "count(certmanager_certificate_ready_status{condition=\"True\", cluster=~\"$cluster\", exported_namespace=~\"$namespace\"})",
               "instant": true,
-              "interval": "",
               "legendFormat": "__auto",
               "range": false,
-              "refId": "A",
-              "useBackend": false
+              "refId": "A"
             }
           ],
           "title": "Valid Certificates",
@@ -117,32 +110,102 @@ spec:
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "The number of certificates that will expire within the next 14 days",
+          "description": "Certificates currently not ready or failing validation",
           "fieldConfig": {
             "defaults": {
               "color": {
                 "mode": "thresholds"
               },
-              "mappings": [],
               "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": 0
                   },
                   {
-                    "color": "#EAB839",
+                    "color": "red",
                     "value": 1
                   }
                 ]
               }
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
-            "h": 7,
-            "w": 8,
+            "h": 4,
+            "w": 4,
+            "x": 4,
+            "y": 0
+          },
+          "id": 2,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value",
+            "wideLayout": true
+          },
+          "pluginVersion": "13.2.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "count(certmanager_certificate_ready_status{condition!=\"True\", cluster=~\"$cluster\", exported_namespace=~\"$namespace\"} == 1) or vector(0)",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Unready / Failing",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Certificates expiring in less than 21 days",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "noValue": "0",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "#EAB839",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 2
+                  }
+                ]
+              }
+            }
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
             "x": 8,
             "y": 0
           },
@@ -159,31 +222,25 @@ spec:
               "values": false
             },
             "showPercentChange": false,
-            "textMode": "auto",
+            "textMode": "value",
             "wideLayout": true
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "13.2.3",
           "targets": [
             {
               "datasource": {
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "disableTextWrap": false,
               "editorMode": "code",
-              "exemplar": false,
-              "expr": "count(certmanager_certificate_expiration_timestamp_seconds{cluster=~\"$cluster\", namespace=~\"$namespace\"} < (time()+(14*24*3600)))",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
+              "expr": "count((certmanager_certificate_expiration_timestamp_seconds{cluster=~\"$cluster\", exported_namespace=~\"$namespace\"} - time()) < (21 * 24 * 3600)) or vector(0)",
               "instant": true,
-              "interval": "",
-              "legendFormat": "{{exported_namespace}}/{{name}}",
+              "legendFormat": "__auto",
               "range": false,
-              "refId": "A",
-              "useBackend": false
+              "refId": "A"
             }
           ],
-          "title": "Expiring Certificates",
+          "title": "Expiring Soon (<21d)",
           "type": "stat"
         },
         {
@@ -191,33 +248,179 @@ spec:
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Total number of HTTP requests, based on the selected time range",
+          "description": "Certificates that have reached or passed their scheduled auto-renewal time",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "noValue": "0",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "#EAB839",
+                    "value": 1
+                  },
+                  {
+                    "color": "orange",
+                    "value": 3
+                  }
+                ]
+              }
+            }
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 12,
+            "y": 0
+          },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value",
+            "wideLayout": true
+          },
+          "pluginVersion": "13.2.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "count((certmanager_certificate_renewal_timestamp_seconds{cluster=~\"$cluster\", exported_namespace=~\"$namespace\"} - time()) <= 0) or vector(0)",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Renewal Due / Active",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Shortest time remaining until the next scheduled certificate renewal",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "noValue": "N/A",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": 0
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0
+                  },
+                  {
+                    "color": "#EAB839",
+                    "value": 86400
+                  },
+                  {
+                    "color": "green",
+                    "value": 604800
+                  }
+                ]
+              },
+              "unit": "s"
+            }
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 16,
+            "y": 0
+          },
+          "id": 5,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value",
+            "wideLayout": true
+          },
+          "pluginVersion": "13.2.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "min(certmanager_certificate_renewal_timestamp_seconds{cluster=~\"$cluster\", exported_namespace=~\"$namespace\"} - time())",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Next Renewal In",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total number of HTTP requests to ACME provider over selected time range",
           "fieldConfig": {
             "defaults": {
               "color": {
                 "mode": "thresholds"
               },
               "decimals": 0,
-              "mappings": [],
               "noValue": "0",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "text"
+                    "color": "text",
+                    "value": 0
                   }
                 ]
               }
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
-            "h": 7,
-            "w": 8,
-            "x": 16,
+            "h": 4,
+            "w": 4,
+            "x": 20,
             "y": 0
           },
-          "id": 2,
+          "id": 6,
           "options": {
             "colorMode": "value",
             "graphMode": "none",
@@ -233,25 +436,19 @@ spec:
             "textMode": "auto",
             "wideLayout": true
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "13.2.3",
           "targets": [
             {
               "datasource": {
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "disableTextWrap": false,
               "editorMode": "code",
-              "exemplar": false,
               "expr": "sum(increase(certmanager_http_acme_client_request_count{cluster=~\"$cluster\"}[$__range]))",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
               "instant": true,
-              "interval": "",
               "legendFormat": "__auto",
               "range": false,
-              "refId": "A",
-              "useBackend": false
+              "refId": "A"
             }
           ],
           "title": "Total ACME Requests",
@@ -259,72 +456,215 @@ spec:
         },
         {
           "datasource": {
-            "default": false,
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Time before the certificates expire. Only shows certificates expiring within 45 days",
+          "description": "Comprehensive inventory of certificates with live status, days until auto-renewal, days until expiry, and expiration timestamp.",
           "fieldConfig": {
             "defaults": {
               "color": {
                 "mode": "thresholds"
               },
-              "mappings": [],
-              "min": 0,
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "filterable": true,
+                "footer": {
+                  "reducers": ["countAll"]
+                },
+                "inspect": false
+              },
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "red"
+                    "color": "text",
+                    "value": 0
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Ready"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "mode": "basic",
+                      "type": "color-background"
+                    }
                   },
                   {
-                    "color": "orange",
-                    "value": 14
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "options": {
+                          "0": {
+                            "color": "red",
+                            "text": "Not Ready"
+                          },
+                          "1": {
+                            "color": "green",
+                            "text": "Ready"
+                          }
+                        },
+                        "type": "value"
+                      }
+                    ]
                   },
                   {
-                    "color": "green",
-                    "value": 30
-                  },
-                  {
-                    "color": "dark-green",
-                    "value": 60
+                    "id": "custom.width",
+                    "value": 110
                   }
                 ]
               },
-              "unit": "s"
-            },
-            "overrides": []
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Days to Auto-Renewal"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "d"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 1
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "purple",
+                          "value": 0
+                        },
+                        {
+                          "color": "orange",
+                          "value": 0
+                        },
+                        {
+                          "color": "#EAB839",
+                          "value": 7
+                        },
+                        {
+                          "color": "green",
+                          "value": 14
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 160
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Days to Expiration"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "d"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 1
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "red",
+                          "value": 0
+                        },
+                        {
+                          "color": "orange",
+                          "value": 7
+                        },
+                        {
+                          "color": "#EAB839",
+                          "value": 14
+                        },
+                        {
+                          "color": "green",
+                          "value": 21
+                        },
+                        {
+                          "color": "dark-green",
+                          "value": 60
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "mode": "basic",
+                      "type": "color-background"
+                    }
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 160
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Expires On"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dateTimeAsIso"
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 180
+                  }
+                ]
+              }
+            ]
           },
           "gridPos": {
-            "h": 10,
-            "w": 12,
+            "h": 8,
+            "w": 24,
             "x": 0,
-            "y": 7
+            "y": 4
           },
-          "id": 5,
+          "id": 9,
           "options": {
-            "displayMode": "gradient",
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": false
-            },
-            "maxVizHeight": 300,
-            "minVizHeight": 16,
-            "minVizWidth": 8,
-            "namePlacement": "left",
-            "orientation": "horizontal",
-            "reduceOptions": {
-              "calcs": ["lastNotNull"],
-              "fields": "",
-              "values": false
-            },
-            "showUnfilled": true,
-            "sizing": "auto",
-            "valueMode": "color"
+            "cellHeight": "sm",
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": false,
+                "displayName": "Days to Expiration"
+              }
+            ]
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "13.2.3",
           "targets": [
             {
               "datasource": {
@@ -332,100 +672,105 @@ spec:
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "exemplar": false,
-              "expr": "sort(certmanager_certificate_expiration_timestamp_seconds{exported_namespace=~\"$namespace\"} - time()) < 45 * (24*3600)",
-              "format": "time_series",
+              "expr": "max by (name, exported_namespace) (certmanager_certificate_ready_status{condition=\"True\", cluster=~\"$cluster\", exported_namespace=~\"$namespace\"})",
+              "format": "table",
               "instant": true,
-              "interval": "",
-              "legendFormat": "{{name}}",
+              "legendFormat": "__auto",
               "range": false,
               "refId": "A"
-            }
-          ],
-          "title": "Time to Expiration (<45 days)",
-          "type": "bargauge"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Time before the certificates are automatically renewed",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "mappings": [],
-              "min": 0,
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  }
-                ]
-              },
-              "unit": "s"
             },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 10,
-            "w": 12,
-            "x": 12,
-            "y": 7
-          },
-          "id": 6,
-          "options": {
-            "displayMode": "gradient",
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": false
-            },
-            "maxVizHeight": 300,
-            "minVizHeight": 16,
-            "minVizWidth": 8,
-            "namePlacement": "left",
-            "orientation": "horizontal",
-            "reduceOptions": {
-              "calcs": ["lastNotNull"],
-              "fields": "",
-              "values": false
-            },
-            "showUnfilled": true,
-            "sizing": "auto",
-            "valueMode": "color"
-          },
-          "pluginVersion": "12.0.0",
-          "targets": [
             {
               "datasource": {
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "exemplar": false,
-              "expr": "sort(certmanager_certificate_renewal_timestamp_seconds{exported_namespace=~\"$namespace\"} - time()) < 45 * (24*3600)",
-              "format": "time_series",
+              "expr": "max by (name, exported_namespace) ((certmanager_certificate_renewal_timestamp_seconds{cluster=~\"$cluster\", exported_namespace=~\"$namespace\"} - time()) / 86400)",
+              "format": "table",
               "instant": true,
-              "interval": "",
-              "legendFormat": "{{name}}",
+              "legendFormat": "__auto",
               "range": false,
-              "refId": "A"
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "max by (name, exported_namespace) ((certmanager_certificate_expiration_timestamp_seconds{cluster=~\"$cluster\", exported_namespace=~\"$namespace\"} - time()) / 86400)",
+              "format": "table",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "max by (name, exported_namespace) (certmanager_certificate_expiration_timestamp_seconds{cluster=~\"$cluster\", exported_namespace=~\"$namespace\"} * 1000)",
+              "format": "table",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "D"
             }
           ],
-          "title": "Time to Automatic Renewal (<45 days)",
-          "type": "bargauge"
+          "title": "Certificate Inventory & Expiration / Renewal Tracking",
+          "transformations": [
+            {
+              "id": "joinByField",
+              "options": {
+                "byField": "name",
+                "mode": "outer"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time 1": true,
+                  "Time 2": true,
+                  "Time 3": true,
+                  "Time 4": true,
+                  "__name__ 1": true,
+                  "__name__ 2": true,
+                  "__name__ 3": true,
+                  "__name__ 4": true,
+                  "exported_namespace 2": true,
+                  "exported_namespace 3": true,
+                  "exported_namespace 4": true
+                },
+                "indexByName": {
+                  "Value #A": 2,
+                  "Value #B": 3,
+                  "Value #C": 4,
+                  "Value #D": 5,
+                  "exported_namespace 1": 1,
+                  "name": 0
+                },
+                "renameByName": {
+                  "Value #A": "Ready",
+                  "Value #B": "Days to Auto-Renewal",
+                  "Value #C": "Days to Expiration",
+                  "Value #D": "Expires On",
+                  "exported_namespace 1": "Namespace",
+                  "name": "Certificate"
+                }
+              }
+            }
+          ],
+          "type": "table"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Time before the certificates expire",
+          "description": "Certificate expiration countdown over time. Dotted lines indicate warning (21d) and critical (7d) thresholds.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -455,36 +800,48 @@ spec:
                   "type": "linear"
                 },
                 "showPoints": "auto",
+                "showValues": false,
                 "spanNulls": true,
                 "stacking": {
                   "group": "A",
                   "mode": "none"
                 },
                 "thresholdsStyle": {
-                  "mode": "off"
+                  "mode": "line"
                 }
               },
-              "mappings": [],
               "min": 0,
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "red",
+                    "value": 0
+                  },
+                  {
+                    "color": "orange",
+                    "value": 7
+                  },
+                  {
+                    "color": "#EAB839",
+                    "value": 21
+                  },
+                  {
+                    "color": "green",
+                    "value": 30
                   }
                 ]
               },
               "unit": "d"
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
-            "h": 9,
+            "h": 8,
             "w": 24,
             "x": 0,
-            "y": 17
+            "y": 12
           },
-          "id": 4,
+          "id": 10,
           "options": {
             "legend": {
               "calcs": [],
@@ -498,7 +855,7 @@ spec:
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "13.2.3",
           "targets": [
             {
               "datasource": {
@@ -507,15 +864,15 @@ spec:
               },
               "editorMode": "code",
               "exemplar": true,
-              "expr": "(certmanager_certificate_expiration_timestamp_seconds{exported_namespace=~\"$namespace\"} - time())/(24*3600)",
+              "expr": "(certmanager_certificate_expiration_timestamp_seconds{cluster=~\"$cluster\", exported_namespace=~\"$namespace\"} - time()) / (24 * 3600)",
               "instant": false,
               "interval": "",
-              "legendFormat": "{{name}}",
+              "legendFormat": "{{exported_namespace}}/{{name}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Time to Expiration",
+          "title": "Time to Expiration Trend",
           "type": "timeseries"
         },
         {
@@ -523,7 +880,7 @@ spec:
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "description": "Displays the timestamp of a renewal, based on the expiration time changing",
+          "description": "Timestamp when a certificate's renewal timestamp changed, indicating an automatic renewal succeeded.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -538,7 +895,7 @@ spec:
                 "barAlignment": 0,
                 "barWidthFactor": 0.6,
                 "drawStyle": "bars",
-                "fillOpacity": 0,
+                "fillOpacity": 80,
                 "gradientMode": "none",
                 "hideFrom": {
                   "legend": false,
@@ -553,6 +910,7 @@ spec:
                   "type": "linear"
                 },
                 "showPoints": "auto",
+                "showValues": false,
                 "spanNulls": false,
                 "stacking": {
                   "group": "A",
@@ -562,28 +920,27 @@ spec:
                   "mode": "off"
                 }
               },
-              "decimals": 1,
-              "mappings": [],
+              "decimals": 0,
               "min": 0,
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": 0
                   }
                 ]
               },
               "unit": "short"
-            },
-            "overrides": []
+            }
           },
           "gridPos": {
-            "h": 9,
-            "w": 12,
+            "h": 8,
+            "w": 24,
             "x": 0,
-            "y": 26
+            "y": 20
           },
-          "id": 8,
+          "id": 11,
           "options": {
             "legend": {
               "calcs": [],
@@ -597,7 +954,7 @@ spec:
               "sort": "none"
             }
           },
-          "pluginVersion": "12.0.0",
+          "pluginVersion": "13.2.3",
           "targets": [
             {
               "datasource": {
@@ -610,113 +967,13 @@ spec:
               "format": "time_series",
               "instant": false,
               "interval": "",
-              "legendFormat": "{{cluster}} - {{exported_namespace}} - {{name}}",
-              "range": false,
+              "legendFormat": "{{exported_namespace}}/{{name}}",
+              "range": true,
               "refId": "A"
             }
           ],
-          "title": "Certificate Renewal Events",
+          "title": "Certificate Auto-Renewal Events",
           "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "description": "Total number of HTTP requests, based on the selected range",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "axisSoftMin": 0,
-                "fillOpacity": 80,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "lineWidth": 1,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "noValue": "0",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "text"
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 9,
-            "w": 12,
-            "x": 12,
-            "y": 26
-          },
-          "id": 10,
-          "options": {
-            "barRadius": 0,
-            "barWidth": 0.97,
-            "fullHighlight": false,
-            "groupWidth": 0.7,
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "orientation": "auto",
-            "showValue": "auto",
-            "stacking": "none",
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "single",
-              "sort": "none"
-            },
-            "xTickLabelRotation": -30,
-            "xTickLabelSpacing": 0
-          },
-          "pluginVersion": "12.0.0",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "disableTextWrap": false,
-              "editorMode": "code",
-              "exemplar": false,
-              "expr": "sort_desc(sum by (cluster)(increase(certmanager_http_acme_client_request_count{cluster=~\"$cluster\"}[$__range]))) > 0",
-              "format": "table",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "instant": true,
-              "interval": "",
-              "legendFormat": "{{cluster}}",
-              "range": false,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "ACME Requests by Cluster",
-          "type": "barchart"
         }
       ],
       "preload": true,
@@ -726,20 +983,25 @@ spec:
       "templating": {
         "list": [
           {
+            "allowCustomValue": true,
             "current": {
               "text": "Prometheus",
               "value": "kube-prometheus-stack"
             },
+            "hide": 0,
             "includeAll": false,
             "label": "Datasource",
+            "multi": false,
             "name": "datasource",
             "options": [],
             "query": "prometheus",
-            "refresh": 0,
+            "refresh": 1,
             "regex": "",
+            "skipUrlSync": false,
             "type": "datasource"
           },
           {
+            "allowCustomValue": true,
             "current": {
               "text": "All",
               "value": "$__all"
@@ -749,7 +1011,9 @@ spec:
               "uid": "${datasource}"
             },
             "definition": "label_values(certmanager_clock_time_seconds, cluster)",
+            "hide": 0,
             "includeAll": true,
+            "multi": false,
             "name": "cluster",
             "options": [],
             "query": {
@@ -758,10 +1022,14 @@ spec:
             },
             "refresh": 1,
             "regex": "",
+            "regexApplyTo": "value",
+            "skipUrlSync": false,
+            "sort": 0,
             "type": "query"
           },
           {
             "allValue": ".*",
+            "allowCustomValue": true,
             "current": {
               "text": "All",
               "value": "$__all"
@@ -771,7 +1039,9 @@ spec:
               "uid": "${datasource}"
             },
             "definition": "label_values(certmanager_certificate_ready_status{cluster=~\"$cluster\"}, exported_namespace)",
+            "hide": 0,
             "includeAll": true,
+            "multi": false,
             "name": "namespace",
             "options": [],
             "query": {
@@ -780,6 +1050,9 @@ spec:
             },
             "refresh": 1,
             "regex": "",
+            "regexApplyTo": "value",
+            "skipUrlSync": false,
+            "sort": 0,
             "type": "query"
           }
         ]
@@ -791,7 +1064,6 @@ spec:
       "timepicker": {},
       "timezone": "browser",
       "title": "Cert Manager",
-      "weekStart": "",
       "uid": "e9dc1ca0e4f800869acb558d063df682",
       "id": 173
     }
