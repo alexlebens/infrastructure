@@ -149,6 +149,9 @@ audiobookshelf:
             - |
               cp -f /tmp/secrets/AccountsSettings.json /config/AccountsSettings.json
               cp -f /tmp/secrets/Settings.json /config/Settings.json
+              if ! grep -q '"Books"' /config/Settings.json; then
+                sed -i 's/"FirstLaunch": true,/"FirstLaunch": true,\n  "Books": "\/data",\n  "InProgress": "\/tmp",/' /config/Settings.json
+              fi
           resources:
             requests:
               cpu: 10m
@@ -170,6 +173,8 @@ audiobookshelf:
                 secretKeyRef:
                   name: libation-settings
                   key: LIBATION_MASTER_KEY
+            - name: LIBATION_BOOKS_DIR
+              value: /data
           command:
             - /bin/sh
             - -ec
