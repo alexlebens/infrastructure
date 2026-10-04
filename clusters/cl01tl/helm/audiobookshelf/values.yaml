@@ -147,8 +147,8 @@ audiobookshelf:
             - /bin/sh
             - -ec
             - |
-              cp -f /tmp/AccountsSettings.json /config/AccountsSettings.json
-              cp -f /tmp/Settings.json /config/Settings.json
+              cp -f /tmp/secrets/AccountsSettings.json /config/AccountsSettings.json
+              cp -f /tmp/secrets/Settings.json /config/Settings.json
           resources:
             requests:
               cpu: 10m
@@ -164,6 +164,12 @@ audiobookshelf:
           image:
             repository: rmcrackan/libation
             tag: 14.2.2@sha256:fe188ac3c4ce63cc305971c76e648748341427e16bcf884011da8a384fd3908c
+          env:
+            - name: LIBATION_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: libation-settings
+                  key: LIBATION_MASTER_KEY
           resources:
             requests:
               cpu: 10m
@@ -213,16 +219,12 @@ audiobookshelf:
                 value: /
   persistence:
     libation-config-secret:
-      type: custom
-      volumeSpec:
-        projected:
-          sources:
-            - secret:
-                name: libation-settings
+      type: secret
+      name: libation-settings
       advancedMounts:
-        main:
+        libation:
           init-copy-config:
-            - path: /tmp
+            - path: /tmp/secrets
               readOnly: true
     config:
       forceRename: audiobookshelf-config
