@@ -6,11 +6,11 @@ metadata:
     helm.sh/resource-policy: keep
     cert-manager.io/inject-ca-from: garage-operator/garage-operator-webhook-cert
   labels:
-    helm.sh/chart: garage-operator-0.7.12
+    helm.sh/chart: garage-operator-0.8.0
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.7.12"
+    app.kubernetes.io/version: "0.8.0"
     app.kubernetes.io/managed-by: Helm
   name: garageclusters.garage.rajsingh.info
 spec:
@@ -1593,6 +1593,67 @@ spec:
                           type: boolean
                       type: object
                   type: object
+                extraContainers:
+                  description: |-
+                    ExtraContainers run beside the Garage container in the same pod and network
+                    namespace. They cannot mount operator-owned volumes.
+                  items:
+                    description: |-
+                      PodExtraContainer is one user-supplied container. The CRD schema declares
+                      only name and preserves all other fields; the complete object is validated
+                      by the admission webhook and re-validated by the controller by strictly
+                      decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                      a fully typed corev1.Container would add ~120 KB per occurrence.
+                    properties:
+                      name:
+                        description: |-
+                          Name of the container. It must be unique across initContainers and
+                          extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                    required:
+                      - name
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  maxItems: 16
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
+                  x-kubernetes-validations:
+                    - message: container name is operator-reserved
+                      rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
+                extraVolumes:
+                  description: |-
+                    ExtraVolumes are added to the pod. Operator-owned volume names are reserved
+                    (config, metadata, data, data-<N>, rpc-secret, admin-token, metrics-token).
+                  items:
+                    description: |-
+                      PodExtraVolume is one user-supplied pod volume; same contract as
+                      PodExtraContainer, resolved as a corev1.Volume.
+                    properties:
+                      name:
+                        description: |-
+                          Name of the volume. It must be unique across extraVolumes, a DNS-1123
+                          label, and not an operator-reserved volume name.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                    required:
+                      - name
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  maxItems: 32
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
+                  x-kubernetes-validations:
+                    - message: volume name is operator-reserved
+                      rule: self.all(v, !(v.name in ['config','metadata','data','rpc-secret','admin-token','metrics-token']) && !v.name.matches('^data-[0-9]+$'))
                 gateway:
                   description: |-
                     Gateway marks this cluster as a gateway-only cluster.
@@ -1639,6 +1700,41 @@ spec:
                     produces "my-mirror/garage:v2.4.0".
                     Ignored if image is set.
                   type: string
+                initContainers:
+                  description: |-
+                    InitContainers run before the Garage container, after any operator-injected
+                    init containers. Entries with restartPolicy: Always are native sidecars
+                    (Kubernetes 1.29+ beta, GA in 1.33). Names garage, purge-cluster-layout and
+                    the prefix garage-operator- are reserved. Applies to the Garage pods of
+                    this cluster (the gateway tier when gateway is true).
+                  items:
+                    description: |-
+                      PodExtraContainer is one user-supplied container. The CRD schema declares
+                      only name and preserves all other fields; the complete object is validated
+                      by the admission webhook and re-validated by the controller by strictly
+                      decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                      a fully typed corev1.Container would add ~120 KB per occurrence.
+                    properties:
+                      name:
+                        description: |-
+                          Name of the container. It must be unique across initContainers and
+                          extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                    required:
+                      - name
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  maxItems: 16
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
+                  x-kubernetes-validations:
+                    - message: container name is operator-reserved
+                      rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
                 k2vApi:
                   description: |-
                     K2VAPI configures the K2V (key-value) API endpoint.
@@ -1688,6 +1784,17 @@ spec:
                     minNodesHealthy:
                       description: MinNodesHealthy is the minimum healthy nodes required before applying layout changes
                       type: integer
+                    siteRole:
+                      description: |-
+                        SiteRole selects whether this GarageCluster may change the shared Garage
+                        layout. Absent is equivalent to Writer, the behavior of every release
+                        before this field existed. A Follower never stages, applies, reverts,
+                        or removes roles; it only reconciles its own workloads and reports
+                        status. Exactly one site in a federation should be the Writer.
+                      enum:
+                        - Writer
+                        - Follower
+                      type: string
                   type: object
                 layoutPolicy:
                   default: Auto
@@ -2812,6 +2919,22 @@ spec:
                                       - PersistentVolumeClaim
                                       - EmptyDir
                                     type: string
+                                  volumeAttributesClassName:
+                                    description: |-
+                                      VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                                      VolumeAttributesClass applied to every PVC generated for this volume role.
+                                      The class's driver must match the StorageClass provisioner; the operator
+                                      does not check that or whether the class exists. Valid only for
+                                      PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                                      while replicas are live: the operator updates bound claims in place, which
+                                      asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                                      1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                                      supports ModifyVolume. Removing a configured value from a live volume is
+                                      rejected.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                    type: string
                                   volumeClaimTemplateSpec:
                                     description: |-
                                       VolumeClaimTemplateSpec is retained for API compatibility but is not
@@ -3009,6 +3132,9 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                                    rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                             required:
                               - path
                             type: object
@@ -3081,6 +3207,22 @@ spec:
                           enum:
                             - PersistentVolumeClaim
                             - EmptyDir
+                          type: string
+                        volumeAttributesClassName:
+                          description: |-
+                            VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                            VolumeAttributesClass applied to every PVC generated for this volume role.
+                            The class's driver must match the StorageClass provisioner; the operator
+                            does not check that or whether the class exists. Valid only for
+                            PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                            while replicas are live: the operator updates bound claims in place, which
+                            asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                            1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                            supports ModifyVolume. Removing a configured value from a live volume is
+                            rejected.
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                           type: string
                         volumeClaimTemplateSpec:
                           description: |-
@@ -3281,6 +3423,9 @@ spec:
                               type: string
                           type: object
                       type: object
+                      x-kubernetes-validations:
+                        - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                          rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                     dataFsync:
                       description: DataFsync enables fsync for data block writes
                       type: boolean
@@ -3671,6 +3816,22 @@ spec:
                                       - PersistentVolumeClaim
                                       - EmptyDir
                                     type: string
+                                  volumeAttributesClassName:
+                                    description: |-
+                                      VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                                      VolumeAttributesClass applied to every PVC generated for this volume role.
+                                      The class's driver must match the StorageClass provisioner; the operator
+                                      does not check that or whether the class exists. Valid only for
+                                      PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                                      while replicas are live: the operator updates bound claims in place, which
+                                      asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                                      1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                                      supports ModifyVolume. Removing a configured value from a live volume is
+                                      rejected.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                    type: string
                                   volumeClaimTemplateSpec:
                                     description: |-
                                       VolumeClaimTemplateSpec is retained for API compatibility but is not
@@ -3868,6 +4029,9 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                                    rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                             required:
                               - path
                             type: object
@@ -3940,6 +4104,22 @@ spec:
                           enum:
                             - PersistentVolumeClaim
                             - EmptyDir
+                          type: string
+                        volumeAttributesClassName:
+                          description: |-
+                            VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                            VolumeAttributesClass applied to every PVC generated for this volume role.
+                            The class's driver must match the StorageClass provisioner; the operator
+                            does not check that or whether the class exists. Valid only for
+                            PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                            while replicas are live: the operator updates bound claims in place, which
+                            asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                            1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                            supports ModifyVolume. Removing a configured value from a live volume is
+                            rejected.
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                           type: string
                         volumeClaimTemplateSpec:
                           description: |-
@@ -4140,6 +4320,9 @@ spec:
                               type: string
                           type: object
                       type: object
+                      x-kubernetes-validations:
+                        - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                          rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                     metadataAutoSnapshotInterval:
                       description: |-
                         MetadataAutoSnapshotInterval enables automatic metadata snapshots.
@@ -4513,6 +4696,12 @@ spec:
                   rule: '!has(self.gateway) || !self.gateway || has(self.connectTo)'
                 - message: connectTo can only be specified when gateway is true
                   rule: (has(self.gateway) && self.gateway) || !has(self.connectTo)
+                - message: 'layoutManagement.siteRole: Follower requires at least one remoteClusters entry (a Follower with nothing to follow is a cluster nobody can assign roles to)'
+                  rule: '!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != ''Follower'' || (has(self.remoteClusters) && size(self.remoteClusters) > 0)'
+                - message: 'layoutManagement.siteRole: Follower is not supported with connectTo; edge gateways and management handles act on their layout owner'
+                  rule: '!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != ''Follower'' || !has(self.connectTo)'
+                - message: initContainers and extraContainers names must be unique across both lists
+                  rule: '!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))'
             status:
               description: GarageClusterStatus defines the observed state of GarageCluster
               properties:
@@ -4876,6 +5065,20 @@ spec:
                   description: LayoutVersion is the current layout version
                   format: int64
                   type: integer
+                layoutWriter:
+                  description: |-
+                    LayoutWriter reports the layout role the controller is currently
+                    enforcing for this site. Nil until the controller first records it.
+                  properties:
+                    role:
+                      description: Role is the role the controller is currently enforcing.
+                      enum:
+                        - Writer
+                        - Follower
+                      type: string
+                  required:
+                    - role
+                  type: object
                 lifecycleStatus:
                   description: LifecycleStatus contains the status of bucket lifecycle operations
                   properties:
@@ -7112,6 +7315,101 @@ spec:
                             x-kubernetes-map-type: atomic
                         type: object
                       type: array
+                    extraContainers:
+                      description: |-
+                        ExtraContainers run beside the Garage container in the same pod and network
+                        namespace. They cannot mount operator-owned volumes.
+                      items:
+                        description: |-
+                          PodExtraContainer is one user-supplied container. The CRD schema declares
+                          only name and preserves all other fields; the complete object is validated
+                          by the admission webhook and re-validated by the controller by strictly
+                          decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                          a fully typed corev1.Container would add ~120 KB per occurrence.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the container. It must be unique across initContainers and
+                              extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 16
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: container name is operator-reserved
+                          rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
+                    extraVolumes:
+                      description: |-
+                        ExtraVolumes are added to the pod. Operator-owned volume names are reserved
+                        (config, metadata, data, data-<N>, rpc-secret, admin-token, metrics-token).
+                      items:
+                        description: |-
+                          PodExtraVolume is one user-supplied pod volume; same contract as
+                          PodExtraContainer, resolved as a corev1.Volume.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the volume. It must be unique across extraVolumes, a DNS-1123
+                              label, and not an operator-reserved volume name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 32
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: volume name is operator-reserved
+                          rule: self.all(v, !(v.name in ['config','metadata','data','rpc-secret','admin-token','metrics-token']) && !v.name.matches('^data-[0-9]+$'))
+                    initContainers:
+                      description: |-
+                        InitContainers run before the Garage container, after any operator-injected
+                        init containers. Entries with restartPolicy: Always are native sidecars
+                        (Kubernetes 1.29+ beta, GA in 1.33). Names garage, purge-cluster-layout and
+                        the prefix garage-operator- are reserved.
+                      items:
+                        description: |-
+                          PodExtraContainer is one user-supplied container. The CRD schema declares
+                          only name and preserves all other fields; the complete object is validated
+                          by the admission webhook and re-validated by the controller by strictly
+                          decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                          a fully typed corev1.Container would add ~120 KB per occurrence.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the container. It must be unique across initContainers and
+                              extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 16
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: container name is operator-reserved
+                          rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
                     metadata:
                       description: |-
                         Metadata configures gateway metadata storage for Auto unified gateways and
@@ -7302,6 +7600,22 @@ spec:
                                     enum:
                                       - PersistentVolumeClaim
                                       - EmptyDir
+                                    type: string
+                                  volumeAttributesClassName:
+                                    description: |-
+                                      VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                                      VolumeAttributesClass applied to every PVC generated for this volume role.
+                                      The class's driver must match the StorageClass provisioner; the operator
+                                      does not check that or whether the class exists. Valid only for
+                                      PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                                      while replicas are live: the operator updates bound claims in place, which
+                                      asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                                      1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                                      supports ModifyVolume. Removing a configured value from a live volume is
+                                      rejected.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                                     type: string
                                   volumeClaimTemplateSpec:
                                     description: |-
@@ -7500,6 +7814,9 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                                    rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                             required:
                               - path
                             type: object
@@ -7567,6 +7884,22 @@ spec:
                           enum:
                             - PersistentVolumeClaim
                             - EmptyDir
+                          type: string
+                        volumeAttributesClassName:
+                          description: |-
+                            VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                            VolumeAttributesClass applied to every PVC generated for this volume role.
+                            The class's driver must match the StorageClass provisioner; the operator
+                            does not check that or whether the class exists. Valid only for
+                            PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                            while replicas are live: the operator updates bound claims in place, which
+                            asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                            1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                            supports ModifyVolume. Removing a configured value from a live volume is
+                            rejected.
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                           type: string
                         volumeClaimTemplateSpec:
                           description: |-
@@ -7767,6 +8100,9 @@ spec:
                               type: string
                           type: object
                       type: object
+                      x-kubernetes-validations:
+                        - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                          rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                     nodeSelector:
                       additionalProperties:
                         type: string
@@ -8518,6 +8854,9 @@ spec:
                   required:
                     - replicas
                   type: object
+                  x-kubernetes-validations:
+                    - message: initContainers and extraContainers names must be unique across both lists
+                      rule: '!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))'
                 image:
                   description: |-
                     Image specifies the Garage container image to use.
@@ -8596,6 +8935,17 @@ spec:
                     minNodesHealthy:
                       description: MinNodesHealthy is the minimum healthy nodes required before applying layout changes.
                       type: integer
+                    siteRole:
+                      description: |-
+                        SiteRole selects whether this GarageCluster may change the shared Garage
+                        layout. Absent is equivalent to Writer, the behavior of every release
+                        before this field existed. A Follower never stages, applies, reverts,
+                        or removes roles; it only reconciles its own workloads and reports
+                        status. Exactly one site in a federation should be the Writer.
+                      enum:
+                        - Writer
+                        - Follower
+                      type: string
                   type: object
                 layoutPolicy:
                   default: Auto
@@ -10394,6 +10744,22 @@ spec:
                                       - PersistentVolumeClaim
                                       - EmptyDir
                                     type: string
+                                  volumeAttributesClassName:
+                                    description: |-
+                                      VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                                      VolumeAttributesClass applied to every PVC generated for this volume role.
+                                      The class's driver must match the StorageClass provisioner; the operator
+                                      does not check that or whether the class exists. Valid only for
+                                      PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                                      while replicas are live: the operator updates bound claims in place, which
+                                      asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                                      1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                                      supports ModifyVolume. Removing a configured value from a live volume is
+                                      rejected.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                    type: string
                                   volumeClaimTemplateSpec:
                                     description: |-
                                       VolumeClaimTemplateSpec is retained for API compatibility but is not
@@ -10591,6 +10957,9 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                                    rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                             required:
                               - path
                             type: object
@@ -10658,6 +11027,22 @@ spec:
                           enum:
                             - PersistentVolumeClaim
                             - EmptyDir
+                          type: string
+                        volumeAttributesClassName:
+                          description: |-
+                            VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                            VolumeAttributesClass applied to every PVC generated for this volume role.
+                            The class's driver must match the StorageClass provisioner; the operator
+                            does not check that or whether the class exists. Valid only for
+                            PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                            while replicas are live: the operator updates bound claims in place, which
+                            asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                            1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                            supports ModifyVolume. Removing a configured value from a live volume is
+                            rejected.
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                           type: string
                         volumeClaimTemplateSpec:
                           description: |-
@@ -10858,6 +11243,9 @@ spec:
                               type: string
                           type: object
                       type: object
+                      x-kubernetes-validations:
+                        - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                          rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                     dataFsync:
                       description: DataFsync enables fsync for data block writes.
                       type: boolean
@@ -11064,6 +11452,101 @@ spec:
                             x-kubernetes-map-type: atomic
                         type: object
                       type: array
+                    extraContainers:
+                      description: |-
+                        ExtraContainers run beside the Garage container in the same pod and network
+                        namespace. They cannot mount operator-owned volumes.
+                      items:
+                        description: |-
+                          PodExtraContainer is one user-supplied container. The CRD schema declares
+                          only name and preserves all other fields; the complete object is validated
+                          by the admission webhook and re-validated by the controller by strictly
+                          decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                          a fully typed corev1.Container would add ~120 KB per occurrence.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the container. It must be unique across initContainers and
+                              extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 16
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: container name is operator-reserved
+                          rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
+                    extraVolumes:
+                      description: |-
+                        ExtraVolumes are added to the pod. Operator-owned volume names are reserved
+                        (config, metadata, data, data-<N>, rpc-secret, admin-token, metrics-token).
+                      items:
+                        description: |-
+                          PodExtraVolume is one user-supplied pod volume; same contract as
+                          PodExtraContainer, resolved as a corev1.Volume.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the volume. It must be unique across extraVolumes, a DNS-1123
+                              label, and not an operator-reserved volume name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 32
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: volume name is operator-reserved
+                          rule: self.all(v, !(v.name in ['config','metadata','data','rpc-secret','admin-token','metrics-token']) && !v.name.matches('^data-[0-9]+$'))
+                    initContainers:
+                      description: |-
+                        InitContainers run before the Garage container, after any operator-injected
+                        init containers. Entries with restartPolicy: Always are native sidecars
+                        (Kubernetes 1.29+ beta, GA in 1.33). Names garage, purge-cluster-layout and
+                        the prefix garage-operator- are reserved.
+                      items:
+                        description: |-
+                          PodExtraContainer is one user-supplied container. The CRD schema declares
+                          only name and preserves all other fields; the complete object is validated
+                          by the admission webhook and re-validated by the controller by strictly
+                          decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                          a fully typed corev1.Container would add ~120 KB per occurrence.
+                        properties:
+                          name:
+                            description: |-
+                              Name of the container. It must be unique across initContainers and
+                              extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                            maxLength: 63
+                            minLength: 1
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                        required:
+                          - name
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      maxItems: 16
+                      type: array
+                      x-kubernetes-list-map-keys:
+                        - name
+                      x-kubernetes-list-type: map
+                      x-kubernetes-validations:
+                        - message: container name is operator-reserved
+                          rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
                     layoutPolicy:
                       description: |-
                         LayoutPolicy overrides the cluster-level spec.layoutPolicy for the STORAGE
@@ -11259,6 +11742,22 @@ spec:
                                     enum:
                                       - PersistentVolumeClaim
                                       - EmptyDir
+                                    type: string
+                                  volumeAttributesClassName:
+                                    description: |-
+                                      VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                                      VolumeAttributesClass applied to every PVC generated for this volume role.
+                                      The class's driver must match the StorageClass provisioner; the operator
+                                      does not check that or whether the class exists. Valid only for
+                                      PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                                      while replicas are live: the operator updates bound claims in place, which
+                                      asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                                      1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                                      supports ModifyVolume. Removing a configured value from a live volume is
+                                      rejected.
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                                     type: string
                                   volumeClaimTemplateSpec:
                                     description: |-
@@ -11457,6 +11956,9 @@ spec:
                                         type: string
                                     type: object
                                 type: object
+                                x-kubernetes-validations:
+                                  - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                                    rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                             required:
                               - path
                             type: object
@@ -11524,6 +12026,22 @@ spec:
                           enum:
                             - PersistentVolumeClaim
                             - EmptyDir
+                          type: string
+                        volumeAttributesClassName:
+                          description: |-
+                            VolumeAttributesClassName is the name of a cluster-scoped Kubernetes
+                            VolumeAttributesClass applied to every PVC generated for this volume role.
+                            The class's driver must match the StorageClass provisioner; the operator
+                            does not check that or whether the class exists. Valid only for
+                            PersistentVolumeClaim volumes. Unlike storageClassName it may be changed
+                            while replicas are live: the operator updates bound claims in place, which
+                            asks the CSI driver to modify the volume. Requires Kubernetes 1.34+ (or
+                            1.31-1.33 with the VolumeAttributesClass feature enabled) and a driver that
+                            supports ModifyVolume. Removing a configured value from a live volume is
+                            rejected.
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                           type: string
                         volumeClaimTemplateSpec:
                           description: |-
@@ -11724,6 +12242,9 @@ spec:
                               type: string
                           type: object
                       type: object
+                      x-kubernetes-validations:
+                        - message: volumeAttributesClassName is only valid for PersistentVolumeClaim volumes
+                          rule: '!has(self.volumeAttributesClassName) || !has(self.type) || self.type == ''PersistentVolumeClaim'''
                     metadataAutoSnapshotInterval:
                       description: MetadataAutoSnapshotInterval enables automatic metadata snapshots.
                       pattern: ^(\d+(\.\d+)?\s*(ns|us|ms|s|m|h|d|w|M|y)\s*)+$
@@ -13176,6 +13697,101 @@ spec:
                                       x-kubernetes-map-type: atomic
                                   type: object
                                 type: array
+                              extraContainers:
+                                description: |-
+                                  ExtraContainers run beside the Garage container in the same pod and network
+                                  namespace. They cannot mount operator-owned volumes.
+                                items:
+                                  description: |-
+                                    PodExtraContainer is one user-supplied container. The CRD schema declares
+                                    only name and preserves all other fields; the complete object is validated
+                                    by the admission webhook and re-validated by the controller by strictly
+                                    decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                                    a fully typed corev1.Container would add ~120 KB per occurrence.
+                                  properties:
+                                    name:
+                                      description: |-
+                                        Name of the container. It must be unique across initContainers and
+                                        extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                                      maxLength: 63
+                                      minLength: 1
+                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                      type: string
+                                  required:
+                                    - name
+                                  type: object
+                                  x-kubernetes-preserve-unknown-fields: true
+                                maxItems: 16
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                  - name
+                                x-kubernetes-list-type: map
+                                x-kubernetes-validations:
+                                  - message: container name is operator-reserved
+                                    rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
+                              extraVolumes:
+                                description: |-
+                                  ExtraVolumes are added to the pod. Operator-owned volume names are reserved
+                                  (config, metadata, data, data-<N>, rpc-secret, admin-token, metrics-token).
+                                items:
+                                  description: |-
+                                    PodExtraVolume is one user-supplied pod volume; same contract as
+                                    PodExtraContainer, resolved as a corev1.Volume.
+                                  properties:
+                                    name:
+                                      description: |-
+                                        Name of the volume. It must be unique across extraVolumes, a DNS-1123
+                                        label, and not an operator-reserved volume name.
+                                      maxLength: 63
+                                      minLength: 1
+                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                      type: string
+                                  required:
+                                    - name
+                                  type: object
+                                  x-kubernetes-preserve-unknown-fields: true
+                                maxItems: 32
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                  - name
+                                x-kubernetes-list-type: map
+                                x-kubernetes-validations:
+                                  - message: volume name is operator-reserved
+                                    rule: self.all(v, !(v.name in ['config','metadata','data','rpc-secret','admin-token','metrics-token']) && !v.name.matches('^data-[0-9]+$'))
+                              initContainers:
+                                description: |-
+                                  InitContainers run before the Garage container, after any operator-injected
+                                  init containers. Entries with restartPolicy: Always are native sidecars
+                                  (Kubernetes 1.29+ beta, GA in 1.33). Names garage, purge-cluster-layout and
+                                  the prefix garage-operator- are reserved.
+                                items:
+                                  description: |-
+                                    PodExtraContainer is one user-supplied container. The CRD schema declares
+                                    only name and preserves all other fields; the complete object is validated
+                                    by the admission webhook and re-validated by the controller by strictly
+                                    decoding it into a corev1.Container (Resolve). This keeps the CRD small:
+                                    a fully typed corev1.Container would add ~120 KB per occurrence.
+                                  properties:
+                                    name:
+                                      description: |-
+                                        Name of the container. It must be unique across initContainers and
+                                        extraContainers, a DNS-1123 label, and not an operator-reserved name.
+                                      maxLength: 63
+                                      minLength: 1
+                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                      type: string
+                                  required:
+                                    - name
+                                  type: object
+                                  x-kubernetes-preserve-unknown-fields: true
+                                maxItems: 16
+                                type: array
+                                x-kubernetes-list-map-keys:
+                                  - name
+                                x-kubernetes-list-type: map
+                                x-kubernetes-validations:
+                                  - message: container name is operator-reserved
+                                    rule: self.all(c, c.name != 'garage' && c.name != 'purge-cluster-layout' && !c.name.startsWith('garage-operator-'))
                               podAnnotations:
                                 additionalProperties:
                                   type: string
@@ -13684,6 +14300,9 @@ spec:
                                   type: object
                                 type: array
                             type: object
+                            x-kubernetes-validations:
+                              - message: initContainers and extraContainers names must be unique across both lists
+                                rule: '!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))'
                           selector:
                             description: |-
                               Selector chooses the Kubernetes Nodes that own a persistent Garage
@@ -14327,6 +14946,9 @@ spec:
                   required:
                     - replicas
                   type: object
+                  x-kubernetes-validations:
+                    - message: initContainers and extraContainers names must be unique across both lists
+                      rule: '!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))'
                 webApi:
                   description: |-
                     WebAPI configures the static website hosting endpoint.
@@ -14425,6 +15047,10 @@ spec:
                   rule: has(self.storage) || has(self.gateway) || has(self.connectTo)
                 - message: spec.gateway requires either spec.storage (unified cluster) or spec.connectTo (edge gateway)
                   rule: '!has(self.gateway) || has(self.storage) || has(self.connectTo)'
+                - message: 'layoutManagement.siteRole: Follower requires at least one remoteClusters entry (a Follower with nothing to follow is a cluster nobody can assign roles to)'
+                  rule: '!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != ''Follower'' || (has(self.remoteClusters) && size(self.remoteClusters) > 0)'
+                - message: 'layoutManagement.siteRole: Follower is not supported with connectTo; edge gateways and management handles act on their layout owner'
+                  rule: '!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != ''Follower'' || !has(self.connectTo)'
             status:
               description: GarageClusterStatus defines the observed state of GarageCluster.
               properties:
@@ -14842,6 +15468,20 @@ spec:
                   description: LayoutVersion is the current layout version.
                   format: int64
                   type: integer
+                layoutWriter:
+                  description: |-
+                    LayoutWriter reports the layout role the controller is currently
+                    enforcing for this site. Nil until the controller first records it.
+                  properties:
+                    role:
+                      description: Role is the role the controller is currently enforcing.
+                      enum:
+                        - Writer
+                        - Follower
+                      type: string
+                  required:
+                    - role
+                  type: object
                 lifecycleStatus:
                   description: LifecycleStatus contains the status of bucket lifecycle operations.
                   properties:
