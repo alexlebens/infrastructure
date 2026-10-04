@@ -5,10 +5,11 @@ cloudflare-ddns-dev:
       strategy: Recreate
       pod:
         securityContext:
+          runAsNonRoot: true
           runAsUser: 1000
           runAsGroup: 1000
           fsGroup: 1000
-          runAsNonRoot: true
+          fsGroupChangePolicy: OnRootMismatch
           seccompProfile:
             type: RuntimeDefault
       containers:
@@ -22,13 +23,20 @@ cloudflare-ddns-dev:
           image:
             repository: favonia/cloudflare-ddns
             tag: 1.17.1@sha256:5e61736b982b87d84a1120b4767c4deff0f2cc55ca3ee9dcb1dc58623039b5cb
-          env:
-            - name: IP6_PROVIDER
-              value: "none"
           envFrom:
             - secretRef:
                 name: cloudflare-ddns-dev
+          env:
+            - name: IP6_PROVIDER
+              value: "none"
           resources:
             requests:
               cpu: 10m
               memory: 20Mi
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
