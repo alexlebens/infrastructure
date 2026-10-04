@@ -51,6 +51,9 @@ spec:
                 - |
                   cp -f /tmp/secrets/AccountsSettings.json /config/AccountsSettings.json
                   cp -f /tmp/secrets/Settings.json /config/Settings.json
+                  if ! grep -q '"Books"' /config/Settings.json; then
+                    sed -i 's/"FirstLaunch": true,/"FirstLaunch": true,\n  "Books": "\/data",\n  "InProgress": "\/tmp",/' /config/Settings.json
+                  fi
               image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
               name: init-copy-config
               resources:
@@ -84,6 +87,8 @@ spec:
                     secretKeyRef:
                       key: LIBATION_MASTER_KEY
                       name: libation-settings
+                - name: LIBATION_BOOKS_DIR
+                  value: /data
               image: rmcrackan/libation:14.2.2@sha256:fe188ac3c4ce63cc305971c76e648748341427e16bcf884011da8a384fd3908c
               name: main
               resources:
