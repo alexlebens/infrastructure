@@ -5,10 +5,24 @@ diun:
       strategy: Recreate
       pod:
         automountServiceAccountToken: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       serviceAccount:
         name: diun
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: crazymax/diun
             tag: 4.33.0@sha256:e324b793eb32dfb7f74d3a39421ebf090141caaadee69b8f78da63112408ee25
@@ -54,10 +68,8 @@ diun:
               value: "/metrics"
           resources:
             requests:
-              cpu: 10m
-              memory: 50Mi
-            limits:
-              memory: 250Mi
+              cpu: 5m
+              memory: 100Mi
           probes:
             liveness:
               enabled: true
@@ -81,16 +93,13 @@ diun:
                 periodSeconds: 30
   service:
     main:
+      forceRename: diun
       ports:
         metrics:
           port: 9090
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: diun
-          app.kubernetes.io/instance: diun
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: diun
       endpoints:
         - port: metrics
           interval: 1m
