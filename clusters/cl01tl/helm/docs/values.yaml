@@ -1,20 +1,33 @@
 docs:
-  global:
-    fullnameOverride: docs
   controllers:
     main:
       type: deployment
       replicas: 3
       strategy: RollingUpdate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: harbor.alexlebens.dev/images/docs
             tag: 1.47.0@sha256:926ef4230231730992234cae9f093470b47db10a30165a7dd2f04332ea77929e
           resources:
             requests:
               cpu: 1m
-              memory: 60Mi
+              memory: 125Mi
           probes:
             liveness:
               enabled: true
@@ -32,6 +45,7 @@ docs:
                   port: 8000
   service:
     main:
+      forceRename: docs
       ports:
         http:
           port: 80
@@ -39,6 +53,15 @@ docs:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Documentation"
+        gethomepage.dev/description: "Homelab Docs"
+        gethomepage.dev/group: "Knowledge"
+        gethomepage.dev/icon: "https://web-assets.alexlebens.dev/logo/logo-blue.webp"
+        gethomepage.dev/siteMonitor: "http://docs.docs:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "50"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -52,7 +75,13 @@ docs:
             - path:
                 type: PathPrefix
                 value: /
+
 cloudflared:
   probe:
     enabled: true
     targetUrl: https://docs.alexlebens.dev
+
+common-helpers:
+  probe:
+    internal: http://docs.docs:80
+    external: https://docs.alexlebens.dev

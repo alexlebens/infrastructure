@@ -19,6 +19,7 @@ env:
   KUBECTL_VERSION: "v1.36.5"
   YQ_VERSION: "v4.54.1"
   TRIVY_VERSION: "v0.75.0"
+  KUBECONFORM_VERSION: "v0.8.0"
 
 jobs:
   detect-changes:
@@ -142,12 +143,53 @@ jobs:
           echo "FAILED_STAGE=Trivy Security Scan" >> $GITHUB_ENV
           ./.gitea/scripts/trivy-scan.sh --chart "${CHART}"
 
-      # - name: -- Server-Side API Validation
-      #   env:
-      #     IGNORE_ERRORS: "garage-bucket,GarageBucket,namespaces .* not found"
-      #   run: |
-      #     echo "FAILED_STAGE=Server-Side API Validation" >> $GITHUB_ENV
-      #     ./.gitea/scripts/kubectl-validate-server-side.sh --chart "${CHART}"
+      - name: Cache CRD Schemas
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        id: cache-schemas
+        with:
+          path: ~/.schemas
+          key: ${{ runner.os }}-crd-schemas-v1
+
+      - name: Set up Python
+        if: steps.cache-schemas.outputs.cache-hit != 'true'
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache Python Dependencies
+        if: steps.cache-schemas.outputs.cache-hit != 'true'
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-pyyaml
+
+      - name: Install PyYAML
+        if: steps.cache-schemas.outputs.cache-hit != 'true'
+        run: |
+          echo "FAILED_STAGE=Install PyYAML" >> $GITHUB_ENV
+          pip3 install pyyaml --break-system-packages || pip3 install pyyaml
+
+      - name: Generate CRD Schemas
+        if: steps.cache-schemas.outputs.cache-hit != 'true'
+        run: |
+          echo "FAILED_STAGE=Generate CRD Schemas" >> $GITHUB_ENV
+          ./.gitea/scripts/generate-crd-schemas.sh
+
+      - name: Cache kubeconform
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.local/bin/kubeconform
+          key: ${{ runner.os }}-kubeconform-${{ env.KUBECONFORM_VERSION }}
+
+      - name: Set Up kubeconform
+        run: ./.gitea/scripts/install-kubeconform.sh
+
+      - name: -- Schema Validation (kubeconform)
+        env:
+          KUBERNETES_VERSION: ${{ env.KUBECTL_VERSION }}
+        run: |
+          echo "FAILED_STAGE=Schema Validation (kubeconform)" >> $GITHUB_ENV
+          ./.gitea/scripts/kubeconform-validate.sh --chart "${CHART}"
 
       - name: Cache ArgoCD CLI
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
