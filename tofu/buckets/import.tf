@@ -13,10 +13,7 @@
 # 4. Once `tofu apply` succeeds and the resources exist in state, DELETE these
 #    import blocks from this file.
 # ==============================================================================
-# import {
-#   to = b2_bucket.d_cs01bb["volsync"]
-#   id = "cdd1eb7e3a7cf5529ddf0211" # volsync-backups-c1c03d37545d9c27
-# }
+
 
 # ------------------------------------------------------------------------------
 # Future Migrations:
@@ -30,8 +27,4 @@
 # import { to = b2_bucket.d_cs01bb["openbao"]   id = "0d81cbee3a8cf5529ddf0211" } # openbao-backups-038053cd180284dc
 # import { to = b2_bucket.d_cs01bb["outline"]   id = "1db16b6eea4cf5d29dff0211" } # outline-assets-2ac99fb083071f74
 # import { to = b2_bucket.d_cs01bb["pocket-id"] id = "6de1eb0e1a2cd5d29dff0211" } # pocket-id-assets-708b709d424a4664
-import {
-  to = b2_bucket.d_cs01bb["cloudnative-pg"]
-  id = "1d312bce3a2cf5529ddf0211" # postgres-backups-775957147abfbc73
-}
 # import { to = b2_bucket.d_cs01bb["talos"]     id = "cd111b9e3a9cf5529ddf0211" } # talos-backups-8c38c0f91be53b11

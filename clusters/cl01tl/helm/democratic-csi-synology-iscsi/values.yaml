@@ -3,9 +3,56 @@ democratic-csi:
     image:
       registry: ghcr.io/democratic-csi/democratic-csi
       tag: v1.9.5@sha256:fc3b7d7ed3a616714139525075312758e23a5d425ffb539ad12c9bd20fb6001f
-    existingConfigSecret: synology-iscsi-config
     config:
       driver: synology-iscsi
+      httpConnection:
+        protocol: http
+        host: 10.232.1.61
+        port: 5000
+        username: '{{ `{{ env "SYNOLOGY_USERNAME" }}` }}'
+        password: '{{ `{{ env "SYNOLOGY_PASSWORD" }}` }}'
+        allowInsecure: true
+        session: "democratic-csi-cl01tl"
+        serialize: true
+      synology:
+        volume: /volume2
+      iscsi:
+        targetPortal: "10.232.1.64:3260"
+        interface: ""
+        baseiqn: "iqn.2000-01.com.synology:csi."
+        namePrefix: "csi-"
+        nameSuffix: "-cl01tl"
+        fsType: btrfs
+        lunTemplate:
+          description:
+            "{{ parameters.[csi.storage.k8s.io/pvc/namespace] }}-{{ parameters.[csi.storage.k8s.io/pvc/name] }}"
+          type: "BLUN"
+          dev_attribs:
+            - dev_attrib: emulate_tpws
+              enable: 1
+            - dev_attrib: emulate_caw
+              enable: 1
+            - dev_attrib: emulate_3pc
+              enable: 1
+            - dev_attrib: emulate_tpu
+              enable: 1
+        lunSnapshotTemplate:
+          is_locked: true
+          is_app_consistent: true
+        targetTemplate:
+          auth_type: 0
+          max_sessions: 0
+    extraEnv:
+      - name: SYNOLOGY_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: synology-iscsi-credentials
+            key: username
+      - name: SYNOLOGY_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: synology-iscsi-credentials
+            key: password
     resources:
       requests:
         cpu: 5m
@@ -14,6 +61,18 @@ democratic-csi:
     name: "org.democratic-csi.iscsi-synology"
   controller:
     replicaCount: 3
+    driver:
+      extraEnv:
+        - name: SYNOLOGY_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: synology-iscsi-credentials
+              key: username
+        - name: SYNOLOGY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: synology-iscsi-credentials
+              key: password
     externalAttacher:
       image:
         registry: registry.k8s.io/sig-storage/csi-attacher
