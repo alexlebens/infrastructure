@@ -29,6 +29,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: donetick
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -82,24 +90,24 @@ spec:
             - name: DT_STORAGE_BUCKET_NAME
               value: donetick-assets
             - name: DT_STORAGE_ENDPOINT
-              value: https://a.s3.alexlebens.dev
+              value: https://b.s3.alexlebens.dev
             - name: DT_STORAGE_PATH_STYLE
               value: "true"
             - name: DT_STORAGE_REGION
               valueFrom:
                 secretKeyRef:
                   key: region
-                  name: donetick-assets-key
+                  name: donetick-assets-secret
             - name: DT_STORAGE_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   key: access-key-id
-                  name: donetick-assets-key
+                  name: donetick-assets-secret
             - name: DT_STORAGE_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   key: secret-access-key
-                  name: donetick-assets-key
+                  name: donetick-assets-secret
             - name: DT_EMAIL_PROVIDER
               value: smtp
             - name: DT_EMAIL_HOST
@@ -150,5 +158,11 @@ spec:
               port: 2021
           resources:
             requests:
-              cpu: 25m
-              memory: 64Mi
+              cpu: 5m
+              memory: 30Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
