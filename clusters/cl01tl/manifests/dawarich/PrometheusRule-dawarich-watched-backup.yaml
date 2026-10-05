@@ -5,10 +5,10 @@ metadata:
   namespace: dawarich
   labels:
     app.kubernetes.io/name: dawarich-watched-backup
-    helm.sh/chart: volsync-target-watched-2.4.0
+    helm.sh/chart: volsync-target-watched-3.0.0
     app.kubernetes.io/instance: dawarich
     app.kubernetes.io/part-of: dawarich
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'dawarich-watched'.
               Target: dawarich-watched-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="dawarich-watched-backup-source-a", obj_namespace="dawarich"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="dawarich", job_name=~"volsync-.*dawarich-watched-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: dawarich-watched
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'dawarich-watched' has not completed successfully in 36h (schedule: '15 8 * * *').
+              Target: dawarich-watched-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="dawarich-watched-backup-source-c", obj_namespace="dawarich"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="dawarich", job_name=~"volsync-.*dawarich-watched-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: dawarich-watched
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'dawarich-watched' has not completed successfully in 8d (schedule: '35 10 * * 2').
+              Target: dawarich-watched-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="dawarich-watched-backup-source-d", obj_namespace="dawarich"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="dawarich", job_name=~"volsync-.*dawarich-watched-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: dawarich-watched
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'dawarich-watched' has not completed successfully in 8d (schedule: '35 9 * * 2').
+              Target: dawarich-watched-backup-source-d
               Namespace: {{ $labels.namespace }}

@@ -58,6 +58,7 @@ data:
       allowedAddresses:
         - "actual.actual:80"
         - "argocd-mcp.argocd:8080"
+        - "dawarich.dawarich:80"
         - "gitea-mcp.gitea:8080"
         - "kaneo.alexlebens.dev:443"
         - "n8n-main.n8n.svc.cluster.local:5678"
@@ -84,6 +85,48 @@ data:
         headers:
           Authorization: 'Bearer ${ARGOCD_MCP_TOKEN}'
 
+      calendar:
+        type: streamable-http
+        url: 'https://calendarmcp.googleapis.com/mcp/v1'
+        timeout: 60000
+        initTimeout: 150000
+        requiresOAuth: true
+        startup: false
+        oauth:
+          authorization_url: 'https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&prompt=consent'
+          token_url: 'https://oauth2.googleapis.com/token'
+          client_id: '${GOOGLE_WORKSPACE_MCP_CLIENT_ID}'
+          client_secret: '${GOOGLE_WORKSPACE_MCP_CLIENT_SECRET}'
+          scope: 'https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy https://www.googleapis.com/auth/calendar.events.readonly'
+          redirect_uri: 'https://ai.alexlebens.dev/api/mcp/calendar/oauth/callback'
+          token_exchange_method: default_post
+          token_endpoint_auth_methods_supported: ['client_secret_post']
+
+      dawarich:
+        type: "streamable-http"
+        url: "http://dawarich.dawarich:80/api/v1/mcp"
+        timeout: 60000
+        requiresOAuth: false
+        headers:
+          Authorization: "Bearer ${DAWARICH_API_KEY}"
+
+      drive:
+        type: streamable-http
+        url: 'https://drivemcp.googleapis.com/mcp/v1'
+        timeout: 60000
+        initTimeout: 150000
+        requiresOAuth: true
+        startup: false
+        oauth:
+          authorization_url: 'https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&prompt=consent'
+          token_url: 'https://oauth2.googleapis.com/token'
+          client_id: '${GOOGLE_WORKSPACE_MCP_CLIENT_ID}'
+          client_secret: '${GOOGLE_WORKSPACE_MCP_CLIENT_SECRET}'
+          scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file'
+          redirect_uri: 'https://ai.alexlebens.dev/api/mcp/drive/oauth/callback'
+          token_exchange_method: default_post
+          token_endpoint_auth_methods_supported: ['client_secret_post']
+
       gitea:
         type: http
         url: 'http://gitea-mcp.gitea:8080/mcp'
@@ -106,76 +149,6 @@ data:
           redirect_uri: 'https://ai.alexlebens.dev/api/mcp/gmail/oauth/callback'
           token_exchange_method: default_post
           token_endpoint_auth_methods_supported: ['client_secret_post']
-
-      drive:
-        type: streamable-http
-        url: 'https://drivemcp.googleapis.com/mcp/v1'
-        timeout: 60000
-        initTimeout: 150000
-        requiresOAuth: true
-        startup: false
-        oauth:
-          authorization_url: 'https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&prompt=consent'
-          token_url: 'https://oauth2.googleapis.com/token'
-          client_id: '${GOOGLE_WORKSPACE_MCP_CLIENT_ID}'
-          client_secret: '${GOOGLE_WORKSPACE_MCP_CLIENT_SECRET}'
-          scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file'
-          redirect_uri: 'https://ai.alexlebens.dev/api/mcp/drive/oauth/callback'
-          token_exchange_method: default_post
-          token_endpoint_auth_methods_supported: ['client_secret_post']
-
-      calendar:
-        type: streamable-http
-        url: 'https://calendarmcp.googleapis.com/mcp/v1'
-        timeout: 60000
-        initTimeout: 150000
-        requiresOAuth: true
-        startup: false
-        oauth:
-          authorization_url: 'https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&prompt=consent'
-          token_url: 'https://oauth2.googleapis.com/token'
-          client_id: '${GOOGLE_WORKSPACE_MCP_CLIENT_ID}'
-          client_secret: '${GOOGLE_WORKSPACE_MCP_CLIENT_SECRET}'
-          scope: 'https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.freebusy https://www.googleapis.com/auth/calendar.events.readonly'
-          redirect_uri: 'https://ai.alexlebens.dev/api/mcp/calendar/oauth/callback'
-          token_exchange_method: default_post
-          token_endpoint_auth_methods_supported: ['client_secret_post']
-
-      n8n-documents:
-        type: "sse"
-        url: "http://n8n-main.n8n.svc.cluster.local:5678/mcp/documents/sse"
-        timeout: 60000
-
-      trek:
-        type: "streamable-http"
-        url: "https://trek.alexlebens.dev/mcp"
-        startup: false
-        timeout: 60000
-        initTimeout: 150000
-        requiresOAuth: true
-        oauth:
-          authorization_url: "https://trek.alexlebens.dev/oauth/authorize"
-          token_url: "https://trek.alexlebens.dev/oauth/token"
-          client_id: "${TREK_MCP_CLIENT_ID}"
-          client_secret: "${TREK_MCP_CLIENT_SECRET}"
-          token_exchange_method: "default_post"
-          redirect_uri: "https://ai.alexlebens.dev/api/mcp/trek/oauth/callback"
-          scope: "trips:read trips:write places:read places:write packing:read packing:write reservations:read reservations:write weather:read"
-
-      outline:
-        type: "streamable-http"
-        url: "https://outline.alexlebens.dev/mcp"
-        timeout: 60000
-        headers:
-          Authorization: "Bearer ${OUTLINE_API_KEY}"
-
-      sparkyfitness:
-        type: "streamable-http"
-        url: "http://sparkyfitness-server.sparkyfitness.svc.cluster.local:3010/mcp"
-        timeout: 60000
-        requiresOAuth: false
-        headers:
-          Authorization: "Bearer ${SPARKYFITNESS_API_KEY}"
 
       kaneo:
         type: "streamable-http"
@@ -230,3 +203,39 @@ data:
         env:
           KARAKEEP_API_ADDR: "http://karakeep.karakeep.svc.cluster.local:3000"
           KARAKEEP_API_KEY: "${KARAKEEP_API_KEY}"
+
+      n8n-documents:
+        type: "sse"
+        url: "http://n8n-main.n8n.svc.cluster.local:5678/mcp/documents/sse"
+        timeout: 60000
+
+      outline:
+        type: "streamable-http"
+        url: "https://outline.alexlebens.dev/mcp"
+        timeout: 60000
+        headers:
+          Authorization: "Bearer ${OUTLINE_API_KEY}"
+
+      sparkyfitness:
+        type: "streamable-http"
+        url: "http://sparkyfitness-server.sparkyfitness.svc.cluster.local:3010/mcp"
+        timeout: 60000
+        requiresOAuth: false
+        headers:
+          Authorization: "Bearer ${SPARKYFITNESS_API_KEY}"
+
+      trek:
+        type: "streamable-http"
+        url: "https://trek.alexlebens.dev/mcp"
+        startup: false
+        timeout: 60000
+        initTimeout: 150000
+        requiresOAuth: true
+        oauth:
+          authorization_url: "https://trek.alexlebens.dev/oauth/authorize"
+          token_url: "https://trek.alexlebens.dev/oauth/token"
+          client_id: "${TREK_MCP_CLIENT_ID}"
+          client_secret: "${TREK_MCP_CLIENT_SECRET}"
+          token_exchange_method: "default_post"
+          redirect_uri: "https://ai.alexlebens.dev/api/mcp/trek/oauth/callback"
+          scope: "trips:read trips:write places:read places:write packing:read packing:write reservations:read reservations:write weather:read"
