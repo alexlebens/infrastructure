@@ -125,6 +125,10 @@ dawarich:
               value: true
             - name: STORE_GEODATA
               value: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 700Mi
           probes:
             liveness:
               enabled: true
@@ -138,10 +142,6 @@ dawarich:
                 failureThreshold: 5
                 initialDelaySeconds: 60
                 timeoutSeconds: 10
-          resources:
-            requests:
-              cpu: 20m
-              memory: 700Mi
         sidekiq:
           image:
             repository: freikin/dawarich
@@ -260,6 +260,10 @@ dawarich:
               value: true
             - name: STORE_GEODATA
               value: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
           probes:
             liveness:
               enabled: true
@@ -275,6 +279,7 @@ dawarich:
                 timeoutSeconds: 10
   service:
     main:
+      forceRename: dawarich
       ports:
         http:
           port: 80
@@ -283,11 +288,7 @@ dawarich:
           port: 9394
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: dawarich
-          app.kubernetes.io/instance: dawarich
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: dawarich
       endpoints:
         - port: metrics
           basicAuth:
@@ -300,6 +301,15 @@ dawarich:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Location Tracking"
+        gethomepage.dev/description: "Dawarich"
+        gethomepage.dev/group: "Background"
+        gethomepage.dev/icon: "sh-dawarich.webp"
+        gethomepage.dev/siteMonitor: "http://dawarich.dawarich:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "360"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -347,18 +357,33 @@ dawarich:
             - path: /var/app/tmp/imports/watched
           sidekiq:
             - path: /var/app/tmp/imports/watched
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Dawarich"
+    description:
+      "Self-hosted location tracking and history platform designed to visualize, explore, and manage personal location
+      data."
+    clientID: 1BAC1745-6CB4-4567-9409-521D86E49404
+    callbackUrls:
+      - https://dawarich.alexlebens.dev/users/auth/openid_connect/callback
+
 postgres-18-cluster:
   mode: recovery
   cluster:
     image:
       repository: ghcr.io/cloudnative-pg/postgis
       tag: 18-3-system-trixie
-    initdb:
-      postInitTemplateSQL:
-        - CREATE EXTENSION postgis;
-        - CREATE EXTENSION postgis_topology;
-        - CREATE EXTENSION fuzzystrmatch;
-        - CREATE EXTENSION postgis_tiger_geocoder;
+  databases:
+    - name: app
+      ensure: present
+      owner: app
+      extensions:
+        - name: postgis
+        - name: postgis_topology
+        - name: fuzzystrmatch
+        - name: postgis_tiger_geocoder
   recovery:
     objectStore:
       index: 1
@@ -368,36 +393,44 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 5 5 * * *"
+
 volsync-target-storage:
   pvcTarget: dawarich-storage
-  local:
+  a:
     enabled: true
     schedule: 10 8 * * *
-  remote:
+  c:
     enabled: true
     schedule: 35 10 * * 1
-  external:
+  d:
     enabled: true
     schedule: 35 9 * * 1
+
 volsync-target-public:
   pvcTarget: dawarich-public
-  local:
+  a:
     enabled: true
     schedule: 5 8 * * *
-  remote:
+  c:
     enabled: true
     schedule: 35 10 * * 0
-  external:
+  d:
     enabled: true
     schedule: 35 9 * * 0
+
 volsync-target-watched:
   pvcTarget: dawarich-watched
-  local:
+  a:
     enabled: true
     schedule: 15 8 * * *
-  remote:
+  c:
     enabled: true
     schedule: 35 10 * * 2
-  external:
+  d:
     enabled: true
     schedule: 35 9 * * 2
+
+common-helpers:
+  probe:
+    internal: http://dawarich.dawarich:80
+    external: https://dawarich.alexlebens.dev
