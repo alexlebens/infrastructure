@@ -57,7 +57,9 @@ echo ">> Extracted ${CRD_COUNT} CRDs from cluster"
 echo ">> Converting CRD schemas to JSON ..."
 cd "${TMP_DIR}"
 export FILENAME_FORMAT='{kind}_{version}'
-python3 "${BIN_DIR}/openapi2jsonschema.py" *.yaml
+for crd_file in "${TMP_DIR}"/*.yaml; do
+  python3 "${BIN_DIR}/openapi2jsonschema.py" "file://${crd_file}" || true
+done
 
 mv *.json "${SCHEMA_DIR}/" 2>/dev/null || true
 
