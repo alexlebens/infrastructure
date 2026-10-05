@@ -31,10 +31,10 @@ spec:
           }
         ]
       },
-      "editable": true,
+      "editable": false,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 0,
-      "liveNow": false,
+      "links": [],
       "panels": [
         {
           "datasource": {
@@ -106,6 +106,78 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
+          "description": "Percentage of cluster images that are fully up to date",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": 0
+                  },
+                  {
+                    "color": "orange",
+                    "value": 80
+                  },
+                  {
+                    "color": "green",
+                    "value": 95
+                  }
+                ]
+              },
+              "unit": "percent"
+            }
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 0
+          },
+          "id": 2,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value",
+            "wideLayout": true
+          },
+          "pluginVersion": "13.2.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "kube-prometheus-stack"
+              },
+              "expr": "(1 - ((count(diun_image_update_available == 1) or vector(0)) / (count(diun_image_update_available) or vector(1)))) * 100",
+              "instant": true,
+              "legendFormat": "Up-To-Date %",
+              "refId": "A"
+            }
+          ],
+          "title": "Fleet Up-to-Date Ratio",
+          "transparent": true,
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "kube-prometheus-stack"
+          },
           "description": "Total unique images tracked across the cluster",
           "fieldConfig": {
             "defaults": {
@@ -126,10 +198,10 @@ spec:
           "gridPos": {
             "h": 4,
             "w": 6,
-            "x": 6,
+            "x": 12,
             "y": 0
           },
-          "id": 2,
+          "id": 3,
           "options": {
             "colorMode": "value",
             "graphMode": "none",
@@ -167,67 +239,6 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Total completed watch scan runs",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "purple",
-                    "value": 0
-                  }
-                ]
-              }
-            }
-          },
-          "gridPos": {
-            "h": 4,
-            "w": 6,
-            "x": 12,
-            "y": 0
-          },
-          "id": 3,
-          "options": {
-            "colorMode": "value",
-            "graphMode": "none",
-            "justifyMode": "center",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": ["lastNotNull"],
-              "fields": "",
-              "values": false
-            },
-            "showPercentChange": false,
-            "textMode": "value",
-            "wideLayout": true
-          },
-          "pluginVersion": "13.2.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "kube-prometheus-stack"
-              },
-              "expr": "diun_watch_runs_total",
-              "instant": true,
-              "legendFormat": "Runs",
-              "refId": "A"
-            }
-          ],
-          "title": "Completed Watch Runs",
-          "transparent": true,
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "kube-prometheus-stack"
-          },
           "description": "Duration of the last completed watch run",
           "fieldConfig": {
             "defaults": {
@@ -238,7 +249,7 @@ spec:
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "orange",
+                    "color": "purple",
                     "value": 0
                   }
                 ]
@@ -281,7 +292,7 @@ spec:
               "refId": "A"
             }
           ],
-          "title": "Last Run Duration",
+          "title": "Last Scan Duration",
           "transparent": true,
           "type": "stat"
         },
@@ -290,18 +301,21 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "List of running images where an update is available on the registry",
+          "description": "All running container images with an update available on the upstream registry",
           "fieldConfig": {
             "defaults": {
               "custom": {
-                "align": "auto",
+                "align": "left",
                 "cellOptions": {
                   "type": "auto"
                 },
+                "filterable": true,
                 "footer": {
                   "reducers": ["countAll"]
                 },
-                "inspect": false
+                "inspect": false,
+                "wrapHeaderText": false,
+                "wrapText": false
               },
               "thresholds": {
                 "mode": "absolute",
@@ -314,6 +328,37 @@ spec:
               }
             },
             "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "status"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "mode": "gradient",
+                      "type": "color-background"
+                    }
+                  },
+                  {
+                    "id": "custom.width",
+                    "value": 160
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "provider"
+                },
+                "properties": [
+                  {
+                    "id": "custom.width",
+                    "value": 140
+                  }
+                ]
+              },
               {
                 "matcher": {
                   "id": "byName",
@@ -341,15 +386,21 @@ spec:
             ]
           },
           "gridPos": {
-            "h": 8,
-            "w": 16,
+            "h": 10,
+            "w": 17,
             "x": 0,
             "y": 4
           },
           "id": 5,
           "options": {
             "cellHeight": "sm",
-            "showHeader": true
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": false,
+                "displayName": "image"
+              }
+            ]
           },
           "pluginVersion": "13.2.2",
           "targets": [
@@ -370,7 +421,7 @@ spec:
               "id": "filterFieldsByName",
               "options": {
                 "include": {
-                  "names": ["image", "Value"]
+                  "names": ["image", "provider", "status", "Value"]
                 }
               }
             }
@@ -400,9 +451,9 @@ spec:
             }
           },
           "gridPos": {
-            "h": 8,
-            "w": 8,
-            "x": 16,
+            "h": 10,
+            "w": 7,
+            "x": 17,
             "y": 4
           },
           "id": 6,
@@ -410,7 +461,7 @@ spec:
             "displayLabels": ["name", "value"],
             "legend": {
               "displayMode": "table",
-              "placement": "right",
+              "placement": "bottom",
               "showLegend": true,
               "values": ["value", "percent"]
             },
@@ -445,113 +496,152 @@ spec:
           "type": "piechart"
         },
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "kube-prometheus-stack"
-          },
-          "description": "All container images scanned across the cluster and their current status",
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "left",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "filterable": true,
-                "footer": {
-                  "reducers": ["countAll"]
-                },
-                "inspect": false,
-                "wrapHeaderText": false,
-                "wrapText": false
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  }
-                ]
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Value"
-                },
-                "properties": [
-                  {
-                    "id": "custom.hideFrom.viz",
-                    "value": true
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Time"
-                },
-                "properties": [
-                  {
-                    "id": "custom.hideFrom.viz",
-                    "value": true
-                  }
-                ]
-              }
-            ]
-          },
+          "collapsed": true,
           "gridPos": {
-            "h": 10,
+            "h": 1,
             "w": 24,
             "x": 0,
-            "y": 12
+            "y": 14
           },
-          "id": 7,
-          "options": {
-            "cellHeight": "sm",
-            "showHeader": true,
-            "sortBy": [
-              {
-                "desc": false,
-                "displayName": "job"
-              }
-            ]
-          },
-          "pluginVersion": "13.2.2",
-          "targets": [
+          "id": 8,
+          "panels": [
             {
               "datasource": {
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "editorMode": "builder",
-              "expr": "diun_image_last_check_status == 1",
-              "format": "table",
-              "instant": true,
-              "refId": "A"
-            }
-          ],
-          "title": "All Monitored Images & Current Status",
-          "transformations": [
-            {
-              "id": "filterFieldsByName",
+              "description": "All container images scanned across the cluster and their current status",
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "left",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "footer": {
+                      "reducers": ["countAll"]
+                    },
+                    "inspect": false,
+                    "wrapHeaderText": false,
+                    "wrapText": false
+                  },
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      }
+                    ]
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "status"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 160
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "provider"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 140
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Value"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom.viz",
+                        "value": true
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Time"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.hideFrom.viz",
+                        "value": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              "gridPos": {
+                "h": 10,
+                "w": 24,
+                "x": 0,
+                "y": 15
+              },
+              "id": 7,
               "options": {
-                "include": {
-                  "names": ["Time", "image", "status", "Value"]
+                "cellHeight": "sm",
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": false,
+                    "displayName": "image"
+                  }
+                ]
+              },
+              "pluginVersion": "13.2.2",
+              "targets": [
+                {
+                  "datasource": {
+                    "type": "prometheus",
+                    "uid": "kube-prometheus-stack"
+                  },
+                  "editorMode": "code",
+                  "expr": "diun_image_last_check_status == 1",
+                  "format": "table",
+                  "instant": true,
+                  "refId": "A"
                 }
-              }
+              ],
+              "title": "All Monitored Images & Status (Up-to-Date & Outdated)",
+              "transformations": [
+                {
+                  "id": "filterFieldsByName",
+                  "options": {
+                    "include": {
+                      "names": ["image", "provider", "status", "Value"]
+                    }
+                  }
+                }
+              ],
+              "transparent": true,
+              "type": "table"
             }
           ],
-          "transparent": true,
-          "type": "table"
+          "title": "All Cluster Images (Inventory)",
+          "type": "row"
         }
       ],
-      "preload": false,
+      "preload": true,
       "refresh": "",
       "schemaVersion": 42,
       "tags": ["platform", "updates"],
+      "templating": {},
       "time": {
         "from": "now-24h",
         "to": "now"
@@ -559,6 +649,6 @@ spec:
       "timepicker": {},
       "timezone": "browser",
       "title": "Diun",
-      "uid": "diun",
-      "id": 2034709326929920
+      "uid": "03ebd3b38cd3976d97648d56d0be19ad",
+      "id": 1970734589481985
     }
