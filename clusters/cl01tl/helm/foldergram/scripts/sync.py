@@ -14,9 +14,41 @@ IMMICH_URL = os.environ.get("IMMICH_URL", "http://immich-main.immich:80/api").rs
 API_KEY = os.environ.get("IMMICH_API_KEY", "")
 GALLERY_PATH = os.environ.get("GALLERY_PATH", "/gallery/Favorites")
 PRUNE_DELETED = os.environ.get("PRUNE_DELETED", "true").lower() in ("true", "1", "yes")
+FOLDERGRAM_URL = os.environ.get(
+    "FOLDERGRAM_URL", "http://foldergram.foldergram:80"
+).rstrip("/")
 
 # Persistent index file: maps asset_id -> filename on disk
 INDEX_PATH = os.path.join(GALLERY_PATH, ".foldergram-index.json")
+
+
+def trigger_foldergram_scan():
+    """Trigger Foldergram scan/library refresh if URL is configured."""
+    if not FOLDERGRAM_URL:
+        return
+    print(f"[sync] Notifying Foldergram at {FOLDERGRAM_URL} to refresh library...")
+    # Attempt common scan endpoints
+    for endpoint in ("/api/scan", "/api/library/scan", "/api/refresh", "/api/health"):
+        url = f"{FOLDERGRAM_URL}{endpoint}"
+        try:
+            req = urllib.request.Request(
+                url,
+                method="POST" if "scan" in endpoint or "refresh" in endpoint else "GET",
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                if resp.status in (200, 201, 202, 204):
+                    print(
+                        f"[sync] Foldergram scan notification to {endpoint} successful (HTTP {resp.status})."
+                    )
+                    return
+        except urllib.error.HTTPError as e:
+            if e.code in (404, 405):
+                continue
+            print(f"[sync] Foldergram returned HTTP {e.code} on {endpoint}.")
+            break
+        except Exception as e:
+            print(f"[sync] Could not connect to Foldergram at {url}: {e}")
+            break
 
 
 def sanitize_filename(name):
@@ -358,6 +390,9 @@ def sync_favorites():
         f"[sync] Sync finished: {downloaded} downloaded, {pruned} pruned, "
         f"{len(remote_assets)} total in gallery."
     )
+
+    if downloaded > 0 or pruned > 0:
+        trigger_foldergram_scan()
 
 
 def main():
