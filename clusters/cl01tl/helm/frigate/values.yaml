@@ -7,8 +7,15 @@ frigate:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/blakeblackshear/frigate
             tag: 0.18.0@sha256:b1f339cf08ae9148b0fac4295cf59f8e158455f6e72d29af32b773a3d8129851
@@ -35,6 +42,13 @@ frigate:
                 secretKeyRef:
                   name: it06cm-config
                   key: password
+          resources:
+            requests:
+              cpu: 100m
+              memory: 2Gi
+              gpu.intel.com/i915: 1
+            limits:
+              gpu.intel.com/i915: 1
           probes:
             liveness:
               enabled: true
@@ -58,14 +72,13 @@ frigate:
                   path: /
                   port: 5000
                 failureThreshold: 30
-          resources:
-            requests:
-              cpu: 100m
-              memory: 1Gi
-              gpu.intel.com/i915: 1
-            limits:
-              gpu.intel.com/i915: 1
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -91,6 +104,10 @@ frigate:
               value: "true"
             - name: OAUTH2_PROXY_PASS_USER_HEADERS
               value: "true"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
           probes:
             liveness:
               enabled: true
@@ -108,6 +125,7 @@ frigate:
                   port: 4180
   service:
     main:
+      forceRename: frigate
       ports:
         http:
           port: 80
@@ -126,11 +144,7 @@ frigate:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: frigate
-          app.kubernetes.io/instance: frigate
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: frigate
       endpoints:
         - port: http
           path: /api/metrics
@@ -138,6 +152,15 @@ frigate:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "NVR"
+        gethomepage.dev/description: "Frigate"
+        gethomepage.dev/group: "Platform"
+        gethomepage.dev/icon: "sh-frigate.webp"
+        gethomepage.dev/siteMonitor: "http://frigate.frigate:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "200"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -317,17 +340,38 @@ frigate:
         main:
           main:
             - path: /dev/shm
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  client:
+    displayName: "Frigate"
+    description: "NVR with realtime local object detection for IP cameras."
+    clientID: 45717844-E62C-425B-A7C0-2A468478EBB9
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
+
 volsync-target-config:
   pvcTarget: frigate-config
   moverSecurityContext:
     fsGroup: 1000
     fsGroupChangePolicy: OnRootMismatch
-  local:
+  a:
     enabled: true
     schedule: 30 8 * * *
-  remote:
+  c:
     enabled: true
     schedule: 35 10 * * 5
-  external:
+  d:
     enabled: true
     schedule: 35 9 * * 5
+
+common-helpers:
+  probe:
+    internal: http://frigate.frigate:80
+    external: https://frigate.alexlebens.dev
