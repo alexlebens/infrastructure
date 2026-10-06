@@ -3,8 +3,23 @@ excalidraw:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+                - SETGID
+                - SETUID
+                - CHOWN
           image:
             repository: excalidraw/excalidraw
             tag: latest@sha256:f7ee194addd607bf831d2af0f0a34463dd4225e426cf35199ef0b12a803398e9
@@ -33,6 +48,12 @@ excalidraw:
                   path: /
                   port: 80
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -54,6 +75,10 @@ excalidraw:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
           probes:
             liveness:
               enabled: true
@@ -71,6 +96,7 @@ excalidraw:
                   port: 4180
   service:
     main:
+      forceRename: excalidraw
       ports:
         http:
           port: 80
@@ -80,16 +106,22 @@ excalidraw:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: excalidraw
-          app.kubernetes.io/instance: excalidraw
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: excalidraw
       endpoints:
         - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Draw"
+        gethomepage.dev/description: "Excalidraw"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "sh-excalidraw.webp"
+        gethomepage.dev/href: "https://excalidraw.alexlebens.dev"
+        gethomepage.dev/siteMonitor: "http://excalidraw.excalidraw:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "400"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -103,3 +135,38 @@ excalidraw:
             - path:
                 type: PathPrefix
                 value: /
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+          oauth:
+            - path: /tmp
+    nginx-cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /var/cache/nginx
+    nginx-run:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /var/run
+
+pocket-id-client:
+  client:
+    displayName: "Excalidraw"
+    description: "An open source virtual hand-drawn style whiteboard."
+    clientID: 75C8D064-370E-4726-977A-44ECD57BF52B
+    allowedUserGroups:
+      - name: user
+        namespace: pocket-id-operator
+
+common-helpers:
+  probe:
+    internal: http://excalidraw.excalidraw:80
+    external: https://excalidraw.alexlebens.dev
