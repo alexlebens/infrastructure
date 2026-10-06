@@ -1,12 +1,13 @@
 apiVersion: garage.rajsingh.info/v1beta2
 kind: GarageCluster
 metadata:
-  name: garage-cluster-a
+  name: garage-cluster-b
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: garage-cluster-a
+    app.kubernetes.io/name: garage-cluster-b
     {{- include "custom.labels" $ | nindent 4 }}
 spec:
+  # renovate: datasource=docker depName=dxflrs/garage
   image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
   replication:
     factor: 3
@@ -21,24 +22,24 @@ spec:
                 - key: garage.rajsingh.info/cluster
                   operator: In
                   values:
-                    - garage-cluster-a
+                    - garage-cluster-b
             topologyKey: kubernetes.io/hostname
     replicas: 3
     metadata:
-      size: 50Gi
-      storageClassName: ceph-block
+      size: 10Gi
+      storageClassName: local-path
     data:
-      size: 1000Gi
-      storageClassName: synology-iscsi-delete
+      size: 150Gi
+      storageClassName: local-path
     resources:
       requests:
         cpu: 20m
         memory: 150Mi
   s3Api:
     region: garage
-    rootDomain: ".a.s3{{ include "custom.domain" . }}"
+    rootDomain: ".b.s3{{ include "custom.domain" . }}"
   webApi:
-    rootDomain: ".a.s3{{ include "custom.domain" . }}"
+    rootDomain: ".b.s3{{ include "custom.domain" . }}"
   network:
     rpcSecretRef:
       name: garage-operator-token
