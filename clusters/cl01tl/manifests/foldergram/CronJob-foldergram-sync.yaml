@@ -31,6 +31,8 @@ spec:
           automountServiceAccountToken: false
           securityContext:
             fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           hostIPC: false
           hostNetwork: false
           hostPID: false
@@ -38,10 +40,9 @@ spec:
           restartPolicy: Never
           containers:
             - command:
-                - /bin/sh
-                - -c
-                - |
-                  apk add --no-cache exiftool su-exec && exec su-exec 1000:1000 python3 -u /scripts/sync.py
+                - python3
+                - -u
+                - /scripts/sync.py
               env:
                 - name: IMMICH_URL
                   value: http://immich-main.immich:80/api
@@ -54,12 +55,23 @@ spec:
                   value: /gallery/Favorites
                 - name: PRUNE_DELETED
                   value: "true"
+                - name: FOLDERGRAM_URL
+                  value: http://foldergram.foldergram:80
               image: python:3.14-alpine@sha256:9e9fde4d32eedce0b661d9ab91e826b62dddf28e928c230ec55f1866cac66b01
               name: main
               resources:
                 requests:
                   cpu: 10m
                   memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                runAsGroup: 1000
+                runAsNonRoot: true
+                runAsUser: 1000
               volumeMounts:
                 - mountPath: /gallery/Favorites
                   name: gallery-favorites
