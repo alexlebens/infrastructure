@@ -5,10 +5,10 @@ metadata:
   namespace: foldergram
   labels:
     app.kubernetes.io/name: foldergram-db-backup
-    helm.sh/chart: volsync-target-db-2.4.0
+    helm.sh/chart: volsync-target-db-3.0.0
     app.kubernetes.io/instance: foldergram
     app.kubernetes.io/part-of: foldergram
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'foldergram-db'.
               Target: foldergram-db-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="foldergram-db-backup-source-a", obj_namespace="foldergram"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="foldergram", job_name=~"volsync-.*foldergram-db-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: foldergram-db
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'foldergram-db' has not completed successfully in 36h (schedule: '20 8 * * *').
+              Target: foldergram-db-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="foldergram-db-backup-source-c", obj_namespace="foldergram"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="foldergram", job_name=~"volsync-.*foldergram-db-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: foldergram-db
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'foldergram-db' has not completed successfully in 8d (schedule: '35 10 * * 3').
+              Target: foldergram-db-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="foldergram-db-backup-source-d", obj_namespace="foldergram"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="foldergram", job_name=~"volsync-.*foldergram-db-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: foldergram-db
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'foldergram-db' has not completed successfully in 8d (schedule: '35 9 * * 3').
+              Target: foldergram-db-backup-source-d
               Namespace: {{ $labels.namespace }}
