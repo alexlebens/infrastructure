@@ -3,11 +3,26 @@ freshrss:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          fsGroup: 568
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       initContainers:
         install-ext-readingtime:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 568
+            runAsGroup: 568
+            capabilities:
+              drop:
+                - ALL
           image:
-            repository: alpine
-            tag: 3.24.2@sha256:3cf95fe0816180395592b8373f3ec60663f076127617bbacb4eacf9667afe2e9
+            repository: busybox
+            tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
           env:
             - name: EXTENSION_VERSION
               value: "91b824edefba5f940d7962fa9ed77bd33b543690"
@@ -19,22 +34,29 @@ freshrss:
                 echo ">> ReadingTime version ${EXTENSION_VERSION} already installed."
                 exit 0
               fi
-              apk add --no-cache wget unzip
               mkdir -p /tmp/ext-unzipped /ext/xExtension-ReadingTime
               wget -qO /tmp/ext.zip "https://github.com/FreshRSS/Extensions/archive/${EXTENSION_VERSION}.zip"
               unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
               rm -rf /ext/xExtension-ReadingTime/*
               cp -r /tmp/ext-unzipped/*/xExtension-ReadingTime/* /ext/xExtension-ReadingTime/
               echo "${EXTENSION_VERSION}" > /ext/.readingtime-version
-              chown -R 568:568 /ext/xExtension-ReadingTime /ext/.readingtime-version
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
         install-ext-readability:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 568
+            runAsGroup: 568
+            capabilities:
+              drop:
+                - ALL
           image:
-            repository: alpine
-            tag: 3.24.2@sha256:3cf95fe0816180395592b8373f3ec60663f076127617bbacb4eacf9667afe2e9
-          env:
-            # renovate: datasource=github-commits depName=Niehztog/freshrss-af-readability
-            - name: EXTENSION_VERSION
-              value: "2843fa0b22da5f419228ce2c90501435f16fd5de"
+            repository: busybox
+            tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
           command:
             - /bin/sh
             - -c
@@ -43,22 +65,33 @@ freshrss:
                 echo "AF-Readability version ${EXTENSION_VERSION} already installed."
                 exit 0
               fi
-              apk add --no-cache wget unzip
               mkdir -p /tmp/ext-unzipped /ext/xExtension-AF-Readability
               wget -qO /tmp/ext.zip "https://github.com/Niehztog/freshrss-af-readability/archive/${EXTENSION_VERSION}.zip"
               unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
               rm -rf /ext/xExtension-AF-Readability/*
               cp -r /tmp/ext-unzipped/*/* /ext/xExtension-AF-Readability/
               echo "${EXTENSION_VERSION}" > /ext/.readability-version
-              chown -R 568:568 /ext/xExtension-AF-Readability /ext/.readability-version
-        install-ext-feeddigest:
-          image:
-            repository: alpine
-            tag: 3.24.2@sha256:3cf95fe0816180395592b8373f3ec60663f076127617bbacb4eacf9667afe2e9
           env:
-            # renovate: datasource=github-commits depName=fengchang/xExtension-FeedDigest
+            # renovate: datasource=github-commits depName=Niehztog/freshrss-af-readability
             - name: EXTENSION_VERSION
-              value: "42bd317a3ebcd5b4c8fc6bed40c130d5c99eb45f"
+              value: "2843fa0b22da5f419228ce2c90501435f16fd5de"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
+        install-ext-feeddigest:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 568
+            runAsGroup: 568
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: busybox
+            tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
           command:
             - /bin/sh
             - -c
@@ -67,7 +100,6 @@ freshrss:
                 echo "FeedDigest version ${EXTENSION_VERSION} already installed."
                 exit 0
               fi
-              apk add --no-cache wget unzip
               mkdir -p /tmp/ext-unzipped /ext/xExtension-FeedDigest
               wget -qO /tmp/ext.zip "https://github.com/fengchang/xExtension-FeedDigest/archive/${EXTENSION_VERSION}.zip"
               unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
@@ -75,9 +107,21 @@ freshrss:
               cp -r /tmp/ext-unzipped/*/* /ext/xExtension-FeedDigest/
               sed -i 's/"name": "Feed Digest"/"name": "FeedDigest"/g' /ext/xExtension-FeedDigest/metadata.json
               echo "${EXTENSION_VERSION}" > /ext/.feeddigest-version-v3
-              chown -R 568:568 /ext/xExtension-FeedDigest /ext/.feeddigest-version-v3
+          env:
+            # renovate: datasource=github-commits depName=fengchang/xExtension-FeedDigest
+            - name: EXTENSION_VERSION
+              value: "42bd317a3ebcd5b4c8fc6bed40c130d5c99eb45f"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: freshrss/freshrss
             tag: 1.30.1@sha256:48b63b9bc3d042a1301c32971b01af8841c7f059b452589c5bf77f475ba44c61
@@ -143,15 +187,10 @@ freshrss:
               value: openid email profile
             - name: OIDC_REMOTE_USER_CLAIM
               value: preferred_username
-          envFrom:
-            - secretRef:
-                name: freshrss-oidc-secret
-            - secretRef:
-                name: freshrss-install-config
           resources:
             requests:
-              cpu: 1m
-              memory: 100Mi
+              cpu: 10m
+              memory: 130Mi
           probes:
             liveness:
               enabled: true
@@ -175,12 +214,22 @@ freshrss:
                 timeoutSeconds: 10
   service:
     main:
+      forceRename: freshrss
       ports:
         http:
           port: 80
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "RSS"
+        gethomepage.dev/description: "FreshRSS"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "sh-freshrss-light.webp"
+        gethomepage.dev/siteMonitor: "https://rss.alexlebens.dev"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "250"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -224,11 +273,42 @@ freshrss:
             - path: /ext
           install-ext-feeddigest:
             - path: /ext
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          install-ext-readingtime:
+            - path: /tmp
+          install-ext-readability:
+            - path: /tmp
+          install-ext-feeddigest:
+            - path: /tmp
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "FreshRSS"
+    description: "A self-hosted RSS feed aggregator."
+    launchUrl: https://rss.alexlebens.dev
+    callbackUrls:
+      - https://rss.alexlebens.dev/i/oidc/
+    clientID: F3A41D9C-47A1-4E65-B62C-09B2A7E11B45
+    clientSecretRefKey: OIDC_CLIENT_SECRET
+  externalSecret:
+    clientIdKey: OIDC_CLIENT_ID
+    clientSecretKey: OIDC_CLIENT_SECRET
+    extraData:
+      - secretKey: OIDC_CLIENT_CRYPTO_KEY
+        remoteRef:
+          key: /cl01tl/freshrss/key
+          property: oidc-client-crypto-key
+
 cloudflared:
   probe:
     enabled: true
     targetUrl: https://rss.alexlebens.dev/i/
     module: http_401
+
 postgres-18-cluster:
   mode: recovery
   recovery:
@@ -240,6 +320,7 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 15 5 * * *"
+
 volsync-target-data:
   pvcTarget: freshrss-data
   moverSecurityContext:
@@ -247,12 +328,17 @@ volsync-target-data:
     runAsGroup: 568
     fsGroup: 568
     fsGroupChangePolicy: OnRootMismatch
-  local:
+  a:
     enabled: true
     schedule: 25 8 * * *
-  remote:
+  c:
     enabled: true
     schedule: 35 10 * * 4
-  external:
+  d:
     enabled: true
     schedule: 35 9 * * 4
+
+common-helpers:
+  probe:
+    internal: http://freshrss.freshrss:80
+    external: https://rss.alexlebens.dev/i/

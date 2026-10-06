@@ -17,6 +17,7 @@ PRUNE_DELETED = os.environ.get("PRUNE_DELETED", "true").lower() in ("true", "1",
 FOLDERGRAM_URL = os.environ.get(
     "FOLDERGRAM_URL", "http://foldergram.foldergram:80"
 ).rstrip("/")
+CSRF_ORIGIN = os.environ.get("CSRF_ORIGIN", "https://photos.alexlebens.dev").rstrip("/")
 
 # Persistent index file: maps asset_id -> filename on disk
 INDEX_PATH = os.path.join(GALLERY_PATH, ".foldergram-index.json")
@@ -27,12 +28,17 @@ def trigger_foldergram_scan():
     if not FOLDERGRAM_URL:
         return
     print(f"[sync] Notifying Foldergram at {FOLDERGRAM_URL} to refresh library...")
+    headers = {
+        "Origin": CSRF_ORIGIN,
+        "Referer": f"{CSRF_ORIGIN}/",
+    }
     # Attempt common scan endpoints
     for endpoint in ("/api/scan", "/api/library/scan", "/api/refresh", "/api/health"):
         url = f"{FOLDERGRAM_URL}{endpoint}"
         try:
             req = urllib.request.Request(
                 url,
+                headers=headers,
                 method="POST" if "scan" in endpoint or "refresh" in endpoint else "GET",
             )
             with urllib.request.urlopen(req, timeout=30) as resp:
@@ -44,6 +50,11 @@ def trigger_foldergram_scan():
         except urllib.error.HTTPError as e:
             if e.code in (404, 405):
                 continue
+            if e.code in (401, 403):
+                print(
+                    f"[sync] Foldergram scan notification skipped (HTTP {e.code} on {endpoint}). Files remain accessible on disk."
+                )
+                break
             print(f"[sync] Foldergram returned HTTP {e.code} on {endpoint}.")
             break
         except Exception as e:
