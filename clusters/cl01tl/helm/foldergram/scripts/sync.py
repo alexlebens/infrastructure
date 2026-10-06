@@ -74,23 +74,16 @@ def parse_immich_datetime(dt_str):
 
 def build_filename(asset):
     """
-    Build a filesystem-safe filename from Immich metadata.
-    Format: YYYY-MM-DD_HH-MM-SS_originalname.ext
-    Falls back to asset ID prefix if date is missing.
-    Preserves the original file extension.
+    Build a filesystem-safe filename using the original filename from Immich metadata.
+    Format: originalname.ext
+    Falls back to asset ID if originalFileName is missing.
     """
-    orig = asset.get("originalFileName", f"{asset['id']}.jpg")
+    orig = asset.get("originalFileName") or f"{asset['id']}.jpg"
     name, ext = os.path.splitext(orig)
     ext = ext.lower() if ext else ".jpg"
-    safe_name = sanitize_filename(name)
+    safe_name = sanitize_filename(name) or asset["id"][:8]
 
-    dt = parse_immich_datetime(asset.get("fileCreatedAt"))
-    if dt:
-        date_prefix = dt.strftime("%Y-%m-%d_%H-%M-%S")
-    else:
-        date_prefix = asset["id"][:8]
-
-    return f"{date_prefix}_{safe_name}{ext}"
+    return f"{safe_name}{ext}"
 
 
 def ensure_unique_filename(desired, existing_names):
