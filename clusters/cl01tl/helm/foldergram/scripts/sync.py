@@ -298,8 +298,7 @@ def fetch_all_favorites():
         if not items:
             break
         assets.extend(items)
-        total = res.get("assets", {}).get("total", len(assets))
-        if len(assets) >= total:
+        if len(items) < size:
             break
         page += 1
     return assets
