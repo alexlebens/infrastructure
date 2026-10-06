@@ -140,131 +140,6 @@ def download_asset(asset_id, dest_path):
     os.replace(tmp_path, dest_path)
 
 
-def get_best_asset_datetime(asset):
-    """Retrieve capture date from exifInfo if available; fallback to fileCreatedAt."""
-    exif = asset.get("exifInfo") or {}
-    dt_str = exif.get("dateTimeOriginal") or asset.get("fileCreatedAt")
-    return parse_immich_datetime(dt_str)
-
-
-def embed_metadata(asset, file_path):
-    exif = asset.get("exifInfo") or {}
-    detail = {}
-    try:
-        detail = fetch_asset_detail(asset["id"])
-    except Exception as e:
-        print(f"[sync]   Warning: could not fetch full asset detail: {e}")
-
-    # -P preserves file modification timestamp; -api QuickTimeUTC fixes MP4 offsets
-    args = [
-        "exiftool",
-        "-overwrite_original",
-        "-charset",
-        "UTF8",
-        "-P",
-        "-api",
-        "QuickTimeUTC",
-    ]
-
-    dt = get_best_asset_datetime(asset)
-    if dt:
-        dt_exif = dt.strftime("%Y:%m:%d %H:%M:%S")
-        args += [
-            f"-DateTimeOriginal={dt_exif}",
-            f"-CreateDate={dt_exif}",
-            f"-ModifyDate={dt_exif}",
-            f"-QuickTime:CreateDate={dt_exif}",
-            f"-QuickTime:ModifyDate={dt_exif}",
-        ]
-
-    # ── Date / Time ────────────────────────────────────────────────────────────
-    dt = parse_immich_datetime(asset.get("fileCreatedAt"))
-    if dt:
-        dt_exif = dt.strftime("%Y:%m:%d %H:%M:%S")
-        args += [
-            f"-DateTimeOriginal={dt_exif}",
-            f"-CreateDate={dt_exif}",
-            f"-ModifyDate={dt_exif}",
-            # QuickTime tags for video
-            f"-QuickTime:CreateDate={dt_exif}",
-            f"-QuickTime:ModifyDate={dt_exif}",
-        ]
-
-    # ── GPS ───────────────────────────────────────────────────────────────────
-    lat = exif.get("latitude")
-    lon = exif.get("longitude")
-    if lat is not None and lon is not None:
-        # exiftool accepts signed decimal degrees
-        args += [
-            f"-GPSLatitude={abs(lat)}",
-            f"-GPSLatitudeRef={'N' if lat >= 0 else 'S'}",
-            f"-GPSLongitude={abs(lon)}",
-            f"-GPSLongitudeRef={'E' if lon >= 0 else 'W'}",
-        ]
-
-    # ── Location text ─────────────────────────────────────────────────────────
-    city = exif.get("city") or ""
-    country = exif.get("country") or ""
-    state = exif.get("state") or ""
-    if city or country:
-        location_parts = [p for p in [city, state, country] if p]
-        location_str = ", ".join(location_parts)
-        args += [
-            f"-IPTC:City={city}",
-            f"-IPTC:Country-PrimaryLocationName={country}",
-            f"-XMP:City={city}",
-            f"-XMP:Country={country}",
-            f"-XMP:Location={location_str}",
-        ]
-
-    # ── Description / Caption ─────────────────────────────────────────────────
-    description = (
-        (detail.get("exifInfo") or {}).get("description")
-        or detail.get("description")
-        or ""
-    )
-    if description:
-        args += [
-            f"-ImageDescription={description}",
-            f"-IPTC:Caption-Abstract={description}",
-            f"-XMP:Description={description}",
-            # QuickTime comment for video
-            f"-QuickTime:Comment={description}",
-        ]
-
-    # ── Camera info ───────────────────────────────────────────────────────────
-    make = exif.get("make") or ""
-    model = exif.get("model") or ""
-    if make:
-        args.append(f"-Make={make}")
-    if model:
-        args.append(f"-Model={model}")
-
-    # ── Artist / Copyright ────────────────────────────────────────────────────
-    owner = (detail.get("owner") or {}).get("name") or ""
-    if owner:
-        args += [
-            f"-Artist={owner}",
-            f"-XMP:Creator={owner}",
-            f"-IPTC:By-line={owner}",
-        ]
-
-    args.append(file_path)
-
-    try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=60)
-        if result.returncode != 0:
-            print(
-                f"[sync]   Warning: exiftool returned {result.returncode}: {result.stderr.strip()}"
-            )
-        else:
-            print(f"[sync]   Metadata embedded OK.")
-    except FileNotFoundError:
-        print("[sync]   Warning: exiftool not found — metadata not embedded.")
-    except subprocess.TimeoutExpired:
-        print("[sync]   Warning: exiftool timed out — metadata not embedded.")
-
-
 def load_index():
     """Load {asset_id: filename} index from disk."""
     if os.path.exists(INDEX_PATH):
@@ -354,7 +229,6 @@ def sync_favorites():
             print(f"[sync] Downloading: {fname} ...")
             try:
                 download_asset(aid, target)
-                embed_metadata(a, target)
                 index[aid] = fname
                 save_index(index)
                 downloaded += 1

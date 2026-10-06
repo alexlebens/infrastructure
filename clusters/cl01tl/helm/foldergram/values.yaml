@@ -7,11 +7,18 @@ foldergram:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
             repository: ghcr.io/foldergram/foldergram
             tag: 1.2.2@sha256:f72dfe39d9042555fd1b509a06f6c93c8b9a8be02541c80135a9a8f25fe362d4
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           env:
             - name: IMAGE_DETAIL_SOURCE
               value: preview
@@ -50,16 +57,26 @@ foldergram:
       pod:
         securityContext:
           fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: python
             tag: 3.14-alpine@sha256:9e9fde4d32eedce0b661d9ab91e826b62dddf28e928c230ec55f1866cac66b01
           command:
-            - /bin/sh
-            - -c
-            - |
-              apk add --no-cache exiftool su-exec && exec su-exec 1000:1000 python3 -u /scripts/sync.py
+            - python3
+            - -u
+            - /scripts/sync.py
           env:
             - name: IMMICH_URL
               value: http://immich-main.immich:80/api
