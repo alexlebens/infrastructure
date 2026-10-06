@@ -22,7 +22,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/configMaps: f58d037aa819abc4deb059dcb72f54c61cbe26181c750d6ad64b8f03aeadbae6
+        checksum/configMaps: 31bc664e134dc25a4cf129bb3ad1716977c3d2ab2dae34a893cb929dc03e2e9b
       labels:
         app.kubernetes.io/controller: main
         app.kubernetes.io/instance: frigate
@@ -34,6 +34,8 @@ spec:
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -62,6 +64,16 @@ spec:
                 secretKeyRef:
                   key: password
                   name: it06cm-config
+            - name: FRIGATE_NTFY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: ntfy-token
+                  name: frigate-secrets
+            - name: FRIGATE_NTFY_TOPIC
+              valueFrom:
+                secretKeyRef:
+                  key: ntfy-topic
+                  name: frigate-secrets
           image: ghcr.io/blakeblackshear/frigate:0.18.0@sha256:b1f339cf08ae9148b0fac4295cf59f8e158455f6e72d29af32b773a3d8129851
           livenessProbe:
             httpGet:
@@ -78,7 +90,12 @@ spec:
             requests:
               cpu: 100m
               gpu.intel.com/i915: 1
-              memory: 1Gi
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           startupProbe:
             failureThreshold: 30
             httpGet:
@@ -129,6 +146,19 @@ spec:
             httpGet:
               path: /ready
               port: 4180
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - emptyDir:
             medium: Memory
@@ -147,3 +177,5 @@ spec:
             medium: Memory
             sizeLimit: 1Gi
           name: shm
+        - emptyDir: {}
+          name: tmp
