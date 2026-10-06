@@ -1,0 +1,60 @@
+{{- /*
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cluster-b-s3
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: cluster-b-s3
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - "b.s3{{ include "custom.domain" . }}"
+    - "*.b.s3{{ include "custom.domain" . }}"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: cluster-b
+          port: 3900
+          weight: 1
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: garage-ui
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/name: "Object Storage (B)"
+    gethomepage.dev/description: "Garage"
+    gethomepage.dev/group: "Storage"
+    gethomepage.dev/icon: "sh-garage.webp"
+    gethomepage.dev/siteMonitor: "http://garage-ui.garage-b:80"
+    gethomepage.dev/statusStyle: "dot"
+    gethomepage.dev/weight: "150"
+  labels:
+    app.kubernetes.io/name: garage-ui
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: traefik
+  hostnames:
+    - "b-ui.s3{{ include "custom.domain" . }}"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: garage-ui
+          port: 80
+          weight: 1
+*/ -}}
