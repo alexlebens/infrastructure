@@ -143,15 +143,10 @@ freshrss:
               value: openid email profile
             - name: OIDC_REMOTE_USER_CLAIM
               value: preferred_username
-          envFrom:
-            - secretRef:
-                name: freshrss-oidc-secret
-            - secretRef:
-                name: freshrss-install-config
           resources:
             requests:
-              cpu: 1m
-              memory: 100Mi
+              cpu: 10m
+              memory: 130Mi
           probes:
             liveness:
               enabled: true
@@ -175,12 +170,22 @@ freshrss:
                 timeoutSeconds: 10
   service:
     main:
+      forceRename: freshrss
       ports:
         http:
           port: 80
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "RSS"
+        gethomepage.dev/description: "FreshRSS"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "sh-freshrss-light.webp"
+        gethomepage.dev/siteMonitor: "https://rss.alexlebens.dev"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "250"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -224,11 +229,32 @@ freshrss:
             - path: /ext
           install-ext-feeddigest:
             - path: /ext
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "FreshRSS"
+    description: "A self-hosted RSS feed aggregator."
+    launchUrl: https://rss.alexlebens.dev
+    callbackUrls:
+      - https://rss.alexlebens.dev/i/oidc/
+    clientID: F3A41D9C-47A1-4E65-B62C-09B2A7E11B45
+    clientSecretRefKey: OIDC_CLIENT_SECRET
+  externalSecret:
+    clientIdKey: OIDC_CLIENT_ID
+    clientSecretKey: OIDC_CLIENT_SECRET
+    extraData:
+      - secretKey: OIDC_CLIENT_CRYPTO_KEY
+        remoteRef:
+          key: /cl01tl/freshrss/key
+          property: oidc-client-crypto-key
+
 cloudflared:
   probe:
     enabled: true
     targetUrl: https://rss.alexlebens.dev/i/
     module: http_401
+
 postgres-18-cluster:
   mode: recovery
   recovery:
@@ -240,6 +266,7 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 15 5 * * *"
+
 volsync-target-data:
   pvcTarget: freshrss-data
   moverSecurityContext:
@@ -247,12 +274,17 @@ volsync-target-data:
     runAsGroup: 568
     fsGroup: 568
     fsGroupChangePolicy: OnRootMismatch
-  local:
+  a:
     enabled: true
     schedule: 25 8 * * *
-  remote:
+  c:
     enabled: true
     schedule: 35 10 * * 4
-  external:
+  d:
     enabled: true
     schedule: 35 9 * * 4
+
+common-helpers:
+  probe:
+    internal: http://freshrss.freshrss:80
+    external: https://rss.alexlebens.dev/i/
