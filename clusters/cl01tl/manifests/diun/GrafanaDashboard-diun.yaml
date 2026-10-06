@@ -41,24 +41,12 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Total images currently running in cluster with an available update",
+          "description": "Diun application version and build revision",
           "fieldConfig": {
             "defaults": {
               "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 1
-                  }
-                ]
+                "mode": "fixed",
+                "fixedColor": "blue"
               }
             }
           },
@@ -74,13 +62,11 @@ spec:
             "graphMode": "none",
             "justifyMode": "center",
             "orientation": "auto",
-            "percentChangeColorMode": "standard",
             "reduceOptions": {
               "calcs": ["lastNotNull"],
-              "fields": "",
+              "fields": "/^version$/",
               "values": false
             },
-            "showPercentChange": false,
             "textMode": "value",
             "wideLayout": true
           },
@@ -91,13 +77,13 @@ spec:
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "count(diun_image_update_available == 1) or vector(0)",
+              "expr": "diun_build_info",
               "instant": true,
-              "legendFormat": "Outdated Images",
+              "legendFormat": "{{ version }}",
               "refId": "A"
             }
           ],
-          "title": "Outdated Images in Cluster",
+          "title": "Version",
           "transparent": true,
           "type": "stat"
         },
@@ -106,32 +92,22 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Percentage of cluster images that are fully up to date",
+          "description": "Timestamp of the last completed image watch run",
           "fieldConfig": {
             "defaults": {
               "color": {
-                "mode": "thresholds"
+                "mode": "thresholds",
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    }
+                  ]
+                }
               },
-              "max": 100,
-              "min": 0,
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": 0
-                  },
-                  {
-                    "color": "orange",
-                    "value": 80
-                  },
-                  {
-                    "color": "green",
-                    "value": 95
-                  }
-                ]
-              },
-              "unit": "percent"
+              "unit": "dateTimeFromNow"
             }
           },
           "gridPos": {
@@ -146,13 +122,11 @@ spec:
             "graphMode": "none",
             "justifyMode": "center",
             "orientation": "auto",
-            "percentChangeColorMode": "standard",
             "reduceOptions": {
               "calcs": ["lastNotNull"],
               "fields": "",
               "values": false
             },
-            "showPercentChange": false,
             "textMode": "value",
             "wideLayout": true
           },
@@ -163,13 +137,13 @@ spec:
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "(1 - ((count(diun_image_update_available == 1) or vector(0)) / (count(diun_image_update_available) or vector(1)))) * 100",
+              "expr": "diun_watch_last_run_timestamp_seconds * 1000",
               "instant": true,
-              "legendFormat": "Up-To-Date %",
+              "legendFormat": "Last Run",
               "refId": "A"
             }
           ],
-          "title": "Fleet Up-to-Date Ratio",
+          "title": "Last Watch Run",
           "transparent": true,
           "type": "stat"
         },
@@ -178,20 +152,20 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Total unique images tracked across the cluster",
+          "description": "Cumulative total of completed watch runs since startup",
           "fieldConfig": {
             "defaults": {
               "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "blue",
-                    "value": 0
-                  }
-                ]
+                "mode": "thresholds",
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "blue",
+                      "value": 0
+                    }
+                  ]
+                }
               }
             }
           },
@@ -207,13 +181,11 @@ spec:
             "graphMode": "none",
             "justifyMode": "center",
             "orientation": "auto",
-            "percentChangeColorMode": "standard",
             "reduceOptions": {
               "calcs": ["lastNotNull"],
               "fields": "",
               "values": false
             },
-            "showPercentChange": false,
             "textMode": "value",
             "wideLayout": true
           },
@@ -224,13 +196,13 @@ spec:
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "count(diun_image_update_available) or vector(0)",
+              "expr": "diun_watch_runs_total",
               "instant": true,
-              "legendFormat": "Monitored Images",
+              "legendFormat": "Runs",
               "refId": "A"
             }
           ],
-          "title": "Total Monitored Images",
+          "title": "Total Watch Runs",
           "transparent": true,
           "type": "stat"
         },
@@ -239,22 +211,25 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "Duration of the last completed watch run",
+          "description": "Total watch runs skipped due to an already running job",
           "fieldConfig": {
             "defaults": {
               "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "purple",
-                    "value": 0
-                  }
-                ]
-              },
-              "unit": "s"
+                "mode": "thresholds",
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
             }
           },
           "gridPos": {
@@ -269,13 +244,11 @@ spec:
             "graphMode": "none",
             "justifyMode": "center",
             "orientation": "auto",
-            "percentChangeColorMode": "standard",
             "reduceOptions": {
               "calcs": ["lastNotNull"],
               "fields": "",
               "values": false
             },
-            "showPercentChange": false,
             "textMode": "value",
             "wideLayout": true
           },
@@ -286,13 +259,13 @@ spec:
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "diun_watch_last_run_duration_seconds",
+              "expr": "diun_watch_skipped_runs_total",
               "instant": true,
-              "legendFormat": "Duration",
+              "legendFormat": "Skipped",
               "refId": "A"
             }
           ],
-          "title": "Last Scan Duration",
+          "title": "Skipped Runs",
           "transparent": true,
           "type": "stat"
         },
@@ -301,180 +274,69 @@ spec:
             "type": "prometheus",
             "uid": "kube-prometheus-stack"
           },
-          "description": "All running container images with an update available on the upstream registry",
+          "description": "Watch run executions and skipped runs over time",
           "fieldConfig": {
             "defaults": {
               "custom": {
-                "align": "left",
-                "cellOptions": {
-                  "type": "auto"
-                },
-                "filterable": true,
-                "footer": {
-                  "reducers": ["countAll"]
-                },
-                "inspect": false,
-                "wrapHeaderText": false,
-                "wrapText": false
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": 0
-                  }
-                ]
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "auto",
+                "spanNulls": false
               }
             },
             "overrides": [
               {
                 "matcher": {
                   "id": "byName",
-                  "options": "status"
+                  "options": "Completed Runs"
                 },
                 "properties": [
                   {
-                    "id": "custom.cellOptions",
+                    "id": "color",
                     "value": {
-                      "mode": "gradient",
-                      "type": "color-background"
+                      "fixedColor": "green",
+                      "mode": "fixed"
                     }
-                  },
-                  {
-                    "id": "custom.width",
-                    "value": 160
                   }
                 ]
               },
               {
                 "matcher": {
                   "id": "byName",
-                  "options": "provider"
+                  "options": "Skipped Runs"
                 },
                 "properties": [
                   {
-                    "id": "custom.width",
-                    "value": 140
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Value"
-                },
-                "properties": [
-                  {
-                    "id": "custom.hideFrom.viz",
-                    "value": true
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Time"
-                },
-                "properties": [
-                  {
-                    "id": "custom.hideFrom.viz",
-                    "value": true
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "orange",
+                      "mode": "fixed"
+                    }
                   }
                 ]
               }
             ]
           },
           "gridPos": {
-            "h": 10,
-            "w": 17,
+            "h": 8,
+            "w": 12,
             "x": 0,
             "y": 4
           },
           "id": 5,
           "options": {
-            "cellHeight": "sm",
-            "showHeader": true,
-            "sortBy": [
-              {
-                "desc": false,
-                "displayName": "image"
-              }
-            ]
-          },
-          "pluginVersion": "13.2.2",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "kube-prometheus-stack"
-              },
-              "expr": "diun_image_update_available == 1",
-              "format": "table",
-              "instant": true,
-              "refId": "A"
-            }
-          ],
-          "title": "Actionable Updates (Outdated Images)",
-          "transformations": [
-            {
-              "id": "filterFieldsByName",
-              "options": {
-                "include": {
-                  "names": ["image", "provider", "status", "Value"]
-                }
-              }
-            }
-          ],
-          "transparent": true,
-          "type": "table"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "kube-prometheus-stack"
-          },
-          "description": "Breakdown of image scan statuses from the last completed watch run",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "fixedColor": "#73BF69",
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                }
-              }
-            }
-          },
-          "gridPos": {
-            "h": 10,
-            "w": 7,
-            "x": 17,
-            "y": 4
-          },
-          "id": 6,
-          "options": {
-            "displayLabels": ["name", "value"],
             "legend": {
+              "calcs": ["sum", "max"],
               "displayMode": "table",
               "placement": "bottom",
-              "showLegend": true,
-              "values": ["value", "percent"]
+              "showLegend": true
             },
-            "pieType": "donut",
-            "reduceOptions": {
-              "calcs": ["lastNotNull"],
-              "fields": "",
-              "values": false
-            },
-            "sort": "desc",
             "tooltip": {
-              "hideZeros": false,
-              "mode": "single",
+              "mode": "multi",
               "sort": "none"
             }
           },
@@ -485,156 +347,208 @@ spec:
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "expr": "diun_watch_last_run_images",
-              "instant": true,
-              "legendFormat": "{{ status }}",
+              "expr": "increase(diun_watch_runs_total[1h])",
+              "legendFormat": "Completed Runs (per hour)",
               "refId": "A"
-            }
-          ],
-          "title": "Images by Status (Last Run)",
-          "transparent": true,
-          "type": "piechart"
-        },
-        {
-          "collapsed": true,
-          "gridPos": {
-            "h": 1,
-            "w": 24,
-            "x": 0,
-            "y": 14
-          },
-          "id": 8,
-          "panels": [
+            },
             {
               "datasource": {
                 "type": "prometheus",
                 "uid": "kube-prometheus-stack"
               },
-              "description": "All container images scanned across the cluster and their current status",
-              "fieldConfig": {
-                "defaults": {
-                  "custom": {
-                    "align": "left",
-                    "cellOptions": {
-                      "type": "auto"
-                    },
-                    "filterable": true,
-                    "footer": {
-                      "reducers": ["countAll"]
-                    },
-                    "inspect": false,
-                    "wrapHeaderText": false,
-                    "wrapText": false
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      }
-                    ]
-                  }
-                },
-                "overrides": [
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "status"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.width",
-                        "value": 160
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "provider"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.width",
-                        "value": 140
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Value"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.hideFrom.viz",
-                        "value": true
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Time"
-                    },
-                    "properties": [
-                      {
-                        "id": "custom.hideFrom.viz",
-                        "value": true
-                      }
-                    ]
-                  }
-                ]
-              },
-              "gridPos": {
-                "h": 10,
-                "w": 24,
-                "x": 0,
-                "y": 15
-              },
-              "id": 7,
-              "options": {
-                "cellHeight": "sm",
-                "showHeader": true,
-                "sortBy": [
-                  {
-                    "desc": false,
-                    "displayName": "image"
-                  }
-                ]
-              },
-              "pluginVersion": "13.2.2",
-              "targets": [
-                {
-                  "datasource": {
-                    "type": "prometheus",
-                    "uid": "kube-prometheus-stack"
-                  },
-                  "editorMode": "code",
-                  "expr": "diun_image_last_check_status == 1",
-                  "format": "table",
-                  "instant": true,
-                  "refId": "A"
-                }
-              ],
-              "title": "All Monitored Images & Status (Up-to-Date & Outdated)",
-              "transformations": [
-                {
-                  "id": "filterFieldsByName",
-                  "options": {
-                    "include": {
-                      "names": ["image", "provider", "status", "Value"]
-                    }
-                  }
-                }
-              ],
-              "transparent": true,
-              "type": "table"
+              "expr": "increase(diun_watch_skipped_runs_total[1h])",
+              "legendFormat": "Skipped Runs (per hour)",
+              "refId": "B"
             }
           ],
-          "title": "All Cluster Images (Inventory)",
-          "type": "row"
+          "title": "Watch Run Activity (Hourly)",
+          "transparent": true,
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "kube-prometheus-stack"
+          },
+          "description": "Process memory usage (Resident Set Size and Heap Allocation)",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false
+              },
+              "unit": "bytes"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 4
+          },
+          "id": 6,
+          "options": {
+            "legend": {
+              "calcs": ["lastNotNull", "max"],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "13.2.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "kube-prometheus-stack"
+              },
+              "expr": "process_resident_memory_bytes{job=~\"diun.*\"}",
+              "legendFormat": "Resident Memory (RSS)",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "kube-prometheus-stack"
+              },
+              "expr": "go_memstats_alloc_bytes{job=~\"diun.*\"}",
+              "legendFormat": "Go Heap Allocated",
+              "refId": "B"
+            }
+          ],
+          "title": "Memory Usage",
+          "transparent": true,
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "kube-prometheus-stack"
+          },
+          "description": "Process CPU utilization",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false
+              },
+              "unit": "percentunit"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 12
+          },
+          "id": 7,
+          "options": {
+            "legend": {
+              "calcs": ["lastNotNull", "max"],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "13.2.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "kube-prometheus-stack"
+              },
+              "expr": "rate(process_cpu_seconds_total{job=~\"diun.*\"}[5m])",
+              "legendFormat": "CPU Usage",
+              "refId": "A"
+            }
+          ],
+          "title": "CPU Usage",
+          "transparent": true,
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "kube-prometheus-stack"
+          },
+          "description": "Active Go Goroutines and OS Threads",
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 15,
+                "gradientMode": "none",
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false
+              }
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 12
+          },
+          "id": 8,
+          "options": {
+            "legend": {
+              "calcs": ["lastNotNull", "max"],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "13.2.2",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "kube-prometheus-stack"
+              },
+              "expr": "go_goroutines{job=~\"diun.*\"}",
+              "legendFormat": "Goroutines",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "kube-prometheus-stack"
+              },
+              "expr": "go_threads{job=~\"diun.*\"}",
+              "legendFormat": "OS Threads",
+              "refId": "B"
+            }
+          ],
+          "title": "Goroutines & Threads",
+          "transparent": true,
+          "type": "timeseries"
         }
       ],
       "preload": true,
