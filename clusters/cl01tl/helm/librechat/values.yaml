@@ -165,24 +165,27 @@ librechat:
             - name: AWS_BUCKET_NAME
               value: librechat-assets
             - name: AWS_ENDPOINT_URL
-              value: https://a.s3.alexlebens.dev
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-assets-secret
+                  key: endpoint
             - name: AWS_FORCE_PATH_STYLE
               value: "true"
             - name: AWS_REGION
               valueFrom:
                 secretKeyRef:
-                  name: librechat-assets-key
+                  name: librechat-assets-secret
                   key: region
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: librechat-assets-key
-                  key: access-key-id
+                  name: librechat-assets-secret
+                  key: AWS_ACCESS_KEY_ID
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: librechat-assets-key
-                  key: secret-access-key
+                  name: librechat-assets-secret
+                  key: AWS_SECRET_ACCESS_KEY
             - name: USE_REDIS
               value: "true"
             - name: REDIS_URI
@@ -738,28 +741,35 @@ librechat-mongodb:
           db: admin
         - name: read
           db: local
-garage-bucket-librechat-assets:
+s3-bucket:
+  enabled: true
   bucketName: librechat-assets
+  target: a
   cors:
     enabled: true
-    policy: |
-      {
-        "CORSRules": [
-          {
-            "AllowedOrigins": ["https://ai.alexlebens.dev"],
-            "AllowedHeaders": ["*"],
-            "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-            "MaxAgeSeconds": 3000,
-            "ExposeHeaders": ["ETag"]
-          }
-        ]
-      }
+    allowedOrigins:
+      - "https://ai.alexlebens.dev"
+    allowedMethods:
+      - GET
+      - PUT
+      - POST
+      - DELETE
+      - HEAD
+    allowedHeaders:
+      - "*"
+    exposeHeaders:
+      - ETag
+    maxAgeSeconds: 3000
   backups:
-    primary:
+    b:
       enabled: true
-      cronJob:
-        suspend: false
-        schedule: 0 0 * * *
+      immediate: true
+      schedule: "0 0 * * *"
+      destination:
+        bucketName: librechat-assets
+    c:
+      enabled: true
+      schedule: "0 0 * * *"
       destination:
         bucketName: librechat-assets
 meilisearch:
