@@ -20,7 +20,10 @@ import {
   to = b2_bucket.d_cs01bb["kaneo"]
   id = "2da12b0eda7ce5c29def0211" # kaneo-asssets-47edc3f232f2797f
 }
-# import { to = b2_bucket.d_cs01bb["karakeep"]  id = "2dd16bbe3abcf5529ddf0211" } # karakeep-assets-bcb0bc04dac3e3fd
+import {
+  to = b2_bucket.d_cs01bb["karakeep"]
+  id = "2dd16bbe3abcf5529ddf0211" # karakeep-assets-bcb0bc04dac3e3fd
+}
 # import { to = b2_bucket.d_cs01bb["mariadb"]   id = "2db19b2e3a8cf5529ddf0211" } # mariadb-backups-6e3b78870f7af040
 # import { to = b2_bucket.d_cs01bb["openbao"]   id = "0d81cbee3a8cf5529ddf0211" } # openbao-backups-038053cd180284dc
 # import { to = b2_bucket.d_cs01bb["outline"]   id = "1db16b6eea4cf5d29dff0211" } # outline-assets-2ac99fb083071f74

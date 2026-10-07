@@ -3,8 +3,23 @@ karakeep:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/karakeep-app/karakeep
             tag: 0.33.2@sha256:b069e4307dec06ea06d16989c6861c30a1ff208568be44ed5fb5d422cd3e950c
@@ -30,23 +45,23 @@ karakeep:
             - name: ASSET_STORE_S3_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-assets-key
+                  name: karakeep-assets-secret
                   key: endpoint
             - name: ASSET_STORE_S3_REGION
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-assets-key
+                  name: karakeep-assets-secret
                   key: region
             - name: ASSET_STORE_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-assets-key
-                  key: access-key-id
+                  name: karakeep-assets-secret
+                  key: AWS_ACCESS_KEY_ID
             - name: ASSET_STORE_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: karakeep-assets-key
-                  key: secret-access-key
+                  name: karakeep-assets-secret
+                  key: AWS_SECRET_ACCESS_KEY
             - name: ASSET_STORE_S3_FORCE_PATH_STYLE
               value: true
             - name: MEILI_ADDR
@@ -121,6 +136,12 @@ karakeep:
                 failureThreshold: 30
                 periodSeconds: 10
         chrome:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/zenika/alpine-chrome
             tag: 124@sha256:1a0046448e0bb6c275c88f86e01faf0de62b02ec8572901256ada0a8c08be23f
@@ -133,6 +154,7 @@ karakeep:
             - --hide-scrollbars
   service:
     main:
+      forceRename: karakeep
       ports:
         http:
           port: 3000
@@ -140,11 +162,7 @@ karakeep:
           port: 9222
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: karakeep
-          app.kubernetes.io/instance: karakeep
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: karakeep
       endpoints:
         - port: http
           path: /api/metrics
@@ -155,6 +173,15 @@ karakeep:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Bookmarks"
+        gethomepage.dev/description: "Karakeep"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "sh-karakeep-light.webp"
+        gethomepage.dev/siteMonitor: "https://karakeep.alexlebens.dev"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "400"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -178,10 +205,21 @@ karakeep:
         main:
           main:
             - path: /data
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Karakeep"
+    description: "A self-hostable bookmark-everything app with a touch of AI for the data hoarders out there."
+    clientID: A8F3B91C-4D2E-4A87-B6C1-9E5F2D8A7C3B
+    callbackUrls:
+      - https://karakeep.alexlebens.dev/api/auth/callback/custom
+
 cloudflared:
   probe:
     enabled: true
     targetUrl: https://karakeep.alexlebens.dev/signin
+
 meilisearch:
   environment:
     MEILI_NO_ANALYTICS: true
@@ -201,31 +239,37 @@ meilisearch:
       memory: 50Mi
   serviceMonitor:
     enabled: true
-volsync-target-data:
-  pvcTarget: karakeep
-  local:
-    enabled: true
-    schedule: 5 9 * * *
-  remote:
-    enabled: true
-    schedule: 40 10 * * 5
-  external:
-    enabled: true
-    schedule: 40 9 * * 5
-garage-bucket-karakeep-assets:
+
+s3-bucket:
+  enabled: true
   bucketName: karakeep-assets
+  target: a
   backups:
-    primary:
+    b:
       enabled: true
-      cronJob:
-        suspend: false
-        schedule: 0 0 * * *
+      immediate: true
+      schedule: "0 0 * * *"
       destination:
         bucketName: karakeep-assets
-    secondary:
+    c:
       enabled: true
-      cronJob:
-        suspend: false
-        schedule: 0 0 * * *
+      schedule: "0 0 * * *"
+      destination:
+        bucketName: karakeep-assets
+    d:
+      enabled: true
+      schedule: "0 0 * * *"
       destination:
         bucketName: karakeep-assets-bcb0bc04dac3e3fd
+
+volsync-target-data:
+  pvcTarget: karakeep
+  a:
+    enabled: true
+    schedule: 5 9 * * *
+  c:
+    enabled: true
+    schedule: 40 10 * * 5
+  d:
+    enabled: true
+    schedule: 40 9 * * 5
