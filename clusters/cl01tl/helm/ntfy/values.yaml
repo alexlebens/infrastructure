@@ -3,8 +3,23 @@ ntfy:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: binwiederhier/ntfy
             tag: v2.28.0@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da
@@ -66,6 +81,7 @@ ntfy:
                 timeoutSeconds: 30
   service:
     main:
+      forceRename: ntfy
       ports:
         http:
           port: 80
@@ -73,16 +89,21 @@ ntfy:
           port: 9090
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: ntfy
-          app.kubernetes.io/instance: ntfy
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: ntfy
       endpoints:
         - port: metrics
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Notifications"
+        gethomepage.dev/description: "Ntfy"
+        gethomepage.dev/group: "Services"
+        gethomepage.dev/icon: "sh-ntfy.webp"
+        gethomepage.dev/siteMonitor: "http://ntfy.ntfy:80/v1/health"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "100"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -113,10 +134,24 @@ ntfy:
           main:
             - path: /etc/ntfy/templates
               readOnly: true
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+    cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /var/cache/ntfy
+
 cloudflared:
   probe:
     enabled: true
     targetUrl: https://ntfy.alexlebens.dev
+
 postgres-18-cluster:
   mode: recovery
   recovery:
@@ -128,13 +163,25 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 15 6 * * *"
-garage-bucket-ntfy-assets:
+
+s3-bucket:
+  enabled: true
   bucketName: ntfy-assets
+  target: a
   backups:
-    primary:
+    b:
       enabled: true
-      cronJob:
-        suspend: false
-        schedule: 0 0 * * *
+      immediate: true
+      schedule: "0 0 * * *"
       destination:
         bucketName: ntfy-assets
+    c:
+      enabled: true
+      schedule: "0 0 * * *"
+      destination:
+        bucketName: ntfy-assets
+
+common-helpers:
+  probe:
+    internal: http://ntfy.ntfy:80/v1/health
+    external: https://ntfy.alexlebens.dev/v1/health
