@@ -418,23 +418,3 @@ resource "vault_kv_secret_v2" "c_ps10rp_read_key" {
     AWS_REGION            = "garage"
   })
 }
-
-# ==============================================================================
-# Removals
-# ==============================================================================
-
-removed {
-  from = aws_s3_bucket_website_configuration.a_ps02sn
-
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = aws_s3_bucket_website_configuration.b_cl01tl
-
-  lifecycle {
-    destroy = false
-  }
-}
