@@ -31,6 +31,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: ntfy
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -91,11 +99,25 @@ spec:
             requests:
               cpu: 10m
               memory: 40Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
+            - mountPath: /var/cache/ntfy
+              name: cache
             - mountPath: /etc/ntfy/templates
               name: templates
               readOnly: true
+            - mountPath: /tmp
+              name: tmp
       volumes:
+        - emptyDir: {}
+          name: cache
         - configMap:
             name: ntfy-templates
           name: templates
+        - emptyDir: {}
+          name: tmp
