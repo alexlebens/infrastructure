@@ -15,12 +15,11 @@
 # ==============================================================================
 
 
-# ------------------------------------------------------------------------------
-# Future Migrations:
-# Uncomment these import blocks as each app is migrated from `garage-bucket` to `s3-bucket`:
-# ------------------------------------------------------------------------------
 # import { to = b2_bucket.d_cs01bb["gitea"]     id = "3db1ebbe5a2c25c2ad0f0211" } # gitea-assets-6670d003410bb125
-# import { to = b2_bucket.d_cs01bb["kaneo"]     id = "2da12b0eda7ce5c29def0211" } # kaneo-asssets-47edc3f232f2797f
+import {
+  to = b2_bucket.d_cs01bb["kaneo"]
+  id = "2da12b0eda7ce5c29def0211" # kaneo-asssets-47edc3f232f2797f
+}
 # import { to = b2_bucket.d_cs01bb["karakeep"]  id = "2dd16bbe3abcf5529ddf0211" } # karakeep-assets-bcb0bc04dac3e3fd
 # import { to = b2_bucket.d_cs01bb["mariadb"]   id = "2db19b2e3a8cf5529ddf0211" } # mariadb-backups-6e3b78870f7af040
 # import { to = b2_bucket.d_cs01bb["openbao"]   id = "0d81cbee3a8cf5529ddf0211" } # openbao-backups-038053cd180284dc
