@@ -13,18 +13,3 @@
 # 4. Once `tofu apply` succeeds and the resources exist in state, DELETE these
 #    import blocks from this file.
 # ==============================================================================
-
-
-# import { to = b2_bucket.d_cs01bb["gitea"]     id = "3db1ebbe5a2c25c2ad0f0211" } # gitea-assets-6670d003410bb125
-import {
-  to = b2_bucket.d_cs01bb["outline"]
-  id = "1db16b6eea4cf5d29dff0211" # outline-assets-2ac99fb083071f74
-}
-import {
-  to = b2_bucket.d_cs01bb["pocket-id-operator"]
-  id = "6de1eb0e1a2cd5d29dff0211" # pocket-id-assets-708b709d424a4664
-}
-import {
-  to = b2_bucket.d_cs01bb["talos"]
-  id = "cd111b9e3a9cf5529ddf0211" # talos-backups-8c38c0f91be53b11
-}
