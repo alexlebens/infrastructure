@@ -135,7 +135,7 @@ echo ">> Fetching Backblaze credentials from OpenBao..."
 BACKBLAZE_KEY=""
 BACKBLAZE_SECRET=""
 
-for path in "cs01bb/s3/keys/admin"; do
+for path in "cs01bb/s3/keys/master"; do
   RESP=$(fetch_bao_path "$path")
   K=$(echo "$RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
   S=$(echo "$RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
