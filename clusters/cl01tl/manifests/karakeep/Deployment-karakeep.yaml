@@ -29,6 +29,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: karakeep
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -43,6 +51,12 @@ spec:
             - --hide-scrollbars
           image: ghcr.io/zenika/alpine-chrome:124@sha256:1a0046448e0bb6c275c88f86e01faf0de62b02ec8572901256ada0a8c08be23f
           name: chrome
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
         - env:
             - name: DATA_DIR
               value: /data
@@ -66,22 +80,22 @@ spec:
               valueFrom:
                 secretKeyRef:
                   key: endpoint
-                  name: karakeep-assets-key
+                  name: karakeep-assets-secret
             - name: ASSET_STORE_S3_REGION
               valueFrom:
                 secretKeyRef:
                   key: region
-                  name: karakeep-assets-key
+                  name: karakeep-assets-secret
             - name: ASSET_STORE_S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  key: access-key-id
-                  name: karakeep-assets-key
+                  key: AWS_ACCESS_KEY_ID
+                  name: karakeep-assets-secret
             - name: ASSET_STORE_S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  key: secret-access-key
-                  name: karakeep-assets-key
+                  key: AWS_SECRET_ACCESS_KEY
+                  name: karakeep-assets-secret
             - name: ASSET_STORE_S3_FORCE_PATH_STYLE
               value: "true"
             - name: MEILI_ADDR
@@ -141,6 +155,12 @@ spec:
             requests:
               cpu: 20m
               memory: 500Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
           startupProbe:
             failureThreshold: 30
             httpGet:
