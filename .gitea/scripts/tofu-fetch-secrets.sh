@@ -207,17 +207,47 @@ else
   echo ">> Notice: Backblaze credentials not found in OpenBao or environment"
 fi
 
-# Retrieve Garage S3 Admin Keys (for CORS/Website management)
+# Retrieve Garage S3 Admin Keys per Storage Tier (for CORS/Website management)
 echo ">> Fetching Garage S3 admin keys from OpenBao..."
-GARAGE_ADMIN_RESP=$(fetch_bao_path "cl01tl/garage/keys/admin")
-GARAGE_S3_KEY=$(echo "$GARAGE_ADMIN_RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
-GARAGE_S3_SECRET=$(echo "$GARAGE_ADMIN_RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
-if [ -n "$GARAGE_S3_KEY" ] && [ -n "$GARAGE_S3_SECRET" ]; then
-  mask_var "${GARAGE_S3_KEY}"
-  mask_var "${GARAGE_S3_SECRET}"
-  output_var "garage_admin_access_key" "${GARAGE_S3_KEY}"
-  output_var "garage_admin_secret_key" "${GARAGE_S3_SECRET}"
-  echo ">> Loaded Garage S3 admin keys from OpenBao: secret/garage/home-infra/admin"
+
+# Tier B (cl01tl) - baseline admin key
+GARAGE_B_ADMIN_RESP=$(fetch_bao_path "cl01tl/garage/keys/admin")
+GARAGE_B_S3_KEY=$(echo "$GARAGE_B_ADMIN_RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
+GARAGE_B_S3_SECRET=$(echo "$GARAGE_B_ADMIN_RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
+
+# Tier A (ps02sn)
+GARAGE_A_ADMIN_RESP=$(fetch_bao_path "ps02sn/garage/keys/admin")
+GARAGE_A_S3_KEY=$(echo "$GARAGE_A_ADMIN_RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
+GARAGE_A_S3_SECRET=$(echo "$GARAGE_A_ADMIN_RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
+GARAGE_A_S3_KEY="${GARAGE_A_S3_KEY:-${GARAGE_B_S3_KEY}}"
+GARAGE_A_S3_SECRET="${GARAGE_A_S3_SECRET:-${GARAGE_B_S3_SECRET}}"
+
+# Tier C (ps10rp)
+GARAGE_C_ADMIN_RESP=$(fetch_bao_path "ps10rp/garage/keys/admin")
+GARAGE_C_S3_KEY=$(echo "$GARAGE_C_ADMIN_RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
+GARAGE_C_S3_SECRET=$(echo "$GARAGE_C_ADMIN_RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
+GARAGE_C_S3_KEY="${GARAGE_C_S3_KEY:-${GARAGE_B_S3_KEY}}"
+GARAGE_C_S3_SECRET="${GARAGE_C_S3_SECRET:-${GARAGE_B_S3_SECRET}}"
+
+if [ -n "$GARAGE_A_S3_KEY" ]; then
+  mask_var "${GARAGE_A_S3_KEY}"
+  mask_var "${GARAGE_A_S3_SECRET}"
+  output_var "garage_a_admin_access_key" "${GARAGE_A_S3_KEY}"
+  output_var "garage_a_admin_secret_key" "${GARAGE_A_S3_SECRET}"
+fi
+
+if [ -n "$GARAGE_B_S3_KEY" ]; then
+  mask_var "${GARAGE_B_S3_KEY}"
+  mask_var "${GARAGE_B_S3_SECRET}"
+  output_var "garage_b_admin_access_key" "${GARAGE_B_S3_KEY}"
+  output_var "garage_b_admin_secret_key" "${GARAGE_B_S3_SECRET}"
+fi
+
+if [ -n "$GARAGE_C_S3_KEY" ]; then
+  mask_var "${GARAGE_C_S3_KEY}"
+  mask_var "${GARAGE_C_S3_SECRET}"
+  output_var "garage_c_admin_access_key" "${GARAGE_C_S3_KEY}"
+  output_var "garage_c_admin_secret_key" "${GARAGE_C_S3_SECRET}"
 fi
 
 # Retrieve VolSync Restic Passwords per Storage Tier
@@ -323,13 +353,17 @@ if [ -n "${GITHUB_ENV:-}" ]; then
     echo "B2_APPLICATION_KEY_ID=${BACKBLAZE_KEY}" >> "${GITHUB_ENV}"
     echo "B2_APPLICATION_KEY=${BACKBLAZE_SECRET}" >> "${GITHUB_ENV}"
   fi
-  if [ -n "${GARAGE_S3_KEY}" ]; then
-    echo "TF_VAR_garage_a_ps02sn_admin_access_key=${GARAGE_S3_KEY}" >> "${GITHUB_ENV}"
-    echo "TF_VAR_garage_a_ps02sn_admin_secret_key=${GARAGE_S3_SECRET}" >> "${GITHUB_ENV}"
-    echo "TF_VAR_garage_b_cl01tl_admin_access_key=${GARAGE_S3_KEY}" >> "${GITHUB_ENV}"
-    echo "TF_VAR_garage_b_cl01tl_admin_secret_key=${GARAGE_S3_SECRET}" >> "${GITHUB_ENV}"
-    echo "TF_VAR_garage_c_ps10rp_admin_access_key=${GARAGE_S3_KEY}" >> "${GITHUB_ENV}"
-    echo "TF_VAR_garage_c_ps10rp_admin_secret_key=${GARAGE_S3_SECRET}" >> "${GITHUB_ENV}"
+  if [ -n "${GARAGE_A_S3_KEY}" ]; then
+    echo "TF_VAR_garage_a_ps02sn_admin_access_key=${GARAGE_A_S3_KEY}" >> "${GITHUB_ENV}"
+    echo "TF_VAR_garage_a_ps02sn_admin_secret_key=${GARAGE_A_S3_SECRET}" >> "${GITHUB_ENV}"
+  fi
+  if [ -n "${GARAGE_B_S3_KEY}" ]; then
+    echo "TF_VAR_garage_b_cl01tl_admin_access_key=${GARAGE_B_S3_KEY}" >> "${GITHUB_ENV}"
+    echo "TF_VAR_garage_b_cl01tl_admin_secret_key=${GARAGE_B_S3_SECRET}" >> "${GITHUB_ENV}"
+  fi
+  if [ -n "${GARAGE_C_S3_KEY}" ]; then
+    echo "TF_VAR_garage_c_ps10rp_admin_access_key=${GARAGE_C_S3_KEY}" >> "${GITHUB_ENV}"
+    echo "TF_VAR_garage_c_ps10rp_admin_secret_key=${GARAGE_C_S3_SECRET}" >> "${GITHUB_ENV}"
   fi
 fi
 

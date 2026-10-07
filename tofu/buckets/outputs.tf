@@ -38,3 +38,21 @@ output "d_cs01bb_buckets" {
     }
   }
 }
+
+output "instance_keys" {
+  description = "Summary of Admin and Read key IDs across all Garage instances"
+  value = {
+    a_ps02sn = {
+      admin_access_key_id = garage_key.a_ps02sn_admin.access_key_id
+      read_access_key_id  = garage_key.a_ps02sn_read.access_key_id
+    }
+    b_cl01tl = {
+      admin_access_key_id = garage_key.b_cl01tl_admin.access_key_id
+      read_access_key_id  = garage_key.b_cl01tl_read.access_key_id
+    }
+    c_ps10rp = {
+      admin_access_key_id = garage_key.c_ps10rp_admin.access_key_id
+      read_access_key_id  = garage_key.c_ps10rp_read.access_key_id
+    }
+  }
+}

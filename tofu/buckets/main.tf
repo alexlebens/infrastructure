@@ -34,6 +34,37 @@ resource "garage_bucket_key" "a_ps02sn" {
   owner         = true
 }
 
+# --- Instance Keys: Tier A Synology NAS (ps02sn) ---
+resource "garage_key" "a_ps02sn_admin" {
+  provider = garage.a_ps02sn
+  name     = "admin-key"
+}
+
+resource "garage_bucket_key" "a_ps02sn_admin" {
+  provider      = garage.a_ps02sn
+  for_each      = local.a_ps02sn_buckets
+  bucket_id     = garage_bucket.a_ps02sn[each.key].id
+  access_key_id = garage_key.a_ps02sn_admin.access_key_id
+  read          = true
+  write         = true
+  owner         = true
+}
+
+resource "garage_key" "a_ps02sn_read" {
+  provider = garage.a_ps02sn
+  name     = "read-key"
+}
+
+resource "garage_bucket_key" "a_ps02sn_read" {
+  provider      = garage.a_ps02sn
+  for_each      = local.a_ps02sn_buckets
+  bucket_id     = garage_bucket.a_ps02sn[each.key].id
+  access_key_id = garage_key.a_ps02sn_read.access_key_id
+  read          = true
+  write         = false
+  owner         = false
+}
+
 resource "aws_s3_bucket_cors_configuration" "a_ps02sn" {
   provider = aws.a_ps02sn
   for_each = local.cors_a_ps02sn_buckets
@@ -84,6 +115,37 @@ resource "garage_bucket_key" "b_cl01tl" {
   owner         = true
 }
 
+# --- Instance Keys: Tier B Talos Cluster (cl01tl) ---
+resource "garage_key" "b_cl01tl_admin" {
+  provider = garage.b_cl01tl
+  name     = "admin-key"
+}
+
+resource "garage_bucket_key" "b_cl01tl_admin" {
+  provider      = garage.b_cl01tl
+  for_each      = local.b_cl01tl_buckets
+  bucket_id     = garage_bucket.b_cl01tl[each.key].id
+  access_key_id = garage_key.b_cl01tl_admin.access_key_id
+  read          = true
+  write         = true
+  owner         = true
+}
+
+resource "garage_key" "b_cl01tl_read" {
+  provider = garage.b_cl01tl
+  name     = "read-key"
+}
+
+resource "garage_bucket_key" "b_cl01tl_read" {
+  provider      = garage.b_cl01tl
+  for_each      = local.b_cl01tl_buckets
+  bucket_id     = garage_bucket.b_cl01tl[each.key].id
+  access_key_id = garage_key.b_cl01tl_read.access_key_id
+  read          = true
+  write         = false
+  owner         = false
+}
+
 resource "aws_s3_bucket_cors_configuration" "b_cl01tl" {
   provider = aws.b_cl01tl
   for_each = local.cors_b_cl01tl_buckets
@@ -123,6 +185,37 @@ resource "garage_bucket_key" "c_ps10rp" {
   read          = true
   write         = true
   owner         = true
+}
+
+# --- Instance Keys: Tier C Raspberry Pi (ps10rp) ---
+resource "garage_key" "c_ps10rp_admin" {
+  provider = garage.c_ps10rp
+  name     = "admin-key"
+}
+
+resource "garage_bucket_key" "c_ps10rp_admin" {
+  provider      = garage.c_ps10rp
+  for_each      = local.c_ps10rp_buckets
+  bucket_id     = garage_bucket.c_ps10rp[each.key].id
+  access_key_id = garage_key.c_ps10rp_admin.access_key_id
+  read          = true
+  write         = true
+  owner         = true
+}
+
+resource "garage_key" "c_ps10rp_read" {
+  provider = garage.c_ps10rp
+  name     = "read-key"
+}
+
+resource "garage_bucket_key" "c_ps10rp_read" {
+  provider      = garage.c_ps10rp
+  for_each      = local.c_ps10rp_buckets
+  bucket_id     = garage_bucket.c_ps10rp[each.key].id
+  access_key_id = garage_key.c_ps10rp_read.access_key_id
+  read          = true
+  write         = false
+  owner         = false
 }
 
 # ==============================================================================
@@ -247,22 +340,81 @@ resource "vault_kv_secret_v2" "d_cs01bb_keys" {
   ))
 }
 
-# ==============================================================================
-# Removals
-# ==============================================================================
+# --- Instance Admin & Read Keys in OpenBao ---
+resource "vault_kv_secret_v2" "a_ps02sn_admin_key" {
+  mount = "secret"
+  name  = "ps02sn/garage/keys/admin"
 
-removed {
-  from = aws_s3_bucket_website_configuration.a_ps02sn
-
-  lifecycle {
-    destroy = false
-  }
+  data_json = jsonencode({
+    AWS_ACCESS_KEY_ID     = garage_key.a_ps02sn_admin.access_key_id
+    AWS_SECRET_ACCESS_KEY = garage_key.a_ps02sn_admin.secret_access_key
+    ACCESS_KEY_ID         = garage_key.a_ps02sn_admin.access_key_id
+    ACCESS_SECRET_KEY     = garage_key.a_ps02sn_admin.secret_access_key
+    AWS_REGION            = "garage"
+  })
 }
 
-removed {
-  from = aws_s3_bucket_website_configuration.b_cl01tl
+resource "vault_kv_secret_v2" "a_ps02sn_read_key" {
+  mount = "secret"
+  name  = "ps02sn/garage/keys/read"
 
-  lifecycle {
-    destroy = false
-  }
+  data_json = jsonencode({
+    AWS_ACCESS_KEY_ID     = garage_key.a_ps02sn_read.access_key_id
+    AWS_SECRET_ACCESS_KEY = garage_key.a_ps02sn_read.secret_access_key
+    ACCESS_KEY_ID         = garage_key.a_ps02sn_read.access_key_id
+    ACCESS_SECRET_KEY     = garage_key.a_ps02sn_read.secret_access_key
+    AWS_REGION            = "garage"
+  })
+}
+
+resource "vault_kv_secret_v2" "b_cl01tl_admin_key" {
+  mount = "secret"
+  name  = "cl01tl/garage/keys/admin"
+
+  data_json = jsonencode({
+    AWS_ACCESS_KEY_ID     = garage_key.b_cl01tl_admin.access_key_id
+    AWS_SECRET_ACCESS_KEY = garage_key.b_cl01tl_admin.secret_access_key
+    ACCESS_KEY_ID         = garage_key.b_cl01tl_admin.access_key_id
+    ACCESS_SECRET_KEY     = garage_key.b_cl01tl_admin.secret_access_key
+    AWS_REGION            = "garage"
+  })
+}
+
+resource "vault_kv_secret_v2" "b_cl01tl_read_key" {
+  mount = "secret"
+  name  = "cl01tl/garage/keys/read"
+
+  data_json = jsonencode({
+    AWS_ACCESS_KEY_ID     = garage_key.b_cl01tl_read.access_key_id
+    AWS_SECRET_ACCESS_KEY = garage_key.b_cl01tl_read.secret_access_key
+    ACCESS_KEY_ID         = garage_key.b_cl01tl_read.access_key_id
+    ACCESS_SECRET_KEY     = garage_key.b_cl01tl_read.secret_access_key
+    AWS_REGION            = "garage"
+  })
+}
+
+resource "vault_kv_secret_v2" "c_ps10rp_admin_key" {
+  mount = "secret"
+  name  = "ps10rp/garage/keys/admin"
+
+  data_json = jsonencode({
+    AWS_ACCESS_KEY_ID     = garage_key.c_ps10rp_admin.access_key_id
+    AWS_SECRET_ACCESS_KEY = garage_key.c_ps10rp_admin.secret_access_key
+    ACCESS_KEY_ID         = garage_key.c_ps10rp_admin.access_key_id
+    ACCESS_SECRET_KEY     = garage_key.c_ps10rp_admin.secret_access_key
+    AWS_REGION            = "garage"
+  })
+}
+
+resource "vault_kv_secret_v2" "c_ps10rp_read_key" {
+  mount = "secret"
+  name  = "ps10rp/garage/keys/read"
+
+  data_json = jsonencode({
+    AWS_ACCESS_KEY_ID     = garage_key.c_ps10rp_read.access_key_id
+    AWS_SECRET_ACCESS_KEY = garage_key.c_ps10rp_read.secret_access_key
+    ACCESS_KEY_ID         = garage_key.c_ps10rp_read.access_key_id
+    ACCESS_SECRET_KEY     = garage_key.c_ps10rp_read.secret_access_key
+    AWS_REGION            = "garage"
+  })
 }
