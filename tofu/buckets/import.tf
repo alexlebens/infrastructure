@@ -21,7 +21,7 @@ import {
   id = "1db16b6eea4cf5d29dff0211" # outline-assets-2ac99fb083071f74
 }
 import {
-  to = b2_bucket.d_cs01bb["pocket-id"]
+  to = b2_bucket.d_cs01bb["pocket-id-operator"]
   id = "6de1eb0e1a2cd5d29dff0211" # pocket-id-assets-708b709d424a4664
 }
 import {
