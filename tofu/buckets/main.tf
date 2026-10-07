@@ -250,7 +250,7 @@ resource "b2_application_key" "d_cs01bb" {
   for_each     = local.d_cs01bb_buckets
   key_name     = "${each.value.backups.d_cs01bb.destination_bucket}-key"
   capabilities = ["listBuckets", "listFiles", "readFiles", "writeFiles", "deleteFiles"]
-  bucket_id    = b2_bucket.d_cs01bb[each.key].id
+  bucket_ids   = [b2_bucket.d_cs01bb[each.key].id]
 }
 
 # ==============================================================================
