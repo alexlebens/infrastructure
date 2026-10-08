@@ -499,7 +499,7 @@ resource "vault_kv_secret_v2" "b_cl01tl_read_key" {
 
 resource "vault_kv_secret_v2" "b_garage_b_admin_key" {
   mount = "secret"
-  name  = "cl01tl/garage-b/keys/admin"
+  name  = "cl01tl/garage/keys/garage-b-admin"
 
   data_json = jsonencode({
     AWS_ACCESS_KEY_ID     = garage_key.b_garage_b_admin.access_key_id
@@ -512,7 +512,7 @@ resource "vault_kv_secret_v2" "b_garage_b_admin_key" {
 
 resource "vault_kv_secret_v2" "b_garage_b_read_key" {
   mount = "secret"
-  name  = "cl01tl/garage-b/keys/read"
+  name  = "cl01tl/garage/keys/garage-b-read"
 
   data_json = jsonencode({
     AWS_ACCESS_KEY_ID     = garage_key.b_garage_b_read.access_key_id
