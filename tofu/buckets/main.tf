@@ -161,6 +161,87 @@ resource "aws_s3_bucket_cors_configuration" "b_cl01tl" {
 }
 
 # ==============================================================================
+# Transition S3 Storage: Tier B Target - Dedicated Garage B (b_garage_b)
+# Low-latency, dedicated in-cluster NVMe storage (garage-b)
+# ==============================================================================
+
+resource "garage_bucket" "b_garage_b" {
+  provider     = garage.b_garage_b
+  for_each     = local.b_garage_b_buckets
+  global_alias = each.value.bucket_name
+
+  dynamic "website_access" {
+    for_each = (each.value.target == "b_garage_b" && each.value.website.enabled) ? [each.value.website] : []
+    content {
+      enabled        = true
+      index_document = website_access.value.index_document
+      error_document = website_access.value.error_document
+    }
+  }
+}
+
+resource "garage_key" "b_garage_b" {
+  provider = garage.b_garage_b
+  for_each = local.b_garage_b_buckets
+  name     = "${each.value.bucket_name}-key"
+}
+
+resource "garage_bucket_key" "b_garage_b" {
+  provider      = garage.b_garage_b
+  for_each      = local.b_garage_b_buckets
+  bucket_id     = garage_bucket.b_garage_b[each.key].id
+  access_key_id = garage_key.b_garage_b[each.key].access_key_id
+  read          = true
+  write         = true
+  owner         = true
+}
+
+# --- Instance Keys: Tier B Dedicated Cluster (garage-b) ---
+resource "garage_key" "b_garage_b_admin" {
+  provider = garage.b_garage_b
+  name     = "admin-key"
+}
+
+resource "garage_bucket_key" "b_garage_b_admin" {
+  provider      = garage.b_garage_b
+  for_each      = local.b_garage_b_buckets
+  bucket_id     = garage_bucket.b_garage_b[each.key].id
+  access_key_id = garage_key.b_garage_b_admin.access_key_id
+  read          = true
+  write         = true
+  owner         = true
+}
+
+resource "garage_key" "b_garage_b_read" {
+  provider = garage.b_garage_b
+  name     = "read-key"
+}
+
+resource "garage_bucket_key" "b_garage_b_read" {
+  provider      = garage.b_garage_b
+  for_each      = local.b_garage_b_buckets
+  bucket_id     = garage_bucket.b_garage_b[each.key].id
+  access_key_id = garage_key.b_garage_b_read.access_key_id
+  read          = true
+  write         = false
+  owner         = false
+}
+
+resource "aws_s3_bucket_cors_configuration" "b_garage_b" {
+  provider = aws.b_garage_b
+  for_each = local.cors_b_garage_b_buckets
+  bucket   = garage_bucket.b_garage_b[each.key].global_alias
+
+  cors_rule {
+    allowed_headers = each.value.cors.allowed_headers
+    allowed_methods = each.value.cors.allowed_methods
+    allowed_origins = each.value.cors.allowed_origins
+    expose_headers  = each.value.cors.expose_headers
+    max_age_seconds = each.value.cors.max_age_seconds
+  }
+}
+
+# ==============================================================================
 # Secondary S3 Storage: Tier C - Raspberry Pi (c_ps10rp)
 # Storage node replication & secondary on-prem targets
 # ==============================================================================
@@ -284,8 +365,11 @@ resource "vault_kv_secret_v2" "a_ps02sn_keys" {
 }
 
 # --- Standardized Path: Tier B Talos Cluster (cl01tl/garage/keys/<id>) ---
+# Note: Migrating buckets write their keys from b_garage_b_keys to avoid state conflict
 resource "vault_kv_secret_v2" "b_cl01tl_keys" {
-  for_each = local.b_cl01tl_buckets
+  for_each = {
+    for k, v in local.b_cl01tl_buckets : k => v if !contains(local.migrating_buckets, k)
+  }
   mount    = "secret"
   name     = "cl01tl/garage/keys/${each.value.bucket_name}"
 
@@ -295,6 +379,26 @@ resource "vault_kv_secret_v2" "b_cl01tl_keys" {
       AWS_ACCESS_KEY_ID     = garage_key.b_cl01tl[each.key].access_key_id
       AWS_SECRET_ACCESS_KEY = garage_key.b_cl01tl[each.key].secret_access_key
       AWS_REGION            = "garage"
+    },
+    (each.key == "volsync" || startswith(each.value.bucket_name, "volsync")) && var.volsync_restic_password_b_cl01tl != "" ? {
+      RESTIC_PASSWORD = var.volsync_restic_password_b_cl01tl
+    } : {}
+  ))
+}
+
+# --- Standardized Path: Tier B Target Cluster (garage-b) (cl01tl/garage/keys/<id>) ---
+resource "vault_kv_secret_v2" "b_garage_b_keys" {
+  for_each = local.b_garage_b_buckets
+  mount    = "secret"
+  name     = "cl01tl/garage/keys/${each.value.bucket_name}"
+
+  data_json = jsonencode(merge(
+    {
+      BUCKET_NAME           = each.value.bucket_name
+      AWS_ACCESS_KEY_ID     = garage_key.b_garage_b[each.key].access_key_id
+      AWS_SECRET_ACCESS_KEY = garage_key.b_garage_b[each.key].secret_access_key
+      AWS_REGION            = "garage"
+      ENDPOINT              = var.garage_b_garage_b_s3_endpoint
     },
     (each.key == "volsync" || startswith(each.value.bucket_name, "volsync")) && var.volsync_restic_password_b_cl01tl != "" ? {
       RESTIC_PASSWORD = var.volsync_restic_password_b_cl01tl

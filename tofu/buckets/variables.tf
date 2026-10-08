@@ -89,6 +89,25 @@ variable "garage_b_cl01tl_admin_secret_key" {
   default     = ""
 }
 
+# --- Transition Target: Dedicated Garage-B Cluster (b_garage_b) ---
+variable "garage_b_garage_b_host" {
+  description = "Host and port for Garage Admin API on dedicated Cluster B (garage-b namespace)"
+  type        = string
+  default     = "cluster-b.garage-b:3903"
+}
+
+variable "garage_b_garage_b_scheme" {
+  description = "Scheme for Garage Admin API on dedicated Cluster B"
+  type        = string
+  default     = "http"
+}
+
+variable "garage_b_garage_b_s3_endpoint" {
+  description = "S3 API endpoint for dedicated Cluster B"
+  type        = string
+  default     = "http://cluster-b.garage-b:3900"
+}
+
 # ==============================================================================
 # Tier C: Garage Raspberry Pi (c_ps10rp)
 # Raspberry Pi storage node (ps10rp)
