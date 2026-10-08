@@ -108,6 +108,19 @@ variable "garage_b_garage_b_s3_endpoint" {
   default     = "http://cluster-b.garage-b:3900"
 }
 
+variable "garage_b_garage_b_admin_access_key" {
+  description = "S3 Admin Access Key for dedicated Cluster B (for CORS/Website S3 calls)"
+  type        = string
+  default     = ""
+}
+
+variable "garage_b_garage_b_admin_secret_key" {
+  description = "S3 Admin Secret Key for dedicated Cluster B (for CORS/Website S3 calls)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # ==============================================================================
 # Tier C: Garage Raspberry Pi (c_ps10rp)
 # Raspberry Pi storage node (ps10rp)

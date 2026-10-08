@@ -370,8 +370,8 @@ resource "vault_kv_secret_v2" "b_cl01tl_keys" {
   for_each = {
     for k, v in local.b_cl01tl_buckets : k => v if !contains(local.migrating_buckets, k)
   }
-  mount    = "secret"
-  name     = "cl01tl/garage/keys/${each.value.bucket_name}"
+  mount = "secret"
+  name  = "cl01tl/garage/keys/${each.value.bucket_name}"
 
   data_json = jsonencode(merge(
     {
@@ -493,6 +493,32 @@ resource "vault_kv_secret_v2" "b_cl01tl_read_key" {
     AWS_SECRET_ACCESS_KEY = garage_key.b_cl01tl_read.secret_access_key
     ACCESS_KEY_ID         = garage_key.b_cl01tl_read.access_key_id
     ACCESS_SECRET_KEY     = garage_key.b_cl01tl_read.secret_access_key
+    AWS_REGION            = "garage"
+  })
+}
+
+resource "vault_kv_secret_v2" "b_garage_b_admin_key" {
+  mount = "secret"
+  name  = "cl01tl/garage-b/keys/admin"
+
+  data_json = jsonencode({
+    AWS_ACCESS_KEY_ID     = garage_key.b_garage_b_admin.access_key_id
+    AWS_SECRET_ACCESS_KEY = garage_key.b_garage_b_admin.secret_access_key
+    ACCESS_KEY_ID         = garage_key.b_garage_b_admin.access_key_id
+    ACCESS_SECRET_KEY     = garage_key.b_garage_b_admin.secret_access_key
+    AWS_REGION            = "garage"
+  })
+}
+
+resource "vault_kv_secret_v2" "b_garage_b_read_key" {
+  mount = "secret"
+  name  = "cl01tl/garage-b/keys/read"
+
+  data_json = jsonencode({
+    AWS_ACCESS_KEY_ID     = garage_key.b_garage_b_read.access_key_id
+    AWS_SECRET_ACCESS_KEY = garage_key.b_garage_b_read.secret_access_key
+    ACCESS_KEY_ID         = garage_key.b_garage_b_read.access_key_id
+    ACCESS_SECRET_KEY     = garage_key.b_garage_b_read.secret_access_key
     AWS_REGION            = "garage"
   })
 }
