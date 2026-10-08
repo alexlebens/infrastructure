@@ -153,7 +153,7 @@ locals {
   # Apps currently migrating from legacy b_cl01tl (garage-operator) to b_garage_b (garage-b).
   # Buckets in this list are retained on the legacy cluster in OpenTofu state during data synchronization
   # to prevent premature destruction of source data.
-  migrating_buckets = ["web-assets", "donetick", "karakeep"]
+  migrating_buckets = ["web-assets", "donetick", "karakeep", "memos", "kaneo", "ntfy", "reactive-resume", "librechat"]
 
   # Filter buckets by placement tier (primary target or backup destination)
   a_ps02sn_buckets = {
