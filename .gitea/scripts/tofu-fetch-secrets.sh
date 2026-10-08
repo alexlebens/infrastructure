@@ -243,6 +243,25 @@ if [ -n "$GARAGE_B_S3_KEY" ]; then
   output_var "garage_b_admin_secret_key" "${GARAGE_B_S3_SECRET}"
 fi
 
+# Tier B Target (garage-b)
+GARAGE_B_GARAGE_B_ADMIN_RESP=$(fetch_bao_path "cl01tl/garage-b/keys/admin")
+GARAGE_B_GARAGE_B_S3_KEY=$(echo "$GARAGE_B_GARAGE_B_ADMIN_RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
+GARAGE_B_GARAGE_B_S3_SECRET=$(echo "$GARAGE_B_GARAGE_B_ADMIN_RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
+
+# If dedicated admin key is not yet in OpenBao, fallback to web-assets key (which has owner permissions)
+if [ -z "$GARAGE_B_GARAGE_B_S3_KEY" ]; then
+  WEB_ASSETS_RESP=$(fetch_bao_path "cl01tl/garage/keys/web-assets")
+  GARAGE_B_GARAGE_B_S3_KEY=$(echo "$WEB_ASSETS_RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
+  GARAGE_B_GARAGE_B_S3_SECRET=$(echo "$WEB_ASSETS_RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
+fi
+
+if [ -n "$GARAGE_B_GARAGE_B_S3_KEY" ]; then
+  mask_var "${GARAGE_B_GARAGE_B_S3_KEY}"
+  mask_var "${GARAGE_B_GARAGE_B_S3_SECRET}"
+  output_var "garage_b_garage_b_admin_access_key" "${GARAGE_B_GARAGE_B_S3_KEY}"
+  output_var "garage_b_garage_b_admin_secret_key" "${GARAGE_B_GARAGE_B_S3_SECRET}"
+fi
+
 if [ -n "$GARAGE_C_S3_KEY" ]; then
   mask_var "${GARAGE_C_S3_KEY}"
   mask_var "${GARAGE_C_S3_SECRET}"
@@ -360,6 +379,10 @@ if [ -n "${GITHUB_ENV:-}" ]; then
   if [ -n "${GARAGE_B_S3_KEY}" ]; then
     echo "TF_VAR_garage_b_cl01tl_admin_access_key=${GARAGE_B_S3_KEY}" >> "${GITHUB_ENV}"
     echo "TF_VAR_garage_b_cl01tl_admin_secret_key=${GARAGE_B_S3_SECRET}" >> "${GITHUB_ENV}"
+  fi
+  if [ -n "${GARAGE_B_GARAGE_B_S3_KEY}" ]; then
+    echo "TF_VAR_garage_b_garage_b_admin_access_key=${GARAGE_B_GARAGE_B_S3_KEY}" >> "${GITHUB_ENV}"
+    echo "TF_VAR_garage_b_garage_b_admin_secret_key=${GARAGE_B_GARAGE_B_S3_SECRET}" >> "${GITHUB_ENV}"
   fi
   if [ -n "${GARAGE_C_S3_KEY}" ]; then
     echo "TF_VAR_garage_c_ps10rp_admin_access_key=${GARAGE_C_S3_KEY}" >> "${GITHUB_ENV}"

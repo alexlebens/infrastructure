@@ -91,8 +91,8 @@ provider "aws" {
   skip_metadata_api_check     = true
   skip_region_validation      = true
   s3_use_path_style           = true
-  access_key                  = var.garage_b_cl01tl_admin_access_key != "" ? var.garage_b_cl01tl_admin_access_key : "mock_access_key"
-  secret_key                  = var.garage_b_cl01tl_admin_secret_key != "" ? var.garage_b_cl01tl_admin_secret_key : "mock_secret_key"
+  access_key                  = var.garage_b_garage_b_admin_access_key != "" ? var.garage_b_garage_b_admin_access_key : "mock_access_key"
+  secret_key                  = var.garage_b_garage_b_admin_secret_key != "" ? var.garage_b_garage_b_admin_secret_key : "mock_secret_key"
 }
 
 # Tier C: Raspberry Pi S3 API
