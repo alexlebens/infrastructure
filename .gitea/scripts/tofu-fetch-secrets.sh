@@ -244,7 +244,7 @@ if [ -n "$GARAGE_B_S3_KEY" ]; then
 fi
 
 # Tier B Target (garage-b)
-GARAGE_B_GARAGE_B_ADMIN_RESP=$(fetch_bao_path "cl01tl/garage-b/keys/admin")
+GARAGE_B_GARAGE_B_ADMIN_RESP=$(fetch_bao_path "cl01tl/garage/keys/garage-b-admin")
 GARAGE_B_GARAGE_B_S3_KEY=$(echo "$GARAGE_B_GARAGE_B_ADMIN_RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
 GARAGE_B_GARAGE_B_S3_SECRET=$(echo "$GARAGE_B_GARAGE_B_ADMIN_RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
 
