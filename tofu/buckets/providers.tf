@@ -10,11 +10,19 @@ provider "garage" {
   token  = var.garage_a_ps02sn_token
 }
 
-# Tier B: Talos Kubernetes Cluster (cl01tl)
+# Tier B: Talos Kubernetes Cluster (cl01tl - legacy garage-operator)
 provider "garage" {
   alias  = "b_cl01tl"
   host   = var.garage_b_cl01tl_host
   scheme = var.garage_b_cl01tl_scheme
+  token  = var.garage_b_cl01tl_token
+}
+
+# Tier B (Target): Dedicated Talos Kubernetes Cluster (garage-b)
+provider "garage" {
+  alias  = "b_garage_b"
+  host   = var.garage_b_garage_b_host
+  scheme = var.garage_b_garage_b_scheme
   token  = var.garage_b_cl01tl_token
 }
 
@@ -55,12 +63,28 @@ provider "aws" {
   secret_key                  = var.garage_a_ps02sn_admin_secret_key != "" ? var.garage_a_ps02sn_admin_secret_key : "mock_secret_key"
 }
 
-# Tier B: Cluster B S3 API
+# Tier B: Cluster B S3 API (legacy garage-operator)
 provider "aws" {
   alias  = "b_cl01tl"
   region = "garage"
   endpoints {
     s3 = var.garage_b_cl01tl_s3_endpoint
+  }
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+  skip_region_validation      = true
+  s3_use_path_style           = true
+  access_key                  = var.garage_b_cl01tl_admin_access_key != "" ? var.garage_b_cl01tl_admin_access_key : "mock_access_key"
+  secret_key                  = var.garage_b_cl01tl_admin_secret_key != "" ? var.garage_b_cl01tl_admin_secret_key : "mock_secret_key"
+}
+
+# Tier B (Target): Dedicated Cluster B S3 API (garage-b)
+provider "aws" {
+  alias  = "b_garage_b"
+  region = "garage"
+  endpoints {
+    s3 = var.garage_b_garage_b_s3_endpoint
   }
   skip_credentials_validation = true
   skip_requesting_account_id  = true
