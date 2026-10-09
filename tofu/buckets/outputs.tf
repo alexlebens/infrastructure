@@ -18,15 +18,6 @@ output "b_cl01tl_buckets" {
   }
 }
 
-output "b_garage_b_buckets" {
-  description = "Summary of provisioned Tier B Target (garage-b) buckets"
-  value = {
-    for k, v in garage_bucket.b_garage_b : k => {
-      id           = v.id
-      global_alias = v.global_alias
-    }
-  }
-}
 
 output "c_ps10rp_buckets" {
   description = "Summary of provisioned Tier C (Raspberry Pi ps10rp) buckets"
@@ -59,10 +50,6 @@ output "instance_keys" {
     b_cl01tl = {
       admin_access_key_id = garage_key.b_cl01tl_admin.access_key_id
       read_access_key_id  = garage_key.b_cl01tl_read.access_key_id
-    }
-    b_garage_b = {
-      admin_access_key_id = garage_key.b_garage_b_admin.access_key_id
-      read_access_key_id  = garage_key.b_garage_b_read.access_key_id
     }
     c_ps10rp = {
       admin_access_key_id = garage_key.c_ps10rp_admin.access_key_id

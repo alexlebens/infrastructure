@@ -1,7 +1,8 @@
 # ==============================================================================
-# Primary S3 Storage: Tier A - Synology A (a_ps02sn)
-# Heavy stores, bulk backups, Loki, Thanos, Prometheus, etc.
+# Tier A: (ps02sn)
 # ==============================================================================
+
+# --- Buckets ---
 
 resource "garage_bucket" "a_ps02sn" {
   provider     = garage.a_ps02sn
@@ -34,7 +35,8 @@ resource "garage_bucket_key" "a_ps02sn" {
   owner         = true
 }
 
-# --- Instance Keys: Tier A Synology NAS (ps02sn) ---
+# --- Instance Keys ---
+
 resource "garage_key" "a_ps02sn_admin" {
   provider = garage.a_ps02sn
   name     = "admin-key"
@@ -65,6 +67,8 @@ resource "garage_bucket_key" "a_ps02sn_read" {
   owner         = false
 }
 
+# --- CORS ---
+
 resource "aws_s3_bucket_cors_configuration" "a_ps02sn" {
   provider = aws.a_ps02sn
   for_each = local.cors_a_ps02sn_buckets
@@ -80,9 +84,52 @@ resource "aws_s3_bucket_cors_configuration" "a_ps02sn" {
 }
 
 # ==============================================================================
-# Primary S3 Storage: Tier B - Cluster B (b_cl01tl)
-# Low-latency, in-cluster lightweight app assets (Reactive Resume, Memos, etc.)
+# Tier B: (cl01tl - garage-b)
 # ==============================================================================
+
+# --- State Migration: Consolidate b_garage_b into b_cl01tl ---
+
+moved {
+  from = garage_bucket.b_garage_b
+  to   = garage_bucket.b_cl01tl
+}
+
+moved {
+  from = garage_key.b_garage_b
+  to   = garage_key.b_cl01tl
+}
+
+moved {
+  from = garage_bucket_key.b_garage_b
+  to   = garage_bucket_key.b_cl01tl
+}
+
+moved {
+  from = garage_key.b_garage_b_admin
+  to   = garage_key.b_cl01tl_admin
+}
+
+moved {
+  from = garage_bucket_key.b_garage_b_admin
+  to   = garage_bucket_key.b_cl01tl_admin
+}
+
+moved {
+  from = garage_key.b_garage_b_read
+  to   = garage_key.b_cl01tl_read
+}
+
+moved {
+  from = garage_bucket_key.b_garage_b_read
+  to   = garage_bucket_key.b_cl01tl_read
+}
+
+moved {
+  from = aws_s3_bucket_cors_configuration.b_garage_b
+  to   = aws_s3_bucket_cors_configuration.b_cl01tl
+}
+
+# --- Buckets ---
 
 resource "garage_bucket" "b_cl01tl" {
   provider     = garage.b_cl01tl
@@ -115,7 +162,8 @@ resource "garage_bucket_key" "b_cl01tl" {
   owner         = true
 }
 
-# --- Instance Keys: Tier B Talos Cluster (cl01tl) ---
+# --- Instance Keys ---
+
 resource "garage_key" "b_cl01tl_admin" {
   provider = garage.b_cl01tl
   name     = "admin-key"
@@ -146,6 +194,8 @@ resource "garage_bucket_key" "b_cl01tl_read" {
   owner         = false
 }
 
+# --- CORS ---
+
 resource "aws_s3_bucket_cors_configuration" "b_cl01tl" {
   provider = aws.b_cl01tl
   for_each = local.cors_b_cl01tl_buckets
@@ -161,90 +211,10 @@ resource "aws_s3_bucket_cors_configuration" "b_cl01tl" {
 }
 
 # ==============================================================================
-# Transition S3 Storage: Tier B Target - Dedicated Garage B (b_garage_b)
-# Low-latency, dedicated in-cluster NVMe storage (garage-b)
+# Tier C: (ps10rp)
 # ==============================================================================
 
-resource "garage_bucket" "b_garage_b" {
-  provider     = garage.b_garage_b
-  for_each     = local.b_garage_b_buckets
-  global_alias = each.value.bucket_name
-
-  dynamic "website_access" {
-    for_each = (each.value.target == "b_garage_b" && each.value.website.enabled) ? [each.value.website] : []
-    content {
-      enabled        = true
-      index_document = website_access.value.index_document
-      error_document = website_access.value.error_document
-    }
-  }
-}
-
-resource "garage_key" "b_garage_b" {
-  provider = garage.b_garage_b
-  for_each = local.b_garage_b_buckets
-  name     = "${each.value.bucket_name}-key"
-}
-
-resource "garage_bucket_key" "b_garage_b" {
-  provider      = garage.b_garage_b
-  for_each      = local.b_garage_b_buckets
-  bucket_id     = garage_bucket.b_garage_b[each.key].id
-  access_key_id = garage_key.b_garage_b[each.key].access_key_id
-  read          = true
-  write         = true
-  owner         = true
-}
-
-# --- Instance Keys: Tier B Dedicated Cluster (garage-b) ---
-resource "garage_key" "b_garage_b_admin" {
-  provider = garage.b_garage_b
-  name     = "admin-key"
-}
-
-resource "garage_bucket_key" "b_garage_b_admin" {
-  provider      = garage.b_garage_b
-  for_each      = local.b_garage_b_buckets
-  bucket_id     = garage_bucket.b_garage_b[each.key].id
-  access_key_id = garage_key.b_garage_b_admin.access_key_id
-  read          = true
-  write         = true
-  owner         = true
-}
-
-resource "garage_key" "b_garage_b_read" {
-  provider = garage.b_garage_b
-  name     = "read-key"
-}
-
-resource "garage_bucket_key" "b_garage_b_read" {
-  provider      = garage.b_garage_b
-  for_each      = local.b_garage_b_buckets
-  bucket_id     = garage_bucket.b_garage_b[each.key].id
-  access_key_id = garage_key.b_garage_b_read.access_key_id
-  read          = true
-  write         = false
-  owner         = false
-}
-
-resource "aws_s3_bucket_cors_configuration" "b_garage_b" {
-  provider = aws.b_garage_b
-  for_each = local.cors_b_garage_b_buckets
-  bucket   = garage_bucket.b_garage_b[each.key].global_alias
-
-  cors_rule {
-    allowed_headers = each.value.cors.allowed_headers
-    allowed_methods = each.value.cors.allowed_methods
-    allowed_origins = each.value.cors.allowed_origins
-    expose_headers  = each.value.cors.expose_headers
-    max_age_seconds = each.value.cors.max_age_seconds
-  }
-}
-
-# ==============================================================================
-# Secondary S3 Storage: Tier C - Raspberry Pi (c_ps10rp)
-# Storage node replication & secondary on-prem targets
-# ==============================================================================
+# --- Buckets ---
 
 resource "garage_bucket" "c_ps10rp" {
   provider     = garage.c_ps10rp
@@ -268,7 +238,8 @@ resource "garage_bucket_key" "c_ps10rp" {
   owner         = true
 }
 
-# --- Instance Keys: Tier C Raspberry Pi (ps10rp) ---
+# --- Instance Keys ---
+
 resource "garage_key" "c_ps10rp_admin" {
   provider = garage.c_ps10rp
   name     = "admin-key"
@@ -300,9 +271,10 @@ resource "garage_bucket_key" "c_ps10rp_read" {
 }
 
 # ==============================================================================
-# Offsite DR Storage: Tier D - Backblaze B2 (d_cs01bb)
-# Cloud replica bucket creation and optional prune lifecycle policies
+# Tier D: (cs01bb)
 # ==============================================================================
+
+# --- Buckets ---
 
 resource "b2_bucket" "d_cs01bb" {
   for_each    = local.d_cs01bb_buckets
@@ -327,6 +299,8 @@ resource "b2_bucket" "d_cs01bb" {
   }
 }
 
+# --- Instance Keys ---
+
 resource "b2_application_key" "d_cs01bb" {
   for_each     = local.d_cs01bb_buckets
   key_name     = "${each.value.backups.d_cs01bb.destination_bucket}-key"
@@ -345,7 +319,8 @@ resource "b2_application_key" "d_cs01bb" {
 # Contains BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
 # ==============================================================================
 
-# --- Standardized Path: Tier A Synology NAS (ps02sn/garage/keys/<id>) ---
+# --- Tier A (ps02sn/garage/keys/<id>) ---
+
 resource "vault_kv_secret_v2" "a_ps02sn_keys" {
   for_each = local.a_ps02sn_buckets
   mount    = "secret"
@@ -364,14 +339,17 @@ resource "vault_kv_secret_v2" "a_ps02sn_keys" {
   ))
 }
 
-# --- Standardized Path: Tier B Talos Cluster (cl01tl/garage/keys/<id>) ---
-# Note: Migrating buckets write their keys from b_garage_b_keys to avoid state conflict
+# --- Tier B (cl01tl/garage/keys/<id>) ---
+
+moved {
+  from = vault_kv_secret_v2.b_garage_b_keys
+  to   = vault_kv_secret_v2.b_cl01tl_keys
+}
+
 resource "vault_kv_secret_v2" "b_cl01tl_keys" {
-  for_each = {
-    for k, v in local.b_cl01tl_buckets : k => v if !contains(local.migrating_buckets, k)
-  }
-  mount = "secret"
-  name  = "cl01tl/garage/keys/${each.value.bucket_name}"
+  for_each = local.b_cl01tl_buckets
+  mount    = "secret"
+  name     = "cl01tl/garage/keys/${each.value.bucket_name}"
 
   data_json = jsonencode(merge(
     {
@@ -379,6 +357,7 @@ resource "vault_kv_secret_v2" "b_cl01tl_keys" {
       AWS_ACCESS_KEY_ID     = garage_key.b_cl01tl[each.key].access_key_id
       AWS_SECRET_ACCESS_KEY = garage_key.b_cl01tl[each.key].secret_access_key
       AWS_REGION            = "garage"
+      ENDPOINT              = var.garage_b_cl01tl_s3_endpoint
     },
     (each.key == "volsync" || startswith(each.value.bucket_name, "volsync")) && var.volsync_restic_password_b_cl01tl != "" ? {
       RESTIC_PASSWORD = var.volsync_restic_password_b_cl01tl
@@ -386,27 +365,8 @@ resource "vault_kv_secret_v2" "b_cl01tl_keys" {
   ))
 }
 
-# --- Standardized Path: Tier B Target Cluster (garage-b) (cl01tl/garage/keys/<id>) ---
-resource "vault_kv_secret_v2" "b_garage_b_keys" {
-  for_each = local.b_garage_b_buckets
-  mount    = "secret"
-  name     = "cl01tl/garage/keys/${each.value.bucket_name}"
+# --- Tier C (ps10rp/garage/keys/<id>) ---
 
-  data_json = jsonencode(merge(
-    {
-      BUCKET_NAME           = each.value.bucket_name
-      AWS_ACCESS_KEY_ID     = garage_key.b_garage_b[each.key].access_key_id
-      AWS_SECRET_ACCESS_KEY = garage_key.b_garage_b[each.key].secret_access_key
-      AWS_REGION            = "garage"
-      ENDPOINT              = var.garage_b_garage_b_s3_endpoint
-    },
-    (each.key == "volsync" || startswith(each.value.bucket_name, "volsync")) && var.volsync_restic_password_b_cl01tl != "" ? {
-      RESTIC_PASSWORD = var.volsync_restic_password_b_cl01tl
-    } : {}
-  ))
-}
-
-# --- Standardized Path: Tier C Raspberry Pi (ps10rp/garage/keys/<id>) ---
 resource "vault_kv_secret_v2" "c_ps10rp_keys" {
   for_each = local.c_ps10rp_buckets
   mount    = "secret"
@@ -425,7 +385,8 @@ resource "vault_kv_secret_v2" "c_ps10rp_keys" {
   ))
 }
 
-# --- Standardized Path: Tier D Backblaze B2 (cs01bb/s3/keys/<id>) ---
+# --- Tier D (cs01bb/s3/keys/<id>) ---
+
 resource "vault_kv_secret_v2" "d_cs01bb_keys" {
   for_each = local.d_cs01bb_buckets
   mount    = "secret"
@@ -444,7 +405,8 @@ resource "vault_kv_secret_v2" "d_cs01bb_keys" {
   ))
 }
 
-# --- Instance Admin & Read Keys in OpenBao ---
+# --- Instance Admin & Read Keys ---
+
 resource "vault_kv_secret_v2" "a_ps02sn_admin_key" {
   mount = "secret"
   name  = "ps02sn/garage/keys/admin"
@@ -497,32 +459,6 @@ resource "vault_kv_secret_v2" "b_cl01tl_read_key" {
   })
 }
 
-resource "vault_kv_secret_v2" "b_garage_b_admin_key" {
-  mount = "secret"
-  name  = "cl01tl/garage/keys/garage-b-admin"
-
-  data_json = jsonencode({
-    AWS_ACCESS_KEY_ID     = garage_key.b_garage_b_admin.access_key_id
-    AWS_SECRET_ACCESS_KEY = garage_key.b_garage_b_admin.secret_access_key
-    ACCESS_KEY_ID         = garage_key.b_garage_b_admin.access_key_id
-    ACCESS_SECRET_KEY     = garage_key.b_garage_b_admin.secret_access_key
-    AWS_REGION            = "garage"
-  })
-}
-
-resource "vault_kv_secret_v2" "b_garage_b_read_key" {
-  mount = "secret"
-  name  = "cl01tl/garage/keys/garage-b-read"
-
-  data_json = jsonencode({
-    AWS_ACCESS_KEY_ID     = garage_key.b_garage_b_read.access_key_id
-    AWS_SECRET_ACCESS_KEY = garage_key.b_garage_b_read.secret_access_key
-    ACCESS_KEY_ID         = garage_key.b_garage_b_read.access_key_id
-    ACCESS_SECRET_KEY     = garage_key.b_garage_b_read.secret_access_key
-    AWS_REGION            = "garage"
-  })
-}
-
 resource "vault_kv_secret_v2" "c_ps10rp_admin_key" {
   mount = "secret"
   name  = "ps10rp/garage/keys/admin"
@@ -547,4 +483,20 @@ resource "vault_kv_secret_v2" "c_ps10rp_read_key" {
     ACCESS_SECRET_KEY     = garage_key.c_ps10rp_read.secret_access_key
     AWS_REGION            = "garage"
   })
+}
+
+# --- Retired Transition Secrets ---
+
+removed {
+  from = vault_kv_secret_v2.b_garage_b_admin_key
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = vault_kv_secret_v2.b_garage_b_read_key
+  lifecycle {
+    destroy = false
+  }
 }
