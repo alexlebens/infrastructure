@@ -13,3 +13,8 @@
 # 4. Once `tofu apply` succeeds and the resources exist in state, DELETE these
 #    import blocks from this file.
 # ==============================================================================
+
+import {
+  to = b2_bucket.d_cs01bb["gitea"]
+  id = "3db1ebbe5a2c25c2ad0f0211"
+}
