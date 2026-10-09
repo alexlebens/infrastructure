@@ -1,3 +1,7 @@
+# ==============================================================================
+# Gitea
+# ==============================================================================
+
 variable "gitea_token" {
   description = "Gitea token for state locking and HTTP backend authentication"
   type        = string
@@ -6,9 +10,9 @@ variable "gitea_token" {
 }
 
 # ==============================================================================
-# Tier A: Garage Synology A (a_ps02sn)
-# Synology RS2418RP+ NAS (ps02sn)
+# Tier A: (ps02sn)
 # ==============================================================================
+
 variable "garage_a_ps02sn_host" {
   description = "Host and port for Garage Admin API on Synology A (ps02sn)"
   type        = string
@@ -48,13 +52,13 @@ variable "garage_a_ps02sn_admin_secret_key" {
 }
 
 # ==============================================================================
-# Tier B: Garage Cluster B (b_cl01tl)
-# Talos Kubernetes Cluster (cl01tl)
+# Tier B: (cl01tl - garage-b)
 # ==============================================================================
+
 variable "garage_b_cl01tl_host" {
   description = "Host and port for Garage Admin API on Cluster B (cl01tl)"
   type        = string
-  default     = "garage-cluster-b.garage-operator:3903"
+  default     = "cluster-b.garage-b:3903"
 }
 
 variable "garage_b_cl01tl_scheme" {
@@ -73,7 +77,7 @@ variable "garage_b_cl01tl_token" {
 variable "garage_b_cl01tl_s3_endpoint" {
   description = "S3 API endpoint for Cluster B"
   type        = string
-  default     = "http://garage-cluster-b.garage-operator:3900"
+  default     = "http://cluster-b.garage-b:3900"
 }
 
 variable "garage_b_cl01tl_admin_access_key" {
@@ -89,42 +93,10 @@ variable "garage_b_cl01tl_admin_secret_key" {
   default     = ""
 }
 
-# --- Transition Target: Dedicated Garage-B Cluster (b_garage_b) ---
-variable "garage_b_garage_b_host" {
-  description = "Host and port for Garage Admin API on dedicated Cluster B (garage-b namespace)"
-  type        = string
-  default     = "cluster-b.garage-b:3903"
-}
-
-variable "garage_b_garage_b_scheme" {
-  description = "Scheme for Garage Admin API on dedicated Cluster B"
-  type        = string
-  default     = "http"
-}
-
-variable "garage_b_garage_b_s3_endpoint" {
-  description = "S3 API endpoint for dedicated Cluster B"
-  type        = string
-  default     = "http://cluster-b.garage-b:3900"
-}
-
-variable "garage_b_garage_b_admin_access_key" {
-  description = "S3 Admin Access Key for dedicated Cluster B (for CORS/Website S3 calls)"
-  type        = string
-  default     = ""
-}
-
-variable "garage_b_garage_b_admin_secret_key" {
-  description = "S3 Admin Secret Key for dedicated Cluster B (for CORS/Website S3 calls)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 # ==============================================================================
-# Tier C: Garage Raspberry Pi (c_ps10rp)
-# Raspberry Pi storage node (ps10rp)
+# Tier C: (ps10rp)
 # ==============================================================================
+
 variable "garage_c_ps10rp_host" {
   description = "Host and port for Garage Admin API on Raspberry Pi (ps10rp)"
   type        = string
@@ -164,9 +136,9 @@ variable "garage_c_ps10rp_admin_secret_key" {
 }
 
 # ==============================================================================
-# Tier D: Cloud DR Storage (d_cs01bb)
-# Backblaze B2 (cs01bb)
+# Tier D: (cs01bb)
 # ==============================================================================
+
 variable "backblaze_d_cs01bb_region" {
   description = "Backblaze B2 AWS region"
   type        = string
@@ -195,6 +167,7 @@ variable "backblaze_d_cs01bb_secret_access_key" {
 # ==============================================================================
 # OpenBao / Vault
 # ==============================================================================
+
 variable "openbao_address" {
   description = "OpenBao address"
   type        = string
@@ -211,29 +184,30 @@ variable "openbao_token" {
 # ==============================================================================
 # VolSync Restic Passwords (per Storage Tier)
 # ==============================================================================
+
 variable "volsync_restic_password_a_ps02sn" {
-  description = "Restic repository password for VolSync backups on Tier A (Synology NAS)"
+  description = "Restic repository password for VolSync backups on Tier A (ps02sn)"
   type        = string
   sensitive   = true
   default     = ""
 }
 
 variable "volsync_restic_password_b_cl01tl" {
-  description = "Restic repository password for VolSync backups on Tier B (Talos Cluster)"
+  description = "Restic repository password for VolSync backups on Tier B (cl01tl - garage-b)"
   type        = string
   sensitive   = true
   default     = ""
 }
 
 variable "volsync_restic_password_c_ps10rp" {
-  description = "Restic repository password for VolSync backups on Tier C (Raspberry Pi)"
+  description = "Restic repository password for VolSync backups on Tier C (ps10rp)"
   type        = string
   sensitive   = true
   default     = ""
 }
 
 variable "volsync_restic_password_d_cs01bb" {
-  description = "Restic repository password for VolSync backups on Tier D (Backblaze B2)"
+  description = "Restic repository password for VolSync backups on Tier D (cs01bb)"
   type        = string
   sensitive   = true
   default     = ""

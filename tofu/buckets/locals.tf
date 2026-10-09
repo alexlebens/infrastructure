@@ -18,11 +18,10 @@ locals {
       app_name    = app
       bucket_name = coalesce(try(cfg.bucketName, null), app)
 
-      # Target normalization: supports "a" / "a_ps02sn", "b" / "b_cl01tl", "garage-b" / "b_garage_b", "c" / "c_ps10rp", "d" / "d_cs01bb"
+      # Target normalization: supports "a" / "a_ps02sn", "b" / "b_cl01tl", "c" / "c_ps10rp", "d" / "d_cs01bb"
       target = (
         contains(["a", "a_ps02sn", "synology-a", "synology_a"], try(cfg.target, "b")) ? "a_ps02sn" :
-        contains(["garage-b", "garage_b", "b_garage_b"], try(cfg.target, "b")) ? "b_garage_b" :
-        contains(["b", "b_cl01tl", "cluster-b", "cluster_b"], try(cfg.target, "b")) ? "b_cl01tl" :
+        contains(["b", "b_cl01tl", "cluster-b", "cluster_b", "garage-b", "garage_b", "b_garage_b"], try(cfg.target, "b")) ? "b_cl01tl" :
         contains(["c", "c_ps10rp"], try(cfg.target, "b")) ? "c_ps10rp" :
         contains(["d", "d_cs01bb", "backblaze"], try(cfg.target, "b")) ? "d_cs01bb" :
         try(cfg.target, "b_cl01tl")
@@ -150,24 +149,13 @@ locals {
     }
   }
 
-  # Apps currently migrating from legacy b_cl01tl (garage-operator) to b_garage_b (garage-b).
-  # Buckets in this list are retained on the legacy cluster in OpenTofu state during data synchronization
-  # to prevent premature destruction of source data.
-  migrating_buckets = []
-
-
   # Filter buckets by placement tier (primary target or backup destination)
   a_ps02sn_buckets = {
     for k, v in local.buckets : k => v if v.target == "a_ps02sn" || v.backups.a_ps02sn.enabled
   }
 
   b_cl01tl_buckets = {
-    for k, v in local.buckets : k => v if v.target == "b_cl01tl" || contains(local.migrating_buckets, k) || v.backups.b_cl01tl.enabled
-  }
-
-  # Target tier: dedicated Garage cluster (garage-b)
-  b_garage_b_buckets = {
-    for k, v in local.buckets : k => v if v.target == "b_garage_b"
+    for k, v in local.buckets : k => v if v.target == "b_cl01tl" || v.backups.b_cl01tl.enabled
   }
 
   c_ps10rp_buckets = {
@@ -188,10 +176,6 @@ locals {
     for k, v in local.buckets : k => v if v.target == "b_cl01tl" && v.cors.enabled
   }
 
-  cors_b_garage_b_buckets = {
-    for k, v in local.buckets : k => v if v.target == "b_garage_b" && v.cors.enabled
-  }
-
   # Buckets with Website enabled (primary target only)
   website_a_ps02sn_buckets = {
     for k, v in local.buckets : k => v if v.target == "a_ps02sn" && v.website.enabled
@@ -199,9 +183,5 @@ locals {
 
   website_b_cl01tl_buckets = {
     for k, v in local.buckets : k => v if v.target == "b_cl01tl" && v.website.enabled
-  }
-
-  website_b_garage_b_buckets = {
-    for k, v in local.buckets : k => v if v.target == "b_garage_b" && v.website.enabled
   }
 }
