@@ -43,7 +43,7 @@ locals {
       }
 
       backups = {
-        # Tier A: Synology NAS (a_ps02sn)
+        # Tier A: (ps02sn)
         a_ps02sn = {
           enabled = coalesce(
             try(cfg.backups.a.enabled, null),
@@ -66,7 +66,7 @@ locals {
           )
         }
 
-        # Tier B: Talos K8s cluster (b_cl01tl)
+        # Tier B: (cl01tl - garage-b)
         b_cl01tl = {
           enabled = coalesce(
             try(cfg.backups.b.enabled, null),
@@ -89,7 +89,7 @@ locals {
           )
         }
 
-        # Tier C: Raspberry Pi (c_ps10rp)
+        # Tier C: (ps10rp)
         c_ps10rp = {
           enabled = coalesce(
             try(cfg.backups.c.enabled, null),
@@ -109,7 +109,7 @@ locals {
           )
         }
 
-        # Tier D: Backblaze B2 (d_cs01bb)
+        # Tier D: (cs01bb)
         d_cs01bb = {
           enabled = coalesce(
             try(cfg.backups.d.enabled, null),

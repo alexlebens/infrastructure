@@ -87,48 +87,6 @@ resource "aws_s3_bucket_cors_configuration" "a_ps02sn" {
 # Tier B: (cl01tl - garage-b)
 # ==============================================================================
 
-# --- State Migration: Consolidate b_garage_b into b_cl01tl ---
-
-moved {
-  from = garage_bucket.b_garage_b
-  to   = garage_bucket.b_cl01tl
-}
-
-moved {
-  from = garage_key.b_garage_b
-  to   = garage_key.b_cl01tl
-}
-
-moved {
-  from = garage_bucket_key.b_garage_b
-  to   = garage_bucket_key.b_cl01tl
-}
-
-moved {
-  from = garage_key.b_garage_b_admin
-  to   = garage_key.b_cl01tl_admin
-}
-
-moved {
-  from = garage_bucket_key.b_garage_b_admin
-  to   = garage_bucket_key.b_cl01tl_admin
-}
-
-moved {
-  from = garage_key.b_garage_b_read
-  to   = garage_key.b_cl01tl_read
-}
-
-moved {
-  from = garage_bucket_key.b_garage_b_read
-  to   = garage_bucket_key.b_cl01tl_read
-}
-
-moved {
-  from = aws_s3_bucket_cors_configuration.b_garage_b
-  to   = aws_s3_bucket_cors_configuration.b_cl01tl
-}
-
 # --- Buckets ---
 
 resource "garage_bucket" "b_cl01tl" {
@@ -319,7 +277,7 @@ resource "b2_application_key" "d_cs01bb" {
 # Contains BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
 # ==============================================================================
 
-# --- Tier A (ps02sn/garage/keys/<id>) ---
+# --- Tier A: (ps02sn/garage/keys/<id>) ---
 
 resource "vault_kv_secret_v2" "a_ps02sn_keys" {
   for_each = local.a_ps02sn_buckets
@@ -339,7 +297,7 @@ resource "vault_kv_secret_v2" "a_ps02sn_keys" {
   ))
 }
 
-# --- Tier B (cl01tl/garage/keys/<id>) ---
+# --- Tier B: (cl01tl/garage/keys/<id>) ---
 
 moved {
   from = vault_kv_secret_v2.b_garage_b_keys
@@ -365,7 +323,7 @@ resource "vault_kv_secret_v2" "b_cl01tl_keys" {
   ))
 }
 
-# --- Tier C (ps10rp/garage/keys/<id>) ---
+# --- Tier C: (ps10rp/garage/keys/<id>) ---
 
 resource "vault_kv_secret_v2" "c_ps10rp_keys" {
   for_each = local.c_ps10rp_buckets
@@ -385,7 +343,7 @@ resource "vault_kv_secret_v2" "c_ps10rp_keys" {
   ))
 }
 
-# --- Tier D (cs01bb/s3/keys/<id>) ---
+# --- Tier D: (cs01bb/s3/keys/<id>) ---
 
 resource "vault_kv_secret_v2" "d_cs01bb_keys" {
   for_each = local.d_cs01bb_buckets
@@ -483,20 +441,4 @@ resource "vault_kv_secret_v2" "c_ps10rp_read_key" {
     ACCESS_SECRET_KEY     = garage_key.c_ps10rp_read.secret_access_key
     AWS_REGION            = "garage"
   })
-}
-
-# --- Retired Transition Secrets ---
-
-removed {
-  from = vault_kv_secret_v2.b_garage_b_admin_key
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = vault_kv_secret_v2.b_garage_b_read_key
-  lifecycle {
-    destroy = false
-  }
 }
