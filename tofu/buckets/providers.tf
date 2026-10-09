@@ -18,6 +18,14 @@ provider "garage" {
   token  = var.garage_b_cl01tl_token
 }
 
+# Tier B Alias (for state migration and retirement of b_garage_b resources)
+provider "garage" {
+  alias  = "b_garage_b"
+  host   = var.garage_b_cl01tl_host
+  scheme = var.garage_b_cl01tl_scheme
+  token  = var.garage_b_cl01tl_token
+}
+
 # Tier C: (ps10rp)
 provider "garage" {
   alias  = "c_ps10rp"
@@ -59,6 +67,22 @@ provider "aws" {
 # Tier B: (cl01tl - garage-b) S3 API
 provider "aws" {
   alias  = "b_cl01tl"
+  region = "garage"
+  endpoints {
+    s3 = var.garage_b_cl01tl_s3_endpoint
+  }
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+  skip_region_validation      = true
+  s3_use_path_style           = true
+  access_key                  = var.garage_b_cl01tl_admin_access_key != "" ? var.garage_b_cl01tl_admin_access_key : "mock_access_key"
+  secret_key                  = var.garage_b_cl01tl_admin_secret_key != "" ? var.garage_b_cl01tl_admin_secret_key : "mock_secret_key"
+}
+
+# Tier B Alias (for state migration of b_garage_b CORS/S3 resources)
+provider "aws" {
+  alias  = "b_garage_b"
   region = "garage"
   endpoints {
     s3 = var.garage_b_cl01tl_s3_endpoint
