@@ -12,14 +12,13 @@ import argparse
 import io
 import json
 import os
-from pathlib import Path
 import random
 import subprocess
 import sys
 import time
+import urllib.request
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-import urllib.request
 
 
 def run_cmd(
@@ -35,8 +34,7 @@ def write_github_output(outputs: dict[str, str]):
     if not output_file:
         return
     with open(output_file, "a", encoding="utf-8") as f:
-        for key, value in outputs.items():
-            f.write(f"{key}={value}\n")
+        f.writelines(f"{key}={value}\n" for key, value in outputs.items())
 
 
 def gitea_api_request(
@@ -207,9 +205,7 @@ def main():
     git_status = status_proc.stdout.strip()
 
     if not git_status:
-        print(
-            f">> No changes detected in {work_dir}, skipping commit and PR" " creation."
-        )
+        print(f">> No changes detected in {work_dir}, skipping commit and PR creation.")
         write_github_output(
             {
                 "changes-detected": "false",

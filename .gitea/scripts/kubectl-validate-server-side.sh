@@ -63,7 +63,7 @@ check_ignored() {
   [ -z "${error_lines}" ] && error_lines="${output}"
 
   local pattern
-  pattern=$(echo "${ignore_list}" | sed "s/,/|/g")
+  pattern="${ignore_list//,/|}"
 
   while IFS= read -r line; do
     [ -z "${line}" ] && continue
