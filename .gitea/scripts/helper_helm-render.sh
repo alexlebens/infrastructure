@@ -94,8 +94,7 @@ render_helm_chart() {
     echo ">> Splitting manifests into ${SPLIT_DIR} ..."
 
     set -o pipefail
-    if ! cat "${RAW_FILE}" \
-      | yq '... comments=""' \
+    if ! yq '... comments=""' "${RAW_FILE}" \
       | yq 'select(. != null)' \
       | yq -s '"'"${SPLIT_DIR}"'" + .kind + "-" + .metadata.name + ".yaml"' > /dev/null 2>&1; then
       echo ">> Failed yq splitting for ${CHART}" >&2
