@@ -36,6 +36,12 @@ def parse_yaml_backup_targets(
     s3_target = None
     s3_target_indent = 0
 
+    # Skip charts or files marked as unmanaged (e.g. gitea)
+    if file_path.parent.name == "gitea" or any(
+        "# backup-rebalancer: unmanaged" in l for l in lines
+    ):
+        return [], [], []
+
     for idx, line in enumerate(lines):
         indent = len(line) - len(line.lstrip(" "))
         stripped = line.strip()
@@ -113,7 +119,7 @@ def parse_yaml_backup_targets(
                     sub_section = None
 
         elif sec_type == "volsync":
-            m_type = re.match(r"^\s*(local|external|remote):\s*(?:#.*)?$", line)
+            m_type = re.match(r"^\s*([acd]):\s*(?:#.*)?$", line)
             if m_type:
                 volsync_type = m_type.group(1)
                 volsync_type_indent = indent
@@ -247,7 +253,7 @@ def rebalance_schedules(
     file_modifications: dict[Path, list[tuple[int, str]]] = {}
     changed_files = set()
 
-    # 1. Allocate Postgres Daily Backups (05:00 UTC - 07:25 UTC)
+    # Allocate Postgres Daily Backups (05:00 UTC - 07:25 UTC)
     for i, (chart, pg) in enumerate(all_pg):
         total_m = (pg_start_hour * 60 + pg_start_min) + i * interval_minutes
         h = (total_m // 60) % 24
@@ -277,7 +283,7 @@ def rebalance_schedules(
             }
         )
 
-    # 2. Allocate Volsync Backups (Local Daily, External Weekly, Remote Weekly)
+    # Allocate Volsync Backups (A: Daily, C: Weekly, D: Weekly)
     dow_names = [
         "Sunday",
         "Monday",
@@ -292,9 +298,9 @@ def rebalance_schedules(
         chart, sec_name = key
         targets = all_vs[key]
 
-        # Local: Daily
-        if "local" in targets:
-            vs = targets["local"]
+        # Tier A: Daily
+        if "a" in targets:
+            vs = targets["a"]
             total_m = (vs_start_hour * 60 + vs_start_min) + j * interval_minutes
             h = (total_m // 60) % 24
             m = total_m % 60
@@ -313,7 +319,7 @@ def rebalance_schedules(
             table_rows.append(
                 {
                     "app": chart,
-                    "target": f"{sec_name} (local)",
+                    "target": f"{sec_name} (a)",
                     "kind": "Volsync",
                     "freq": "Daily",
                     "utc": new_sched,
@@ -322,12 +328,12 @@ def rebalance_schedules(
                 }
             )
 
-        # External: Weekly (distributed across 7 days)
+        # Tier D: Weekly (distributed across 7 days)
         dow = j % 7
         slot_idx = j // 7
 
-        if "external" in targets:
-            vs = targets["external"]
+        if "d" in targets:
+            vs = targets["d"]
             total_m = (
                 ext_start_hour * 60 + ext_start_min
             ) + slot_idx * interval_minutes
@@ -348,7 +354,7 @@ def rebalance_schedules(
             table_rows.append(
                 {
                     "app": chart,
-                    "target": f"{sec_name} (external)",
+                    "target": f"{sec_name} (d)",
                     "kind": "Volsync",
                     "freq": f"Weekly ({dow_names[dow]})",
                     "utc": new_sched,
@@ -357,9 +363,9 @@ def rebalance_schedules(
                 }
             )
 
-        # Remote: Weekly (same day, 1 hour after external)
-        if "remote" in targets:
-            vs = targets["remote"]
+        # Tier C: Weekly (same day, 1 hour after Tier D)
+        if "c" in targets:
+            vs = targets["c"]
             total_m = (
                 rem_start_hour * 60 + rem_start_min
             ) + slot_idx * interval_minutes
@@ -380,7 +386,7 @@ def rebalance_schedules(
             table_rows.append(
                 {
                     "app": chart,
-                    "target": f"{sec_name} (remote)",
+                    "target": f"{sec_name} (c)",
                     "kind": "Volsync",
                     "freq": f"Weekly ({dow_names[dow]})",
                     "utc": new_sched,
@@ -389,7 +395,7 @@ def rebalance_schedules(
                 }
             )
 
-    # 3. Allocate S3 Bucket Backups (Daily local tiers A/B, Weekly remote tiers C/D staggered by day)
+    # Allocate S3 Bucket Backups (Daily local tiers A/B, Weekly remote tiers C/D staggered by day)
     daily_s3_idx = 0
 
     for j, (chart, sec_name) in enumerate(sorted_s3_keys):

@@ -216,11 +216,10 @@ gitea-actions:
     timezone: America/Chicago
     resources:
       limits:
-        memory: 1000Mi
         ephemeral-storage: 15Gi
       requests:
-        cpu: 5m
-        memory: 70Mi
+        cpu: 50m
+        memory: 100Mi
         ephemeral-storage: 2Gi
     affinity:
       podAntiAffinity:
@@ -247,6 +246,13 @@ gitea-actions:
                   storage: 20Gi
       - name: runner-tmp
         emptyDir: {}
+      - name: openbao-sa-token
+        projected:
+          sources:
+            - serviceAccountToken:
+                audience: openbao
+                expirationSeconds: 7200
+                path: token
       - name: runner-s3-cache
         secret:
           secretName: gitea-runner-secret
@@ -295,14 +301,18 @@ gitea-actions:
         runner:
           idle_cleanup_interval: 10m
           labels:
-            - "ubuntu-latest:kubernetes://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04"
-            - "ubuntu-latest-slim:kubernetes://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04-slim"
-            - "ubuntu-js:kubernetes://harbor.alexlebens.dev/proxy-ghcr.io/catthehacker/ubuntu:js-24.04"
+            - "ubuntu-latest:docker://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04"
+            - "ubuntu-latest-slim:docker://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04-slim"
+            - "ubuntu-js:docker://harbor.alexlebens.dev/proxy-ghcr.io/catthehacker/ubuntu:js-24.04"
     dind:
       registry: docker.io
       repository: docker
       # renovate: datasource=docker depName=docker
       tag: 29.8.2-dind@sha256:7dcdfc4a20246236f558175182ccace1eb15a41bd3eb119dd2284f393498b7c1
+      extraVolumeMounts:
+        - name: openbao-sa-token
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
       resources:
         limits:
           memory: 128Mi
@@ -498,9 +508,9 @@ valkey-gitea:
     resources:
       requests:
         cpu: 20m
-        memory: 100Mi
+        memory: 150Mi
     valkeyConfig: |
-      maxmemory 2gb
+      maxmemory 1gb
       maxmemory-policy allkeys-lru
 
 valkey-renovate:
@@ -513,7 +523,7 @@ valkey-renovate:
     resources:
       requests:
         cpu: 10m
-        memory: 100Mi
+        memory: 50Mi
     valkeyConfig: |
       maxmemory 1gb
       maxmemory-policy volatile-lru
@@ -541,7 +551,7 @@ meilisearch:
   resources:
     requests:
       cpu: 10m
-      memory: 150Mi
+      memory: 500Mi
   serviceMonitor:
     enabled: true
 
@@ -563,7 +573,7 @@ postgres-18-cluster:
       index: 1
     scheduledBackups:
       suspend: false
-      schedule: "0 20 5 * * *"
+      schedule: "0 0 0 * * *"
   poolers:
     - name: rw
       type: rw
@@ -578,6 +588,7 @@ postgres-18-cluster:
         podMonitor:
           enabled: true
 
+# backup-rebalancer: unmanaged
 s3-bucket:
   enabled: true
   bucketName: gitea-assets
@@ -586,19 +597,19 @@ s3-bucket:
     a:
       enabled: true
       cronJob:
-        schedule: 0 0 * * *
+        schedule: "0 0 * * *"
       destination:
         bucketName: gitea-assets
     c:
       enabled: true
       cronJob:
-        schedule: 0 0 * * *
+        schedule: "0 0 * * 0"
       destination:
         bucketName: gitea-assets
     d:
       enabled: true
       cronJob:
-        schedule: 0 0 * * *
+        schedule: "0 0 * * 0"
       destination:
         bucketName: gitea-assets-6670d003410bb125
 
@@ -609,25 +620,9 @@ volsync-target-storage:
     runAsGroup: 1000
     fsGroup: 1000
     fsGroupChangePolicy: OnRootMismatch
-  local:
+  a:
     enabled: true
-    schedule: 35 8 * * *
-    restic:
-      pruneIntervalDays: 3
-      retain:
-        hourly: 1
-        daily: 1
-        weekly: 3
-        monthly: 0
-        yearly: 0
-      copyMethod: Snapshot
-      storageClassName: ceph-filesystem
-      volumeSnapshotClassName: ceph-filesystem-snapshot
-      cacheCapacity: 10Gi
-  external:
-    enabled: false
-  remote:
-    enabled: false
+    schedule: 0 0 * * *
 
 common-helpers:
   probe:

@@ -1,0 +1,207 @@
+{{- if .Values.enabled }}
+{{- $secretName := include "gitea.actions.workername" (dict "global" . "worker" "actions-token") }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    {{- include "gitea.actions.labels.runner" . | nindent 4 }}
+    {{- with .Values.statefulset.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{- with .Values.statefulset.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  name: {{ include "gitea.actions.fullname" . }}-runner
+  namespace: {{ .Values.namespace | default .Release.Namespace }}
+spec:
+  replicas: {{ .Values.statefulset.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "gitea.actions.selectorLabels.runner" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "gitea.actions.labels.runner" . | nindent 8 }}
+        {{- with .Values.statefulset.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      restartPolicy: Always
+      {{- if .Values.statefulset.serviceAccountName }}
+      serviceAccountName: {{ .Values.statefulset.serviceAccountName | quote }}
+      {{- end }}
+      {{- if .Values.statefulset.securityContext }}
+      securityContext:
+        {{- toYaml .Values.statefulset.securityContext | nindent 8 }}
+      {{- end }}
+      {{- if .Values.statefulset.runtimeClassName }}
+      runtimeClassName: {{ .Values.statefulset.runtimeClassName | quote }}
+      {{- end }}
+      {{- if .Values.statefulset.hostAliases }}
+      hostAliases:
+        {{- toYaml .Values.statefulset.hostAliases | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- if .Values.preExtraInitContainers }}
+        {{- toYaml .Values.preExtraInitContainers | nindent 8 }}
+        {{- end }}
+        {{- if .Values.statefulset.runner.flushCache }}
+        - name: cache-flusher
+          image: "{{ include "gitea.actions.init.image" . }}"
+          command:
+            - sh
+            - -c
+            - |
+              if [[ -f /data/.runner ]]; then
+                echo "Removing cache at /data/.runner"
+                rm -v /data/.runner
+              else
+                echo "No .runner file to remove"
+              fi
+          volumeMounts:
+            - mountPath: /data
+              name: data-runner
+        {{- end }}
+        - name: reach-gitea
+          image: "{{ include "gitea.actions.init.image" . }}"
+          command:
+            - sh
+            - -c
+            - |
+              {{- if .Values.init.preConnectionCommandOverride }}
+              {{ .Values.init.preConnectionCommandOverride }}
+              {{- end }}
+              echo 'Trying to reach Gitea on {{ include "gitea.actions.local_root_url" . }}'
+              {{- if .Values.init.connectionCommandOverride }}
+              until timeout 10 {{ .Values.init.connectionCommandOverride }} {{ include "gitea.actions.local_root_url" . }}; do
+              {{- else }}
+              until timeout 10 wget --no-check-certificate --spider {{ include "gitea.actions.local_root_url" . }}; do
+              {{- end }}
+                sleep 3
+                echo "Trying again in 3 seconds..."
+              done
+              echo "Gitea has been reached!"
+        - name: dind
+          image: "{{ include "gitea.actions.dind.image" . }}"
+          restartPolicy: Always
+          imagePullPolicy: {{ .Values.statefulset.dind.pullPolicy }}
+          {{- if .Values.statefulset.dind.extraEnvs }}
+          env:
+            {{- toYaml .Values.statefulset.dind.extraEnvs | nindent 12 }}
+          {{- end }}
+          securityContext:
+            privileged: true
+          {{- if .Values.statefulset.dind.extraArgs }}
+          args:
+            {{- toYaml .Values.statefulset.dind.extraArgs | nindent 12 }}
+          {{- end }}
+          startupProbe:
+            exec:
+              command:
+                - /usr/bin/test
+                - -S
+                {{- if .Values.statefulset.dind.rootless }}
+                - /run/user/{{ .Values.statefulset.dind.uid | default 1000 }}/docker.sock
+                {{- else }}
+                - /var/run/docker.sock
+                {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - /usr/bin/test
+                - -S
+                {{- if .Values.statefulset.dind.rootless }}
+                - /run/user/{{ .Values.statefulset.dind.uid | default 1000 }}/docker.sock
+                {{- else }}
+                - /var/run/docker.sock
+                {{- end }}
+          resources:
+            {{- include "gitea.actions.dind.resources" . | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.statefulset.dind.rootless }}
+            - mountPath: /run/user/{{ .Values.statefulset.dind.uid | default 1000 }}/
+            {{- else }}
+            - mountPath: /var/run/
+            {{- end }}
+              name: docker-socket
+            {{- with .Values.statefulset.dind.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.postExtraInitContainers }}
+        {{- toYaml .Values.postExtraInitContainers | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: runner
+          image: "{{ include "gitea.actions.runner.image" . }}"
+          imagePullPolicy: {{ .Values.statefulset.runner.pullPolicy }}
+          workingDir: /data
+          env:
+            - name: GITEA_RUNNER_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ (tpl .Values.existingSecret . ) | default $secretName }}"
+                  key: "{{ (tpl .Values.existingSecretKey . ) | default "token" }}"
+            - name: GITEA_INSTANCE_URL
+              value: {{ include "gitea.actions.local_root_url" . }}
+            - name: CONFIG_FILE
+              value: /runner/config.yaml
+            - name: TZ
+              value: {{ .Values.statefulset.timezone | default "Etc/UTC" }}
+            {{- if .Values.statefulset.runner.extraEnvs }}
+            {{- toYaml .Values.statefulset.runner.extraEnvs | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- include "gitea.actions.runner.resources" . | nindent 12 }}
+          volumeMounts:
+            - mountPath: /runner/config.yaml
+              name: runner-config
+              subPath: config.yaml
+            - mountPath: /var/run/docker.sock
+              name: docker-socket
+              subPath: docker.sock
+            - mountPath: /data
+              name: data-runner
+            {{- with .Values.statefulset.runner.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+        - name: {{ . }}
+      {{- end }}
+      {{- end }}
+      {{- range $key, $value := .Values.statefulset.nodeSelector }}
+      nodeSelector:
+        {{ $key }}: {{ $value | quote }}
+      {{- end }}
+      {{- with .Values.statefulset.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.statefulset.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: runner-config
+          configMap:
+            name: {{ include "gitea.actions.fullname" . }}-runner-configmap
+        - name: docker-socket
+          emptyDir: {}
+        {{- with .Values.statefulset.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data-runner
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        {{- include "gitea.actions.persistence.storageClass" . | indent 8 }}
+        resources:
+          requests:
+            storage: {{ .Values.statefulset.persistence.size }}
+{{- end }}
