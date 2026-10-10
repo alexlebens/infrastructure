@@ -245,25 +245,16 @@ gitea-actions:
               resources:
                 requests:
                   storage: 20Gi
-      - name: docker-vol
-        ephemeral:
-          volumeClaimTemplate:
-            spec:
-              accessModes:
-                - ReadWriteOnce
-              storageClassName: ceph-block
-              resources:
-                requests:
-                  storage: 50Gi
       - name: runner-tmp
         emptyDir: {}
-      - name: openbao-sa-token
-        projected:
-          sources:
-            - serviceAccountToken:
-                audience: openbao
-                expirationSeconds: 7200
-                path: token
+      - name: runner-s3-cache
+        secret:
+          secretName: gitea-runner-secret
+          items:
+            - key: cache-s3-access-key
+              path: cache-s3-access-key
+            - key: cache-s3-secret-key
+              path: cache-s3-secret-key
     securityContext:
       fsGroup: 1000
       seccompProfile:
@@ -272,37 +263,52 @@ gitea-actions:
       registry: docker.io
       repository: gitea/runner
       # renovate: datasource=docker depName=gitea/runner
-      tag: 4.0.1@sha256:c2ff86dfc5dc036eab2283556d0f3933c1a222319feae63d100c1ba89da1233c
+      tag: 5.0.0@sha256:328b8dad8de80a19dab6c5c61292c1d624cd3460c25a5c0067e95c11318657ca
       extraVolumeMounts:
         - name: workspace-vol
           mountPath: /workspace
         - name: runner-tmp
           mountPath: /tmp
+        - name: runner-s3-cache
+          mountPath: /run/secrets/s3
+          readOnly: true
       config: |
         log:
           level: debug
         cache:
           enabled: true
+          s3:
+            endpoint: "http://cluster-b.garage-b:3900"
+            region: "garage"
+            bucket: "gitea-assets"
+            prefix: "actions-cache"
+            path_style: true
+            access_key_file: "/run/secrets/s3/cache-s3-access-key"
+            secret_key_file: "/run/secrets/s3/cache-s3-secret-key"
+        metrics:
+          enabled: true
+          addr: ":9101"
         container:
           valid_volumes:
             - "/var/run/secrets/kubernetes.io/serviceaccount/**"
           options: "-v /var/run/secrets/kubernetes.io/serviceaccount:/var/run/secrets/kubernetes.io/serviceaccount:ro"
         runner:
+          idle_cleanup_interval: 10m
           labels:
-            - "ubuntu-latest:docker://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04"
-            - "ubuntu-latest-slim:docker://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04-slim"
-            - "ubuntu-js:docker://harbor.alexlebens.dev/proxy-ghcr.io/catthehacker/ubuntu:js-24.04"
+            - "ubuntu-latest:kubernetes://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04"
+            - "ubuntu-latest-slim:kubernetes://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04-slim"
+            - "ubuntu-js:kubernetes://harbor.alexlebens.dev/proxy-ghcr.io/catthehacker/ubuntu:js-24.04"
     dind:
       registry: docker.io
       repository: docker
       # renovate: datasource=docker depName=docker
       tag: 29.8.2-dind@sha256:7dcdfc4a20246236f558175182ccace1eb15a41bd3eb119dd2284f393498b7c1
-      extraVolumeMounts:
-        - name: docker-vol
-          mountPath: /var/lib/docker
-        - name: openbao-sa-token
-          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-          readOnly: true
+      resources:
+        limits:
+          memory: 128Mi
+        requests:
+          cpu: 1m
+          memory: 32Mi
     persistence:
       storageClass: ceph-block
       size: 10Gi
@@ -575,7 +581,7 @@ postgres-18-cluster:
 s3-bucket:
   enabled: true
   bucketName: gitea-assets
-  target: garage-b
+  target: b
   backups:
     a:
       enabled: true

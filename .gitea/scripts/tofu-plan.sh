@@ -159,6 +159,8 @@ if [ -n "${GITEA_TOKEN}" ] && [ -n "${PR_NUMBER}" ] && [ -n "${SERVER_URL}" ] &&
   echo ">> Posting OpenTofu plan to PR #${PR_NUMBER} ..."
   source "${SCRIPT_DIR}/helper_pr-comment-upsert.sh"
   upsert_pr_comment "${TAG}" "${COMMENT_BODY}"
+else
+  echo ">> Skipping PR comment: GITEA_TOKEN=${GITEA_TOKEN:+present}, PR_NUMBER=${PR_NUMBER:-missing}, SERVER_URL=${SERVER_URL:-missing}, REPO=${REPO:-missing}"
 fi
 
 # Set action outputs
