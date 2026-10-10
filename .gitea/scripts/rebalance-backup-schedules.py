@@ -36,6 +36,10 @@ def parse_yaml_backup_targets(
     s3_target = None
     s3_target_indent = 0
 
+    # Skip charts or files marked as unmanaged (e.g. gitea)
+    if file_path.parent.name == "gitea" or any("# backup-rebalancer: unmanaged" in l for l in lines):
+        return [], [], []
+
     for idx, line in enumerate(lines):
         indent = len(line) - len(line.lstrip(" "))
         stripped = line.strip()
@@ -113,9 +117,16 @@ def parse_yaml_backup_targets(
                     sub_section = None
 
         elif sec_type == "volsync":
-            m_type = re.match(r"^\s*(local|external|remote):\s*(?:#.*)?$", line)
+            m_type = re.match(r"^\s*(local|external|remote|[acd]):\s*(?:#.*)?$", line)
             if m_type:
-                volsync_type = m_type.group(1)
+                raw_type = m_type.group(1)
+                # Normalize legacy and tier names: a/local, c/remote, d/external
+                tier_norm = {
+                    "local": "a",
+                    "remote": "c",
+                    "external": "d",
+                }
+                volsync_type = tier_norm.get(raw_type, raw_type)
                 volsync_type_indent = indent
                 continue
 
@@ -292,9 +303,10 @@ def rebalance_schedules(
         chart, sec_name = key
         targets = all_vs[key]
 
-        # Local: Daily
-        if "local" in targets:
-            vs = targets["local"]
+        # Local / Tier A: Daily
+        target_a = targets.get("a") or targets.get("local")
+        if target_a:
+            vs = target_a
             total_m = (vs_start_hour * 60 + vs_start_min) + j * interval_minutes
             h = (total_m // 60) % 24
             m = total_m % 60
@@ -313,7 +325,7 @@ def rebalance_schedules(
             table_rows.append(
                 {
                     "app": chart,
-                    "target": f"{sec_name} (local)",
+                    "target": f"{sec_name} (a)",
                     "kind": "Volsync",
                     "freq": "Daily",
                     "utc": new_sched,
@@ -322,12 +334,13 @@ def rebalance_schedules(
                 }
             )
 
-        # External: Weekly (distributed across 7 days)
+        # External / Tier D: Weekly (distributed across 7 days)
         dow = j % 7
         slot_idx = j // 7
 
-        if "external" in targets:
-            vs = targets["external"]
+        target_d = targets.get("d") or targets.get("external")
+        if target_d:
+            vs = target_d
             total_m = (
                 ext_start_hour * 60 + ext_start_min
             ) + slot_idx * interval_minutes
@@ -348,7 +361,7 @@ def rebalance_schedules(
             table_rows.append(
                 {
                     "app": chart,
-                    "target": f"{sec_name} (external)",
+                    "target": f"{sec_name} (d)",
                     "kind": "Volsync",
                     "freq": f"Weekly ({dow_names[dow]})",
                     "utc": new_sched,
@@ -357,9 +370,10 @@ def rebalance_schedules(
                 }
             )
 
-        # Remote: Weekly (same day, 1 hour after external)
-        if "remote" in targets:
-            vs = targets["remote"]
+        # Remote / Tier C: Weekly (same day, 1 hour after external)
+        target_c = targets.get("c") or targets.get("remote")
+        if target_c:
+            vs = target_c
             total_m = (
                 rem_start_hour * 60 + rem_start_min
             ) + slot_idx * interval_minutes
@@ -380,7 +394,7 @@ def rebalance_schedules(
             table_rows.append(
                 {
                     "app": chart,
-                    "target": f"{sec_name} (remote)",
+                    "target": f"{sec_name} (c)",
                     "kind": "Volsync",
                     "freq": f"Weekly ({dow_names[dow]})",
                     "utc": new_sched,
