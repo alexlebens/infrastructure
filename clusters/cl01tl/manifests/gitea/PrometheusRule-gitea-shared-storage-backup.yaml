@@ -5,10 +5,10 @@ metadata:
   namespace: gitea
   labels:
     app.kubernetes.io/name: gitea-shared-storage-backup
-    helm.sh/chart: volsync-target-storage-2.4.0
+    helm.sh/chart: volsync-target-storage-3.0.0
     app.kubernetes.io/instance: gitea
     app.kubernetes.io/part-of: gitea
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,40 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'gitea-shared-storage'.
               Target: gitea-shared-storage-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="gitea-shared-storage-backup-source-a", obj_namespace="gitea"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="gitea", job_name=~"volsync-.*gitea-shared-storage-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: gitea-shared-storage
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'gitea-shared-storage' has not completed successfully in 36h (schedule: '0 0 * * *').
+              Target: gitea-shared-storage-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="gitea-shared-storage-backup-source-d", obj_namespace="gitea"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="gitea", job_name=~"volsync-.*gitea-shared-storage-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: gitea-shared-storage
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'gitea-shared-storage' has not completed successfully in 8d (schedule: '0 9 * * 0').
+              Target: gitea-shared-storage-backup-source-d
               Namespace: {{ $labels.namespace }}

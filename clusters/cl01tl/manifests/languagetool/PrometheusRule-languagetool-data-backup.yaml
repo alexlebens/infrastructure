@@ -5,10 +5,10 @@ metadata:
   namespace: languagetool
   labels:
     app.kubernetes.io/name: languagetool-data-backup
-    helm.sh/chart: volsync-target-data-2.4.0
+    helm.sh/chart: volsync-target-data-3.0.0
     app.kubernetes.io/instance: languagetool
     app.kubernetes.io/part-of: languagetool
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'languagetool-data'.
               Target: languagetool-data-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="languagetool-data-backup-source-a", obj_namespace="languagetool"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="languagetool", job_name=~"volsync-.*languagetool-data-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: languagetool-data
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'languagetool-data' has not completed successfully in 36h (schedule: '15 9 * * *').
+              Target: languagetool-data-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="languagetool-data-backup-source-c", obj_namespace="languagetool"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="languagetool", job_name=~"volsync-.*languagetool-data-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: languagetool-data
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'languagetool-data' has not completed successfully in 8d (schedule: '45 10 * * 0').
+              Target: languagetool-data-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="languagetool-data-backup-source-d", obj_namespace="languagetool"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="languagetool", job_name=~"volsync-.*languagetool-data-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: languagetool-data
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'languagetool-data' has not completed successfully in 8d (schedule: '45 9 * * 0').
+              Target: languagetool-data-backup-source-d
               Namespace: {{ $labels.namespace }}

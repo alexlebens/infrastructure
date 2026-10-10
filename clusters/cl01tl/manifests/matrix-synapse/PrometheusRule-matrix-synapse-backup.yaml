@@ -5,10 +5,10 @@ metadata:
   namespace: matrix-synapse
   labels:
     app.kubernetes.io/name: matrix-synapse-backup
-    helm.sh/chart: volsync-target-synapse-2.4.0
+    helm.sh/chart: volsync-target-synapse-3.0.0
     app.kubernetes.io/instance: matrix-synapse
     app.kubernetes.io/part-of: matrix-synapse
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'matrix-synapse'.
               Target: matrix-synapse-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="matrix-synapse-backup-source-a", obj_namespace="matrix-synapse"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="matrix-synapse", job_name=~"volsync-.*matrix-synapse-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: matrix-synapse
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'matrix-synapse' has not completed successfully in 36h (schedule: '35 9 * * *').
+              Target: matrix-synapse-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="matrix-synapse-backup-source-c", obj_namespace="matrix-synapse"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="matrix-synapse", job_name=~"volsync-.*matrix-synapse-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: matrix-synapse
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'matrix-synapse' has not completed successfully in 8d (schedule: '45 10 * * 4').
+              Target: matrix-synapse-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="matrix-synapse-backup-source-d", obj_namespace="matrix-synapse"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="matrix-synapse", job_name=~"volsync-.*matrix-synapse-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: matrix-synapse
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'matrix-synapse' has not completed successfully in 8d (schedule: '45 9 * * 4').
+              Target: matrix-synapse-backup-source-d
               Namespace: {{ $labels.namespace }}

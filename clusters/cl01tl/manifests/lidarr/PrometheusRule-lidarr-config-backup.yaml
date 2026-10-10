@@ -5,10 +5,10 @@ metadata:
   namespace: lidarr
   labels:
     app.kubernetes.io/name: lidarr-config-backup
-    helm.sh/chart: volsync-target-config-2.4.0
+    helm.sh/chart: volsync-target-config-3.0.0
     app.kubernetes.io/instance: lidarr
     app.kubernetes.io/part-of: lidarr
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'lidarr-config'.
               Target: lidarr-config-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="lidarr-config-backup-source-a", obj_namespace="lidarr"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="lidarr", job_name=~"volsync-.*lidarr-config-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: lidarr-config
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'lidarr-config' has not completed successfully in 36h (schedule: '20 9 * * *').
+              Target: lidarr-config-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="lidarr-config-backup-source-c", obj_namespace="lidarr"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="lidarr", job_name=~"volsync-.*lidarr-config-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: lidarr-config
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'lidarr-config' has not completed successfully in 8d (schedule: '45 10 * * 1').
+              Target: lidarr-config-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="lidarr-config-backup-source-d", obj_namespace="lidarr"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="lidarr", job_name=~"volsync-.*lidarr-config-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: lidarr-config
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'lidarr-config' has not completed successfully in 8d (schedule: '45 9 * * 1').
+              Target: lidarr-config-backup-source-d
               Namespace: {{ $labels.namespace }}

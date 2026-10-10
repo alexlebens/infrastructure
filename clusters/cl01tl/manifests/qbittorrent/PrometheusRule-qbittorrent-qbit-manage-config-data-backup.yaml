@@ -5,10 +5,10 @@ metadata:
   namespace: qbittorrent
   labels:
     app.kubernetes.io/name: qbittorrent-qbit-manage-config-data-backup
-    helm.sh/chart: volsync-target-qbit-manage-config-2.4.0
+    helm.sh/chart: volsync-target-qbit-manage-config-3.0.0
     app.kubernetes.io/instance: qbittorrent
     app.kubernetes.io/part-of: qbittorrent
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'qbittorrent-qbit-manage-config-data'.
               Target: qbittorrent-qbit-manage-config-data-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="qbittorrent-qbit-manage-config-data-backup-source-a", obj_namespace="qbittorrent"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="qbittorrent", job_name=~"volsync-.*qbittorrent-qbit-manage-config-data-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: qbittorrent-qbit-manage-config-data
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'qbittorrent-qbit-manage-config-data' has not completed successfully in 36h (schedule: '50 10 * * *').
+              Target: qbittorrent-qbit-manage-config-data-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="qbittorrent-qbit-manage-config-data-backup-source-c", obj_namespace="qbittorrent"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="qbittorrent", job_name=~"volsync-.*qbittorrent-qbit-manage-config-data-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: qbittorrent-qbit-manage-config-data
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'qbittorrent-qbit-manage-config-data' has not completed successfully in 8d (schedule: '55 10 * * 5').
+              Target: qbittorrent-qbit-manage-config-data-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="qbittorrent-qbit-manage-config-data-backup-source-d", obj_namespace="qbittorrent"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="qbittorrent", job_name=~"volsync-.*qbittorrent-qbit-manage-config-data-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: qbittorrent-qbit-manage-config-data
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'qbittorrent-qbit-manage-config-data' has not completed successfully in 8d (schedule: '55 9 * * 5').
+              Target: qbittorrent-qbit-manage-config-data-backup-source-d
               Namespace: {{ $labels.namespace }}

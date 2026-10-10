@@ -5,10 +5,10 @@ metadata:
   namespace: sparkyfitness
   labels:
     app.kubernetes.io/name: sparkyfitness-server-backup-backup
-    helm.sh/chart: volsync-target-backup-2.4.0
+    helm.sh/chart: volsync-target-backup-3.0.0
     app.kubernetes.io/instance: sparkyfitness
     app.kubernetes.io/part-of: sparkyfitness
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'sparkyfitness-server-backup'.
               Target: sparkyfitness-server-backup-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="sparkyfitness-server-backup-backup-source-a", obj_namespace="sparkyfitness"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="sparkyfitness", job_name=~"volsync-.*sparkyfitness-server-backup-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: sparkyfitness-server-backup
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'sparkyfitness-server-backup' has not completed successfully in 36h (schedule: '55 11 * * *').
+              Target: sparkyfitness-server-backup-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="sparkyfitness-server-backup-backup-source-c", obj_namespace="sparkyfitness"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="sparkyfitness", job_name=~"volsync-.*sparkyfitness-server-backup-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: sparkyfitness-server-backup
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'sparkyfitness-server-backup' has not completed successfully in 8d (schedule: '5 11 * * 4').
+              Target: sparkyfitness-server-backup-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="sparkyfitness-server-backup-backup-source-d", obj_namespace="sparkyfitness"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="sparkyfitness", job_name=~"volsync-.*sparkyfitness-server-backup-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: sparkyfitness-server-backup
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'sparkyfitness-server-backup' has not completed successfully in 8d (schedule: '5 10 * * 4').
+              Target: sparkyfitness-server-backup-backup-source-d
               Namespace: {{ $labels.namespace }}
