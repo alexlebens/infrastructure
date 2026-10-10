@@ -21,7 +21,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: 91e3f6c7af223b9422755751ae7b43069128eb53e868c1f517bbe314c743b1b9
+        checksum/config: 2c38f87f3d681a9705d4237fdaf8a3200dfa1a515cd4d4752a9b1d8d0844fb6c
       labels:
         helm.sh/chart: gitea-actions-0.1.2
         app: gitea-actions-runner
@@ -70,23 +70,16 @@ spec:
                 - /var/run/docker.sock
           resources:
             limits:
-              ephemeral-storage: 15Gi
-              memory: 1000Mi
+              memory: 128Mi
             requests:
-              cpu: 5m
-              ephemeral-storage: 2Gi
-              memory: 70Mi
+              cpu: 1m
+              memory: 32Mi
           volumeMounts:
             - mountPath: /var/run/
               name: docker-socket
-            - mountPath: /var/lib/docker
-              name: docker-vol
-            - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-              name: openbao-sa-token
-              readOnly: true
       containers:
         - name: runner
-          image: "docker.io/gitea/runner:4.0.1@sha256:c2ff86dfc5dc036eab2283556d0f3933c1a222319feae63d100c1ba89da1233c"
+          image: "docker.io/gitea/runner:5.0.0@sha256:328b8dad8de80a19dab6c5c61292c1d624cd3460c25a5c0067e95c11318657ca"
           imagePullPolicy: IfNotPresent
           workingDir: /data
           env:
@@ -122,6 +115,9 @@ spec:
               name: workspace-vol
             - mountPath: /tmp
               name: runner-tmp
+            - mountPath: /run/secrets/s3
+              name: runner-s3-cache
+              readOnly: true
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -150,25 +146,16 @@ spec:
                     storage: 20Gi
                 storageClassName: ceph-block
           name: workspace-vol
-        - ephemeral:
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                resources:
-                  requests:
-                    storage: 50Gi
-                storageClassName: ceph-block
-          name: docker-vol
         - emptyDir: {}
           name: runner-tmp
-        - name: openbao-sa-token
-          projected:
-            sources:
-              - serviceAccountToken:
-                  audience: openbao
-                  expirationSeconds: 7200
-                  path: token
+        - name: runner-s3-cache
+          secret:
+            items:
+              - key: cache-s3-access-key
+                path: cache-s3-access-key
+              - key: cache-s3-secret-key
+                path: cache-s3-secret-key
+            secretName: gitea-runner-secret
   volumeClaimTemplates:
     - metadata:
         name: data-runner
