@@ -61,7 +61,7 @@ for crd_file in "${TMP_DIR}"/*.yaml; do
   python3 "${BIN_DIR}/openapi2jsonschema.py" "file://${crd_file}" || true
 done
 
-mv *.json "${SCHEMA_DIR}/" 2>/dev/null || true
+mv ./*.json "${SCHEMA_DIR}/" 2>/dev/null || true
 
 SCHEMA_COUNT=$(find "${SCHEMA_DIR}" -name '*.json' | wc -l | xargs)
 echo ">> Schemas generated successfully in ${SCHEMA_DIR}:"

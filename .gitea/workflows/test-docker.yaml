@@ -21,7 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.check-dir-changes.outputs.matrix }}
-      dirs: ${{ steps.check-dir-changes.outputs.dirs }}
       changes-detected: ${{ steps.check-dir-changes.outputs.changes-detected }}
     steps:
       - name: Checkout
@@ -48,14 +47,14 @@ jobs:
     if: |
       needs.detect-changes.result == 'success' &&
       needs.detect-changes.outputs.changes-detected == 'true'
-    # Gitea 1.27 cannot evaluate dynamic expressions in strategy.matrix (Gitea Issue #25179, merged in 28.0.0).
-    # Uncomment when Gitea runner supports server-side dynamic matrix evaluation:
-    # strategy:
-    #   matrix:
-    #     compose: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        compose: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
     env:
-      COMPOSE_DIRS: ${{ needs.detect-changes.outputs.dirs }}
-      FAILED_SERVICE: ""
+      COMPOSE: ${{ matrix.compose }}
+      FAILED_SERVICE: ${{ matrix.compose }}
       FAILED_STAGE: "Initialization"
     steps:
       - name: Checkout
@@ -66,13 +65,8 @@ jobs:
       - name: -- Validate Docker Compose Config
         run: |
           echo "FAILED_STAGE=Docker Compose Config" >> $GITHUB_ENV
-          for COMPOSE in ${COMPOSE_DIRS}; do
-            echo "FAILED_SERVICE=${COMPOSE}" >> $GITHUB_ENV
-            echo ">> Validating docker compose config for ${COMPOSE} ..."
-            docker compose --project-directory "${COMPOSE}" config --quiet
-            echo ""
-            echo "----"
-          done
+          echo ">> Validating docker compose config for ${{ matrix.compose }} ..."
+          docker compose --project-directory "${{ matrix.compose }}" config --quiet
 
       - name: Set Up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -88,13 +82,8 @@ jobs:
       - name: -- Lint Docker Compose (dclint)
         run: |
           echo "FAILED_STAGE=DCLint" >> $GITHUB_ENV
-          for COMPOSE in ${COMPOSE_DIRS}; do
-            echo "FAILED_SERVICE=${COMPOSE}" >> $GITHUB_ENV
-            echo ">> Linting with dclint for ${COMPOSE} ..."
-            npx -y dclint@${{ env.DCLINT_VERSION }} "${COMPOSE}" --max-warnings=0
-            echo ""
-            echo "----"
-          done
+          echo ">> Linting with dclint for ${{ matrix.compose }} ..."
+          npx -y dclint@${{ env.DCLINT_VERSION }} "${{ matrix.compose }}" --max-warnings=0
 
       - name: Cache Trivy
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
@@ -108,13 +97,8 @@ jobs:
       - name: -- Trivy Security Scan
         run: |
           echo "FAILED_STAGE=Trivy Security Scan" >> $GITHUB_ENV
-          for COMPOSE in ${COMPOSE_DIRS}; do
-            echo "FAILED_SERVICE=${COMPOSE}" >> $GITHUB_ENV
-            echo ">> Scanning ${COMPOSE} with Trivy ..."
-            trivy config "${COMPOSE}" --severity HIGH,CRITICAL --exit-code 1
-            echo ""
-            echo "----"
-          done
+          echo ">> Scanning ${{ matrix.compose }} with Trivy ..."
+          trivy config "${{ matrix.compose }}" --severity HIGH,CRITICAL --exit-code 1
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -122,11 +106,11 @@ jobs:
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ vars.NTFY_TOPIC }}"
-          title: "🚨 Docker Compose Failure - ${{ env.FAILED_SERVICE || 'Validation' }}"
-          priority: 3
+          title: "🚨 Docker Compose Failure - ${{ matrix.compose }}"
+          priority: 4
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
-          details: "Testing failed for compose dir: ${{ env.FAILED_SERVICE }} at stage: ${{ env.FAILED_STAGE }}"
+          details: "Testing failed for compose dir: ${{ matrix.compose }} at stage: ${{ env.FAILED_STAGE }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository

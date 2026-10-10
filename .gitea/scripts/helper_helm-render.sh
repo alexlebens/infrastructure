@@ -57,9 +57,9 @@ render_helm_chart() {
 
   # Build dependencies if requested
   if [ "${BUILD_DEPS}" = true ]; then
-    pushd "${CHART_PATH}" > /dev/null
+    pushd "${CHART_PATH}" > /dev/null || exit 1
     helm dependency build --skip-refresh > /dev/null 2>&1 || helm dependency update --skip-refresh > /dev/null 2>&1 || true
-    popd > /dev/null
+    popd > /dev/null || exit 1
   fi
 
   echo ">> Rendering chart '${CHART}' into '${NAMESPACE}' namespace ..."

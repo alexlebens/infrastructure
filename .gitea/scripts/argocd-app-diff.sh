@@ -60,8 +60,6 @@ case "${CHART}" in
     ARGOCD_APP_NAME="stack-cl01tl"
     ;;
 esac
-
-APP_PATH=""
 DIFF_FILE="$(mktemp)"
 ERR_FILE="$(mktemp)"
 APP_CONFIG="$(mktemp)"
@@ -101,8 +99,6 @@ if [ ${GET_EXIT} -ne 0 ]; then
     cat "${APP_CONFIG_ERR}" >&2
     exit ${GET_EXIT}
   fi
-else
-  APP_PATH=$(jq -r '.spec.source.path // empty' "${APP_CONFIG}" 2>/dev/null || true)
 fi
 
 if [ "${IS_NEW_APP}" = "false" ]; then

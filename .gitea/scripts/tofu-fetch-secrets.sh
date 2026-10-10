@@ -81,15 +81,12 @@ echo ">> Fetching Garage admin tokens from OpenBao..."
 
 # Tier A: Synology NAS (ps02sn)
 GARAGE_A_TOKEN=""
-for path in "ps02sn/garage/token"; do
-  RESP=$(fetch_bao_path "$path")
-  T=$(echo "$RESP" | jq -r '.data.data.admin // empty' 2>/dev/null || true)
-  if [ -n "$T" ]; then
-    GARAGE_A_TOKEN="$T"
-    echo ">> Loaded Tier A (ps02sn) admin token from OpenBao: secret/${path}"
-    break
-  fi
-done
+RESP=$(fetch_bao_path "ps02sn/garage/token")
+T=$(echo "$RESP" | jq -r '.data.data.admin // empty' 2>/dev/null || true)
+if [ -n "$T" ]; then
+  GARAGE_A_TOKEN="$T"
+  echo ">> Loaded Tier A (ps02sn) admin token from OpenBao: secret/ps02sn/garage/token"
+fi
 
 if [ -n "${GARAGE_A_TOKEN}" ]; then
   mask_var "${GARAGE_A_TOKEN}"
@@ -98,15 +95,12 @@ fi
 
 # Tier B: Kubernetes (cl01tl)
 GARAGE_B_TOKEN=""
-for path in "cl01tl/garage/token"; do
-  RESP=$(fetch_bao_path "$path")
-  T=$(echo "$RESP" | jq -r '.data.data.admin // empty' 2>/dev/null || true)
-  if [ -n "$T" ]; then
-    GARAGE_B_TOKEN="$T"
-    echo ">> Loaded Tier B (cl01tl) admin token from OpenBao: secret/${path}"
-    break
-  fi
-done
+RESP=$(fetch_bao_path "cl01tl/garage/token")
+T=$(echo "$RESP" | jq -r '.data.data.admin // empty' 2>/dev/null || true)
+if [ -n "$T" ]; then
+  GARAGE_B_TOKEN="$T"
+  echo ">> Loaded Tier B (cl01tl) admin token from OpenBao: secret/cl01tl/garage/token"
+fi
 
 if [ -n "${GARAGE_B_TOKEN}" ]; then
   mask_var "${GARAGE_B_TOKEN}"
@@ -115,15 +109,12 @@ fi
 
 # Tier C: Raspberry Pi (ps10rp)
 GARAGE_C_TOKEN=""
-for path in "ps10rp/garage/token"; do
-  RESP=$(fetch_bao_path "$path")
-  T=$(echo "$RESP" | jq -r '.data.data.admin // empty' 2>/dev/null || true)
-  if [ -n "$T" ]; then
-    GARAGE_C_TOKEN="$T"
-    echo ">> Loaded Tier C (ps10rp) admin token from OpenBao: secret/${path}"
-    break
-  fi
-done
+RESP=$(fetch_bao_path "ps10rp/garage/token")
+T=$(echo "$RESP" | jq -r '.data.data.admin // empty' 2>/dev/null || true)
+if [ -n "$T" ]; then
+  GARAGE_C_TOKEN="$T"
+  echo ">> Loaded Tier C (ps10rp) admin token from OpenBao: secret/ps10rp/garage/token"
+fi
 
 if [ -n "${GARAGE_C_TOKEN}" ]; then
   mask_var "${GARAGE_C_TOKEN}"
@@ -134,18 +125,14 @@ fi
 echo ">> Fetching Backblaze credentials from OpenBao..."
 BACKBLAZE_KEY=""
 BACKBLAZE_SECRET=""
-
-for path in "cs01bb/s3/keys/admin"; do
-  RESP=$(fetch_bao_path "$path")
-  K=$(echo "$RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
-  S=$(echo "$RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
-  if [ -n "$K" ] && [ -n "$S" ]; then
-    BACKBLAZE_KEY="$K"
-    BACKBLAZE_SECRET="$S"
-    echo ">> Loaded Backblaze credentials from OpenBao: secret/${path}"
-    break
-  fi
-done
+RESP=$(fetch_bao_path "cs01bb/s3/keys/admin")
+K=$(echo "$RESP" | jq -r '.data.data.AWS_ACCESS_KEY_ID // empty' 2>/dev/null || true)
+S=$(echo "$RESP" | jq -r '.data.data.AWS_SECRET_ACCESS_KEY // empty' 2>/dev/null || true)
+if [ -n "$K" ] && [ -n "$S" ]; then
+  BACKBLAZE_KEY="$K"
+  BACKBLAZE_SECRET="$S"
+  echo ">> Loaded Backblaze credentials from OpenBao: secret/cs01bb/s3/keys/admin"
+fi
 
 # Retrieve S3 / Garage Endpoints from OpenBao if available
 echo ">> Checking for storage endpoints in OpenBao..."

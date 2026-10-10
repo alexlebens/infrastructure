@@ -10,11 +10,10 @@ guaranteeing no collisions between database backups and storage snapshots.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import os
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 
 
 def parse_yaml_backup_targets(
@@ -262,7 +261,7 @@ def rebalance_schedules(
         changed = new_sched != pg["current"]
 
         quote = pg["quote"] or '"'
-        new_line = f'{pg["prefix"]}{quote}{new_sched}{quote}{pg["suffix"]}\n'
+        new_line = f"{pg['prefix']}{quote}{new_sched}{quote}{pg['suffix']}\n"
 
         fpath = pg["file"]
         if fpath not in file_modifications:
@@ -307,7 +306,7 @@ def rebalance_schedules(
             new_sched = f"{m} {h} * * *"
             changed = new_sched != vs["current"]
             quote = vs["quote"] or ""
-            new_line = f'{vs["prefix"]}{quote}{new_sched}{quote}{vs["suffix"]}\n'
+            new_line = f"{vs['prefix']}{quote}{new_sched}{quote}{vs['suffix']}\n"
 
             fpath = vs["file"]
             if fpath not in file_modifications:
@@ -342,7 +341,7 @@ def rebalance_schedules(
             new_sched = f"{m} {h} * * {dow}"
             changed = new_sched != vs["current"]
             quote = vs["quote"] or ""
-            new_line = f'{vs["prefix"]}{quote}{new_sched}{quote}{vs["suffix"]}\n'
+            new_line = f"{vs['prefix']}{quote}{new_sched}{quote}{vs['suffix']}\n"
 
             fpath = vs["file"]
             if fpath not in file_modifications:
@@ -374,7 +373,7 @@ def rebalance_schedules(
             new_sched = f"{m} {h} * * {dow}"
             changed = new_sched != vs["current"]
             quote = vs["quote"] or ""
-            new_line = f'{vs["prefix"]}{quote}{new_sched}{quote}{vs["suffix"]}\n'
+            new_line = f"{vs['prefix']}{quote}{new_sched}{quote}{vs['suffix']}\n"
 
             fpath = vs["file"]
             if fpath not in file_modifications:
@@ -404,11 +403,17 @@ def rebalance_schedules(
         slot_idx = j // 7
 
         def schedule_s3(
-            s3_dict: dict, sched_str: str, freq: str, hour: int, minute: int
+            s3_dict: dict,
+            sched_str: str,
+            freq: str,
+            hour: int,
+            minute: int,
+            app_chart: str = chart,
+            target_sec: str = sec_name,
         ):
             chg = sched_str != s3_dict["current"]
             q = s3_dict["quote"] or '"'
-            nl = f'{s3_dict["prefix"]}{q}{sched_str}{q}{s3_dict["suffix"]}\n'
+            nl = f"{s3_dict['prefix']}{q}{sched_str}{q}{s3_dict['suffix']}\n"
             fp = s3_dict["file"]
             if fp not in file_modifications:
                 file_modifications[fp] = []
@@ -417,8 +422,8 @@ def rebalance_schedules(
                 changed_files.add(fp)
             table_rows.append(
                 {
-                    "app": chart,
-                    "target": f"{sec_name} ({s3_dict['target']})",
+                    "app": app_chart,
+                    "target": f"{target_sec} ({s3_dict['target']})",
                     "kind": "S3",
                     "freq": freq,
                     "utc": sched_str,

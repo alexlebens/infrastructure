@@ -1,0 +1,57 @@
+name: test-renovate
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - "renovate.json"
+      - ".gitea/workflows/test-renovate.yaml"
+      - ".pre-commit-config.yaml"
+
+env:
+  NODE_VERSION: "24"
+  RENOVATE_VERSION: "44"
+
+jobs:
+  validate-renovate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: Set Up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm & Renovate
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-renovate-${{ env.RENOVATE_VERSION }}
+
+      - name: Validate renovate.json
+        run: |
+          echo ">> Validating renovate.json syntax and configuration with Renovate v${{ env.RENOVATE_VERSION }}..."
+          npx -y --package "renovate@${{ env.RENOVATE_VERSION }}" renovate-config-validator --strict renovate.json
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Renovate Config Validation Failure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "renovate-config-validator failed for renovate.json."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/renovate.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'

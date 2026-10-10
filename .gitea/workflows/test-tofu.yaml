@@ -1,0 +1,98 @@
+name: test-tofu
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - "tofu/**"
+      - ".gitea/workflows/test-tofu.yaml"
+      - ".pre-commit-config.yaml"
+
+env:
+  TOFU_VERSION: "1.13.1"
+  TRIVY_VERSION: "v0.75.0"
+  TF_PLUGIN_CACHE_DIR: "~/.cache/.opentofu-plugin-cache"
+
+jobs:
+  test-tofu:
+    runs-on: ubuntu-latest
+    env:
+      FAILED_STAGE: "Initialization"
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: Cache OpenTofu
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.local/bin/tofu
+          key: ${{ runner.os }}-tofu-${{ env.TOFU_VERSION }}
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+
+      - name: Cache OpenTofu Plugins
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: opentofu-${{ runner.os }}-${{ hashFiles('tofu/**/.terraform.lock.hcl') }}
+          restore-keys: |
+            opentofu-${{ runner.os }}-
+
+      - name: -- Check Formatting (tofu fmt)
+        run: |
+          echo "FAILED_STAGE=tofu fmt" >> $GITHUB_ENV
+          echo ">> Checking OpenTofu formatting across tofu/ ..."
+          tofu fmt -check -recursive tofu/
+
+      - name: -- Validate Configurations (tofu validate)
+        run: |
+          echo "FAILED_STAGE=tofu validate" >> $GITHUB_ENV
+          mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+          for dir in tofu/*/; do
+            if [ -d "$dir" ] && ls "$dir"/*.tf >/dev/null 2>&1; then
+              echo ">> Initializing and validating $dir ..."
+              tofu -chdir="$dir" init -backend=false
+              tofu -chdir="$dir" validate
+              echo ""
+              echo "----"
+            fi
+          done
+
+      - name: Cache Trivy
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.local/bin/trivy
+          key: ${{ runner.os }}-trivy-${{ env.TRIVY_VERSION }}
+
+      - name: Set Up Trivy
+        run: ./.gitea/scripts/install-trivy.sh
+
+      - name: -- Security Scan (Trivy)
+        run: |
+          echo "FAILED_STAGE=Trivy Security Scan" >> $GITHUB_ENV
+          echo ">> Scanning tofu/ with Trivy ..."
+          trivy config tofu/ --severity HIGH,CRITICAL --exit-code 1
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 OpenTofu Test Failure"
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "OpenTofu testing failed at stage: ${{ env.FAILED_STAGE }}"
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/opentofu.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'

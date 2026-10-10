@@ -119,7 +119,7 @@ else
   for C in ${TARGET_CHARTS}; do
     CHART_OUTPUT="${MANIFEST_DIR}/clusters/${CLUSTER}/manifests/${C}"
     if [ -d "${CHART_OUTPUT}" ]; then
-      rm -rf "${CHART_OUTPUT}"/*
+      rm -rf "${CHART_OUTPUT:?}"/*
     fi
   done
 fi
