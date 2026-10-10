@@ -54,7 +54,7 @@ fi
 echo ">> Extracting container images from manifests in ${MANIFEST_PATH} ..."
 
 # Extract image fields from rendered YAML manifests using yq
-IMAGES=$(yq eval-all '.. | .image? | select(. != null)' "${MANIFEST_PATH}"/*.yaml 2>/dev/null | sort -u || true)
+IMAGES=$(yq eval-all '.. | .image? | select(. != null)' "${MANIFEST_PATH}"/*.yaml 2>/dev/null | grep -v '^\-\-\-$' | sort -u || true)
 
 if [ -z "${IMAGES}" ]; then
   echo ">> No container images found in ${CHART} manifests."
