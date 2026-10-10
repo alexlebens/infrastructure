@@ -1,0 +1,55 @@
+name: test-bash-scripts
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - ".gitea/scripts/*.sh"
+      - ".gitea/workflows/test-bash-scripts.yaml"
+      - ".pre-commit-config.yaml"
+
+env:
+  SHELLCHECK_VERSION: "v0.11.0"
+
+jobs:
+  lint-bash:
+    name: Lint Bash Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: Cache ShellCheck
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.local/bin/shellcheck
+          key: ${{ runner.os }}-shellcheck-${{ env.SHELLCHECK_VERSION }}
+
+      - name: Set Up ShellCheck
+        run: ./.gitea/scripts/install-shellcheck.sh
+
+      - name: ShellCheck Bash Scripts
+        run: |
+          echo ">> Running ShellCheck on all bash scripts in .gitea/scripts/ ..."
+          shellcheck .gitea/scripts/*.sh
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Bash Script Linting Failure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "ShellCheck failed for bash scripts in .gitea/scripts/."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'

@@ -1,0 +1,66 @@
+name: test-python-scripts
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - ".gitea/scripts/*.py"
+      - ".gitea/workflows/test-python-scripts.yaml"
+      - ".pre-commit-config.yaml"
+
+env:
+  RUFF_VERSION: "0.17.0"
+
+jobs:
+  lint-python:
+    name: Lint Python Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache Pip & Ruff
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-ruff-${{ env.RUFF_VERSION }}
+
+      - name: Install Ruff
+        run: |
+          pip install "ruff==${{ env.RUFF_VERSION }}"
+
+      - name: Ruff Check Python Scripts
+        run: |
+          echo ">> Running Ruff check on Python scripts in .gitea/scripts/ ..."
+          ruff check .gitea/scripts/*.py
+
+      - name: Ruff Format Check Python Scripts
+        run: |
+          echo ">> Running Ruff format check on Python scripts in .gitea/scripts/ ..."
+          ruff format --check .gitea/scripts/*.py
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Python Script Linting Failure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "Ruff check or format failed for Python scripts in .gitea/scripts/."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
