@@ -124,7 +124,9 @@ resolve_harbor_proxy_image() {
   echo "${HARBOR_HOST}/${PROXY_PROJECT}/${REPO_AND_TAG}"
 }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FAILED_IMAGES=()
+WARMED_ROWS=()
 
 for IMG in ${IMAGES}; do
   PROXY_IMG=$(resolve_harbor_proxy_image "${IMG}")
@@ -141,24 +143,88 @@ for IMG in ${IMAGES}; do
   # Clusters include both x86_64 nodes and Raspberry Pi 4 (linux/arm64) nodes.
   # Fetching both platforms ensures Harbor caches the required manifests for each node architecture.
   WARM_FAILED=false
+  SUPPORTED_PLATFORMS=()
+
   for PLATFORM in "linux/amd64" "linux/arm64"; do
-    if ! crane manifest --platform "${PLATFORM}" "${TARGET_IMG}" >/dev/null 2>&1; then
-      # If image does not support this specific platform (e.g. single-arch image), check if the image digest resolves at all
-      if ! crane digest "${TARGET_IMG}" >/dev/null 2>&1; then
-        WARM_FAILED=true
-        break
-      fi
+    if crane manifest --platform "${PLATFORM}" "${TARGET_IMG}" >/dev/null 2>&1; then
+      SUPPORTED_PLATFORMS+=("${PLATFORM}")
     fi
   done
+
+  # If multi-arch check did not match specific platforms, test general digest
+  if [ ${#SUPPORTED_PLATFORMS[@]} -eq 0 ]; then
+    if crane digest "${TARGET_IMG}" >/dev/null 2>&1; then
+      SUPPORTED_PLATFORMS+=("default")
+    else
+      WARM_FAILED=true
+    fi
+  fi
+
+  # Parse clean details for PR comment:
+  # Strip sha digest if present (@sha256:...)
+  IMG_NO_DIGEST="${IMG%%@*}"
+
+  # Parse registry vs repo/image
+  if [[ "${IMG_NO_DIGEST}" =~ ^([a-zA-Z0-9._-]+:[0-9]+|[a-zA-Z0-9._-]+\.[a-zA-Z]{2,})/(.*)$ ]]; then
+    REGISTRY_HOST="${BASH_REMATCH[1]}"
+    IMAGE_PATH="${BASH_REMATCH[2]}"
+  else
+    REGISTRY_HOST="docker.io"
+    IMAGE_PATH="${IMG_NO_DIGEST}"
+  fi
+
+  # Parse image name and tag
+  if [[ "${IMAGE_PATH}" == *":"* ]]; then
+    IMAGE_NAME="${IMAGE_PATH%%:*}"
+    IMAGE_TAG="${IMAGE_PATH##*:}"
+  else
+    IMAGE_NAME="${IMAGE_PATH}"
+    IMAGE_TAG="latest"
+  fi
+
+  PLATFORMS_STR=$(IFS=", "; echo "${SUPPORTED_PLATFORMS[*]}")
 
   if [ "${WARM_FAILED}" = true ]; then
     echo ">> Failed to validate image: ${TARGET_IMG}" >&2
     FAILED_IMAGES+=("${IMG}")
+    WARMED_ROWS+=("| \`${IMAGE_NAME}\` | \`${IMAGE_TAG}\` | \`${REGISTRY_HOST}\` | ❌ Failed | - |")
   else
     echo ">> Successfully validated and warmed: ${TARGET_IMG}"
+    WARMED_ROWS+=("| \`${IMAGE_NAME}\` | \`${IMAGE_TAG}\` | \`${REGISTRY_HOST}\` | ✅ Warmed | \`${PLATFORMS_STR}\` |")
   fi
   echo ""
 done
+
+# Build Markdown Comment & Summary
+TAG="<!-- harbor-warm-${CHART} -->"
+COMMENT_BODY="${TAG}
+### Harbor Image Cache: \`${CHART}\`
+
+| Image | Tag | Registry | Status | Platforms |
+| :--- | :--- | :--- | :--- | :--- |"
+
+for ROW in "${WARMED_ROWS[@]}"; do
+  COMMENT_BODY="${COMMENT_BODY}
+${ROW}"
+done
+
+# Publish to Action UI Summary
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+  {
+    echo "${COMMENT_BODY}"
+    echo ""
+  } >> "${GITHUB_STEP_SUMMARY}"
+fi
+
+# Publish to Gitea PR Comment
+SERVER_URL="${PUBLIC_URL:-${GITHUB_SERVER_URL:-${GITEA_SERVER_URL:-}}}"
+REPO="${GITHUB_REPOSITORY:-${GITEA_REPOSITORY:-}}"
+
+if [ -n "${GITEA_TOKEN:-}" ] && [ -n "${PR_NUMBER:-}" ] && [ -n "${SERVER_URL}" ] && [ -n "${REPO}" ]; then
+  echo ">> Posting Harbor cache status to PR #${PR_NUMBER} ..."
+  source "${SCRIPT_DIR}/helper_pr-comment-upsert.sh"
+  upsert_pr_comment "${TAG}" "${COMMENT_BODY}"
+fi
 
 if [ ${#FAILED_IMAGES[@]} -ne 0 ]; then
   echo ">> One or more images failed validation / warming in Harbor:" >&2
