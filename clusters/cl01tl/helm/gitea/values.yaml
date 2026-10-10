@@ -245,25 +245,8 @@ gitea-actions:
               resources:
                 requests:
                   storage: 20Gi
-      - name: docker-vol
-        ephemeral:
-          volumeClaimTemplate:
-            spec:
-              accessModes:
-                - ReadWriteOnce
-              storageClassName: ceph-block
-              resources:
-                requests:
-                  storage: 50Gi
       - name: runner-tmp
         emptyDir: {}
-      - name: openbao-sa-token
-        projected:
-          sources:
-            - serviceAccountToken:
-                audience: openbao
-                expirationSeconds: 7200
-                path: token
     securityContext:
       fsGroup: 1000
       seccompProfile:
@@ -297,12 +280,12 @@ gitea-actions:
       repository: docker
       # renovate: datasource=docker depName=docker
       tag: 29.8.2-dind@sha256:7dcdfc4a20246236f558175182ccace1eb15a41bd3eb119dd2284f393498b7c1
-      extraVolumeMounts:
-        - name: docker-vol
-          mountPath: /var/lib/docker
-        - name: openbao-sa-token
-          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-          readOnly: true
+      resources:
+        limits:
+          memory: 128Mi
+        requests:
+          cpu: 1m
+          memory: 32Mi
     persistence:
       storageClass: ceph-block
       size: 10Gi
