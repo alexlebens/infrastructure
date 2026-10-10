@@ -139,16 +139,16 @@ for IMG in ${IMAGES}; do
 
   # Validate remote image via crane without pulling/storing image layers on the runner
   if ! crane validate --remote "${TARGET_IMG}"; then
-    echo ">> ❌ Failed to validate image: ${TARGET_IMG}" >&2
+    echo ">> Failed to validate image: ${TARGET_IMG}" >&2
     FAILED_IMAGES+=("${IMG}")
   else
-    echo ">> ✅ Successfully validated and warmed: ${TARGET_IMG}"
+    echo ">> Successfully validated and warmed: ${TARGET_IMG}"
   fi
   echo ""
 done
 
 if [ ${#FAILED_IMAGES[@]} -ne 0 ]; then
-  echo ">> 🚨 One or more images failed validation / warming in Harbor:" >&2
+  echo ">> One or more images failed validation / warming in Harbor:" >&2
   for FAILED in "${FAILED_IMAGES[@]}"; do
     echo "  - ${FAILED}" >&2
   done
