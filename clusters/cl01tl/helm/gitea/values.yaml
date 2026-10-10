@@ -247,6 +247,14 @@ gitea-actions:
                   storage: 20Gi
       - name: runner-tmp
         emptyDir: {}
+      - name: runner-s3-cache
+        secret:
+          secretName: gitea-runner-secret
+          items:
+            - key: cache-s3-access-key
+              path: cache-s3-access-key
+            - key: cache-s3-secret-key
+              path: cache-s3-secret-key
     securityContext:
       fsGroup: 1000
       seccompProfile:
@@ -261,11 +269,22 @@ gitea-actions:
           mountPath: /workspace
         - name: runner-tmp
           mountPath: /tmp
+        - name: runner-s3-cache
+          mountPath: /run/secrets/s3
+          readOnly: true
       config: |
         log:
           level: debug
         cache:
           enabled: true
+          s3:
+            endpoint: "http://cluster-b.garage-b:3900"
+            region: "garage"
+            bucket: "gitea-assets"
+            prefix: "actions-cache"
+            path_style: true
+            access_key_file: "/run/secrets/s3/cache-s3-access-key"
+            secret_key_file: "/run/secrets/s3/cache-s3-secret-key"
         container:
           valid_volumes:
             - "/var/run/secrets/kubernetes.io/serviceaccount/**"
