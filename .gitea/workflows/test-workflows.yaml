@@ -1,4 +1,4 @@
-name: test-bash-scripts
+name: test-workflows
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -7,13 +7,12 @@ concurrency:
 on:
   pull_request:
     paths:
-      - ".gitea/scripts/*.sh"
-      - ".gitea/workflows/test-bash-scripts.yaml"
+      - ".gitea/workflows/**"
       - ".pre-commit-config.yaml"
 
 jobs:
-  lint-bash:
-    name: Lint Bash Scripts
+  lint-workflows:
+    name: Lint Workflows (actionlint)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,14 +20,15 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: ShellCheck Bash Scripts
-        uses: reviewdog/action-shellcheck@v1
+      - name: Lint Workflows
+        uses: reviewdog/action-actionlint@v1
         with:
           github_token: ${{ secrets.BOT_TOKEN }}
           reporter: github-pr-review
           fail_level: error
-          path: ".gitea/scripts"
-          pattern: "*.sh"
+          actionlint_flags: >-
+            -ignore 'specifying action "builtin:checkout" in invalid format' -ignore 'undefined variable "gitea"'
+            .gitea/workflows/*.yaml
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -36,11 +36,11 @@ jobs:
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ vars.NTFY_TOPIC }}"
-          title: "🚨 Bash Script Linting Failure"
+          title: "🚨 Workflow Linting Failure"
           priority: 4
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
-          details: "ShellCheck failed for bash scripts in .gitea/scripts/."
+          details: "actionlint failed for workflows in .gitea/workflows/."
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
