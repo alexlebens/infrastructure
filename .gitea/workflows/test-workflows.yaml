@@ -7,27 +7,22 @@ concurrency:
 on:
   pull_request:
     paths:
+      - ".gitea/scripts/lint-workflows.sh"
       - ".gitea/workflows/**"
       - ".pre-commit-config.yaml"
 
 jobs:
   lint-workflows:
+    name: Lint Workflows
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: builtin:checkout
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Lint Workflows
-        uses: reviewdog/action-actionlint@v1
-        with:
-          github_token: ${{ secrets.BOT_TOKEN }}
-          reporter: github-pr-review
-          fail_level: error
-          actionlint_flags: >-
-            -ignore 'specifying action "builtin:checkout" in invalid format' -ignore 'undefined variable "gitea"'
-            .gitea/workflows/*.yaml
+      - name: Lint Workflows (actionlint)
+        run: .gitea/scripts/lint-workflows.sh
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
