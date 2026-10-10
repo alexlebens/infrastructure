@@ -216,11 +216,10 @@ gitea-actions:
     timezone: America/Chicago
     resources:
       limits:
-        memory: 1000Mi
         ephemeral-storage: 15Gi
       requests:
-        cpu: 5m
-        memory: 70Mi
+        cpu: 50m
+        memory: 100Mi
         ephemeral-storage: 2Gi
     affinity:
       podAntiAffinity:
@@ -247,6 +246,13 @@ gitea-actions:
                   storage: 20Gi
       - name: runner-tmp
         emptyDir: {}
+      - name: openbao-sa-token
+        projected:
+          sources:
+            - serviceAccountToken:
+                audience: openbao
+                expirationSeconds: 7200
+                path: token
       - name: runner-s3-cache
         secret:
           secretName: gitea-runner-secret
@@ -288,22 +294,25 @@ gitea-actions:
         metrics:
           enabled: true
           addr: ":9101"
-        kubernetes:
-          pod_template:
-            spec:
-              serviceAccountName: buildx-runner
-              automountServiceAccountToken: true
+        container:
+          valid_volumes:
+            - "/var/run/secrets/kubernetes.io/serviceaccount/**"
+          options: "-v /var/run/secrets/kubernetes.io/serviceaccount:/var/run/secrets/kubernetes.io/serviceaccount:ro"
         runner:
           idle_cleanup_interval: 10m
           labels:
-            - "ubuntu-latest:kubernetes://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04"
-            - "ubuntu-latest-slim:kubernetes://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04-slim"
-            - "ubuntu-js:kubernetes://harbor.alexlebens.dev/proxy-ghcr.io/catthehacker/ubuntu:js-24.04"
+            - "ubuntu-latest:docker://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04"
+            - "ubuntu-latest-slim:docker://harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-24.04-slim"
+            - "ubuntu-js:docker://harbor.alexlebens.dev/proxy-ghcr.io/catthehacker/ubuntu:js-24.04"
     dind:
       registry: docker.io
       repository: docker
       # renovate: datasource=docker depName=docker
       tag: 29.8.2-dind@sha256:7dcdfc4a20246236f558175182ccace1eb15a41bd3eb119dd2284f393498b7c1
+      extraVolumeMounts:
+        - name: openbao-sa-token
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
       resources:
         limits:
           memory: 128Mi
@@ -499,9 +508,9 @@ valkey-gitea:
     resources:
       requests:
         cpu: 20m
-        memory: 100Mi
+        memory: 150Mi
     valkeyConfig: |
-      maxmemory 2gb
+      maxmemory 1gb
       maxmemory-policy allkeys-lru
 
 valkey-renovate:
@@ -514,7 +523,7 @@ valkey-renovate:
     resources:
       requests:
         cpu: 10m
-        memory: 100Mi
+        memory: 50Mi
     valkeyConfig: |
       maxmemory 1gb
       maxmemory-policy volatile-lru
@@ -542,7 +551,7 @@ meilisearch:
   resources:
     requests:
       cpu: 10m
-      memory: 150Mi
+      memory: 500Mi
   serviceMonitor:
     enabled: true
 
