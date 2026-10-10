@@ -5,10 +5,10 @@ metadata:
   namespace: shelfmark
   labels:
     app.kubernetes.io/name: shelfmark-backup
-    helm.sh/chart: volsync-target-config-2.4.0
+    helm.sh/chart: volsync-target-config-3.0.0
     app.kubernetes.io/instance: shelfmark
     app.kubernetes.io/part-of: shelfmark
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'shelfmark'.
               Target: shelfmark-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="shelfmark-backup-source-a", obj_namespace="shelfmark"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="shelfmark", job_name=~"volsync-.*shelfmark-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: shelfmark
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'shelfmark' has not completed successfully in 36h (schedule: '35 11 * * *').
+              Target: shelfmark-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="shelfmark-backup-source-c", obj_namespace="shelfmark"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="shelfmark", job_name=~"volsync-.*shelfmark-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: shelfmark
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'shelfmark' has not completed successfully in 8d (schedule: '5 11 * * 0').
+              Target: shelfmark-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="shelfmark-backup-source-d", obj_namespace="shelfmark"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="shelfmark", job_name=~"volsync-.*shelfmark-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: shelfmark
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'shelfmark' has not completed successfully in 8d (schedule: '5 10 * * 0').
+              Target: shelfmark-backup-source-d
               Namespace: {{ $labels.namespace }}

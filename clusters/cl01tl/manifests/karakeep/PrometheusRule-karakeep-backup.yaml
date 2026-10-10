@@ -5,10 +5,10 @@ metadata:
   namespace: karakeep
   labels:
     app.kubernetes.io/name: karakeep-backup
-    helm.sh/chart: volsync-target-data-2.4.0
+    helm.sh/chart: volsync-target-data-3.0.0
     app.kubernetes.io/instance: karakeep
     app.kubernetes.io/part-of: karakeep
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'karakeep'.
               Target: karakeep-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="karakeep-backup-source-a", obj_namespace="karakeep"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="karakeep", job_name=~"volsync-.*karakeep-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: karakeep
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'karakeep' has not completed successfully in 36h (schedule: '5 9 * * *').
+              Target: karakeep-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="karakeep-backup-source-c", obj_namespace="karakeep"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="karakeep", job_name=~"volsync-.*karakeep-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: karakeep
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'karakeep' has not completed successfully in 8d (schedule: '40 10 * * 5').
+              Target: karakeep-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="karakeep-backup-source-d", obj_namespace="karakeep"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="karakeep", job_name=~"volsync-.*karakeep-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: karakeep
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'karakeep' has not completed successfully in 8d (schedule: '40 9 * * 5').
+              Target: karakeep-backup-source-d
               Namespace: {{ $labels.namespace }}

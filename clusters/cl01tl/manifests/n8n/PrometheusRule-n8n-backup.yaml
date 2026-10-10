@@ -5,10 +5,10 @@ metadata:
   namespace: n8n
   labels:
     app.kubernetes.io/name: n8n-backup
-    helm.sh/chart: volsync-target-data-2.4.0
+    helm.sh/chart: volsync-target-data-3.0.0
     app.kubernetes.io/instance: n8n
     app.kubernetes.io/part-of: n8n
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'n8n'.
               Target: n8n-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="n8n-backup-source-a", obj_namespace="n8n"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="n8n", job_name=~"volsync-.*n8n-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: n8n
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'n8n' has not completed successfully in 36h (schedule: '0 10 * * *').
+              Target: n8n-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="n8n-backup-source-c", obj_namespace="n8n"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="n8n", job_name=~"volsync-.*n8n-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: n8n
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'n8n' has not completed successfully in 8d (schedule: '50 10 * * 2').
+              Target: n8n-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="n8n-backup-source-d", obj_namespace="n8n"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="n8n", job_name=~"volsync-.*n8n-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: n8n
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'n8n' has not completed successfully in 8d (schedule: '50 9 * * 2').
+              Target: n8n-backup-source-d
               Namespace: {{ $labels.namespace }}

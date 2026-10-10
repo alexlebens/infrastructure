@@ -5,10 +5,10 @@ metadata:
   namespace: paperless-ngx
   labels:
     app.kubernetes.io/name: paperless-ngx-media-backup
-    helm.sh/chart: volsync-target-media-2.4.0
+    helm.sh/chart: volsync-target-media-3.0.0
     app.kubernetes.io/instance: paperless-ngx
     app.kubernetes.io/part-of: paperless-ngx
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'paperless-ngx-media'.
               Target: paperless-ngx-media-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="paperless-ngx-media-backup-source-a", obj_namespace="paperless-ngx"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="paperless-ngx", job_name=~"volsync-.*paperless-ngx-media-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: paperless-ngx-media
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'paperless-ngx-media' has not completed successfully in 36h (schedule: '25 10 * * *').
+              Target: paperless-ngx-media-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="paperless-ngx-media-backup-source-c", obj_namespace="paperless-ngx"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="paperless-ngx", job_name=~"volsync-.*paperless-ngx-media-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: paperless-ngx-media
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'paperless-ngx-media' has not completed successfully in 8d (schedule: '55 10 * * 0').
+              Target: paperless-ngx-media-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="paperless-ngx-media-backup-source-d", obj_namespace="paperless-ngx"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="paperless-ngx", job_name=~"volsync-.*paperless-ngx-media-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: paperless-ngx-media
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'paperless-ngx-media' has not completed successfully in 8d (schedule: '55 9 * * 0').
+              Target: paperless-ngx-media-backup-source-d
               Namespace: {{ $labels.namespace }}

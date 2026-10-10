@@ -5,10 +5,10 @@ metadata:
   namespace: houndarr
   labels:
     app.kubernetes.io/name: houndarr-data-backup
-    helm.sh/chart: volsync-target-data-2.4.0
+    helm.sh/chart: volsync-target-data-3.0.0
     app.kubernetes.io/instance: houndarr
     app.kubernetes.io/part-of: houndarr
-    app.kubernetes.io/version: "2.4.0"
+    app.kubernetes.io/version: "0.16.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -30,4 +30,58 @@ spec:
             description: |
               {{ $value }} VolSync backup pod(s) failed for PVC 'houndarr-data'.
               Target: houndarr-data-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="houndarr-data-backup-source-a", obj_namespace="houndarr"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="houndarr", job_name=~"volsync-.*houndarr-data-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: houndarr-data
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'houndarr-data' has not completed successfully in 36h (schedule: '50 8 * * *').
+              Target: houndarr-data-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="houndarr-data-backup-source-c", obj_namespace="houndarr"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="houndarr", job_name=~"volsync-.*houndarr-data-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: houndarr-data
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'houndarr-data' has not completed successfully in 8d (schedule: '40 10 * * 2').
+              Target: houndarr-data-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="houndarr-data-backup-source-d", obj_namespace="houndarr"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="houndarr", job_name=~"volsync-.*houndarr-data-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: houndarr-data
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'houndarr-data' has not completed successfully in 8d (schedule: '40 9 * * 2').
+              Target: houndarr-data-backup-source-d
               Namespace: {{ $labels.namespace }}
