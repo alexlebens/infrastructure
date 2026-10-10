@@ -20,17 +20,28 @@ upsert_pr_comment() {
   EXISTING_COMMENT_ID=$(curl -s -H "Authorization: token ${GITEA_TOKEN}" "${COMMENTS_URL}" \
     | jq -r --arg tag "${TAG}" 'if type == "array" then .[] | select((.body? // "") | contains($tag)) | .id else empty end' 2>/dev/null | head -n 1 || true)
 
+  local HTTP_CODE RESP_BODY
   if [ -n "${EXISTING_COMMENT_ID}" ] && [ "${EXISTING_COMMENT_ID}" != "null" ]; then
     echo ">> Updating existing PR comment #${EXISTING_COMMENT_ID} ..."
-    curl -s -X PATCH "${SERVER_URL}/api/v1/repos/${REPO}/issues/comments/${EXISTING_COMMENT_ID}" \
+    RESP_BODY=$(curl -s -w "\n%{http_code}" -X PATCH "${SERVER_URL}/api/v1/repos/${REPO}/issues/comments/${EXISTING_COMMENT_ID}" \
       -H "Authorization: token ${GITEA_TOKEN}" \
       -H "Content-Type: application/json" \
-      -d "$(jq -n --arg body "${BODY}" '{body: $body}')" > /dev/null
+      -d "$(jq -n --arg body "${BODY}" '{body: $body}')")
+    HTTP_CODE=$(tail -n1 <<< "${RESP_BODY}")
+    if [ "${HTTP_CODE}" != "200" ] && [ "${HTTP_CODE}" != "201" ]; then
+      echo ">> Warning: Failed to update PR comment (HTTP ${HTTP_CODE}):" >&2
+      sed '$d' <<< "${RESP_BODY}" >&2
+    fi
   else
     echo ">> Creating new PR comment ..."
-    curl -s -X POST "${COMMENTS_URL}" \
+    RESP_BODY=$(curl -s -w "\n%{http_code}" -X POST "${COMMENTS_URL}" \
       -H "Authorization: token ${GITEA_TOKEN}" \
       -H "Content-Type: application/json" \
-      -d "$(jq -n --arg body "${BODY}" '{body: $body}')" > /dev/null
+      -d "$(jq -n --arg body "${BODY}" '{body: $body}')")
+    HTTP_CODE=$(tail -n1 <<< "${RESP_BODY}")
+    if [ "${HTTP_CODE}" != "200" ] && [ "${HTTP_CODE}" != "201" ]; then
+      echo ">> Warning: Failed to create PR comment (HTTP ${HTTP_CODE}):" >&2
+      sed '$d' <<< "${RESP_BODY}" >&2
+    fi
   fi
 }
