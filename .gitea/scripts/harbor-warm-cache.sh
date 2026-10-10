@@ -137,8 +137,21 @@ for IMG in ${IMAGES}; do
     TARGET_IMG="${PROXY_IMG}"
   fi
 
-  # Validate remote image via crane without pulling/storing image layers on the runner
-  if ! crane validate --remote "${TARGET_IMG}"; then
+  # Warm and validate remote image via crane without pulling/storing image layers on the runner.
+  # Clusters include both x86_64 nodes and Raspberry Pi 4 (linux/arm64) nodes.
+  # Fetching both platforms ensures Harbor caches the required manifests for each node architecture.
+  WARM_FAILED=false
+  for PLATFORM in "linux/amd64" "linux/arm64"; do
+    if ! crane manifest --platform "${PLATFORM}" "${TARGET_IMG}" >/dev/null 2>&1; then
+      # If image does not support this specific platform (e.g. single-arch image), check if the image digest resolves at all
+      if ! crane digest "${TARGET_IMG}" >/dev/null 2>&1; then
+        WARM_FAILED=true
+        break
+      fi
+    fi
+  done
+
+  if [ "${WARM_FAILED}" = true ]; then
     echo ">> Failed to validate image: ${TARGET_IMG}" >&2
     FAILED_IMAGES+=("${IMG}")
   else
