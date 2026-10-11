@@ -1,12 +1,10 @@
 import json
 import os
 import re
-import subprocess
-import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 IMMICH_URL = os.environ.get("IMMICH_URL", "http://immich-main.immich:80/api").rstrip(
     "/"
@@ -57,7 +55,7 @@ def trigger_foldergram_scan():
                 break
             print(f"[sync] Foldergram returned HTTP {e.code} on {endpoint}.")
             break
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"[sync] Could not connect to Foldergram at {url}: {e}")
             break
 
@@ -77,7 +75,7 @@ def parse_immich_datetime(dt_str):
     dt_str = dt_str.rstrip("Z")
     for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
         try:
-            return datetime.strptime(dt_str, fmt).replace(tzinfo=timezone.utc)
+            return datetime.strptime(dt_str, fmt).replace(tzinfo=UTC)
         except ValueError:
             continue
     return None
@@ -192,7 +190,7 @@ def sync_favorites():
     print(f"[sync] Fetching favorites from {IMMICH_URL}...")
     try:
         favorites = fetch_all_favorites()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"[sync] Failed to query Immich API: {e}")
         return
 
@@ -236,7 +234,7 @@ def sync_favorites():
                 index[aid] = fname
                 save_index(index)
                 downloaded += 1
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"[sync] Failed to download {aid}: {e}")
                 # Clean up partial file if present
                 if os.path.exists(target):
@@ -258,7 +256,7 @@ def sync_favorites():
                     pruned += 1
                 except FileNotFoundError:
                     pruned += 1  # already gone
-                except Exception as e:
+                except OSError as e:
                     print(f"[sync] Failed to remove {target}: {e}")
                 del index[aid]
         save_index(index)
