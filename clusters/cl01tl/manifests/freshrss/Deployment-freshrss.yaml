@@ -41,20 +41,12 @@ spec:
       initContainers:
         - command:
             - /bin/sh
-            - -c
-            - |
-              if [ -f "/ext/.feeddigest-version-v3" ] && [ "$(cat /ext/.feeddigest-version-v3)" = "${EXTENSION_VERSION}" ]; then
-                echo "FeedDigest version ${EXTENSION_VERSION} already installed."
-                exit 0
-              fi
-              mkdir -p /tmp/ext-unzipped /ext/xExtension-FeedDigest
-              wget -qO /tmp/ext.zip "https://github.com/fengchang/xExtension-FeedDigest/archive/${EXTENSION_VERSION}.zip"
-              unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
-              rm -rf /ext/xExtension-FeedDigest/*
-              cp -r /tmp/ext-unzipped/*/* /ext/xExtension-FeedDigest/
-              sed -i 's/"name": "Feed Digest"/"name": "FeedDigest"/g' /ext/xExtension-FeedDigest/metadata.json
-              echo "${EXTENSION_VERSION}" > /ext/.feeddigest-version-v3
+            - /scripts/install-extension.sh
           env:
+            - name: EXTENSION_NAME
+              value: xExtension-FeedDigest
+            - name: EXTENSION_REPO
+              value: fengchang/xExtension-FeedDigest
             - name: EXTENSION_VERSION
               value: 42bd317a3ebcd5b4c8fc6bed40c130d5c99eb45f
           image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
@@ -75,23 +67,20 @@ spec:
           volumeMounts:
             - mountPath: /ext
               name: extensions
+            - mountPath: /scripts/install-extension.sh
+              name: scripts
+              readOnly: true
+              subPath: install-extension.sh
             - mountPath: /tmp
               name: tmp
         - command:
             - /bin/sh
-            - -c
-            - |
-              if [ -f "/ext/.readability-version" ] && [ "$(cat /ext/.readability-version)" = "${EXTENSION_VERSION}" ]; then
-                echo "AF-Readability version ${EXTENSION_VERSION} already installed."
-                exit 0
-              fi
-              mkdir -p /tmp/ext-unzipped /ext/xExtension-AF-Readability
-              wget -qO /tmp/ext.zip "https://github.com/Niehztog/freshrss-af-readability/archive/${EXTENSION_VERSION}.zip"
-              unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
-              rm -rf /ext/xExtension-AF-Readability/*
-              cp -r /tmp/ext-unzipped/*/* /ext/xExtension-AF-Readability/
-              echo "${EXTENSION_VERSION}" > /ext/.readability-version
+            - /scripts/install-extension.sh
           env:
+            - name: EXTENSION_NAME
+              value: xExtension-AF-Readability
+            - name: EXTENSION_REPO
+              value: Niehztog/freshrss-af-readability
             - name: EXTENSION_VERSION
               value: 2843fa0b22da5f419228ce2c90501435f16fd5de
           image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
@@ -112,23 +101,20 @@ spec:
           volumeMounts:
             - mountPath: /ext
               name: extensions
+            - mountPath: /scripts/install-extension.sh
+              name: scripts
+              readOnly: true
+              subPath: install-extension.sh
             - mountPath: /tmp
               name: tmp
         - command:
             - /bin/sh
-            - -c
-            - |
-              if [ -f "/ext/.readingtime-version" ] && [ "$(cat /ext/.readingtime-version)" = "${EXTENSION_VERSION}" ]; then
-                echo ">> ReadingTime version ${EXTENSION_VERSION} already installed."
-                exit 0
-              fi
-              mkdir -p /tmp/ext-unzipped /ext/xExtension-ReadingTime
-              wget -qO /tmp/ext.zip "https://github.com/FreshRSS/Extensions/archive/${EXTENSION_VERSION}.zip"
-              unzip -q /tmp/ext.zip -d /tmp/ext-unzipped
-              rm -rf /ext/xExtension-ReadingTime/*
-              cp -r /tmp/ext-unzipped/*/xExtension-ReadingTime/* /ext/xExtension-ReadingTime/
-              echo "${EXTENSION_VERSION}" > /ext/.readingtime-version
+            - /scripts/install-extension.sh
           env:
+            - name: EXTENSION_NAME
+              value: xExtension-ReadingTime
+            - name: EXTENSION_REPO
+              value: FreshRSS/Extensions
             - name: EXTENSION_VERSION
               value: 91b824edefba5f940d7962fa9ed77bd33b543690
           image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
@@ -149,6 +135,10 @@ spec:
           volumeMounts:
             - mountPath: /ext
               name: extensions
+            - mountPath: /scripts/install-extension.sh
+              name: scripts
+              readOnly: true
+              subPath: install-extension.sh
             - mountPath: /tmp
               name: tmp
       containers:
@@ -269,5 +259,9 @@ spec:
         - name: extensions
           persistentVolumeClaim:
             claimName: freshrss-extensions
+        - configMap:
+            defaultMode: 493
+            name: freshrss-scripts
+          name: scripts
         - emptyDir: {}
           name: tmp
