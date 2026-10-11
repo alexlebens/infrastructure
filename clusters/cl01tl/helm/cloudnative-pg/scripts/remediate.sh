@@ -20,6 +20,64 @@ parse_iso_to_epoch() {
     fi
 }
 
+send_ntfy() {
+    local title="$1"
+    local message="$2"
+    local priority="${3:-3}"
+    local tags="${4:-database}"
+
+    if [ -z "${NTFY_ENDPOINT:-}" ] || [ -z "${NTFY_TOPIC:-}" ]; then
+        return 0
+    fi
+
+    echo "  [NTFY] Sending notification: ${title} (priority: ${priority})"
+    local auth_header=()
+    if [ -n "${NTFY_TOKEN:-}" ]; then
+        auth_header=(-H "Authorization: Bearer ${NTFY_TOKEN}")
+    fi
+
+    curl -s -S \
+        --max-time 10 \
+        "${auth_header[@]}" \
+        -H "X-Title: ${title}" \
+        -H "X-Priority: ${priority}" \
+        -H "X-Tags: ${tags}" \
+        -d "${message}" \
+        "${NTFY_ENDPOINT}/${NTFY_TOPIC}" >/dev/null || true
+}
+
+emit_k8s_event() {
+    local ns="$1"
+    local name="$2"
+    local reason="$3"
+    local type="$4" # Normal or Warning
+    local message="$5"
+    local now
+    now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    echo "  [EVENT] Emitting Kubernetes ${type} event (${reason}): ${message}"
+    cat <<EOF | kubectl create -f - 2>/dev/null || true
+apiVersion: v1
+kind: Event
+metadata:
+  generateName: cnpg-remediator-
+  namespace: ${ns}
+involvedObject:
+  apiVersion: postgresql.cnpg.io/v1
+  kind: Cluster
+  name: ${name}
+  namespace: ${ns}
+reason: ${reason}
+message: "${message}"
+type: ${type}
+firstTimestamp: "${now}"
+lastTimestamp: "${now}"
+count: 1
+source:
+  component: cloudnative-pg-remediator
+EOF
+}
+
 check_etcd_and_cluster_health() {
     echo "Checking Kubernetes cluster health and etcd quorum..."
 
@@ -75,6 +133,7 @@ check_etcd_and_cluster_health() {
 # Run preflight cluster health check
 if ! check_etcd_and_cluster_health; then
     echo "Cluster health check failed. Exiting immediately to prevent remediation during cluster degradation." >&2
+    send_ntfy "🚨 Kubernetes Control-Plane / etcd Unhealthy" "Kubernetes /readyz or etcd quorum check failed. CloudNativePG auto-remediation aborted to protect databases." 5 "rotating_light,fire"
     exit 1
 fi
 echo ""
@@ -95,12 +154,17 @@ while read -r cluster; do
     PHASE=$(echo "$cluster" | jq -r '.status.phase // "Unknown"')
     PRIMARY=$(echo "$cluster" | jq -r '.status.currentPrimary // ""')
     LAST_REMEDIATED=$(echo "$cluster" | jq -r '.metadata.annotations["cnpg.io/last-remediated-at"] // ""')
+    LAST_INSTANCE=$(echo "$cluster" | jq -r '.metadata.annotations["cnpg.io/last-remediated-instance"] // ""')
+    REMEDIATION_COUNT=$(echo "$cluster" | jq -r '.metadata.annotations["cnpg.io/remediation-count"] // "0"')
+    PERSISTENT_ALERT_SENT=$(echo "$cluster" | jq -r '.metadata.annotations["cnpg.io/persistent-alert-sent"] // "false"')
 
     echo "--- Cluster: ${NS}/${NAME} (Phase: ${PHASE}, Primary: ${PRIMARY}) ---"
 
     # Safety Check 1: Primary exists
     if [ -z "$PRIMARY" ]; then
         echo "  [SKIP] No current primary reported. Skipping to avoid split-brain."
+        send_ntfy "🚨 CNPG Primary Missing: ${NS}/${NAME}" "Cluster ${NS}/${NAME} reported no current primary. Auto-remediation blocked to avoid split-brain. Human investigation needed." 5 "rotating_light,fire"
+        emit_k8s_event "$NS" "$NAME" "PrimaryMissing" "Warning" "Cluster has no primary reported. Auto-remediation skipped."
         continue
     fi
 
@@ -108,25 +172,17 @@ while read -r cluster; do
     PRIMARY_POD_JSON=$(kubectl get pod "$PRIMARY" -n "$NS" -o json 2>/dev/null || true)
     if [ -z "$PRIMARY_POD_JSON" ]; then
         echo "  [ABORT] Primary pod '${PRIMARY}' not found in namespace '${NS}'. Skipping."
+        send_ntfy "🚨 CNPG Primary Missing: ${NS}/${NAME}" "Primary pod '${PRIMARY}' not found in namespace '${NS}'. Auto-remediation blocked." 5 "rotating_light,fire"
+        emit_k8s_event "$NS" "$NAME" "PrimaryNotFound" "Warning" "Primary pod '${PRIMARY}' not found. Auto-remediation blocked."
         continue
     fi
     PRIMARY_READY=$(echo "$PRIMARY_POD_JSON" | jq -r '([.status.containerStatuses[]? | select(.ready == true)] | length) == (.status.containerStatuses? | length // 0)')
     PRIMARY_PHASE=$(echo "$PRIMARY_POD_JSON" | jq -r '.status.phase // ""')
     if [ "$PRIMARY_READY" != "true" ] || [ "$PRIMARY_PHASE" != "Running" ]; then
         echo "  [ABORT] Primary pod '${PRIMARY}' is not healthy (Phase: ${PRIMARY_PHASE}, Ready: ${PRIMARY_READY}). Skipping cluster."
+        send_ntfy "🚨 CNPG Primary Unhealthy: ${NS}/${NAME}" "Primary pod '${PRIMARY}' is unhealthy (Phase: ${PRIMARY_PHASE}, Ready: ${PRIMARY_READY}). Auto-remediation blocked to avoid split-brain." 5 "rotating_light,fire"
+        emit_k8s_event "$NS" "$NAME" "PrimaryUnhealthy" "Warning" "Primary pod '${PRIMARY}' is unhealthy (Phase: ${PRIMARY_PHASE}, Ready: ${PRIMARY_READY}). Auto-remediation blocked."
         continue
-    fi
-
-    # Safety Check 3: Cooldown / Flap protection
-    if [ -n "$LAST_REMEDIATED" ]; then
-        LAST_SEC=$(parse_iso_to_epoch "$LAST_REMEDIATED")
-        NOW_SEC=$(date "+%s")
-        DIFF=$((NOW_SEC - LAST_SEC))
-        if [ "$DIFF" -lt "$COOLDOWN_SECONDS" ]; then
-            REMAINING=$((COOLDOWN_SECONDS - DIFF))
-            echo "  [COOLDOWN] Cluster was remediated ${DIFF}s ago (< ${COOLDOWN_SECONDS}s). ${REMAINING}s remaining in cooldown. Skipping."
-            continue
-        fi
     fi
 
     # Query instance pods for this cluster
@@ -167,17 +223,49 @@ while read -r cluster; do
 
     FAILING_COUNT=$(echo "$STANDBYS" | jq 'length')
     if [ "$FAILING_COUNT" -eq 0 ]; then
-        echo "  All standby instances appear healthy."
+        echo "  ✔ All standby instances appear healthy."
+        if [ "$PERSISTENT_ALERT_SENT" = "true" ]; then
+            kubectl annotate cluster "$NAME" -n "$NS" "cnpg.io/persistent-alert-sent=false" --overwrite || true
+            emit_k8s_event "$NS" "$NAME" "StandbyRecovered" "Normal" "All standby instances are now healthy."
+        fi
         continue
     fi
 
-    # Safety Check 4: Rate limit to 1 instance per cluster
     TARGET_STANDBY=$(echo "$STANDBYS" | jq -r '.[0].name')
     TARGET_STATUS=$(echo "$STANDBYS" | jq -r '.[0].status')
     TARGET_RESTARTS=$(echo "$STANDBYS" | jq -r '.[0].restarts')
     TARGET_READY=$(echo "$STANDBYS" | jq -r '.[0].ready')
 
     echo "  [TARGET] Found failing standby: ${TARGET_STANDBY} (Status: ${TARGET_STATUS}, Ready: ${TARGET_READY}, Restarts: ${TARGET_RESTARTS})"
+
+    # Safety Check 3: Cooldown & Persistent Failure Check
+    if [ -n "$LAST_REMEDIATED" ]; then
+        LAST_SEC=$(parse_iso_to_epoch "$LAST_REMEDIATED")
+        NOW_SEC=$(date "+%s")
+        DIFF=$((NOW_SEC - LAST_SEC))
+        if [ "$DIFF" -lt "$COOLDOWN_SECONDS" ]; then
+            REMAINING=$((COOLDOWN_SECONDS - DIFF))
+            echo "  [COOLDOWN] Cluster was remediated ${DIFF}s ago (< ${COOLDOWN_SECONDS}s). ${REMAINING}s remaining in cooldown."
+            echo "  [PERSISTENT FAILURE] Standby '${TARGET_STANDBY}' is still failing despite recent remediation!"
+
+            if [ "$PERSISTENT_ALERT_SENT" != "true" ]; then
+                send_ntfy "⚠️ CNPG Standby Still Failing: ${NS}/${NAME}" "Standby instance '${TARGET_STANDBY}' was remediated at ${LAST_REMEDIATED} but remains in failure state (${TARGET_STATUS}, ${TARGET_RESTARTS} restarts). Further auto-remediation suspended during cooldown." 4 "warning,repeat"
+                emit_k8s_event "$NS" "$NAME" "StandbyStillFailing" "Warning" "Standby instance '${TARGET_STANDBY}' was remediated at ${LAST_REMEDIATED} but remains failing (${TARGET_STATUS})."
+                kubectl annotate cluster "$NAME" -n "$NS" "cnpg.io/persistent-alert-sent=true" --overwrite || true
+            fi
+            continue
+        fi
+    fi
+
+    # Check for Flapping / Repeat Remediation
+    INT_REMEDIATION_COUNT=$(( ${REMEDIATION_COUNT:-0} ))
+    NEXT_REMEDIATION_COUNT=$(( INT_REMEDIATION_COUNT + 1 ))
+
+    if [ "$INT_REMEDIATION_COUNT" -gt 0 ]; then
+        echo "  [FLAPPING DETECTED] Cluster has already been remediated ${INT_REMEDIATION_COUNT} time(s)."
+        send_ntfy "⚠️ CNPG Flapping Standby: ${NS}/${NAME}" "Cluster ${NS}/${NAME} requires repeat remediation (cycle #${NEXT_REMEDIATION_COUNT}). Standby '${TARGET_STANDBY}' repeatedly failing." 4 "triangular_flag_on_post,database"
+        emit_k8s_event "$NS" "$NAME" "RemediationFlapping" "Warning" "Cluster requires repeat remediation (cycle #${NEXT_REMEDIATION_COUNT}) for standby ${TARGET_STANDBY}."
+    fi
 
     # Find associated PVCs
     PVCS_JSON=$(kubectl get pvc -n "$NS" -l "cnpg.io/cluster=${NAME}" -o json 2>/dev/null || true)
@@ -206,10 +294,20 @@ while read -r cluster; do
             done
         fi
 
-        # Annotate cluster with timestamp for cooldown
+        # Annotate cluster with timestamp, instance, and count
         TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-        echo "  Setting cooldown annotation cnpg.io/last-remediated-at=${TIMESTAMP}"
-        kubectl annotate cluster "$NAME" -n "$NS" "cnpg.io/last-remediated-at=${TIMESTAMP}" --overwrite || true
+        echo "  Setting remediation annotations (count=${NEXT_REMEDIATION_COUNT}, timestamp=${TIMESTAMP})"
+        kubectl annotate cluster "$NAME" -n "$NS" \
+            "cnpg.io/last-remediated-at=${TIMESTAMP}" \
+            "cnpg.io/last-remediated-instance=${TARGET_STANDBY}" \
+            "cnpg.io/remediation-count=${NEXT_REMEDIATION_COUNT}" \
+            "cnpg.io/persistent-alert-sent=false" \
+            --overwrite || true
+
+        # Emit normal event and send ntfy notification
+        send_ntfy "🛠️ CNPG Standby Remediated: ${NS}/${NAME}" "Deleted failing standby pod '${TARGET_STANDBY}' (Restarts: ${TARGET_RESTARTS}) and associated PVCs (${TARGET_PVCS[*]}). CloudNativePG operator will reprovision." 3 "wrench,database"
+        emit_k8s_event "$NS" "$NAME" "StandbyRemediated" "Normal" "Cleaned up failing standby pod '${TARGET_STANDBY}' and associated PVCs (${TARGET_PVCS[*]}). Reprovisioning initiated."
+
         echo "  [REMEDIATED] Completed remediation for ${TARGET_STANDBY}. Operator will reprovision."
     fi
 
