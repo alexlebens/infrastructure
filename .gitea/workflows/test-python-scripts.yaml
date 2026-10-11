@@ -8,11 +8,14 @@ on:
   pull_request:
     paths:
       - ".gitea/scripts/*.py"
+      - "clusters/**/scripts/*.py"
       - ".gitea/workflows/test-python-scripts.yaml"
       - ".pre-commit-config.yaml"
 
 env:
   RUFF_VERSION: "0.17.0"
+  FAILING_TARGET: "Python scripts"
+  FAILED_STAGE: "Lint"
 
 jobs:
   lint-python:
@@ -40,13 +43,47 @@ jobs:
 
       - name: Ruff Check Python Scripts
         run: |
-          echo ">> Running Ruff check on Python scripts in .gitea/scripts/ ..."
-          ruff check .gitea/scripts/*.py
+          echo "FAILED_STAGE=Ruff Check" >> "$GITHUB_ENV"
+          echo ">> Running Ruff check on Python scripts in .gitea/scripts/ and clusters/ ..."
+          shopt -s globstar nullglob
+          files=(.gitea/scripts/*.py clusters/**/scripts/*.py)
+          if ! ruff check "${files[@]}"; then
+            failed=()
+            for f in "${files[@]}"; do
+              if ! ruff check "$f" >/dev/null 2>&1; then
+                if [[ "$f" =~ clusters/[^/]+/helm/([^/]+)/scripts/ ]]; then
+                  failed+=("Chart: ${BASH_REMATCH[1]}")
+                else
+                  failed+=("Workflow: $(basename "$f")")
+                fi
+              fi
+            done
+            unique_targets=$(printf "%s\n" "${failed[@]}" | sort -u | paste -sd ", " -)
+            echo "FAILING_TARGET=${unique_targets:-Python scripts}" >> "$GITHUB_ENV"
+            exit 1
+          fi
 
       - name: Ruff Format Check Python Scripts
         run: |
-          echo ">> Running Ruff format check on Python scripts in .gitea/scripts/ ..."
-          ruff format --check .gitea/scripts/*.py
+          echo "FAILED_STAGE=Ruff Format" >> "$GITHUB_ENV"
+          echo ">> Running Ruff format check on Python scripts in .gitea/scripts/ and clusters/ ..."
+          shopt -s globstar nullglob
+          files=(.gitea/scripts/*.py clusters/**/scripts/*.py)
+          if ! ruff format --check "${files[@]}"; then
+            failed=()
+            for f in "${files[@]}"; do
+              if ! ruff format --check "$f" >/dev/null 2>&1; then
+                if [[ "$f" =~ clusters/[^/]+/helm/([^/]+)/scripts/ ]]; then
+                  failed+=("Chart: ${BASH_REMATCH[1]}")
+                else
+                  failed+=("Workflow: $(basename "$f")")
+                fi
+              fi
+            done
+            unique_targets=$(printf "%s\n" "${failed[@]}" | sort -u | paste -sd ", " -)
+            echo "FAILING_TARGET=${unique_targets:-Python scripts}" >> "$GITHUB_ENV"
+            exit 1
+          fi
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -54,11 +91,11 @@ jobs:
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ vars.NTFY_TOPIC }}"
-          title: "🚨 Python Script Linting Failure"
+          title: "🚨 Python Script Failure - ${{ env.FAILING_TARGET }}"
           priority: 4
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
-          details: "Ruff check or format failed for Python scripts in .gitea/scripts/."
+          details: "Testing failed for ${{ env.FAILING_TARGET }} at stage: ${{ env.FAILED_STAGE }}."
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
