@@ -11,13 +11,13 @@ if ! command -v shellcheck >/dev/null 2>&1; then
   fi
 fi
 
-echo ">> Running shellcheck on bash scripts in .gitea/scripts/ ..."
-shopt -s nullglob
-scripts=(.gitea/scripts/*.sh)
-shopt -u nullglob
+echo ">> Running shellcheck on bash scripts in .gitea/scripts/ and clusters/ ..."
+shopt -s globstar nullglob
+scripts=(.gitea/scripts/*.sh clusters/**/scripts/*.sh)
+shopt -u globstar nullglob
 
 if [ ${#scripts[@]} -eq 0 ]; then
-  echo "No bash scripts found in .gitea/scripts/."
+  echo "No bash scripts found in .gitea/scripts/ or clusters/."
   exit 0
 fi
 

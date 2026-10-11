@@ -249,7 +249,7 @@ while read -r cluster; do
             echo "  [PERSISTENT FAILURE] Standby '${TARGET_STANDBY}' is still failing despite recent remediation!"
 
             if [ "$PERSISTENT_ALERT_SENT" != "true" ]; then
-                send_ntfy "⚠️ CNPG Standby Still Failing: ${NS}/${NAME}" "Standby instance '${TARGET_STANDBY}' was remediated at ${LAST_REMEDIATED} but remains in failure state (${TARGET_STATUS}, ${TARGET_RESTARTS} restarts). Further auto-remediation suspended during cooldown." 4 "warning,repeat"
+                send_ntfy "⚠️ CNPG Standby Still Failing: ${NS}/${NAME}" "Standby instance '${TARGET_STANDBY}' was remediated at ${LAST_REMEDIATED} (previous target: ${LAST_INSTANCE:-unknown}) but remains in failure state (${TARGET_STATUS}, ${TARGET_RESTARTS} restarts). Further auto-remediation suspended during cooldown." 4 "warning,repeat"
                 emit_k8s_event "$NS" "$NAME" "StandbyStillFailing" "Warning" "Standby instance '${TARGET_STANDBY}' was remediated at ${LAST_REMEDIATED} but remains failing (${TARGET_STATUS})."
                 kubectl annotate cluster "$NAME" -n "$NS" "cnpg.io/persistent-alert-sent=true" --overwrite || true
             fi
@@ -271,9 +271,9 @@ while read -r cluster; do
     PVCS_JSON=$(kubectl get pvc -n "$NS" -l "cnpg.io/cluster=${NAME}" -o json 2>/dev/null || true)
     TARGET_PVCS=()
     if [ -n "$PVCS_JSON" ]; then
-        TARGET_PVCS=($(echo "$PVCS_JSON" | jq -r --arg inst "$TARGET_STANDBY" '
+        readarray -t TARGET_PVCS < <(echo "$PVCS_JSON" | jq -r --arg inst "$TARGET_STANDBY" '
             [ .items[] | select(.metadata.labels["cnpg.io/instanceName"] == $inst or .metadata.name == $inst or .metadata.name == ($inst + "-wal")) | .metadata.name ] | .[]
-        '))
+        ')
     fi
 
     echo "  Target PVCs: ${TARGET_PVCS[*]:-(none found)}"
