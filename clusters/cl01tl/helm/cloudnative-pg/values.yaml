@@ -14,6 +14,73 @@ plugin-barman-cloud:
       cpu: 1m
       memory: 30Mi
 
+cloudnative-pg-remediator:
+  global:
+    nameOverride: cloudnative-pg-remediator
+    fullnameOverride: cloudnative-pg-remediator
+  controllers:
+    remediator:
+      type: cronjob
+      cronjob:
+        schedule: "*/10 * * * *"
+        concurrencyPolicy: Forbid
+        backoffLimit: 1
+      serviceAccount:
+        name: cloudnative-pg-remediator
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          fsGroup: 65534
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: alpine/k8s
+            # renovate: datasource=docker depName=alpine/k8s
+            tag: 1.32.0@sha256:4c28b0f0c6accfa07fa449493ea936291e4ff1270500571d73f75bb406676c3b
+          command:
+            - /bin/bash
+            - /scripts/remediate.sh
+          env:
+            - name: MIN_RESTARTS
+              value: "5"
+            - name: COOLDOWN_SECONDS
+              value: "3600"
+            - name: DRY_RUN
+              value: "false"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+  serviceAccount:
+    cloudnative-pg-remediator:
+      enabled: true
+  persistence:
+    scripts:
+      type: configMap
+      name: cloudnative-pg-remediator-script
+      advancedMounts:
+        remediator:
+          main:
+            - path: /scripts/remediate.sh
+              subPath: remediate.sh
+              readOnly: true
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        remediator:
+          main:
+            - path: /tmp
+
 s3-bucket:
   enabled: true
   bucketName: postgres-backups
