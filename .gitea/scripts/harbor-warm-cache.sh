@@ -139,27 +139,6 @@ for IMG in ${IMAGES}; do
     TARGET_IMG="${PROXY_IMG}"
   fi
 
-  # Warm and validate remote image via crane without pulling/storing image layers on the runner.
-  # Clusters include both x86_64 nodes and Raspberry Pi 4 (linux/arm64) nodes.
-  # Fetching both platforms ensures Harbor caches the required manifests for each node architecture.
-  WARM_FAILED=false
-  SUPPORTED_PLATFORMS=()
-
-  for PLATFORM in "linux/amd64" "linux/arm64"; do
-    if crane manifest --platform "${PLATFORM}" "${TARGET_IMG}" >/dev/null 2>&1; then
-      SUPPORTED_PLATFORMS+=("${PLATFORM}")
-    fi
-  done
-
-  # If multi-arch check did not match specific platforms, test general digest
-  if [ ${#SUPPORTED_PLATFORMS[@]} -eq 0 ]; then
-    if crane digest "${TARGET_IMG}" >/dev/null 2>&1; then
-      SUPPORTED_PLATFORMS+=("default")
-    else
-      WARM_FAILED=true
-    fi
-  fi
-
   # Parse clean details for PR comment:
   # Strip sha digest if present (@sha256:...)
   IMG_NO_DIGEST="${IMG%%@*}"
@@ -182,15 +161,58 @@ for IMG in ${IMAGES}; do
     IMAGE_TAG="latest"
   fi
 
+  # Check if the image tag is already cached in Harbor before warming
+  ALREADY_CACHED=false
+  if [ -n "${PROXY_IMG}" ]; then
+    TARGET_NO_DIGEST="${TARGET_IMG%%@*}"
+    if [[ "${TARGET_NO_DIGEST##*/}" == *":"* ]]; then
+      TARGET_REPO="${TARGET_NO_DIGEST%:*}"
+    else
+      TARGET_REPO="${TARGET_NO_DIGEST}"
+    fi
+
+    if (crane ls "${TARGET_REPO}" 2>/dev/null || true) | grep -qx "${IMAGE_TAG}"; then
+      ALREADY_CACHED=true
+    fi
+  else
+    ALREADY_CACHED=true
+  fi
+
+  # Warm and validate remote image via crane without pulling/storing image layers on the runner.
+  # Clusters include both x86_64 nodes and Raspberry Pi 4 (linux/arm64) nodes.
+  # Fetching both platforms ensures Harbor caches the required manifests for each node architecture.
+  WARM_FAILED=false
+  SUPPORTED_PLATFORMS=()
+
+  for PLATFORM in "linux/amd64" "linux/arm64"; do
+    if crane manifest --platform "${PLATFORM}" "${TARGET_IMG}" >/dev/null 2>&1; then
+      SUPPORTED_PLATFORMS+=("${PLATFORM}")
+    fi
+  done
+
+  # If multi-arch check did not match specific platforms, test general digest
+  if [ ${#SUPPORTED_PLATFORMS[@]} -eq 0 ]; then
+    if crane digest "${TARGET_IMG}" >/dev/null 2>&1; then
+      SUPPORTED_PLATFORMS+=("default")
+    else
+      WARM_FAILED=true
+    fi
+  fi
+
   PLATFORMS_STR=$(IFS=", "; echo "${SUPPORTED_PLATFORMS[*]}")
 
   if [ "${WARM_FAILED}" = true ]; then
     echo ">> Failed to validate image: ${TARGET_IMG}" >&2
     FAILED_IMAGES+=("${IMG}")
-    WARMED_ROWS+=("| \`${IMAGE_NAME}\` | \`${IMAGE_TAG}\` | \`${REGISTRY_HOST}\` | ❌ Failed | - |")
+    WARMED_ROWS+=("| \`${IMAGE_NAME}\` | \`${IMAGE_TAG}\` | \`${REGISTRY_HOST}\` | 🔴 Failed | - |")
   else
-    echo ">> Successfully validated and warmed: ${TARGET_IMG}"
-    WARMED_ROWS+=("| \`${IMAGE_NAME}\` | \`${IMAGE_TAG}\` | \`${REGISTRY_HOST}\` | ✅ Warmed | \`${PLATFORMS_STR}\` |")
+    if [ "${ALREADY_CACHED}" = true ]; then
+      echo ">> Image was already cached in Harbor: ${TARGET_IMG}"
+      WARMED_ROWS+=("| \`${IMAGE_NAME}\` | \`${IMAGE_TAG}\` | \`${REGISTRY_HOST}\` | 🟢 Cached | \`${PLATFORMS_STR}\` |")
+    else
+      echo ">> Image was pulled into Harbor: ${TARGET_IMG}"
+      WARMED_ROWS+=("| \`${IMAGE_NAME}\` | \`${IMAGE_TAG}\` | \`${REGISTRY_HOST}\` | 🟡 Pulled | \`${PLATFORMS_STR}\` |")
+    fi
   fi
   echo ""
 done
