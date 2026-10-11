@@ -3,11 +3,12 @@ set -euo pipefail
 
 MIN_RESTARTS="${MIN_RESTARTS:-5}"
 COOLDOWN_SECONDS="${COOLDOWN_SECONDS:-3600}"
+MAX_CLUSTERS="${MAX_CLUSTERS:-2}"
 DRY_RUN="${DRY_RUN:-false}"
 
 echo "=========================================================="
 echo "Starting CloudNativePG Auto-Remediator at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-echo "Configuration: MIN_RESTARTS=${MIN_RESTARTS}, COOLDOWN_SECONDS=${COOLDOWN_SECONDS}, DRY_RUN=${DRY_RUN}"
+echo "Configuration: MIN_RESTARTS=${MIN_RESTARTS}, COOLDOWN_SECONDS=${COOLDOWN_SECONDS}, MAX_CLUSTERS=${MAX_CLUSTERS}, DRY_RUN=${DRY_RUN}"
 echo "=========================================================="
 
 parse_iso_to_epoch() {
@@ -87,7 +88,8 @@ fi
 TOTAL_CLUSTERS=$(echo "$CLUSTERS_JSON" | jq '.items | length')
 echo "Discovered ${TOTAL_CLUSTERS} CNPG cluster(s)."
 
-echo "$CLUSTERS_JSON" | jq -c '.items[]' | while read -r cluster; do
+REMEDIATED_COUNT=0
+while read -r cluster; do
     NS=$(echo "$cluster" | jq -r '.metadata.namespace')
     NAME=$(echo "$cluster" | jq -r '.metadata.name')
     PHASE=$(echo "$cluster" | jq -r '.status.phase // "Unknown"')
@@ -169,7 +171,7 @@ echo "$CLUSTERS_JSON" | jq -c '.items[]' | while read -r cluster; do
         continue
     fi
 
-    # Safety Check 4: Rate limit to 1 instance per cluster per run
+    # Safety Check 4: Rate limit to 1 instance per cluster
     TARGET_STANDBY=$(echo "$STANDBYS" | jq -r '.[0].name')
     TARGET_STATUS=$(echo "$STANDBYS" | jq -r '.[0].status')
     TARGET_RESTARTS=$(echo "$STANDBYS" | jq -r '.[0].restarts')
@@ -210,7 +212,15 @@ echo "$CLUSTERS_JSON" | jq -c '.items[]' | while read -r cluster; do
         kubectl annotate cluster "$NAME" -n "$NS" "cnpg.io/last-remediated-at=${TIMESTAMP}" --overwrite || true
         echo "  [REMEDIATED] Completed remediation for ${TARGET_STANDBY}. Operator will reprovision."
     fi
-done
+
+    REMEDIATED_COUNT=$((REMEDIATED_COUNT + 1))
+    echo ""
+
+    if [ "$MAX_CLUSTERS" -gt 0 ] && [ "$REMEDIATED_COUNT" -ge "$MAX_CLUSTERS" ]; then
+        echo "Reached maximum clusters to remediate per run limit (${REMEDIATED_COUNT}/${MAX_CLUSTERS}). Stopping execution for this cycle."
+        break
+    fi
+done < <(echo "$CLUSTERS_JSON" | jq -c '.items[]')
 
 echo "=========================================================="
 echo "CloudNativePG Auto-Remediator run finished at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
