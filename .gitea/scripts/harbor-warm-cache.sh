@@ -53,16 +53,24 @@ fi
 
 echo ">> Extracting container images from manifests in ${MANIFEST_PATH} ..."
 
-# Extract image fields from rendered YAML manifests using yq
-IMAGES=$(yq eval-all '.. | .image? | select(. != null)' "${MANIFEST_PATH}"/*.yaml 2>/dev/null | grep -v '^\-\-\-$' | sort -u || true)
+# Extract image fields from rendered YAML manifests using yq.
+# Exclude CustomResourceDefinitions and ensure only scalar strings are selected.
+RAW_IMAGES=$(yq eval-all 'select(.kind != "CustomResourceDefinition") | .. | .image? | select(tag == "!!str")' "${MANIFEST_PATH}"/*.yaml 2>/dev/null | grep -v '^\-\-\-$' | sort -u || true)
 
-if [ -z "${IMAGES}" ]; then
+IMAGES=()
+while IFS= read -r line; do
+  if [[ -n "${line}" && "${line}" != "null" && ! "${line}" =~ [[:space:]] ]]; then
+    IMAGES+=("${line}")
+  fi
+done <<< "${RAW_IMAGES}"
+
+if [ ${#IMAGES[@]} -eq 0 ]; then
   echo ">> No container images found in ${CHART} manifests."
   exit 0
 fi
 
 echo ">> Discovered images:"
-for IMG in ${IMAGES}; do
+for IMG in "${IMAGES[@]}"; do
   echo "  - ${IMG}"
 done
 echo ""
@@ -128,7 +136,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FAILED_IMAGES=()
 WARMED_ROWS=()
 
-for IMG in ${IMAGES}; do
+for IMG in "${IMAGES[@]}"; do
   PROXY_IMG=$(resolve_harbor_proxy_image "${IMG}")
 
   if [ -z "${PROXY_IMG}" ]; then
