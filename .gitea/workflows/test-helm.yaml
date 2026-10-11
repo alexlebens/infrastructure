@@ -156,12 +156,18 @@ jobs:
           echo "FAILED_STAGE=Trivy Security Scan" >> $GITHUB_ENV
           ./.gitea/scripts/trivy-scan.sh --chart "${CHART}"
 
+      - name: Get Cluster CRDs Hash
+        id: crd-hash
+        # Step Outputs:
+        #   - hash: SHA256 hash of cluster CRD names and generations
+        run: ./.gitea/scripts/kubectl-get-crd-hash.sh
+
       - name: Cache CRD Schemas
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
         id: cache-schemas
         with:
           path: ~/.schemas
-          key: ${{ runner.os }}-crd-schemas-v1
+          key: ${{ runner.os }}-crd-schemas-${{ steps.crd-hash.outputs.hash }}
 
       - name: Set up Python
         if: steps.cache-schemas.outputs.cache-hit != 'true'
