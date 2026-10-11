@@ -305,7 +305,7 @@ while read -r cluster; do
             --overwrite || true
 
         # Emit normal event and send ntfy notification
-        send_ntfy "CNPG Standby Remediated: ${NS}/${NAME}" "Deleted failing standby pod '${TARGET_STANDBY}' (Restarts: ${TARGET_RESTARTS}) and associated PVCs (${TARGET_PVCS[*]}). CloudNativePG operator will reprovision." 3 "white_check_mark"
+        send_ntfy "CNPG Standby Remediated: ${NS}/${NAME}" "Deleted failing standby pod '${TARGET_STANDBY}' (Restarts: ${TARGET_RESTARTS}) and associated PVCs (${TARGET_PVCS[*]}). CloudNativePG operator will reprovision." 3 "warning"
         emit_k8s_event "$NS" "$NAME" "StandbyRemediated" "Normal" "Cleaned up failing standby pod '${TARGET_STANDBY}' and associated PVCs (${TARGET_PVCS[*]}). Reprovisioning initiated."
 
         echo "  [REMEDIATED] Completed remediation for ${TARGET_STANDBY}. Operator will reprovision."
