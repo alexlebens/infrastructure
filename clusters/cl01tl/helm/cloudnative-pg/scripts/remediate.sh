@@ -82,25 +82,25 @@ check_etcd_and_cluster_health() {
     echo "Checking Kubernetes cluster health and etcd quorum..."
 
     # Check 1: API Server health and etcd status via /readyz?verbose
-    local readyz_verbose
-    readyz_verbose=$(kubectl get --raw='/readyz?verbose' 2>/dev/null || true)
+    local readyz_output readyz_rc=0
+    readyz_output=$(kubectl get --raw='/readyz?verbose' 2>&1) || readyz_rc=$?
 
-    if [ -n "$readyz_verbose" ]; then
-        if echo "$readyz_verbose" | grep -q "[-]etcd"; then
+    if [ "$readyz_rc" -eq 0 ] && [ -n "$readyz_output" ]; then
+        if echo "$readyz_output" | grep -q "[-]etcd"; then
             echo "  [ABORT] etcd health check failed in /readyz. Aborting remediation." >&2
             return 1
         fi
-        if ! echo "$readyz_verbose" | grep -qE "\[\+\]etcd(-readiness)? ok"; then
+        if ! echo "$readyz_output" | grep -qE "\[\+\]etcd(-readiness)? ok"; then
             echo "  [ABORT] etcd readiness was not confirmed in /readyz. Aborting remediation." >&2
             return 1
         fi
         echo "  ✔ API Server reports etcd is healthy and ready."
     else
         # Fallback to simple /readyz if verbose is unavailable
-        local readyz
-        readyz=$(kubectl get --raw='/readyz' 2>/dev/null || true)
-        if [ "$readyz" != "ok" ]; then
-            echo "  [ABORT] Kubernetes /readyz check failed ('$readyz'). Aborting remediation." >&2
+        local readyz_fallback fallback_rc=0
+        readyz_fallback=$(kubectl get --raw='/readyz' 2>&1) || fallback_rc=$?
+        if [ "$fallback_rc" -ne 0 ] || [ "$readyz_fallback" != "ok" ]; then
+            echo "  [ABORT] Kubernetes /readyz check failed ('${readyz_fallback}'). Aborting remediation." >&2
             return 1
         fi
         echo "  ✔ Kubernetes /readyz check passed."
