@@ -19,6 +19,65 @@ parse_iso_to_epoch() {
     fi
 }
 
+check_etcd_and_cluster_health() {
+    echo "Checking Kubernetes cluster health and etcd quorum..."
+
+    # Check 1: API Server health and etcd status via /readyz?verbose
+    local readyz_verbose
+    readyz_verbose=$(kubectl get --raw='/readyz?verbose' 2>/dev/null || true)
+
+    if [ -n "$readyz_verbose" ]; then
+        if echo "$readyz_verbose" | grep -q "[-]etcd"; then
+            echo "  [ABORT] etcd health check failed in /readyz. Aborting remediation." >&2
+            return 1
+        fi
+        if ! echo "$readyz_verbose" | grep -qE "\[\+\]etcd(-readiness)? ok"; then
+            echo "  [ABORT] etcd readiness was not confirmed in /readyz. Aborting remediation." >&2
+            return 1
+        fi
+        echo "  ✔ API Server reports etcd is healthy and ready."
+    else
+        # Fallback to simple /readyz if verbose is unavailable
+        local readyz
+        readyz=$(kubectl get --raw='/readyz' 2>/dev/null || true)
+        if [ "$readyz" != "ok" ]; then
+            echo "  [ABORT] Kubernetes /readyz check failed ('$readyz'). Aborting remediation." >&2
+            return 1
+        fi
+        echo "  ✔ Kubernetes /readyz check passed."
+    fi
+
+    # Check 2: Control plane nodes quorum
+    local nodes_json
+    nodes_json=$(kubectl get nodes -l 'node-role.kubernetes.io/control-plane' -o json 2>/dev/null || true)
+
+    if [ -n "$nodes_json" ]; then
+        local total_cp ready_cp required_quorum
+        total_cp=$(echo "$nodes_json" | jq '.items | length // 0')
+        if [ "$total_cp" -gt 0 ]; then
+            ready_cp=$(echo "$nodes_json" | jq '[.items[] | select(.status.conditions[]? | select(.type == "Ready" and .status == "True"))] | length')
+            required_quorum=$(( (total_cp / 2) + 1 ))
+
+            echo "  Control plane nodes: ${ready_cp}/${total_cp} Ready (Quorum requires: ${required_quorum})"
+
+            if [ "$ready_cp" -lt "$required_quorum" ]; then
+                echo "  [ABORT] Control plane has lost etcd quorum (${ready_cp}/${total_cp} Ready). Aborting remediation." >&2
+                return 1
+            fi
+            echo "  ✔ Control plane quorum is healthy (${ready_cp}/${total_cp} Ready)."
+        fi
+    fi
+
+    return 0
+}
+
+# Run preflight cluster health check
+if ! check_etcd_and_cluster_health; then
+    echo "Cluster health check failed. Exiting immediately to prevent remediation during cluster degradation." >&2
+    exit 1
+fi
+echo ""
+
 CLUSTERS_JSON=$(kubectl get clusters.postgresql.cnpg.io -A -o json 2>/dev/null || true)
 if [ -z "$CLUSTERS_JSON" ] || [ "$(echo "$CLUSTERS_JSON" | jq '.items | length')" -eq 0 ]; then
     echo "No CNPG clusters found in the cluster."
