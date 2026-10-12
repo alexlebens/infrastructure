@@ -15,11 +15,9 @@ spec:
   instanceSelector:
     matchLabels:
       app: grafana-main
-{{- if hasKey $dashboard "tags" }}
-{{- if gt (len $dashboard.tags) 0 }}
-  folderUID: grafana-folder-{{ index $dashboard.tags 0 }}
-{{- end }}
-{{- end }}
+{{- $defaultMap := dict "node-full" "hardware" "node-short" "hardware" "eaton-ups" "hardware" "airgradient" "iot" "pods" "kubernetes" "etcd" "kubernetes" }}
+{{- $folder := (index ($.Values.grafanaDashboard.folders | default dict) $name) | default (index $defaultMap $name) | default $.Values.grafanaDashboard.folder | default "kubernetes" }}
+  folderUID: grafana-folder-{{ $folder }}
   resyncPeriod: 6h
   json: |-
 {{ $json | indent 4 }}

@@ -40,12 +40,23 @@ spec:
       token_url: https://auth.alexlebens.dev/api/oidc/token
       api_url: https://auth.alexlebens.dev/api/oidc/userinfo
       role_attribute_path: contains(groups[*], 'platform-admin') && 'Admin' || contains(groups[*], 'admin') && 'Editor' || contains(groups[*], 'user') && 'Viewer'
+      use_pkce: "true"
     database:
       type: postgres
       host: "${DB_HOST}:${DB_PORT}"
       name: ${DB_DATABASE}
       user: ${DB_USER}
       password: ${DB_PASSWORD}
+      ssl_mode: "disable"
+      max_idle_conn: "2"
+      max_open_conn: "20"
+      conn_max_lifetime: "14400"
+    smtp:
+      enabled: "true"
+      host: "postfix.postfix.svc.cluster.local:25"
+      from_address: "grafana@alexlebens.dev"
+      from_name: "Grafana"
+      skip_verify: "true"
     remote_cache:
       type: redis
       connstr: addr=grafana-operator-valkey-remote-cache.grafana-operator:6379,pool_size=100,db=0,ssl=false
@@ -117,6 +128,18 @@ spec:
                       name: grafana-operator-postgresql-18-cluster-app
                       key: password
   httpRoute:
+    metadata:
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Dashboard"
+        gethomepage.dev/description: "Grafana"
+        gethomepage.dev/group: "Monitoring"
+        gethomepage.dev/icon: "sh-grafana.webp"
+        gethomepage.dev/href: "https://grafana{{ include "custom.domain" . }}"
+        gethomepage.dev/siteMonitor: "http://grafana-main-service.{{ .Release.Namespace }}:3000/api/health"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "100"
+        gethomepage.dev/podSelector: ""
     spec:
       parentRefs:
         - group: gateway.networking.k8s.io

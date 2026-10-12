@@ -8,8 +8,42 @@ grafana-operator:
     requests:
       cpu: 1m
       memory: 50Mi
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
   serviceMonitor:
     enabled: true
+
+pocket-id-client:
+  mode: oidc
+  name: grafana
+  client:
+    displayName: "Grafana"
+    description: "Operational dashboards for monitoring using Prometheus metrics and Loki logging."
+    clientID: 4A432F02-12D5-4F32-AF21-828ACDF51917
+    callbackUrls:
+      - https://grafana.alexlebens.dev/login/generic_oauth
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
+      - name: admin
+        namespace: pocket-id-operator
+      - name: user
+        namespace: pocket-id-operator
+    logo:
+      selfhstLogoName: grafana
+  externalSecret:
+    secretPath: /cl01tl/pocket-id/oidc/grafana
+
+valkey-unified-alerting:
+  valkey:
+    nameOverride: valkey-unified-alerting
+
+valkey-remote-cache:
+  valkey:
+    nameOverride: valkey-remote-cache
+
 postgres-18-cluster:
   mode: recovery
   recovery:
@@ -21,9 +55,11 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 25 5 * * *"
-valkey-unified-alerting:
-  valkey:
-    nameOverride: valkey-unified-alerting
-valkey-remote-cache:
-  valkey:
-    nameOverride: valkey-remote-cache
+
+common-helpers:
+  probe:
+    internal: http://grafana-main-service.grafana-operator:3000/api/health
+    external: https://grafana.alexlebens.dev
+
+grafanaDashboard:
+  folder: platform
