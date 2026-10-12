@@ -24,14 +24,24 @@ spec:
       serviceAccountName: headlamp
       automountServiceAccountToken: true
       hostUsers: true
-      securityContext: {}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: headlamp
           securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
             privileged: false
+            readOnlyRootFilesystem: true
             runAsGroup: 101
             runAsNonRoot: true
             runAsUser: 100
+            seccompProfile:
+              type: RuntimeDefault
           image: "ghcr.io/headlamp-k8s/headlamp:v0.45.0@sha256:db3f0e0fc58d358d41daa3fe7fc852437552c7ee873c3645470f7b86a8e0db49"
           imagePullPolicy: IfNotPresent
           envFrom:
@@ -74,12 +84,16 @@ spec:
             successThreshold: 1
             failureThreshold: 3
           resources:
+            limits:
+              memory: 200Mi
             requests:
-              cpu: 1m
-              memory: 80Mi
+              cpu: 5m
+              memory: 100Mi
           volumeMounts:
             - name: plugins-dir
               mountPath: /headlamp/plugins
+            - name: headlamp-tmp
+              mountPath: /tmp
         - name: headlamp-plugin
           image: node:lts-alpine
           command: ["/bin/sh", "-c"]
@@ -100,14 +114,32 @@ spec:
               mountPath: /headlamp/plugins
             - name: plugin-config
               mountPath: /config
-          resources: null
+            - name: headlamp-plugins-tmp
+              mountPath: /tmp
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 10m
+              memory: 128Mi
           securityContext:
-            readOnlyRootFilesystem: false
-            runAsNonRoot: false
-            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
       volumes:
         - name: plugins-dir
           emptyDir: {}
         - name: plugin-config
           configMap:
             name: headlamp-plugin-config
+        - name: headlamp-plugins-tmp
+          emptyDir: {}
+        - name: headlamp-tmp
+          emptyDir: {}
