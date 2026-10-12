@@ -16,6 +16,16 @@ headlamp:
     watchPlugins: true
   httpRoute:
     enabled: true
+    annotations:
+      gethomepage.dev/enabled: "true"
+      gethomepage.dev/name: "Kubernetes"
+      gethomepage.dev/description: "Headlamp"
+      gethomepage.dev/group: "Monitoring"
+      gethomepage.dev/icon: "sh-headlamp.webp"
+      gethomepage.dev/siteMonitor: "http://headlamp.headlamp:80"
+      gethomepage.dev/statusStyle: "dot"
+      gethomepage.dev/weight: "50"
+      gethomepage.dev/podSelector: ""
     parentRefs:
       - group: gateway.networking.k8s.io
         kind: Gateway
@@ -30,16 +40,46 @@ headlamp:
             name: headlamp
             port: 80
             weight: 1
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 100
+    runAsGroup: 101
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
   resources:
     requests:
-      cpu: 1m
-      memory: 80Mi
+      cpu: 5m
+      memory: 100Mi
+    limits:
+      memory: 200Mi
   pluginsManager:
     enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
     securityContext:
-      readOnlyRootFilesystem: false
-      runAsNonRoot: false
-      runAsUser: 0
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
     configContent: |
       plugins:
         - name: cert-manager
@@ -51,3 +91,57 @@ headlamp:
       installOptions:
         parallel: false
         maxConcurrent: 1
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Headlamp"
+    description: "An easy-to-use and extensible Kubernetes web UI."
+    launchUrl: https://headlamp.alexlebens.dev
+    callbackUrls:
+      - https://headlamp.alexlebens.dev/oidc-callback
+      - http://localhost:8000
+    pkceEnabled: true
+    skipConsent: true
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
+    clientID: 131F7026-5D4E-4B1E-A941-0BF74C2DD9EB
+    clientSecretRefKey: OIDC_CLIENT_SECRET
+    logo:
+      selfhstLogoName: headlamp
+      selfhstDarkLogo: true
+  externalSecret:
+    enabled: true
+    clientIdKey: OIDC_CLIENT_ID
+    clientSecretKey: OIDC_CLIENT_SECRET
+    extraData:
+      - secretKey: OIDC_ISSUER_URL
+        remoteRef:
+          key: /cl01tl/pocket-id/config
+          property: issuer-url
+      - secretKey: OIDC_SCOPES
+        remoteRef:
+          key: /cl01tl/pocket-id/oidc/headlamp
+          property: scopes
+      - secretKey: OIDC_USE_PKCE
+        remoteRef:
+          key: /cl01tl/pocket-id/oidc/headlamp
+          property: usePkce
+      - secretKey: OIDC_USE_COOKIE
+        remoteRef:
+          key: /cl01tl/pocket-id/oidc/headlamp
+          property: useCookie
+      - secretKey: HEADLAMP_CONFIG_OIDC_VALIDATOR_IDP_ISSUER_URL
+        remoteRef:
+          key: /cl01tl/pocket-id/config
+          property: issuer-url
+      - secretKey: HEADLAMP_CONFIG_OIDC_VALIDATOR_CLIENT_ID
+        remoteRef:
+          key: /cl01tl/pocket-id/oidc/headlamp
+          property: clientId
+
+common-helpers:
+  probe:
+    internal: http://headlamp.headlamp:80
+    external: https://headlamp.alexlebens.dev
