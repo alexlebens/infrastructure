@@ -58,12 +58,16 @@ echo ">> Converting CRD schemas to JSON ..."
 cd "${TMP_DIR}"
 export FILENAME_FORMAT='{kind}_{version}'
 for crd_file in "${TMP_DIR}"/*.yaml; do
-  python3 "${BIN_DIR}/openapi2jsonschema.py" "file://${crd_file}" || true
+  python3 "${BIN_DIR}/openapi2jsonschema.py" "${crd_file}" || true
 done
 
 mv ./*.json "${SCHEMA_DIR}/" 2>/dev/null || true
 
 SCHEMA_COUNT=$(find "${SCHEMA_DIR}" -name '*.json' | wc -l | xargs)
+if [ "${SCHEMA_COUNT}" -eq 0 ]; then
+  echo "Error: No JSON schemas were generated in ${SCHEMA_DIR}." >&2
+  exit 1
+fi
 echo ">> Schemas generated successfully in ${SCHEMA_DIR}:"
 echo ">> Generated ${SCHEMA_COUNT} JSON schemas"
 echo "----"
