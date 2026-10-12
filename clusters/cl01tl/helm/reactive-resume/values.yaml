@@ -3,11 +3,25 @@ reactive-resume:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: amruthpillai/reactive-resume
-            tag: v5.3.2@sha256:cd0e27bf2cff1817ce0bbba15998b48dc77cc1d1e64a3b56735efb9dadeb419b
+            tag: v6.0.2@sha256:2b08d01446f8b775e0bf5888cc15b0a3fd6805521efefb0a0e21a4f5bfb253b3
           env:
             - name: APP_URL
               value: https://resume.alexlebens.dev
@@ -16,6 +30,8 @@ reactive-resume:
             - name: FLAG_DISABLE_EMAIL_AUTH
               value: true
             - name: MAIL_FROM
+              value: resume@alexlebens.dev
+            - name: SMTP_FROM
               value: resume@alexlebens.dev
             - name: SMTP_HOST
               value: postfix.postfix.svc.cluster.local
@@ -75,13 +91,17 @@ reactive-resume:
               value: https://auth.alexlebens.dev/.well-known/openid-configuration
             - name: OAUTH_SCOPES
               value: openid profile email
+          resources:
+            requests:
+              cpu: 5m
+              memory: 200Mi
           probes:
             startup:
               enabled: true
               custom: true
               spec:
                 httpGet:
-                  path: /
+                  path: /api/health
                   port: 3000
                 initialDelaySeconds: 10
                 periodSeconds: 10
@@ -91,7 +111,7 @@ reactive-resume:
               custom: true
               spec:
                 httpGet:
-                  path: /
+                  path: /api/health
                   port: 3000
                 periodSeconds: 30
                 timeoutSeconds: 5
@@ -101,17 +121,14 @@ reactive-resume:
               custom: true
               spec:
                 httpGet:
-                  path: /
+                  path: /api/health
                   port: 3000
                 periodSeconds: 10
                 timeoutSeconds: 5
                 failureThreshold: 3
-          resources:
-            requests:
-              cpu: 10m
-              memory: 150Mi
   service:
     main:
+      forceRename: reactive-resume
       ports:
         http:
           port: 80
@@ -119,6 +136,17 @@ reactive-resume:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Resume"
+        gethomepage.dev/description: "Reactive Resume"
+        gethomepage.dev/group: "Knowledge"
+        gethomepage.dev/icon: "sh-reactive-resume-light.webp"
+        gethomepage.dev/siteMonitor: "http://reactive-resume.reactive-resume:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "450"
+        gethomepage.dev/href: "https://resume.alexlebens.dev/auth/login"
+        gethomepage.dev/podSelector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -132,6 +160,19 @@ reactive-resume:
             - path:
                 type: PathPrefix
                 value: /
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Reactive Resume"
+    description: "A free and open source resume builder."
+    launchUrl: https://resume.alexlebens.dev
+    clientID: 9546EC88-ED27-413C-85B7-A9BAB0A91307
+    callbackUrls:
+      - https://resume.alexlebens.dev/api/auth/callback/custom
+    logo:
+      selfhstLogoName: reactive-resume
+      selfhstDarkLogo: true
 
 postgres-18-cluster:
   mode: recovery
@@ -167,3 +208,8 @@ s3-bucket:
       schedule: "10 2 * * 0"
       destination:
         bucketName: reactive-resume-assets-61758b59b4c7c893
+
+common-helpers:
+  probe:
+    internal: http://reactive-resume.reactive-resume:80
+    external: https://resume.alexlebens.dev
