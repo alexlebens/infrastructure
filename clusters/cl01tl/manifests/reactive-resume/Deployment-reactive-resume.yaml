@@ -29,6 +29,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: reactive-resume
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -42,6 +50,8 @@ spec:
             - name: FLAG_DISABLE_EMAIL_AUTH
               value: "true"
             - name: MAIL_FROM
+              value: resume@alexlebens.dev
+            - name: SMTP_FROM
               value: resume@alexlebens.dev
             - name: SMTP_HOST
               value: postfix.postfix.svc.cluster.local
@@ -101,11 +111,11 @@ spec:
               value: https://auth.alexlebens.dev/.well-known/openid-configuration
             - name: OAUTH_SCOPES
               value: openid profile email
-          image: amruthpillai/reactive-resume:v5.3.2@sha256:cd0e27bf2cff1817ce0bbba15998b48dc77cc1d1e64a3b56735efb9dadeb419b
+          image: amruthpillai/reactive-resume:v6.0.2@sha256:2b08d01446f8b775e0bf5888cc15b0a3fd6805521efefb0a0e21a4f5bfb253b3
           livenessProbe:
             failureThreshold: 3
             httpGet:
-              path: /
+              path: /api/health
               port: 3000
             periodSeconds: 30
             timeoutSeconds: 5
@@ -113,18 +123,30 @@ spec:
           readinessProbe:
             failureThreshold: 3
             httpGet:
-              path: /
+              path: /api/health
               port: 3000
             periodSeconds: 10
             timeoutSeconds: 5
           resources:
             requests:
-              cpu: 10m
-              memory: 150Mi
+              cpu: 5m
+              memory: 200Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           startupProbe:
             failureThreshold: 30
             httpGet:
-              path: /
+              path: /api/health
               port: 3000
             initialDelaySeconds: 10
             periodSeconds: 10
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - emptyDir: {}
+          name: tmp
