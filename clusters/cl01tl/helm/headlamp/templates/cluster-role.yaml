@@ -1,0 +1,144 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-admin
+  labels:
+    app.kubernetes.io/name: platform-admin
+    {{- include "custom.labels" . | nindent 4 }}
+rules:
+  # Non-resource endpoints (API discovery, health checks, metrics, Swagger/OpenAPI)
+  - nonResourceURLs:
+      - '*'
+    verbs:
+      - '*'
+
+  # Cluster-wide read, create, update, and patch for all resources and API groups
+  - apiGroups:
+      - '*'
+    resources:
+      - '*'
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+
+  # Pod subresources and interactive troubleshooting (exec, attach, portforward, logs, eviction)
+  - apiGroups:
+      - ''
+    resources:
+      - pods/attach
+      - pods/exec
+      - pods/portforward
+      - pods/proxy
+      - pods/log
+      - pods/eviction
+      - pods/status
+      - services/proxy
+      - services/status
+      - serviceaccounts/token
+    verbs:
+      - '*'
+
+  # Node operations: allow inspect, label, annotate, cordon/uncordon, and taints.
+  - apiGroups:
+      - ''
+    resources:
+      - nodes
+      - nodes/status
+      - nodes/spec
+      - nodes/proxy
+      - nodes/metrics
+      - nodes/log
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+
+  # Core resource deletion (allows deleting pods, namespaces, PVCs, PVs, secrets, configmaps, etc. EXCEPT nodes)
+  - apiGroups:
+      - ''
+    resources:
+      - bindings
+      - componentstatuses
+      - configmaps
+      - endpoints
+      - events
+      - limitranges
+      - namespaces
+      - namespaces/finalize
+      - namespaces/status
+      - persistentvolumeclaims
+      - persistentvolumeclaims/status
+      - persistentvolumes
+      - persistentvolumes/status
+      - pods
+      - podtemplates
+      - replicationcontrollers
+      - replicationcontrollers/scale
+      - replicationcontrollers/status
+      - resourcequotas
+      - resourcequotas/status
+      - secrets
+      - serviceaccounts
+      - services
+    verbs:
+      - delete
+      - deletecollection
+
+  # Deletion on standard Kubernetes and homelab custom resource API groups
+  - apiGroups:
+      - admissionregistration.k8s.io
+      - apiextensions.k8s.io
+      - apiregistration.k8s.io
+      - apps
+      - authentication.k8s.io
+      - authorization.k8s.io
+      - autoscaling
+      - batch
+      - certificates.k8s.io
+      - coordination.k8s.io
+      - discovery.k8s.io
+      - events.k8s.io
+      - flowcontrol.apiserver.k8s.io
+      - gateway.networking.k8s.io
+      - internal.apiserver.k8s.io
+      - networking.k8s.io
+      - node.k8s.io
+      - policy
+      - rbac.authorization.k8s.io
+      - resource.k8s.io
+      - scheduling.k8s.io
+      - storage.k8s.io
+      - storagemigration.k8s.io
+      # Homelab CRD groups
+      - acme.cert-manager.io
+      - cert-manager.io
+      - ceph.rook.io
+      - elastic.co
+      - external-secrets.io
+      - generators.external-secrets.io
+      - grafana.integreatly.org
+      - k8s.mariadb.com
+      - mariadb.mmontes.io
+      - monitoring.coreos.com
+      - objectbucket.io
+      - operator.victoriametrics.com
+      - postgresql.cnpg.io
+      - secrets-store.csi.x-k8s.io
+      - snapshot.storage.k8s.io
+      - stackconfigpolicy.k8s.elastic.co
+      - tailscale.com
+      - talos.dev
+      - topology.node.k8s.io
+      - traefik.io
+      - volsync.backube
+    resources:
+      - '*'
+    verbs:
+      - delete
+      - deletecollection
