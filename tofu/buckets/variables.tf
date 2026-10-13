@@ -106,7 +106,7 @@ variable "garage_c_ps10rp_host" {
 variable "garage_c_ps10rp_scheme" {
   description = "Scheme for Garage Admin API on Raspberry Pi (http or https)"
   type        = string
-  default     = "https"
+  default     = "http"
 }
 
 variable "garage_c_ps10rp_token" {
