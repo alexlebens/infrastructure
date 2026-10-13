@@ -119,7 +119,7 @@ variable "garage_c_ps10rp_token" {
 variable "garage_c_ps10rp_s3_endpoint" {
   description = "S3 API endpoint for Raspberry Pi"
   type        = string
-  default     = "https://garage-ps10rp.boreal-beaufort.ts.net:3900"
+  default     = "https://c.s3.alexlebens.dev"
 }
 
 variable "garage_c_ps10rp_admin_access_key" {
