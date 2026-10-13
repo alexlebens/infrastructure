@@ -1,8 +1,5 @@
 democratic-csi:
   driver:
-    image:
-      registry: ghcr.io/democratic-csi/democratic-csi
-      tag: v1.9.5@sha256:fc3b7d7ed3a616714139525075312758e23a5d425ffb539ad12c9bd20fb6001f
     config:
       driver: synology-iscsi
       httpConnection:
@@ -61,18 +58,6 @@ democratic-csi:
     name: "org.democratic-csi.iscsi-synology"
   controller:
     replicaCount: 3
-    driver:
-      extraEnv:
-        - name: SYNOLOGY_USERNAME
-          valueFrom:
-            secretKeyRef:
-              name: synology-iscsi-credentials
-              key: username
-        - name: SYNOLOGY_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: synology-iscsi-credentials
-              key: password
     externalAttacher:
       image:
         registry: registry.k8s.io/sig-storage/csi-attacher
@@ -89,6 +74,25 @@ democratic-csi:
       image:
         registry: registry.k8s.io/sig-storage/csi-snapshotter
         tag: v8.5.0@sha256:da081c27e8a6d91f36042c1942362d0515ced8d06e18c11b8f893e58c4d6d797
+    driver:
+      image:
+        registry: ghcr.io/democratic-csi/democratic-csi
+        tag: v1.9.5@sha256:fc3b7d7ed3a616714139525075312758e23a5d425ffb539ad12c9bd20fb6001f
+      resources:
+        requests:
+          cpu: 50m
+          memory: 200Mi
+      extraEnv:
+        - name: SYNOLOGY_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: synology-iscsi-credentials
+              key: username
+        - name: SYNOLOGY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: synology-iscsi-credentials
+              key: password
   storageClasses:
     - name: synology-iscsi-delete
       defaultClass: false
@@ -108,7 +112,15 @@ democratic-csi:
     hostPID: true
     rbac:
       enabled: true
+    cleanup:
+      image:
+        registry: docker.io/busybox
+        tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
     driver:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 100Mi
       extraEnv:
         - name: ISCSIADM_HOST_STRATEGY
           value: nsenter
@@ -120,6 +132,10 @@ democratic-csi:
     image:
       registry: registry.k8s.io/sig-storage/csi-node-driver-registrar
       tag: v2.16.0@sha256:ab482308a4921e28a6df09a16ab99a457e9af9641ff44fb1be1a690d07ce8b70
+  csiProxy:
+    image:
+      registry: ghcr.io/democratic-csi/csi-grpc-proxy
+      tag: v0.5.7@sha256:0240d0fba3cedd598036766b1865e88aa2eac9c16822df03d5d912a81128ebb6
 
 grafanaDashboard:
   folder: storage
