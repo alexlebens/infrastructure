@@ -13,13 +13,13 @@ spec:
   targets:
     staticConfig:
       static:
-        - "http://garage-ps10rp-backend.{{ include "custom.tailscaleDomain" . }}:3900"
-        - "https://garage-ui-ps10rp-backend.{{ include "custom.tailscaleDomain" . }}:8080"
-        - "https://node-ps10rp.{{ include "custom.tailscaleDomain" . }}:443/metrics"
-        - "https://blackbox-exporter-ps10rp.{{ include "custom.tailscaleDomain" . }}:443"
-        - "https://alloy-ps10rp.{{ include "custom.tailscaleDomain" . }}:443/-/ready"
-        - "https://ollama-pd05wd.{{ include "custom.tailscaleDomain" . }}:443"
-        - "https://komodo-periphery-ps10rp.{{ include "custom.tailscaleDomain" . }}:8120"
+        - "http://garage-ps10rp-backend.{{ $.Release.Namespace }}:3900"
+        - "https://garage-ui-ps10rp-backend.{{ $.Release.Namespace }}:8080"
+        - "https://node-ps10rp{{ include "custom.tailscaleDomain" . }}:443/metrics"
+        - "https://blackbox-exporter-ps10rp{{ include "custom.tailscaleDomain" . }}:443"
+        - "https://alloy-ps10rp{{ include "custom.tailscaleDomain" . }}:443/-/ready"
+        - "https://ollama-pd05wd{{ include "custom.tailscaleDomain" . }}:443"
+        - "https://komodo-periphery-ps10rp{{ include "custom.tailscaleDomain" . }}:8120"
 
 {{- range $prober := list "ps08rp" "ps09rp" }}
 ---
@@ -38,6 +38,23 @@ spec:
   targets:
     staticConfig:
       static:
-        - "https://c.s3{{ include "custom.domain" $ }}"
         - "https://c-ui.s3{{ include "custom.domain" $ }}"
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: blackbox-{{ $prober }}-{{ $.Release.Namespace }}-http-403
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: blackbox-{{ $prober }}-{{ $.Release.Namespace }}-http-403
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  prober:
+    url: {{ $prober }}{{ include "custom.domain" $ }}:9115
+  module: http_403
+  targets:
+    staticConfig:
+      static:
+        - "https://c.s3{{ include "custom.domain" $ }}"
 {{- end }}
