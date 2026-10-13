@@ -9,3 +9,31 @@ metadata:
 data:
   header.tmpl: |
     <script defer src="https://rybbit.alexlebens.dev/api/script.js" data-site-id="b515c34a6dcc"></script>
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: anubis-policy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: anubis-policy
+    {{- include "custom.labels" . | nindent 4 }}
+data:
+  botPolicies.yaml: |
+    bots:
+      - import: (data)/bots/_deny-pathological.yaml
+      - import: (data)/meta/ai-block-aggressive.yaml
+      - import: (data)/crawlers/_allow-good.yaml
+      - import: (data)/common/keep-internet-working.yaml
+      - import: (data)/clients/git.yaml
+      - import: (data)/clients/git-lfs.yaml
+      - name: allow-git-http-endpoints
+        action: ALLOW
+        path_regex: '.*(\.git/|/info/refs|/git-upload-pack|/git-receive-pack).*'
+      - name: allow-gitea-api
+        action: ALLOW
+        path_regex: '^/api/.*'
+      - name: allow-well-known
+        action: ALLOW
+        path_regex: '^/.well-known/.*'
