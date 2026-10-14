@@ -32,12 +32,23 @@ spec:
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
       containers:
-        - env:
+        - command:
+            - java
+            - --enable-native-access=ALL-UNNAMED
+            - --enable-preview
+            - -jar
+            - /app/app.jar
+          env:
             - name: TZ
               value: America/Chicago
             - name: USER_ID
@@ -79,6 +90,12 @@ spec:
             requests:
               cpu: 10m
               memory: 450Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           startupProbe:
             failureThreshold: 30
             httpGet:
@@ -95,6 +112,8 @@ spec:
               name: data
             - mountPath: /bookdrop/ingest
               name: ingest
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - emptyDir: {}
           name: books-import
@@ -107,3 +126,5 @@ spec:
         - name: ingest
           persistentVolumeClaim:
             claimName: grimmory-books-import-nfs-storage
+        - emptyDir: {}
+          name: tmp
