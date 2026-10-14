@@ -71,6 +71,7 @@ grimmory:
                 timeoutSeconds: 5
   service:
     main:
+      forceRename: grimmory
       ports:
         http:
           port: 80
@@ -78,6 +79,15 @@ grimmory:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Books"
+        gethomepage.dev/description: "Grimmory"
+        gethomepage.dev/group: "Media"
+        gethomepage.dev/icon: "sh-grimmory.webp"
+        gethomepage.dev/siteMonitor: "http://grimmory.grimmory:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "400"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -119,6 +129,21 @@ grimmory:
         main:
           main:
             - path: /bookdrop/ingest
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Grimmory"
+    description: "A self-hosted application for managing your entire book collection in one place."
+    clientID: 6B832F02-12D5-4F32-AF21-828ACDF51922
+    callbackUrls:
+      - https://grimmory.alexlebens.dev/oauth2-callback
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
+      - name: user
+        namespace: pocket-id-operator
+
 mariadb-cluster:
   mariadb:
     rootPasswordSecretKeyRef:
@@ -135,16 +160,16 @@ mariadb-cluster:
       s3:
         bucket: mariadb-backups
         prefix: cl01tl/grimmory
-        endpoint: synology.alexlebens.dev:3900
+        endpoint: a.s3.alexlebens.dev
         region: garage
         accessKeyIdSecretKeyRef:
-          name: grimmory-mariadb-cluster-backup-secret-garage
+          name: grimmory-mariadb-cluster-backup-secret-a
           key: access
         secretAccessKeySecretKeyRef:
-          name: grimmory-mariadb-cluster-backup-secret-garage
+          name: grimmory-mariadb-cluster-backup-secret-a
           key: secret
         tls:
-          enabled: false
+          enabled: true
       backupContentType: Physical
   databases:
     - name: booklore
@@ -166,7 +191,7 @@ mariadb-cluster:
       grantOption: true
       host: "%"
   physicalBackups:
-    - name: backup-local
+    - name: backup-a
       schedule:
         cron: "0 0 * * *"
         suspend: false
@@ -178,17 +203,17 @@ mariadb-cluster:
         s3:
           bucket: mariadb-backups
           prefix: cl01tl/grimmory
-          endpoint: synology.alexlebens.dev:3900
+          endpoint: a.s3.alexlebens.dev
           region: garage
           accessKeyIdSecretKeyRef:
-            name: grimmory-mariadb-cluster-backup-secret-garage
+            name: grimmory-mariadb-cluster-backup-secret-a
             key: access
           secretAccessKeySecretKeyRef:
-            name: grimmory-mariadb-cluster-backup-secret-garage
+            name: grimmory-mariadb-cluster-backup-secret-a
             key: secret
           tls:
-            enabled: false
-    - name: backup-remote
+            enabled: true
+    - name: backup-c
       schedule:
         cron: "0 0 * * 0"
         suspend: false
@@ -200,17 +225,17 @@ mariadb-cluster:
         s3:
           bucket: mariadb-backups
           prefix: cl01tl/grimmory
-          endpoint: garage-ps10rp.boreal-beaufort.ts.net:3900
+          endpoint: c.s3.alexlebens.dev
           region: garage
           accessKeyIdSecretKeyRef:
-            name: grimmory-mariadb-cluster-backup-secret-remote
+            name: grimmory-mariadb-cluster-backup-secret-c
             key: access
           secretAccessKeySecretKeyRef:
-            name: grimmory-mariadb-cluster-backup-secret-remote
+            name: grimmory-mariadb-cluster-backup-secret-c
             key: secret
           tls:
             enabled: true
-    - name: backup-external
+    - name: backup-d
       schedule:
         cron: "0 0 * * 6"
         suspend: false
@@ -225,13 +250,14 @@ mariadb-cluster:
           endpoint: s3.us-east-005.backblazeb2.com
           region: us-east-005
           accessKeyIdSecretKeyRef:
-            name: grimmory-mariadb-cluster-backup-secret-external
+            name: grimmory-mariadb-cluster-backup-secret-d
             key: access
           secretAccessKeySecretKeyRef:
-            name: grimmory-mariadb-cluster-backup-secret-external
+            name: grimmory-mariadb-cluster-backup-secret-d
             key: secret
           tls:
             enabled: true
+
 volsync-target-config:
   pvcTarget: grimmory-config
   moverSecurityContext:
@@ -246,3 +272,8 @@ volsync-target-config:
   d:
     enabled: true
     schedule: 40 9 * * 0
+
+common-helpers:
+  probe:
+    internal: http://grimmory.grimmory:80
+    external: https://grimmory.alexlebens.dev
