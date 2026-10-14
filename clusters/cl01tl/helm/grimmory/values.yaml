@@ -5,10 +5,27 @@ grimmory:
       strategy: Recreate
       pod:
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          command:
+            - java
+            - --enable-native-access=ALL-UNNAMED
+            - --enable-preview
+            - -jar
+            - /app/app.jar
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/grimmory-tools/grimmory
             tag: v3.5.0@sha256:bf6fe21c6e247597f7869664a440b5a34242e2d2940575cae39c17bfaa66dc0b
@@ -129,6 +146,12 @@ grimmory:
         main:
           main:
             - path: /bookdrop/ingest
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
 
 pocket-id-client:
   mode: oidc
