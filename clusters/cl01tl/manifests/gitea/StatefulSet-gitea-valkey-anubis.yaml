@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gitea-valkey-anubis
+  labels:
+    helm.sh/chart: valkey-0.12.0
+    app.kubernetes.io/name: valkey-anubis
+    app.kubernetes.io/instance: gitea
+    app.kubernetes.io/version: "9.1.2"
+    app.kubernetes.io/managed-by: Helm
+  namespace: gitea
+spec:
+  serviceName: gitea-valkey-anubis-headless
+  replicas: 3
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey-anubis
+      app.kubernetes.io/instance: gitea
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: valkey-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "ceph-block"
+        resources:
+          requests:
+            storage: "1Gi"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey-anubis
+        app.kubernetes.io/instance: gitea
+      annotations:
+        checksum/initconfig: "e7eac0a1ce32aa902226d3aeba11d620"
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: gitea-valkey-anubis
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: gitea-valkey-anubis-init
+          image: docker.io/valkey/valkey:9.1.2@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          command: ["/scripts/init.sh"]
+          env:
+            - name: POD_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+          volumeMounts:
+            - name: valkey-data
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
+      containers:
+        - name: gitea-valkey-anubis
+          image: docker.io/valkey/valkey:9.1.2@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+          imagePullPolicy: IfNotPresent
+          command: ["valkey-server"]
+          args: ["/data/conf/valkey.conf"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+          env:
+            - name: POD_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+            - name: VALKEY_LOG_LEVEL
+              value: "notice"
+          ports:
+            - name: tcp
+              containerPort: 6379
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+          startupProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 30Mi
+          volumeMounts:
+            - name: valkey-data
+              mountPath: /data
+        - name: metrics
+          image: ghcr.io/oliver006/redis_exporter:v1.93.0@sha256:6ca518a72f30f7f576ef92963de1b91d3c3f5fd3aeac949f878bfda183587820
+          imagePullPolicy: "IfNotPresent"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 65534
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: metrics
+              containerPort: 9121
+          startupProbe:
+            tcpSocket:
+              port: metrics
+          livenessProbe:
+            tcpSocket:
+              port: metrics
+          readinessProbe:
+            httpGet:
+              path: /
+              port: metrics
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10M
+          env:
+            - name: REDIS_ALIAS
+              value: gitea-valkey-anubis
+      volumes:
+        - name: scripts
+          configMap:
+            name: gitea-valkey-anubis-init-scripts
+            defaultMode: 0555
