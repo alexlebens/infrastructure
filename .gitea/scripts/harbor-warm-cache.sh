@@ -161,43 +161,74 @@ check_harbor_cache_state() {
   local response
   response=$(curl -s -k -f "${artifacts_url}" 2>/dev/null || true)
 
-  if [[ -z "${response}" || "${response}" == "null" || "${response}" == "[]" ]]; then
-    return 1
+  if [[ -n "${response}" && "${response}" != "null" && "${response}" != "[]" ]]; then
+    local matched
+    matched=$(echo "${response}" | jq -r \
+      --arg tag "${tag}" \
+      --arg digest "${digest}" '
+      if type != "array" then
+        "false"
+      elif ($digest != "" and any(.[]; .digest == $digest or (.references // [])[]?.child_digest == $digest)) then
+        "true"
+      elif ($digest == "" and $tag != "" and any(.[]; (.tags // [])[]?.name == $tag)) then
+        "true"
+      else
+        "false"
+      end
+    ' 2>/dev/null || echo "false")
+
+    if [[ "${matched}" == "true" ]]; then
+      return 0
+    fi
+
+    # If digest is a multi-arch index, check if any of its child platform manifests are cached in Harbor
+    if [[ -n "${digest}" && "${digest}" != "null" ]]; then
+      local repo_decoded="${repo_encoded//%2F//}"
+      local child_digests
+      child_digests=$(echo "${response}" | jq -r '.[].references[]?.child_digest // empty' 2>/dev/null || true)
+      if [[ -n "${child_digests}" ]]; then
+        local index_children
+        index_children=$(crane manifest "${harbor_host}/${project}/${repo_decoded}@${digest}" 2>/dev/null | jq -r '.manifests[]?.digest // empty' 2>/dev/null || true)
+        if [[ -n "${index_children}" ]]; then
+          for child in ${index_children}; do
+            if echo "${child_digests}" | grep -qx "${child}"; then
+              return 0
+            fi
+          done
+        fi
+      fi
+    fi
   fi
 
-  local matched
-  matched=$(echo "${response}" | jq -r \
-    --arg tag "${tag}" \
-    --arg digest "${digest}" '
-    if type != "array" then
-      "false"
-    elif ($digest != "" and any(.[]; .digest == $digest or (.references // [])[]?.child_digest == $digest)) then
-      "true"
-    elif ($digest == "" and $tag != "" and any(.[]; (.tags // [])[]?.name == $tag)) then
-      "true"
-    else
-      "false"
-    end
-  ' 2>/dev/null || echo "false")
-
-  if [[ "${matched}" == "true" ]]; then
-    return 0
-  fi
-
-  # If digest is a multi-arch index, check if any of its child platform manifests are cached in Harbor
+  # Fallback to Registry V2 API: check if the container config blob is already stored in Harbor.
+  # Harbor proxy-cache projects do not always populate the PostgreSQL artifact table for multi-arch
+  # images pulled by digest, but the registry storage engine stores and serves the blobs directly.
+  local repo_decoded="${repo_encoded//%2F//}"
+  local target_ref
   if [[ -n "${digest}" && "${digest}" != "null" ]]; then
-    local repo_decoded="${repo_encoded//%2F//}"
-    local child_digests
-    child_digests=$(echo "${response}" | jq -r '.[].references[]?.child_digest // empty' 2>/dev/null || true)
-    if [[ -n "${child_digests}" ]]; then
-      local index_children
-      index_children=$(crane manifest "${harbor_host}/${project}/${repo_decoded}@${digest}" 2>/dev/null | jq -r '.manifests[]?.digest // empty' 2>/dev/null || true)
-      if [[ -n "${index_children}" ]]; then
-        for child in ${index_children}; do
-          if echo "${child_digests}" | grep -qx "${child}"; then
-            return 0
-          fi
-        done
+    target_ref="${harbor_host}/${project}/${repo_decoded}@${digest}"
+  elif [[ -n "${tag}" && "${tag}" != "null" ]]; then
+    target_ref="${harbor_host}/${project}/${repo_decoded}:${tag}"
+  else
+    target_ref="${harbor_host}/${project}/${repo_decoded}:latest"
+  fi
+
+  local manifest_json
+  manifest_json=$(crane manifest --platform "linux/amd64" "${target_ref}" 2>/dev/null || crane manifest "${target_ref}" 2>/dev/null || true)
+  if [[ -n "${manifest_json}" ]]; then
+    local config_digest
+    config_digest=$(echo "${manifest_json}" | jq -r '.config.digest // empty' 2>/dev/null || true)
+    if [[ -n "${config_digest}" ]]; then
+      local token
+      token=$(curl -s -k "https://${harbor_host}/service/token?service=harbor-registry&scope=repository:${project}/${repo_decoded}:pull" 2>/dev/null | jq -r '.token // empty' 2>/dev/null || true)
+      local auth_hdr=()
+      if [[ -n "${token}" ]]; then
+        auth_hdr=(-H "Authorization: Bearer ${token}")
+      fi
+      local blob_code
+      blob_code=$(curl -s -k -o /dev/null -w "%{http_code}" -I "${auth_hdr[@]}" "https://${harbor_host}/v2/${project}/${repo_decoded}/blobs/${config_digest}" 2>/dev/null || echo "000")
+      if [[ "${blob_code}" == "200" ]]; then
+        return 0
       fi
     fi
   fi
