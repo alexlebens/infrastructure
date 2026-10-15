@@ -1,0 +1,39 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: homebox
+  labels:
+    app.kubernetes.io/instance: homebox
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: homebox
+    helm.sh/chart: homebox-5.3.0
+  annotations:
+    gethomepage.dev/description: Inventory Management
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Analysis
+    gethomepage.dev/icon: sh-homebox.webp
+    gethomepage.dev/name: Homebox
+    gethomepage.dev/siteMonitor: http://homebox.homebox:80/api/v1/status
+    gethomepage.dev/statusStyle: dot
+    gethomepage.dev/weight: "50"
+  namespace: homebox
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: "traefik"
+  hostnames:
+    - "homebox.alexlebens.dev"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: homebox
+          namespace: homebox
+          port: 80
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
