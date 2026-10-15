@@ -1,0 +1,121 @@
+grocy:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          image:
+            repository: linuxserver/grocy
+            tag: v4.7.1-ls344@sha256:1a8996206d1e0f5aa3aa85084dde2bae170a05b29b235de58c08b161873ce9a6
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: GROCY_MODE
+              value: production
+            - name: GROCY_BASE_URL
+              value: https://grocy.alexlebens.dev
+            - name: GROCY_DEFAULT_LOCALE
+              value: en
+            - name: GROCY_CURRENCY
+              value: USD
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+                failureThreshold: 30
+                periodSeconds: 5
+  service:
+    main:
+      forceRename: grocy
+      ports:
+        http:
+          port: 80
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Groceries"
+        gethomepage.dev/description: "Grocy"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "sh-grocy.webp"
+        gethomepage.dev/siteMonitor: "http://grocy.grocy:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "400"
+        gethomepage.dev/podSelector: ""
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - grocy.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: grocy
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    config:
+      forceRename: grocy-config
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+
+volsync-target-config:
+  pvcTarget: grocy-config
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+  a:
+    enabled: true
+    schedule: 50 8 * * *
+  c:
+    enabled: true
+    schedule: 50 10 * * 1
+  d:
+    enabled: true
+    schedule: 50 9 * * 1
+
+common-helpers:
+  probe:
+    internal: http://grocy.grocy:80
+    external: https://grocy.alexlebens.dev
