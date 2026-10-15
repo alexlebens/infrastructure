@@ -58,8 +58,8 @@ infrastructure/
 
 ## CI / CD Workflows
 
-- **`test-helm.yaml`**: Validates modified Helm charts using `helm lint`, `kubeconform`, server-side `kubectl` schema
-  validation, ArgoCD live diffing, and Trivy security auditing.
+- **`test-chart.yaml`**: Validates modified Helm charts using `helm lint`, `kubeconform`, server-side `kubectl` schema
+  validation, ArgoCD live diffing, Trivy security auditing, and in-chart script/unit testing.
 - **`test-docker.yaml`**: Validates Docker Compose files across hosts using Compose linter and formatting checks.
 - **`render-manifests.yaml`**: Renders changed Helm charts into raw Kubernetes manifests on the `manifests` branch and
   manages automated sync Pull Requests.

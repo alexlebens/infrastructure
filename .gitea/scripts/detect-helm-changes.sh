@@ -49,14 +49,25 @@ resolve_diff_target
 # Find changed charts
 RAW_CHARTS=$( (git diff --name-only "${DIFF_TARGET}" | grep -E "^clusters/${CLUSTER}/helm/" || true) | awk -F '/' '{print $4}' | sort -u)
 VALID_CHARTS=""
+SCRIPT_CHARTS=""
 
 for C in $RAW_CHARTS; do
   if [ -n "$C" ] && [ -f "clusters/${CLUSTER}/helm/${C}/Chart.yaml" ]; then
     VALID_CHARTS="${VALID_CHARTS} ${C}"
+    has_scripts=false
+    if [ -d "clusters/${CLUSTER}/helm/${C}/scripts" ] && ls "clusters/${CLUSTER}/helm/${C}/scripts"/* >/dev/null 2>&1; then
+      has_scripts=true
+    elif [ -d "clusters/${CLUSTER}/helm/${C}/tests" ] && ls "clusters/${CLUSTER}/helm/${C}/tests"/* >/dev/null 2>&1; then
+      has_scripts=true
+    fi
+    if [ "${has_scripts}" = "true" ]; then
+      SCRIPT_CHARTS="${SCRIPT_CHARTS} ${C}"
+    fi
   fi
 done
 
 VALID_CHARTS=$(echo "${VALID_CHARTS}" | xargs)
+SCRIPT_CHARTS=$(echo "${SCRIPT_CHARTS}" | xargs)
 
 if [ -n "${VALID_CHARTS}" ]; then
   CHARTS_JSON=$(echo "${VALID_CHARTS}" | jq -R -c 'split(" ") | map(select(length > 0))')
@@ -65,12 +76,27 @@ if [ -n "${VALID_CHARTS}" ]; then
   echo ">> Charts to test:"
   echo "${VALID_CHARTS}"
 
+  if [ -n "${SCRIPT_CHARTS}" ]; then
+    SCRIPT_CHARTS_JSON=$(echo "${SCRIPT_CHARTS}" | jq -R -c 'split(" ") | map(select(length > 0))')
+    echo ">> Charts with scripts/tests:"
+    echo "${SCRIPT_CHARTS}"
+  else
+    SCRIPT_CHARTS_JSON="[]"
+  fi
+
   echo ""
   echo "----"
   if [ -n "${GITHUB_OUTPUT}" ]; then
     echo "changes-detected=true" >> "${GITHUB_OUTPUT}"
     echo "matrix=${CHARTS_JSON}" >> "${GITHUB_OUTPUT}"
     echo "charts=${VALID_CHARTS}" >> "${GITHUB_OUTPUT}"
+    if [ -n "${SCRIPT_CHARTS}" ]; then
+      echo "scripts-detected=true" >> "${GITHUB_OUTPUT}"
+      echo "script-matrix=${SCRIPT_CHARTS_JSON}" >> "${GITHUB_OUTPUT}"
+    else
+      echo "scripts-detected=false" >> "${GITHUB_OUTPUT}"
+      echo "script-matrix=[]" >> "${GITHUB_OUTPUT}"
+    fi
   fi
 else
   echo ""
@@ -82,5 +108,7 @@ else
     echo "changes-detected=false" >> "${GITHUB_OUTPUT}"
     echo "matrix=[]" >> "${GITHUB_OUTPUT}"
     echo "charts=" >> "${GITHUB_OUTPUT}"
+    echo "scripts-detected=false" >> "${GITHUB_OUTPUT}"
+    echo "script-matrix=[]" >> "${GITHUB_OUTPUT}"
   fi
 fi

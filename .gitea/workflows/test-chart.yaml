@@ -1,4 +1,4 @@
-name: test-helm
+name: test-chart
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,6 +20,7 @@ env:
   YQ_VERSION: "v4.54.1"
   TRIVY_VERSION: "v0.76.0"
   KUBECONFORM_VERSION: "0.8.0"
+  RUFF_VERSION: "0.17.0"
 
 jobs:
   detect-changes:
@@ -27,6 +28,8 @@ jobs:
     outputs:
       matrix: ${{ steps.check-dir-changes.outputs.matrix }}
       changes-detected: ${{ steps.check-dir-changes.outputs.changes-detected }}
+      script-matrix: ${{ steps.check-dir-changes.outputs.script-matrix }}
+      scripts-detected: ${{ steps.check-dir-changes.outputs.scripts-detected }}
     steps:
       - name: Checkout
         uses: builtin:checkout
@@ -54,7 +57,7 @@ jobs:
       needs.detect-changes.outputs.changes-detected == 'true'
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 3
       matrix:
         chart: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
     env:
@@ -128,6 +131,8 @@ jobs:
         uses: imjasonh/setup-crane@feee3b6bb0d4c68370f256a4502498c9227e5c6b # v0.7
 
       - name: -- Validate & Warm Harbor Cache
+        id: harbor
+        continue-on-error: true
         env:
           CLUSTER: ${{ env.CLUSTER }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
@@ -147,6 +152,8 @@ jobs:
         run: ./.gitea/scripts/install-trivy.sh
 
       - name: -- Security Scan (Trivy)
+        id: trivy
+        continue-on-error: true
         env:
           CLUSTER: ${{ env.CLUSTER }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
@@ -200,6 +207,8 @@ jobs:
           kubeconform-version: ${{ env.KUBECONFORM_VERSION }}
 
       - name: -- Schema Validation (kubeconform)
+        id: kubeconform
+        continue-on-error: true
         env:
           KUBERNETES_VERSION: ${{ env.KUBECTL_VERSION }}
         run: |
@@ -217,6 +226,7 @@ jobs:
 
       - name: -- Run ArgoCD App Diff
         id: diff
+        continue-on-error: true
         env:
           ARGOCD_SERVER_INTERNAL: ${{ vars.ARGOCD_URL }}
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
@@ -226,6 +236,24 @@ jobs:
         run: |
           echo "FAILED_STAGE=ArgoCD App Diff" >> $GITHUB_ENV
           ./.gitea/scripts/argocd-app-diff.sh --chart "${CHART}"
+
+      - name: Check Validation Outcomes
+        if: |
+          steps.harbor.outcome == 'failure' ||
+          steps.trivy.outcome == 'failure' ||
+          steps.kubeconform.outcome == 'failure' ||
+          steps.diff.outcome == 'failure'
+        run: |
+          failed_stages=()
+          [ "${{ steps.harbor.outcome }}" = "failure" ] && failed_stages+=("Harbor Cache")
+          [ "${{ steps.trivy.outcome }}" = "failure" ] && failed_stages+=("Trivy Security Scan")
+          [ "${{ steps.kubeconform.outcome }}" = "failure" ] && failed_stages+=("Kubeconform Validation")
+          [ "${{ steps.diff.outcome }}" = "failure" ] && failed_stages+=("ArgoCD Diff")
+
+          failed_str=$(IFS=", "; echo "${failed_stages[*]}")
+          echo "FAILED_STAGE=${failed_str}" >> "$GITHUB_ENV"
+          echo "::error::The following validation stages failed: ${failed_str}"
+          exit 1
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -243,3 +271,130 @@ jobs:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
             }}/actions/runs/${{ github.run_id }}", "clear": true}]'
           image: true
+
+  test-chart-scripts:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: |
+      needs.detect-changes.result == 'success' &&
+      needs.detect-changes.outputs.scripts-detected == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        chart: ${{ fromJSON(needs.detect-changes.outputs.script-matrix) }}
+    env:
+      CHART: ${{ matrix.chart }}
+      FAILED_STAGE: "Initialization"
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: -- Lint Chart Scripts (shellcheck)
+        run: |
+          if [ -d "clusters/${CLUSTER}/helm/${CHART}/scripts" ]; then
+            echo "FAILED_STAGE=Lint Chart Scripts (shellcheck)" >> $GITHUB_ENV
+            shopt -s nullglob
+            scripts=(clusters/${CLUSTER}/helm/${CHART}/scripts/*.sh)
+            shopt -u nullglob
+            if [ ${#scripts[@]} -gt 0 ]; then
+              echo ">> Linting scripts in clusters/${CLUSTER}/helm/${CHART}/scripts/ ..."
+              ./.gitea/scripts/lint-bash-scripts.sh "${scripts[@]}"
+            fi
+          fi
+
+      - name: Check for Chart BATS Tests
+        id: check-bats-tests
+        run: |
+          if [ -d "clusters/${CLUSTER}/helm/${CHART}/tests" ] && ls "clusters/${CLUSTER}/helm/${CHART}/tests"/*.bats >/dev/null 2>&1; then
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup BATS
+        if: steps.check-bats-tests.outputs.has_tests == 'true'
+        uses: bats-core/bats-action@5b1e60c2ee94cb1b44a616ea4b1f466f9d6e38ef # 4.0.0
+        with:
+          support-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-support
+          assert-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-assert
+          detik-install: false
+          file-install: false
+
+      - name: -- Run Chart BATS Tests
+        if: steps.check-bats-tests.outputs.has_tests == 'true'
+        run: |
+          echo "FAILED_STAGE=Run Chart BATS Tests" >> $GITHUB_ENV
+          echo ">> Running BATS tests for chart ${CHART} ..."
+          bats --recursive "clusters/${CLUSTER}/helm/${CHART}/tests/"
+
+      - name: Check for Chart Python Files
+        id: check-py
+        run: |
+          has_scripts=false
+          has_tests=false
+          if [ -d "clusters/${CLUSTER}/helm/${CHART}/scripts" ] && ls "clusters/${CLUSTER}/helm/${CHART}/scripts"/*.py >/dev/null 2>&1; then
+            has_scripts=true
+          fi
+          if [ -d "clusters/${CLUSTER}/helm/${CHART}/tests" ] && ls "clusters/${CLUSTER}/helm/${CHART}/tests"/*test*.py >/dev/null 2>&1; then
+            has_tests=true
+          fi
+          echo "has_scripts=${has_scripts}" >> "$GITHUB_OUTPUT"
+          echo "has_tests=${has_tests}" >> "$GITHUB_OUTPUT"
+          if [ "${has_scripts}" = "true" ] || [ "${has_tests}" = "true" ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set Up Python
+        if: steps.check-py.outputs.needed == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Cache Pip
+        if: steps.check-py.outputs.needed == 'true'
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-chart-py-${{ env.RUFF_VERSION }}
+
+      - name: -- Lint Chart Python Scripts (Ruff)
+        if: steps.check-py.outputs.has_scripts == 'true'
+        run: |
+          echo "FAILED_STAGE=Lint Chart Python Scripts (Ruff)" >> $GITHUB_ENV
+          pip install "ruff==${{ env.RUFF_VERSION }}"
+          shopt -s nullglob
+          scripts=(clusters/${CLUSTER}/helm/${CHART}/scripts/*.py)
+          shopt -u nullglob
+          echo ">> Running Ruff check on chart Python scripts in clusters/${CLUSTER}/helm/${CHART}/scripts/ ..."
+          ruff check "${scripts[@]}"
+          echo ">> Running Ruff format check on chart Python scripts in clusters/${CLUSTER}/helm/${CHART}/scripts/ ..."
+          ruff format --check "${scripts[@]}"
+
+      - name: -- Run Chart Python Tests (pytest)
+        if: steps.check-py.outputs.has_tests == 'true'
+        run: |
+          echo "FAILED_STAGE=Run Chart Python Tests (pytest)" >> $GITHUB_ENV
+          pip install pytest
+          echo ">> Running pytest for chart ${CHART} ..."
+          pytest "clusters/${CLUSTER}/helm/${CHART}/tests/"
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Chart Script Failure - ${{ matrix.chart }}"
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "Script testing failed for chart: ${{ matrix.chart }} at stage: ${{ env.FAILED_STAGE }}"
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'

@@ -1,0 +1,123 @@
+name: test-workflow-script
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - ".gitea/scripts/*.sh"
+      - ".gitea/scripts/*.py"
+      - ".gitea/tests/bash/**"
+      - ".gitea/tests/python/**"
+      - ".gitea/workflows/test-workflow-script.yaml"
+      - ".pre-commit-config.yaml"
+
+env:
+  RUFF_VERSION: "0.17.0"
+
+jobs:
+  test-bash:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: -- Lint Scripts (shellcheck)
+        run: .gitea/scripts/lint-bash-scripts.sh
+
+      - name: Setup BATS
+        uses: bats-core/bats-action@5b1e60c2ee94cb1b44a616ea4b1f466f9d6e38ef # 4.0.0
+        with:
+          support-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-support
+          assert-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-assert
+          detik-install: false
+          file-install: false
+
+      - name: -- Run BATS Tests
+        run: |
+          bats --recursive .gitea/tests/bash/
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Workflow Bash Script Failure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "ShellCheck or BATS tests failed for scripts in .gitea/scripts/."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+  test-python:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: Set Up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Cache Pip & Ruff
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-ruff-${{ env.RUFF_VERSION }}
+
+      - name: Install Ruff
+        run: |
+          pip install "ruff==${{ env.RUFF_VERSION }}"
+
+      - name: -- Ruff Check Python Scripts
+        run: |
+          echo ">> Running Ruff check on Python scripts in .gitea/scripts/ ..."
+          shopt -s nullglob
+          files=(.gitea/scripts/*.py)
+          if [ ${#files[@]} -gt 0 ]; then
+            ruff check "${files[@]}"
+          fi
+
+      - name: -- Ruff Format Check Python Scripts
+        run: |
+          echo ">> Running Ruff format check on Python scripts in .gitea/scripts/ ..."
+          shopt -s nullglob
+          files=(.gitea/scripts/*.py)
+          if [ ${#files[@]} -gt 0 ]; then
+            ruff format --check "${files[@]}"
+          fi
+
+      - name: -- Run Python Tests (pytest)
+        run: |
+          if [ -d ".gitea/tests/python" ] && ls .gitea/tests/python/*test*.py >/dev/null 2>&1; then
+            pip install pytest
+            echo ">> Running pytest for workflow scripts in .gitea/tests/python/ ..."
+            pytest .gitea/tests/python/
+          fi
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Workflow Python Script Failure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "Ruff check, format, or pytest failed for scripts in .gitea/scripts/."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
