@@ -7,6 +7,8 @@ home-assistant:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -17,8 +19,8 @@ home-assistant:
               value: America/Chicago
           resources:
             requests:
-              cpu: 1m
-              memory: 400Mi
+              cpu: 5m
+              memory: 350Mi
   service:
     main:
       forceRename: home-assistant
@@ -38,6 +40,14 @@ home-assistant:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Home Automation"
+        gethomepage.dev/description: "Home Assistant"
+        gethomepage.dev/group: "Automation"
+        gethomepage.dev/icon: "sh-home-assistant.webp"
+        gethomepage.dev/siteMonitor: "http://home-assistant.home-assistant:80"
+        gethomepage.dev/weight: "250"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -61,6 +71,18 @@ home-assistant:
         main:
           main:
             - path: /config
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Home Assistant"
+    description: "Open source home automation that puts local control and privacy first."
+    callbackUrls:
+      - https://home-assistant.alexlebens.dev/auth/oidc/callback
+      - https://home-assistant.alexlebens.dev/auth/openid/callback
+  seedJob:
+    enabled: true
+
 volsync-target-config:
   pvcTarget: home-assistant-config
   moverSecurityContext:
@@ -75,3 +97,8 @@ volsync-target-config:
   d:
     enabled: true
     schedule: 40 9 * * 1
+
+common-helpers:
+  probe:
+    internal: http://home-assistant.home-assistant:80
+    external: https://home-assistant.alexlebens.dev
