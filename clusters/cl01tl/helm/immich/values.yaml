@@ -48,6 +48,13 @@ immich:
                 secretKeyRef:
                   name: immich-postgresql-18-cluster-app
                   key: password
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              gpu.intel.com/i915: 1
+              cpu: 10m
+              memory: 750Mi
           probes:
             liveness:
               enabled: true
@@ -70,13 +77,6 @@ immich:
                 httpGet:
                   path: /api/server/ping
                   port: 2283
-          resources:
-            limits:
-              gpu.intel.com/i915: 1
-            requests:
-              gpu.intel.com/i915: 1
-              cpu: 10m
-              memory: 500Mi
     machine-learning:
       type: deployment
       strategy: Recreate
@@ -90,6 +90,13 @@ immich:
           env:
             - name: TZ
               value: America/Chicago
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              cpu: 10m
+              memory: 500Mi
+              gpu.intel.com/i915: 1
           probes:
             liveness:
               enabled: true
@@ -112,15 +119,9 @@ immich:
                 httpGet:
                   path: /ping
                   port: 3003
-          resources:
-            limits:
-              gpu.intel.com/i915: 1
-            requests:
-              cpu: 10m
-              memory: 500Mi
-              gpu.intel.com/i915: 1
     immich-memories-notify:
       type: deployment
+      strategy: Recreate
       containers:
         main:
           image:
@@ -147,6 +148,10 @@ immich:
                 secretKeyRef:
                   name: immich-memories
                   key: NTFY_PASSWORD_USER1
+          resources:
+            requests:
+              cpu: 5m
+              memory: 75Mi
   configMaps:
     immich-memories-notify:
       enabled: true
@@ -185,6 +190,7 @@ immich:
               enabled: true
   service:
     main:
+      forceRename: immich-main
       controller: main
       ports:
         http:
@@ -195,32 +201,38 @@ immich:
         metrics-ms:
           port: 8082
     machine-learning:
+      forceRename: immich-machine-learning
       controller: machine-learning
       ports:
         http:
           port: 3003
     memories-notify:
+      forceRename: immich-memories-notify
       controller: immich-memories-notify
       ports:
         http:
           port: 5000
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: immich
-          app.kubernetes.io/instance: immich
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}-main'
+      serviceName: immich-main
       endpoints:
         - port: metrics-api
-          interval: 3m
+          interval: 5m
           scrapeTimeout: 1m
         - port: metrics-ms
-          interval: 3m
+          interval: 5m
           scrapeTimeout: 1m
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Photos"
+        gethomepage.dev/description: "Immich"
+        gethomepage.dev/group: "Media"
+        gethomepage.dev/icon: "immich.png"
+        gethomepage.dev/siteMonitor: "http://immich-main.immich:80/api/server/ping"
+        gethomepage.dev/weight: "300"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -236,13 +248,8 @@ immich:
                 value: /
   persistence:
     config:
-      type: custom
-      volumeSpec:
-        csi:
-          driver: secrets-store.csi.k8s.io
-          readOnly: true
-          volumeAttributes:
-            secretProviderClass: immich-config
+      type: secret
+      name: immich-config
       advancedMounts:
         main:
           main:
@@ -287,10 +294,23 @@ immich:
         immich-memories-notify:
           main:
             - path: /app/state
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Immich"
+    description: "High performance self-hosted photo and video management solution."
+    clientID: D4B51120-E1C4-42E9-8F58-C574D430A27A
+    callbackUrls:
+      - https://immich.alexlebens.dev/auth/login
+      - https://immich.alexlebens.dev/user-settings
+      - app.immich:///oauth-callback
+
 cloudflared:
   probe:
     enabled: true
     targetUrl: https://immich.alexlebens.dev
+
 postgres-18-cluster:
   mode: recovery
   cluster:
@@ -315,6 +335,7 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 35 5 * * *"
+
 volsync-target-data:
   pvcTarget: immich
   a:
@@ -332,6 +353,11 @@ volsync-target-data:
     schedule: 40 9 * * 3
     restic:
       cacheCapacity: 10Gi
+
+common-helpers:
+  probe:
+    internal: http://immich-main.immich:80/api/server/ping
+    external: https://immich.alexlebens.dev
 
 grafanaDashboard:
   folder: applications
