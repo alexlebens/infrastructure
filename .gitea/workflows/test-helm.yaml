@@ -128,6 +128,8 @@ jobs:
         uses: imjasonh/setup-crane@feee3b6bb0d4c68370f256a4502498c9227e5c6b # v0.7
 
       - name: -- Validate & Warm Harbor Cache
+        id: harbor
+        continue-on-error: true
         env:
           CLUSTER: ${{ env.CLUSTER }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
@@ -147,6 +149,8 @@ jobs:
         run: ./.gitea/scripts/install-trivy.sh
 
       - name: -- Security Scan (Trivy)
+        id: trivy
+        continue-on-error: true
         env:
           CLUSTER: ${{ env.CLUSTER }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
@@ -200,6 +204,8 @@ jobs:
           kubeconform-version: ${{ env.KUBECONFORM_VERSION }}
 
       - name: -- Schema Validation (kubeconform)
+        id: kubeconform
+        continue-on-error: true
         env:
           KUBERNETES_VERSION: ${{ env.KUBECTL_VERSION }}
         run: |
@@ -217,6 +223,7 @@ jobs:
 
       - name: -- Run ArgoCD App Diff
         id: diff
+        continue-on-error: true
         env:
           ARGOCD_SERVER_INTERNAL: ${{ vars.ARGOCD_URL }}
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
@@ -226,6 +233,24 @@ jobs:
         run: |
           echo "FAILED_STAGE=ArgoCD App Diff" >> $GITHUB_ENV
           ./.gitea/scripts/argocd-app-diff.sh --chart "${CHART}"
+
+      - name: Check Validation Outcomes
+        if: |
+          steps.harbor.outcome == 'failure' ||
+          steps.trivy.outcome == 'failure' ||
+          steps.kubeconform.outcome == 'failure' ||
+          steps.diff.outcome == 'failure'
+        run: |
+          failed_stages=()
+          [ "${{ steps.harbor.outcome }}" = "failure" ] && failed_stages+=("Harbor Cache")
+          [ "${{ steps.trivy.outcome }}" = "failure" ] && failed_stages+=("Trivy Security Scan")
+          [ "${{ steps.kubeconform.outcome }}" = "failure" ] && failed_stages+=("Kubeconform Validation")
+          [ "${{ steps.diff.outcome }}" = "failure" ] && failed_stages+=("ArgoCD Diff")
+
+          failed_str=$(IFS=", "; echo "${failed_stages[*]}")
+          echo "FAILED_STAGE=${failed_str}" >> "$GITHUB_ENV"
+          echo "::error::The following validation stages failed: ${failed_str}"
+          exit 1
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
