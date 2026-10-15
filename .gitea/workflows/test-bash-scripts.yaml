@@ -9,12 +9,12 @@ on:
     paths:
       - ".gitea/scripts/*.sh"
       - "clusters/**/scripts/*.sh"
+      - ".gitea/tests/bash/**"
       - ".gitea/workflows/test-bash-scripts.yaml"
       - ".pre-commit-config.yaml"
 
 jobs:
   lint-bash:
-    name: Lint Bash Scripts
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,6 +36,43 @@ jobs:
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
           details: "ShellCheck failed for bash scripts in .gitea/scripts/."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+  test-bash:
+    runs-on: ubuntu-latest
+    needs: lint-bash
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: Setup BATS
+        uses: bats-core/bats-action@5b1e60c2ee94cb1b44a616ea4b1f466f9d6e38ef # 4.0.0
+        with:
+          support-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-support
+          assert-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-assert
+          detik-install: false
+          file-install: false
+
+      - name: Run BATS Tests
+        run: |
+          bats --recursive .gitea/tests/bash/
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Bash Script Test Failure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "BATS tests failed for bash scripts."
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
