@@ -28,7 +28,15 @@ spec:
     spec:
       enableServiceLinks: false
       serviceAccountName: isponsorblocktv
-      automountServiceAccountToken: true
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -40,16 +48,22 @@ spec:
             requests:
               cpu: 1m
               memory: 50Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /app/data/config.json
-              mountPropagation: None
               name: config
               readOnly: true
               subPath: config.json
+            - mountPath: /tmp
+              name: tmp
       volumes:
-        - csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: isponsorblocktv-config
-          name: config
+        - name: config
+          secret:
+            secretName: isponsorblocktv-config
+        - emptyDir: {}
+          name: tmp
