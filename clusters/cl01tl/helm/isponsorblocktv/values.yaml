@@ -4,9 +4,22 @@ isponsorblocktv:
       type: deployment
       strategy: Recreate
       pod:
-        automountServiceAccountToken: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          fsGroup: 65534
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/dmunozv04/isponsorblocktv
             tag: v2.11.0@sha256:d1e876636754fb2b54490feebe3af4a321f7f2a932a2d57b67b2a667eea40823
@@ -16,17 +29,17 @@ isponsorblocktv:
               memory: 50Mi
   persistence:
     config:
-      type: custom
-      volumeSpec:
-        csi:
-          driver: secrets-store.csi.k8s.io
-          readOnly: true
-          volumeAttributes:
-            secretProviderClass: isponsorblocktv-config
+      type: secret
+      name: isponsorblocktv-config
       advancedMounts:
         main:
           main:
             - path: /app/data/config.json
-              readOnly: true
-              mountPropagation: None
               subPath: config.json
+              readOnly: true
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
