@@ -26,7 +26,7 @@ houndarr:
           resources:
             requests:
               cpu: 5m
-              memory: 150Mi
+              memory: 175Mi
           probes:
             liveness:
               enabled: true
@@ -43,6 +43,12 @@ houndarr:
                   path: /api/health
                   port: 8877
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -68,6 +74,10 @@ houndarr:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 15Mi
           probes:
             liveness:
               enabled: true
@@ -85,6 +95,7 @@ houndarr:
                   port: 4180
   service:
     main:
+      forceRename: houndarr
       ports:
         http:
           port: 80
@@ -95,16 +106,20 @@ houndarr:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: houndarr
-          app.kubernetes.io/instance: houndarr
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: houndarr
       endpoints:
         - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Media Quality Searching"
+        gethomepage.dev/description: "Houndarr"
+        gethomepage.dev/group: "Content"
+        gethomepage.dev/icon: "sh-houndarr.webp"
+        gethomepage.dev/siteMonitor: "http://houndarr.houndarr:80"
+        gethomepage.dev/weight: "150"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -129,6 +144,22 @@ houndarr:
           main:
             - path: /data
               readOnly: false
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  client:
+    displayName: "Houndarr"
+    description: "Media searches & discovery."
+    clientID: 64B382F9-82A1-427E-9800-47C042BA1F68
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
+
 volsync-target-data:
   pvcTarget: houndarr-data
   moverSecurityContext:
@@ -145,3 +176,8 @@ volsync-target-data:
   d:
     enabled: true
     schedule: 40 9 * * 2
+
+common-helpers:
+  probe:
+    internal: http://houndarr.houndarr:80/api/health
+    external: https://houndarr.alexlebens.dev
