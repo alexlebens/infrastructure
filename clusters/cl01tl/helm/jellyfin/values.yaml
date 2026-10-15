@@ -5,10 +5,20 @@ jellyfin:
   podSecurityContext:
     fsGroup: 1000
     fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
   deploymentStrategy:
     type: Recreate
   httpRoute:
     enabled: true
+    annotations:
+      gethomepage.dev/enabled: "true"
+      gethomepage.dev/name: "Movies and TV"
+      gethomepage.dev/description: "Jellyfin"
+      gethomepage.dev/group: "Media"
+      gethomepage.dev/icon: "sh-jellyfin.webp"
+      gethomepage.dev/siteMonitor: "http://jellyfin.jellyfin:8096"
+      gethomepage.dev/weight: "100"
     parentRefs:
       - group: gateway.networking.k8s.io
         kind: Gateway
@@ -62,6 +72,12 @@ jellyfin:
           topologyKey: kubernetes.io/hostname
   extraContainers:
     - name: jellyfin-exporter
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
       image: rebelcore/jellyfin-exporter:v1.5.2@sha256:8a1294b7fea80993e4ec18220e391578e0f9ca9e109294fd6a379d2cb5213c85
       env:
         - name: JELLYFIN_ADDRESS
@@ -104,6 +120,7 @@ jellyfin:
     serviceMonitor:
       enabled: true
       port: 9594
+
 meilisearch:
   environment:
     MEILI_NO_ANALYTICS: true
@@ -121,6 +138,7 @@ meilisearch:
       memory: 1000Mi
   serviceMonitor:
     enabled: true
+
 volsync-target-config:
   pvcTarget: jellyfin-config
   a:
@@ -138,6 +156,11 @@ volsync-target-config:
     schedule: 40 9 * * 4
     restic:
       cacheCapacity: 10Gi
+
+common-helpers:
+  probe:
+    internal: http://jellyfin.jellyfin:8096
+    external: https://jellyfin.alexlebens.dev
 
 grafanaDashboard:
   folder: applications
