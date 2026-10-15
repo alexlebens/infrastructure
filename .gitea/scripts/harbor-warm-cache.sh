@@ -132,6 +132,62 @@ resolve_harbor_proxy_image() {
   echo "${HARBOR_HOST}/${PROXY_PROJECT}/${REPO_AND_TAG}"
 }
 
+# Function to query the Harbor REST API to check if an artifact (by tag or digest) is cached locally
+check_harbor_cache_state() {
+  local harbor_host="$1"
+  local project="$2"
+  local repo_encoded="$3"
+  local tag="$4"
+  local digest="$5"
+
+  # Fast check 1: direct lookup by tag if provided
+  if [[ -n "${tag}" && "${tag}" != "null" ]]; then
+    local code
+    code=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${harbor_host}/api/v2.0/projects/${project}/repositories/${repo_encoded}/artifacts/${tag}" 2>/dev/null || echo "000")
+    if [[ "${code}" == "200" ]]; then
+      return 0
+    fi
+  fi
+
+  # Fast check 2: direct lookup by digest if provided
+  if [[ -n "${digest}" && "${digest}" != "null" ]]; then
+    local code
+    code=$(curl -s -k -o /dev/null -w "%{http_code}" "https://${harbor_host}/api/v2.0/projects/${project}/repositories/${repo_encoded}/artifacts/${digest}" 2>/dev/null || echo "000")
+    if [[ "${code}" == "200" ]]; then
+      return 0
+    fi
+  fi
+
+  # Comprehensive check: query repository artifacts for matching tag, root digest, or child manifest reference digest
+  local artifacts_url="https://${harbor_host}/api/v2.0/projects/${project}/repositories/${repo_encoded}/artifacts?with_tag=true&page_size=100"
+  local response
+  response=$(curl -s -k -f "${artifacts_url}" 2>/dev/null || true)
+
+  if [[ -z "${response}" || "${response}" == "null" || "${response}" == "[]" ]]; then
+    return 1
+  fi
+
+  local matched
+  matched=$(echo "${response}" | jq -r \
+    --arg tag "${tag}" \
+    --arg digest "${digest}" '
+    if type != "array" then
+      "false"
+    elif ($digest != "" and any(.[]; .digest == $digest or (.references // [])[]?.child_digest == $digest)) then
+      "true"
+    elif ($tag != "" and any(.[]; (.tags // [])[]?.name == $tag)) then
+      "true"
+    else
+      "false"
+    end
+  ' 2>/dev/null || echo "false")
+
+  if [[ "${matched}" == "true" ]]; then
+    return 0
+  fi
+  return 1
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FAILED_IMAGES=()
 WARMED_ROWS=()
@@ -150,6 +206,10 @@ for IMG in "${IMAGES[@]}"; do
   # Parse clean details for PR comment:
   # Strip sha digest if present (@sha256:...)
   IMG_NO_DIGEST="${IMG%%@*}"
+  IMAGE_DIGEST=""
+  if [[ "${IMG}" == *"@"* ]]; then
+    IMAGE_DIGEST="${IMG##*@}"
+  fi
 
   # Parse registry vs repo/image
   if [[ "${IMG_NO_DIGEST}" =~ ^([a-zA-Z0-9._-]+:[0-9]+|[a-zA-Z0-9._-]+\.[a-zA-Z]{2,})/(.*)$ ]]; then
@@ -169,41 +229,95 @@ for IMG in "${IMAGES[@]}"; do
     IMAGE_TAG="latest"
   fi
 
-  # Check if the image tag is already cached in Harbor before warming
-  ALREADY_CACHED=false
-  if [ -n "${PROXY_IMG}" ]; then
-    TARGET_NO_DIGEST="${TARGET_IMG%%@*}"
-    if [[ "${TARGET_NO_DIGEST##*/}" == *":"* ]]; then
-      TARGET_REPO="${TARGET_NO_DIGEST%:*}"
-    else
-      TARGET_REPO="${TARGET_NO_DIGEST}"
-    fi
+  # Determine repository path and proxy project for Harbor REST API
+  PROXY_PROJECT=""
+  IMAGE_REPO="${IMAGE_NAME}"
+  case "${REGISTRY_HOST}" in
+    docker.io|registry-1.docker.io)
+      PROXY_PROJECT="proxy-hub.docker"
+      if [[ "${IMAGE_REPO}" != *"/"* ]]; then
+        IMAGE_REPO="library/${IMAGE_REPO}"
+      fi
+      ;;
+    ghcr.io)
+      PROXY_PROJECT="proxy-ghcr.io"
+      ;;
+    quay.io)
+      PROXY_PROJECT="proxy-quay.io"
+      ;;
+    registry.k8s.io)
+      PROXY_PROJECT="proxy-registry.k8s"
+      ;;
+    gcr.io)
+      PROXY_PROJECT="proxy-gcr.io"
+      ;;
+  esac
 
-    if (crane ls "${TARGET_REPO}" 2>/dev/null || true) | grep -qx "${IMAGE_TAG}"; then
+  # Check if the image tag or digest is already cached in Harbor before warming
+  ALREADY_CACHED=false
+  if [ -n "${PROXY_PROJECT}" ]; then
+    ENCODED_REPO="${IMAGE_REPO//\//%2F}"
+    echo ">> Checking Harbor cache state for ${PROXY_PROJECT}/${IMAGE_REPO} (tag: ${IMAGE_TAG}, digest: ${IMAGE_DIGEST:-none}) via REST API ..."
+    if check_harbor_cache_state "${HARBOR_HOST}" "${PROXY_PROJECT}" "${ENCODED_REPO}" "${IMAGE_TAG}" "${IMAGE_DIGEST}"; then
       ALREADY_CACHED=true
+      echo ">> Cache state: Already cached in Harbor"
+    else
+      echo ">> Cache state: Not cached in Harbor (will pull and warm)"
     fi
   else
     ALREADY_CACHED=true
   fi
 
-  # Warm and validate remote image via crane without pulling/storing image layers on the runner.
+  # Warm and validate remote image via crane.
   # Clusters include both x86_64 nodes and Raspberry Pi 4 (linux/arm64) nodes.
-  # Fetching both platforms ensures Harbor caches the required manifests for each node architecture.
+  # Fetching both platforms ensures Harbor caches the required manifests and layer blobs for each node architecture.
   WARM_FAILED=false
   SUPPORTED_PLATFORMS=()
 
-  for PLATFORM in "linux/amd64" "linux/arm64"; do
-    if crane manifest --platform "${PLATFORM}" "${TARGET_IMG}" >/dev/null 2>&1; then
-      SUPPORTED_PLATFORMS+=("${PLATFORM}")
+  if [ -n "${PROXY_PROJECT}" ]; then
+    # Warm tagged reference and digest reference manifests if available
+    if [[ -n "${IMAGE_TAG}" ]]; then
+      crane manifest "${HARBOR_HOST}/${PROXY_PROJECT}/${IMAGE_REPO}:${IMAGE_TAG}" >/dev/null 2>&1 || true
     fi
-  done
+    if [[ -n "${IMAGE_DIGEST}" ]]; then
+      crane manifest "${HARBOR_HOST}/${PROXY_PROJECT}/${IMAGE_REPO}@${IMAGE_DIGEST}" >/dev/null 2>&1 || true
+    fi
 
-  # If multi-arch check did not match specific platforms, test general digest
-  if [ ${#SUPPORTED_PLATFORMS[@]} -eq 0 ]; then
-    if crane digest "${TARGET_IMG}" >/dev/null 2>&1; then
-      SUPPORTED_PLATFORMS+=("default")
-    else
-      WARM_FAILED=true
+    # Determine target image reference for platform manifests and layer warming
+    WARM_TARGET="${TARGET_IMG}"
+
+    for PLATFORM in "linux/amd64" "linux/arm64"; do
+      if crane manifest --platform "${PLATFORM}" "${WARM_TARGET}" >/dev/null 2>&1; then
+        SUPPORTED_PLATFORMS+=("${PLATFORM}")
+        echo ">> Warming ${PLATFORM} layers for ${WARM_TARGET} ..."
+        crane export --platform "${PLATFORM}" "${WARM_TARGET}" - >/dev/null 2>&1 || true
+      fi
+    done
+
+    # If multi-arch check did not match specific platforms, test general digest
+    if [ ${#SUPPORTED_PLATFORMS[@]} -eq 0 ]; then
+      if crane manifest "${WARM_TARGET}" >/dev/null 2>&1; then
+        SUPPORTED_PLATFORMS+=("default")
+        echo ">> Warming default layers for ${WARM_TARGET} ..."
+        crane export "${WARM_TARGET}" - >/dev/null 2>&1 || true
+      else
+        WARM_FAILED=true
+      fi
+    fi
+  else
+    # Direct validation for unmirrored registries
+    for PLATFORM in "linux/amd64" "linux/arm64"; do
+      if crane manifest --platform "${PLATFORM}" "${TARGET_IMG}" >/dev/null 2>&1; then
+        SUPPORTED_PLATFORMS+=("${PLATFORM}")
+      fi
+    done
+
+    if [ ${#SUPPORTED_PLATFORMS[@]} -eq 0 ]; then
+      if crane digest "${TARGET_IMG}" >/dev/null 2>&1; then
+        SUPPORTED_PLATFORMS+=("default")
+      else
+        WARM_FAILED=true
+      fi
     fi
   fi
 
