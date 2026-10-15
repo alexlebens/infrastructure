@@ -31,6 +31,9 @@ spec:
       enableServiceLinks: false
       serviceAccountName: immich
       automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -90,7 +93,7 @@ spec:
             requests:
               cpu: 10m
               gpu.intel.com/i915: 1
-              memory: 500Mi
+              memory: 750Mi
           startupProbe:
             httpGet:
               path: /api/server/ping
@@ -103,12 +106,9 @@ spec:
             - mountPath: /usr/src/app/upload
               name: data
       volumes:
-        - csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: immich-config
-          name: config
+        - name: config
+          secret:
+            secretName: immich-config
         - name: data
           persistentVolumeClaim:
             claimName: immich
