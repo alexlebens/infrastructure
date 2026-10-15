@@ -1,0 +1,40 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grocy
+  labels:
+    app.kubernetes.io/instance: grocy
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: grocy
+    helm.sh/chart: grocy-5.3.0
+  annotations:
+    gethomepage.dev/description: Grocy
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Applications
+    gethomepage.dev/icon: sh-grocy.webp
+    gethomepage.dev/name: Groceries
+    gethomepage.dev/podSelector: ""
+    gethomepage.dev/siteMonitor: http://grocy.grocy:80
+    gethomepage.dev/statusStyle: dot
+    gethomepage.dev/weight: "400"
+  namespace: grocy
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: "traefik"
+  hostnames:
+    - "grocy.alexlebens.dev"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: grocy
+          namespace: grocy
+          port: 80
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /

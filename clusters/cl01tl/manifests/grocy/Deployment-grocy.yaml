@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grocy
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: grocy
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: grocy
+    helm.sh/chart: grocy-5.3.0
+  namespace: grocy
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/instance: grocy
+      app.kubernetes.io/name: grocy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: grocy
+        app.kubernetes.io/name: grocy
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: grocy
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: GROCY_MODE
+              value: production
+            - name: GROCY_BASE_URL
+              value: https://grocy.alexlebens.dev
+            - name: GROCY_DEFAULT_LOCALE
+              value: en
+            - name: GROCY_CURRENCY
+              value: USD
+          image: linuxserver/grocy:v4.7.1-ls344@sha256:1a8996206d1e0f5aa3aa85084dde2bae170a05b29b235de58c08b161873ce9a6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+          name: main
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 5
+          volumeMounts:
+            - mountPath: /config
+              name: config
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: grocy-config
