@@ -1,0 +1,160 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homebox
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: homebox
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: homebox
+    helm.sh/chart: homebox-5.3.0
+  namespace: homebox
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/instance: homebox
+      app.kubernetes.io/name: homebox
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: homebox
+        app.kubernetes.io/name: homebox
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: homebox
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: HBOX_MODE
+              value: production
+            - name: HBOX_WEB_PORT
+              value: "7745"
+            - name: HBOX_OPTIONS_HOSTNAME
+              value: homebox.alexlebens.dev
+            - name: HBOX_OPTIONS_TRUST_PROXY
+              value: "true"
+            - name: HBOX_OPTIONS_ALLOW_ANALYTICS
+              value: "false"
+            - name: HBOX_OPTIONS_GITHUB_RELEASE_CHECK
+              value: "false"
+            - name: HBOX_AUTH_API_KEY_PEPPER
+              valueFrom:
+                secretKeyRef:
+                  key: api-key-pepper
+                  name: homebox-key
+            - name: HBOX_DATABASE_DRIVER
+              value: postgres
+            - name: HBOX_DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: homebox-postgresql-18-cluster-app
+            - name: HBOX_DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: homebox-postgresql-18-cluster-app
+            - name: HBOX_DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: user
+                  name: homebox-postgresql-18-cluster-app
+            - name: HBOX_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: homebox-postgresql-18-cluster-app
+            - name: HBOX_DATABASE_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: homebox-postgresql-18-cluster-app
+            - name: HBOX_DATABASE_SSL_MODE
+              value: disable
+            - name: HBOX_STORAGE_CONN_STRING
+              value: s3://homebox-assets?endpoint=http://cluster-b.garage-b:3900&disable_https=true&use_path_style=true
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: access-key-id
+                  name: homebox-assets-secret
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: secret-access-key
+                  name: homebox-assets-secret
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: region
+                  name: homebox-assets-secret
+            - name: HBOX_MAILER_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: HBOX_MAILER_PORT
+              value: "587"
+            - name: HBOX_MAILER_FROM
+              value: homebox@alexlebens.dev
+            - name: HBOX_OIDC_ENABLED
+              value: "true"
+            - name: HBOX_OIDC_ISSUER_URL
+              value: https://auth.alexlebens.dev
+            - name: HBOX_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: homebox-oidc-secret
+            - name: HBOX_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: homebox-oidc-secret
+            - name: HBOX_OPTIONS_ALLOW_LOCAL_LOGIN
+              value: "false"
+          image: sysadminsmedia/homebox:0.26.2@sha256:b1ad7e3c63f732a5f6daa466e8116be4f545b3b120383a64dcb62beb00a660cc
+          livenessProbe:
+            httpGet:
+              path: /api/v1/status
+              port: 7745
+          name: main
+          readinessProbe:
+            httpGet:
+              path: /api/v1/status
+              port: 7745
+          resources:
+            requests:
+              cpu: 5m
+              memory: 30Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /data
+              name: data
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - emptyDir: {}
+          name: data
+        - emptyDir: {}
+          name: tmp
