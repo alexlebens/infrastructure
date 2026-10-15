@@ -4,6 +4,16 @@ harbor:
     tls:
       enabled: false
     route:
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Artifact Registry"
+        gethomepage.dev/description: "Harbor"
+        gethomepage.dev/group: "Services"
+        gethomepage.dev/icon: "sh-harbor.webp"
+        gethomepage.dev/siteMonitor: "http://harbor-portal.harbor:80"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/podSelector: ""
+        gethomepage.dev/weight: "200"
       parentRefs:
         - group: gateway.networking.k8s.io
           kind: Gateway
@@ -55,6 +65,10 @@ harbor:
     replicas: 2
     podDisruptionBudget:
       enabled: true
+    resources:
+      requests:
+        cpu: 5m
+        memory: 20Mi
   core:
     image:
       repository: ghcr.io/goharbor/harbor-core
@@ -62,6 +76,10 @@ harbor:
     replicas: 2
     podDisruptionBudget:
       enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 140Mi
     existingSecret: harbor-secret
     secretName: harbor-secret
     existingXsrfSecret: harbor-secret
@@ -72,6 +90,10 @@ harbor:
     replicas: 2
     podDisruptionBudget:
       enabled: true
+    resources:
+      requests:
+        cpu: 5m
+        memory: 50Mi
     jobLoggers:
       - stdout
     existingSecret: harbor-secret
@@ -80,10 +102,21 @@ harbor:
       image:
         repository: goharbor/registry-photon
         tag: v2.15.4@sha256:dc0cb388a6445c69c8a0c406679290d2991c9698833d9e6e86a23bdfaf2f83c3
+      resources:
+        requests:
+          cpu: 500m
+          memory: 140Mi
     controller:
       image:
         repository: ghcr.io/goharbor/harbor-registryctl
         tag: v2.15.4@sha256:30bd1ace4e3bb390d75b84673f98ddb4a69fcc6d116932ea764391df01943fb7
+      resources:
+        requests:
+          cpu: 5m
+          memory: 10Mi
+    replicas: 2
+    podDisruptionBudget:
+      enabled: true
     existingSecret: harbor-secret
     relativeurls: true
     credentials:
@@ -94,6 +127,10 @@ harbor:
     image:
       repository: ghcr.io/goharbor/trivy-adapter-photon
       tag: v2.15.4@sha256:813ca81b4a4ea0f44f5fa81cca2645eeb58d4b1f6c66b428df9d506174bb71d9
+    resources:
+      requests:
+        cpu: 100m
+        memory: 100Mi
   database:
     type: external
     external:
@@ -112,13 +149,29 @@ harbor:
     replicas: 2
     podDisruptionBudget:
       enabled: true
+    resources:
+      requests:
+        cpu: 5m
+        memory: 25Mi
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Harbor"
+    description: "An open source trusted cloud native registry project that stores, signs, and scans content."
+    callbackUrls:
+      - https://harbor.alexlebens.dev/c/oidc/callback
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
+    clientID: 4CD00ECD-A0B2-4363-9D64-16A8BF5283BA
 
 valkey:
   valkey:
     resources:
       requests:
         cpu: 15m
-        memory: 50Mi
+        memory: 70Mi
 
 postgres-18-cluster:
   mode: recovery
@@ -144,6 +197,11 @@ s3-bucket:
   enabled: true
   bucketName: harbor-registry
   target: garage-b
+
+common-helpers:
+  probe:
+    internal: http://harbor-portal.harbor:80
+    external: https://harbor.alexlebens.dev
 
 grafanaDashboard:
   folder: platform
