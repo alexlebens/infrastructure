@@ -91,6 +91,44 @@ jobs:
           echo ">> Linting helm chart ${CHART} ..."
           helm lint "clusters/${CLUSTER}/helm/${CHART}" --namespace "default"
 
+      - name: -- Lint Chart Scripts (shellcheck)
+        run: |
+          if [ -d "clusters/${CLUSTER}/helm/${CHART}/scripts" ]; then
+            echo "FAILED_STAGE=Lint Chart Scripts (shellcheck)" >> $GITHUB_ENV
+            shopt -s nullglob
+            scripts=(clusters/${CLUSTER}/helm/${CHART}/scripts/*.sh)
+            shopt -u nullglob
+            if [ ${#scripts[@]} -gt 0 ]; then
+              echo ">> Linting scripts in clusters/${CLUSTER}/helm/${CHART}/scripts/ ..."
+              ./.gitea/scripts/lint-bash-scripts.sh "${scripts[@]}"
+            fi
+          fi
+
+      - name: Check for Chart BATS Tests
+        id: check-bats-tests
+        run: |
+          if [ -d "clusters/${CLUSTER}/helm/${CHART}/tests" ] && ls "clusters/${CLUSTER}/helm/${CHART}/tests"/*.bats >/dev/null 2>&1; then
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup BATS
+        if: steps.check-bats-tests.outputs.has_tests == 'true'
+        uses: bats-core/bats-action@5b1e60c2ee94cb1b44a616ea4b1f466f9d6e38ef # 4.0.0
+        with:
+          support-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-support
+          assert-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-assert
+          detik-install: false
+          file-install: false
+
+      - name: -- Run Chart BATS Tests
+        if: steps.check-bats-tests.outputs.has_tests == 'true'
+        run: |
+          echo "FAILED_STAGE=Run Chart BATS Tests" >> $GITHUB_ENV
+          echo ">> Running BATS tests for chart ${CHART} ..."
+          bats --recursive "clusters/${CLUSTER}/helm/${CHART}/tests/"
+
       - name: Set Up Kubectl
         uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
         with:
