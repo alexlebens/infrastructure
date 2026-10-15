@@ -1,0 +1,237 @@
+homebox:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          fsGroup: 65532
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: sysadminsmedia/homebox
+            tag: 0.26.2@sha256:b1ad7e3c63f732a5f6daa466e8116be4f545b3b120383a64dcb62beb00a660cc
+          env:
+            - name: HBOX_MODE
+              value: production
+            - name: HBOX_WEB_PORT
+              value: "7745"
+            - name: HBOX_OPTIONS_HOSTNAME
+              value: homebox.alexlebens.dev
+            - name: HBOX_OPTIONS_TRUST_PROXY
+              value: "true"
+            - name: HBOX_OPTIONS_ALLOW_ANALYTICS
+              value: "false"
+            - name: HBOX_OPTIONS_GITHUB_RELEASE_CHECK
+              value: "false"
+            - name: HBOX_AUTH_API_KEY_PEPPER
+              valueFrom:
+                secretKeyRef:
+                  name: homebox-key
+                  key: api-key-pepper
+            - name: HBOX_DATABASE_DRIVER
+              value: postgres
+            - name: HBOX_DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: homebox-postgresql-18-cluster-app
+                  key: host
+            - name: HBOX_DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: homebox-postgresql-18-cluster-app
+                  key: port
+            - name: HBOX_DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: homebox-postgresql-18-cluster-app
+                  key: user
+            - name: HBOX_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: homebox-postgresql-18-cluster-app
+                  key: password
+            - name: HBOX_DATABASE_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: homebox-postgresql-18-cluster-app
+                  key: dbname
+            - name: HBOX_DATABASE_SSL_MODE
+              value: disable
+            - name: HBOX_STORAGE_CONN_STRING
+              value: s3://homebox-assets?endpoint=http://cluster-b.garage-b:3900&disable_https=true&use_path_style=true
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: homebox-assets-secret
+                  key: access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: homebox-assets-secret
+                  key: secret-access-key
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: homebox-assets-secret
+                  key: region
+            - name: HBOX_MAILER_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: HBOX_MAILER_PORT
+              value: "587"
+            - name: HBOX_MAILER_FROM
+              value: homebox@alexlebens.dev
+            - name: HBOX_OIDC_ENABLED
+              value: "true"
+            - name: HBOX_OIDC_ISSUER_URL
+              value: https://auth.alexlebens.dev
+            - name: HBOX_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: homebox-oidc-secret
+                  key: clientId
+            - name: HBOX_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: homebox-oidc-secret
+                  key: clientSecret
+            - name: HBOX_OPTIONS_ALLOW_LOCAL_LOGIN
+              value: "false"
+          resources:
+            requests:
+              cpu: 5m
+              memory: 30Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/v1/status
+                  port: 7745
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/v1/status
+                  port: 7745
+  service:
+    main:
+      forceRename: homebox
+      ports:
+        http:
+          port: 80
+          targetPort: 7745
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Homebox"
+        gethomepage.dev/description: "Inventory Management"
+        gethomepage.dev/group: "Analysis"
+        gethomepage.dev/icon: "sh-homebox.webp"
+        gethomepage.dev/siteMonitor: "http://homebox.homebox:80/api/v1/status"
+        gethomepage.dev/statusStyle: "dot"
+        gethomepage.dev/weight: "50"
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - homebox.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: homebox
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Homebox"
+    description: "Inventory management for the home."
+    pkceEnabled: false
+    callbackUrls:
+      - https://homebox.alexlebens.dev/api/v1/users/login/oidc/callback
+  seedJob:
+    enabled: true
+
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 15 5 * * *"
+
+s3-bucket:
+  enabled: true
+  bucketName: homebox-assets
+  target: b
+  cors:
+    enabled: true
+    allowedOrigins:
+      - "https://homebox.alexlebens.dev"
+    allowedMethods:
+      - GET
+      - PUT
+      - POST
+      - DELETE
+      - HEAD
+  backups:
+    a:
+      enabled: true
+      cronJob:
+        schedule: "10 3 * * *"
+      destination:
+        bucketName: homebox-assets
+    c:
+      enabled: true
+      cronJob:
+        schedule: "35 2 * * 2"
+      destination:
+        bucketName: homebox-assets
+    d:
+      enabled: true
+      cronJob:
+        schedule: "5 2 * * 2"
+      destination:
+        bucketName: homebox-assets-ce9f155264929ba3
+
+common-helpers:
+  probe:
+    internal: http://homebox.homebox:80
+    external: https://homebox.alexlebens.dev
