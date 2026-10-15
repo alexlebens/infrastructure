@@ -8,7 +8,6 @@ on:
   pull_request:
     paths:
       - ".gitea/scripts/*.py"
-      - "clusters/**/scripts/*.py"
       - ".gitea/workflows/test-python-scripts.yaml"
       - ".pre-commit-config.yaml"
 
@@ -44,18 +43,14 @@ jobs:
       - name: Ruff Check Python Scripts
         run: |
           echo "FAILED_STAGE=Ruff Check" >> "$GITHUB_ENV"
-          echo ">> Running Ruff check on Python scripts in .gitea/scripts/ and clusters/ ..."
-          shopt -s globstar nullglob
-          files=(.gitea/scripts/*.py clusters/**/scripts/*.py)
+          echo ">> Running Ruff check on Python scripts in .gitea/scripts/ ..."
+          shopt -s nullglob
+          files=(.gitea/scripts/*.py)
           if ! ruff check "${files[@]}"; then
             failed=()
             for f in "${files[@]}"; do
               if ! ruff check "$f" >/dev/null 2>&1; then
-                if [[ "$f" =~ clusters/[^/]+/helm/([^/]+)/scripts/ ]]; then
-                  failed+=("Chart: ${BASH_REMATCH[1]}")
-                else
-                  failed+=("Workflow: $(basename "$f")")
-                fi
+                failed+=("Workflow: $(basename "$f")")
               fi
             done
             unique_targets=$(printf "%s\n" "${failed[@]}" | sort -u | paste -sd ", " -)
@@ -66,18 +61,14 @@ jobs:
       - name: Ruff Format Check Python Scripts
         run: |
           echo "FAILED_STAGE=Ruff Format" >> "$GITHUB_ENV"
-          echo ">> Running Ruff format check on Python scripts in .gitea/scripts/ and clusters/ ..."
-          shopt -s globstar nullglob
-          files=(.gitea/scripts/*.py clusters/**/scripts/*.py)
+          echo ">> Running Ruff format check on Python scripts in .gitea/scripts/ ..."
+          shopt -s nullglob
+          files=(.gitea/scripts/*.py)
           if ! ruff format --check "${files[@]}"; then
             failed=()
             for f in "${files[@]}"; do
               if ! ruff format --check "$f" >/dev/null 2>&1; then
-                if [[ "$f" =~ clusters/[^/]+/helm/([^/]+)/scripts/ ]]; then
-                  failed+=("Chart: ${BASH_REMATCH[1]}")
-                else
-                  failed+=("Workflow: $(basename "$f")")
-                fi
+                failed+=("Workflow: $(basename "$f")")
               fi
             done
             unique_targets=$(printf "%s\n" "${failed[@]}" | sort -u | paste -sd ", " -)

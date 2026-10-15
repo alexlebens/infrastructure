@@ -20,6 +20,7 @@ env:
   YQ_VERSION: "v4.54.1"
   TRIVY_VERSION: "v0.76.0"
   KUBECONFORM_VERSION: "0.8.0"
+  RUFF_VERSION: "0.17.0"
 
 jobs:
   detect-changes:
@@ -128,6 +129,59 @@ jobs:
           echo "FAILED_STAGE=Run Chart BATS Tests" >> $GITHUB_ENV
           echo ">> Running BATS tests for chart ${CHART} ..."
           bats --recursive "clusters/${CLUSTER}/helm/${CHART}/tests/"
+
+      - name: Check for Chart Python Files
+        id: check-py
+        run: |
+          has_scripts=false
+          has_tests=false
+          if [ -d "clusters/${CLUSTER}/helm/${CHART}/scripts" ] && ls "clusters/${CLUSTER}/helm/${CHART}/scripts"/*.py >/dev/null 2>&1; then
+            has_scripts=true
+          fi
+          if [ -d "clusters/${CLUSTER}/helm/${CHART}/tests" ] && ls "clusters/${CLUSTER}/helm/${CHART}/tests"/*test*.py >/dev/null 2>&1; then
+            has_tests=true
+          fi
+          echo "has_scripts=${has_scripts}" >> "$GITHUB_OUTPUT"
+          echo "has_tests=${has_tests}" >> "$GITHUB_OUTPUT"
+          if [ "${has_scripts}" = "true" ] || [ "${has_tests}" = "true" ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set Up Python
+        if: steps.check-py.outputs.needed == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Cache Pip
+        if: steps.check-py.outputs.needed == 'true'
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-chart-py-${{ env.RUFF_VERSION }}
+
+      - name: -- Lint Chart Python Scripts (Ruff)
+        if: steps.check-py.outputs.has_scripts == 'true'
+        run: |
+          echo "FAILED_STAGE=Lint Chart Python Scripts (Ruff)" >> $GITHUB_ENV
+          pip install "ruff==${{ env.RUFF_VERSION }}"
+          shopt -s nullglob
+          scripts=(clusters/${CLUSTER}/helm/${CHART}/scripts/*.py)
+          shopt -u nullglob
+          echo ">> Running Ruff check on chart Python scripts in clusters/${CLUSTER}/helm/${CHART}/scripts/ ..."
+          ruff check "${scripts[@]}"
+          echo ">> Running Ruff format check on chart Python scripts in clusters/${CLUSTER}/helm/${CHART}/scripts/ ..."
+          ruff format --check "${scripts[@]}"
+
+      - name: -- Run Chart Python Tests (pytest)
+        if: steps.check-py.outputs.has_tests == 'true'
+        run: |
+          echo "FAILED_STAGE=Run Chart Python Tests (pytest)" >> $GITHUB_ENV
+          pip install pytest
+          echo ">> Running pytest for chart ${CHART} ..."
+          pytest "clusters/${CLUSTER}/helm/${CHART}/tests/"
 
       - name: Set Up Kubectl
         uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
