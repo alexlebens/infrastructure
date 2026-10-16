@@ -3,8 +3,23 @@ kiwix:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/kiwix/kiwix-serve
             tag: 3.8.2@sha256:e478554a9920412eeb5ce1d73f24e4b28445ebed233187cdd03c623c32be46a5
@@ -34,6 +49,7 @@ kiwix:
                   port: 8080
   service:
     main:
+      forceRename: kiwix
       ports:
         http:
           port: 80
@@ -41,6 +57,15 @@ kiwix:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Wikipedia"
+        gethomepage.dev/description: "Kiwix"
+        gethomepage.dev/group: "Knowledge"
+        gethomepage.dev/icon: "sh-kiwix-light.webp"
+        gethomepage.dev/siteMonitor: "http://kiwix.kiwix:80"
+        gethomepage.dev/weight: "100"
+        gethomepage.dev/podSelector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -62,3 +87,14 @@ kiwix:
           main:
             - path: /data
               readOnly: true
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
+common-helpers:
+  probe:
+    internal: http://kiwix.kiwix:80
+    external: https://kiwix.alexlebens.dev
