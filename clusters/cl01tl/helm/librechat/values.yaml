@@ -7,8 +7,16 @@ librechat:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         librechat:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/danny-avila/librechat
             tag: v0.8.7@sha256:c5db3331b845e1f289f8d04c0c77936c4bbe372f76730a804abc1c37e44d23a9
@@ -222,8 +230,8 @@ librechat:
               value: "http://librechat-rag-api:8000"
           resources:
             requests:
-              cpu: 50m
-              memory: 256Mi
+              cpu: 10m
+              memory: 750Mi
           probes:
             liveness:
               enabled: true
@@ -254,8 +262,16 @@ librechat:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         litellm:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/berriai/litellm
             tag: v1.105.1@sha256:b7b9e2c306343721802253d0dd9436b9634a2eb4e14da7c7cf06c5c7b7530802
@@ -279,8 +295,8 @@ librechat:
                   key: gemini-api-key
           resources:
             requests:
-              cpu: 20m
-              memory: 128Mi
+              cpu: 10m
+              memory: 550Mi
           probes:
             liveness:
               enabled: true
@@ -311,8 +327,16 @@ librechat:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         rag-api:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/danny-avila/librechat-rag-api-dev-lite
             tag: v0.9.0@sha256:18a8dffa9316276b924bf3fd23bfb4544b0f68f8f6b14c048affb35c01721a35
@@ -353,8 +377,8 @@ librechat:
               value: "false"
           resources:
             requests:
-              cpu: 50m
-              memory: 256Mi
+              cpu: 10m
+              memory: 200Mi
           probes:
             liveness:
               enabled: true
@@ -692,23 +716,34 @@ librechat:
   service:
     main:
       controller: main
+      forceRename: librechat-main
       ports:
         http:
           port: 80
           targetPort: 3080
     litellm:
       controller: litellm
+      forceRename: librechat-litellm
       ports:
         http:
           port: 4000
     rag-api:
       controller: rag-api
+      forceRename: librechat-rag-api
       ports:
         http:
           port: 8000
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "AI Chat"
+        gethomepage.dev/description: "LibreChat"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "librechat.png"
+        gethomepage.dev/siteMonitor: "http://librechat-main.librechat:80/health"
+        gethomepage.dev/weight: "100"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -741,6 +776,42 @@ librechat:
             - path: /etc/litellm/config.yaml
               subPath: config.yaml
               readOnly: true
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "LibreChat"
+    description: "AI chat interface with LiteLLM and MCP integration."
+    launchUrl: "https://ai.alexlebens.dev"
+    clientID: E83B2C91-4D5F-467A-B192-3C4D5E6F7A8B
+    callbackUrls:
+      - https://ai.alexlebens.dev/oauth/openid/callback
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
+      - name: user
+        namespace: pocket-id-operator
+
+meilisearch:
+  environment:
+    MEILI_NO_ANALYTICS: true
+    MEILI_ENV: production
+    MEILI_UPGRADE_DB: true
+    MEILI_EXPERIMENTAL_ENABLE_VECTOR_STORE: "true"
+    MEILI_EXPERIMENTAL_ENABLE_VECTOR_SEARCH: "true"
+  auth:
+    existingMasterKeySecret: librechat-meilisearch-key
+  persistence:
+    enabled: true
+    storageClass: ceph-block
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 1m
+      memory: 50Mi
+  serviceMonitor:
+    enabled: true
+
 librechat-mongodb:
   fullnameOverride: librechat-mongodb
   sharding:
@@ -832,22 +903,7 @@ s3-bucket:
       destination:
         bucketName: librechat-assets
 
-meilisearch:
-  environment:
-    MEILI_NO_ANALYTICS: true
-    MEILI_ENV: production
-    MEILI_UPGRADE_DB: true
-    MEILI_EXPERIMENTAL_ENABLE_VECTOR_STORE: "true"
-    MEILI_EXPERIMENTAL_ENABLE_VECTOR_SEARCH: "true"
-  auth:
-    existingMasterKeySecret: librechat-meilisearch-key
-  persistence:
-    enabled: true
-    storageClass: ceph-block
-    size: 10Gi
-  resources:
-    requests:
-      cpu: 1m
-      memory: 50Mi
-  serviceMonitor:
-    enabled: true
+common-helpers:
+  probe:
+    internal: http://librechat-main.librechat:80/health
+    external: https://ai.alexlebens.dev/health
