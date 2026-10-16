@@ -29,6 +29,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: kiwix
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1001
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -53,11 +61,21 @@ spec:
             requests:
               cpu: 1m
               memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /data
               name: media
               readOnly: true
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: media
           persistentVolumeClaim:
             claimName: kiwix-nfs-storage
+        - emptyDir: {}
+          name: tmp
