@@ -138,6 +138,11 @@ librechat:
                 secretKeyRef:
                   name: librechat-secrets
                   key: reactive-resume-api-key
+            - name: HOME_ASSISTANT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: librechat-secrets
+                  key: home-assistant-api-key
             - name: SEARXNG_INSTANCE_URL
               value: "http://searxng-api.searxng.svc.cluster.local:8080"
             - name: SD_WEBUI_URL
@@ -417,7 +422,9 @@ librechat:
               - "actual.actual:80"
               - "argocd-mcp.argocd:3000"
               - "dawarich.dawarich:80"
+              - "frigate.frigate:80"
               - "gitea-mcp.gitea:8080"
+              - "home-assistant.home-assistant:80"
               - "kaneo.alexlebens.dev:443"
               - "n8n-main.n8n.svc.cluster.local:5678"
               - "outline.alexlebens.dev:443"
@@ -439,8 +446,10 @@ librechat:
                 ACTUAL_SESSION_TOKEN: '${ACTUAL_SESSION_TOKEN}'
 
             argocd:
-              type: http
+              type: streamable-http
               url: 'http://argocd-mcp.argocd:3000/mcp'
+              timeout: 60000
+              requiresOAuth: false
               headers:
                 Authorization: 'Bearer ${ARGOCD_MCP_TOKEN}'
 
@@ -486,9 +495,21 @@ librechat:
                 token_exchange_method: default_post
                 token_endpoint_auth_methods_supported: ['client_secret_post']
 
+            frigate:
+              type: stdio
+              command: uvx
+              args:
+                - --from
+                - https://github.com/jakekeeys/frigate-mcp/archive/refs/heads/main.tar.gz
+                - frigate-mcp
+              env:
+                FRIGATE_URL: "http://frigate.frigate:80"
+
             gitea:
-              type: http
+              type: streamable-http
               url: 'http://gitea-mcp.gitea:8080/mcp'
+              timeout: 60000
+              requiresOAuth: false
               headers:
                 Authorization: 'Bearer ${GITEA_MCP_TOKEN}'
 
@@ -508,6 +529,14 @@ librechat:
                 redirect_uri: 'https://ai.alexlebens.dev/api/mcp/gmail/oauth/callback'
                 token_exchange_method: default_post
                 token_endpoint_auth_methods_supported: ['client_secret_post']
+
+            home-assistant:
+              type: streamable-http
+              url: 'http://home-assistant.home-assistant:80/api/mcp'
+              timeout: 60000
+              requiresOAuth: false
+              headers:
+                Authorization: 'Bearer ${HOME_ASSISTANT_API_KEY}'
 
             kaneo:
               type: "streamable-http"
