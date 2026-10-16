@@ -129,7 +129,30 @@ kube-prometheus-stack:
     enabled: false
   kubeProxy:
     enabled: false
+  kube-state-metrics:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 80Mi
+  prometheus-node-exporter:
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      requests:
+        cpu: 10m
+        memory: 40Mi
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
   prometheusOperator:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 70Mi
     admissionWebhooks:
       annotations:
         argocd.argoproj.io/hook: PreSync
@@ -138,6 +161,10 @@ kube-prometheus-stack:
         annotations:
           argocd.argoproj.io/hook: PreSync
           argocd.argoproj.io/hook-delete-policy: HookSucceeded
+        resources:
+          requests:
+            cpu: 10m
+            memory: 20Mi
       mutatingWebhookConfiguration:
         annotations:
           argocd.argoproj.io/hook: PreSync
@@ -227,7 +254,7 @@ kube-prometheus-stack:
             timeoutSeconds: 10
             failureThreshold: 3
         - name: oauth
-          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
