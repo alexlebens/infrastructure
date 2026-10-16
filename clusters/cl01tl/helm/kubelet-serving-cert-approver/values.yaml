@@ -46,6 +46,25 @@ kubelet-serving-cert-approver:
             requests:
               cpu: 1m
               memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+                initialDelaySeconds: 3
+                periodSeconds: 10
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+                initialDelaySeconds: 3
+                periodSeconds: 10
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -56,6 +75,7 @@ kubelet-serving-cert-approver:
             runAsNonRoot: true
   service:
     main:
+      forceRename: kubelet-serving-cert-approver
       ports:
         health:
           port: 8080
@@ -63,10 +83,10 @@ kubelet-serving-cert-approver:
           port: 9090
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: kubelet-serving-cert-approver
-          app.kubernetes.io/instance: kubelet-serving-cert-approver
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: kubelet-serving-cert-approver
       endpoints:
         - port: metrics
+
+common-helpers:
+  probe:
+    internal: http://kubelet-serving-cert-approver.kubelet-serving-cert-approver:8080/healthz
