@@ -104,7 +104,7 @@ karakeep:
           resources:
             requests:
               cpu: 20m
-              memory: 500Mi
+              memory: 600Mi
           probes:
             liveness:
               enabled: true
@@ -146,6 +146,10 @@ karakeep:
             - --remote-debugging-address=0.0.0.0
             - --remote-debugging-port=9222
             - --hide-scrollbars
+          resources:
+            requests:
+              cpu: 2m
+              memory: 70Mi
   service:
     main:
       forceRename: karakeep
@@ -214,6 +218,14 @@ cloudflared:
     targetUrl: https://karakeep.alexlebens.dev/signin
 
 meilisearch:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
   environment:
     MEILI_NO_ANALYTICS: true
     MEILI_ENV: production
@@ -265,3 +277,8 @@ volsync-target-data:
   d:
     enabled: true
     schedule: 40 9 * * 5
+
+common-helpers:
+  probe:
+    internal: http://karakeep.karakeep:3000/api/health
+    external: https://karakeep.alexlebens.dev/api/health
