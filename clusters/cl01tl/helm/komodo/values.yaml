@@ -3,8 +3,17 @@ komodo:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/moghtech/komodo-core
             tag: 2.3.3@sha256:bca73d0eee143066228fb9b80c38a5a2726e573ad2758f7aa92b5c91a8aef1c7
@@ -78,8 +87,23 @@ komodo:
               value: true
           resources:
             requests:
-              cpu: 10m
-              memory: 90Mi
+              cpu: 20m
+              memory: 120Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 9120
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 9120
   service:
     main:
       controller: main
@@ -91,6 +115,20 @@ komodo:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Docker Deployment"
+        gethomepage.dev/description: "Komodo"
+        gethomepage.dev/group: "Automation"
+        gethomepage.dev/icon: "sh-komodo-light.webp"
+        gethomepage.dev/siteMonitor: "http://komodo-main.komodo:80"
+        gethomepage.dev/weight: "100"
+        gethomepage.dev/widget.type: "komodo"
+        gethomepage.dev/widget.url: "http://komodo-main.komodo:80"
+        gethomepage.dev/widget.key: "{{`{{HOMEPAGE_VAR_KOMODO_API_KEY}}`}}"
+        gethomepage.dev/widget.secret: "{{`{{HOMEPAGE_VAR_KOMODO_API_SECRET}}`}}"
+        gethomepage.dev/widget.showStacks: "true"
+        gethomepage.dev/widget.fields: '["running", "down", "unhealthy", "unknown"]'
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -130,6 +168,21 @@ komodo:
         main:
           main:
             - path: /syncs
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Komodo"
+    description: "A deployment and infrastructure management platform."
+    clientID: AF58A9F2-D832-4F87-8E02-2C5E989F3651
+    callbackUrls:
+      - https://komodo.alexlebens.dev/auth/oidc/callback
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
+    logo:
+      selfhstDarkLogo: true
+
 komodo-mongodb:
   fullnameOverride: komodo-mongodb
   sharding:
@@ -171,7 +224,7 @@ komodo-mongodb:
           bucket: mongodb-backups
           prefix: cl01tl/komodo
           credentialsSecret: komodo-mongodb-backup-s3
-          endpointUrl: http://synology.alexlebens.dev:3900
+          endpointUrl: https://a.s3.alexlebens.dev
           region: garage
     tasks:
       - name: daily-backup
@@ -206,3 +259,8 @@ volsync-target-keys:
   d:
     enabled: true
     schedule: 40 9 * * 6
+
+common-helpers:
+  probe:
+    internal: http://komodo-main.komodo:80
+    external: https://komodo.alexlebens.dev
