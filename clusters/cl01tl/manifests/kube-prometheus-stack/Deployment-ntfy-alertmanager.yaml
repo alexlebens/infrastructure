@@ -29,22 +29,49 @@ spec:
       enableServiceLinks: false
       serviceAccountName: ntfy-alertmanager
       automountServiceAccountToken: true
+      securityContext:
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
       containers:
         - image: xenrox/ntfy-alertmanager:1.0.1@sha256:4dff34a4cb0ab4ba9925c8e21101c6cfc72ccd776223183c64d67b5799f516f7
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
           name: main
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /etc/ntfy-alertmanager/config
               name: config
               readOnly: true
               subPath: config
+            - mountPath: /tmp
+              name: tmp
       volumes:
-        - csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: ntfy-alertmanager-config
-          name: config
+        - name: config
+          secret:
+            secretName: ntfy-alertmanager-config
+        - emptyDir: {}
+          name: tmp
