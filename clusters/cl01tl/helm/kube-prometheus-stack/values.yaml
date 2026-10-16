@@ -53,11 +53,25 @@ kube-prometheus-stack:
         - port: oauth-metrics
           path: /metrics
     alertmanagerSpec:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 50Mi
       secrets:
         - alertmanager-ntfy-config
       containers:
         - name: oauth
           image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
+          resources:
+            requests:
+              cpu: 5m
+              memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           ports:
             - containerPort: 4180
               name: oauth
@@ -154,7 +168,7 @@ kube-prometheus-stack:
           gethomepage.dev/icon: "sh-prometheus.webp"
           gethomepage.dev/href: "https://prometheus.alexlebens.dev/targets?pool=&health=down"
           gethomepage.dev/siteMonitor: "http://prometheus-operated.kube-prometheus-stack:9090"
-          gethomepage.dev/weight: "400"
+          gethomepage.dev/weight: "200"
           gethomepage.dev/pod-selector: ""
           gethomepage.dev/widget.type: "prometheus"
           gethomepage.dev/widget.url: "http://prometheus-operated.kube-prometheus-stack:9090"
@@ -192,8 +206,8 @@ kube-prometheus-stack:
       retentionSize: 40GiB
       resources:
         requests:
-          cpu: 1000m
-          memory: 5Gi
+          cpu: 500m
+          memory: 6Gi
         limits:
           memory: 8Gi
       storageSpec:
@@ -214,12 +228,16 @@ kube-prometheus-stack:
             failureThreshold: 3
         - name: oauth
           image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           resources:
             requests:
-              cpu: 10m
-              memory: 32Mi
-            limits:
-              memory: 128Mi
+              cpu: 5m
+              memory: 20Mi
           ports:
             - containerPort: 4180
               name: oauth
@@ -248,6 +266,7 @@ kube-prometheus-stack:
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
       maximumStartupDurationSeconds: 7200
+
 ntfy-alertmanager:
   global:
     fullnameOverride: ntfy-alertmanager
@@ -257,34 +276,104 @@ ntfy-alertmanager:
       strategy: Recreate
       pod:
         automountServiceAccountToken: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          fsGroup: 65534
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       serviceAccount:
         name: ntfy-alertmanager
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: xenrox/ntfy-alertmanager
             tag: 1.0.1@sha256:4dff34a4cb0ab4ba9925c8e21101c6cfc72ccd776223183c64d67b5799f516f7
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8080
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 8080
   service:
     main:
+      forceRename: ntfy-alertmanager
       ports:
         http:
           port: 80
           targetPort: 8080
   persistence:
     config:
-      type: custom
-      volumeSpec:
-        csi:
-          driver: secrets-store.csi.k8s.io
-          readOnly: true
-          volumeAttributes:
-            secretProviderClass: ntfy-alertmanager-config
+      type: secret
+      name: ntfy-alertmanager-config
       advancedMounts:
         main:
           main:
             - path: /etc/ntfy-alertmanager/config
               subPath: config
               readOnly: true
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
+pocket-id-prometheus:
+  mode: oauth
+  name: prometheus
+  client:
+    displayName: "Prometheus"
+    description: "A systems and service monitoring system using standard metrics formats."
+    clientID: 82DD7A6F-288E-4684-BA11-17A727930943
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
+    logo:
+      selfhstLogoName: prometheus
+  externalSecret:
+    secretName: prometheus-oauth-proxy
+
+pocket-id-alertmanager:
+  mode: oauth
+  name: alertmanager
+  client:
+    displayName: "Alertmanager"
+    description: "Generate alerts based on rules and metrics from Prometheus."
+    clientID: 3F3FC9E6-4202-4624-9717-85BB9382B927
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
+    logo:
+      selfhstLogoName: prometheus
+  externalSecret:
+    secretName: alertmanager-oauth-proxy
+
+common-helpers:
+  probe:
+    internal: http://kube-prometheus-stack-prometheus.kube-prometheus-stack:9090
+    external: https://prometheus.alexlebens.dev
 
 grafanaDashboard:
   folders:
