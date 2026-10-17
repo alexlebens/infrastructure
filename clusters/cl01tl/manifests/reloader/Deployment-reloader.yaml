@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    meta.helm.sh/release-namespace: "reloader"
+    meta.helm.sh/release-name: "reloader"
+  labels:
+    app: reloader
+    release: "reloader"
+    app.kubernetes.io/name: reloader
+    app.kubernetes.io/instance: "reloader"
+    helm.sh/chart: "reloader-2.2.18"
+    chart: "reloader-2.2.18"
+    heritage: "Helm"
+    app.kubernetes.io/managed-by: "Helm"
+    app.kubernetes.io/version: "v1.4.22"
+    group: com.stakater.platform
+    provider: stakater
+    version: v1.4.22
+  name: reloader
+  namespace: reloader
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: reloader
+      release: "reloader"
+  template:
+    metadata:
+      labels:
+        app: reloader
+        release: "reloader"
+        app.kubernetes.io/name: reloader
+        app.kubernetes.io/instance: "reloader"
+        helm.sh/chart: "reloader-2.2.18"
+        chart: "reloader-2.2.18"
+        heritage: "Helm"
+        app.kubernetes.io/managed-by: "Helm"
+        app.kubernetes.io/version: "v1.4.22"
+        group: com.stakater.platform
+        provider: stakater
+        version: v1.4.22
+    spec:
+      containers:
+        - image: "stakater/reloader:v1.4.22@sha256:96cc6bad219032f01a795803f23093ee0277b9308999ec4ce25a8382a22910df"
+          imagePullPolicy: IfNotPresent
+          name: reloader
+          env:
+            - name: GOMAXPROCS
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.cpu
+                  divisor: '1'
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.memory
+                  divisor: '1'
+            - name: RELOADER_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: RELOADER_DEPLOYMENT_NAME
+              value: reloader
+          ports:
+            - name: http
+              containerPort: 9090
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: http
+            timeoutSeconds: 5
+            failureThreshold: 5
+            periodSeconds: 10
+            successThreshold: 1
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: http
+            timeoutSeconds: 5
+            failureThreshold: 5
+            periodSeconds: 10
+            successThreshold: 1
+            initialDelaySeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp/
+              name: tmp-volume
+          args:
+            - "--log-level=info"
+          resources:
+            requests:
+              cpu: 5m
+              memory: 50Mi
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: reloader
+      volumes:
+        - emptyDir: {}
+          name: tmp-volume
