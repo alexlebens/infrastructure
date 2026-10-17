@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: reloader
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: reloader
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: reloader
+      rules:
+        - alert: ReloaderAbsent
+          annotations:
+            description: Reloader has disappeared from Prometheus service discovery.
+            summary: Reloader is down.
+          expr: |
+            absent(up{job=~".*reloader.*"} == 1)
+          for: 5m
+          labels:
+            severity: critical
+        - alert: ReloaderReloadFailed
+          annotations:
+            description: Reloader encountered an error while attempting to reload a workload in response to ConfigMap or Secret changes.
+            summary: Reloader failed to reload a workload.
+          expr: |
+            sum by (namespace) (rate(reloader_reload_executed_total{success="false"}[5m])) > 0
+          for: 5m
+          labels:
+            severity: warning
