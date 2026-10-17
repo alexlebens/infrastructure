@@ -3,6 +3,8 @@ frigate:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         securityContext:
           fsGroup: 1000
@@ -179,128 +181,6 @@ frigate:
             - path:
                 type: PathPrefix
                 value: /
-  configMaps:
-    configmap:
-      enabled: true
-      data:
-        config.yml: |
-          auth:
-            enabled: false
-
-          genai:
-            ollama:
-              provider: openai
-              base_url: http://ollama-router.ollama:11434/v1
-              api_key: "{FRIGATE_LITELLM_API_KEY}"
-              model: gemma4:e4b
-              roles:
-                - descriptions
-                - chat
-              provider_options:
-                context_size: 8192
-
-          semantic_search:
-            enabled: True
-            model: "jinav1"
-            model_size: small
-
-          review:
-            genai:
-              enabled: true
-
-          objects:
-            genai:
-              enabled: true
-
-          mqtt:
-            enabled: false
-
-          ffmpeg:
-            hwaccel_args: preset-vaapi
-
-          detectors:
-            ov:
-              type: openvino
-              device: AUTO
-
-          model:
-            width: 300
-            height: 300
-            input_tensor: nhwc
-            input_pixel_format: bgr
-            path: /openvino-model/ssdlite_mobilenet_v2.xml
-            labelmap_path: /openvino-model/coco_91cl_bkgr.txt
-
-          record:
-            enabled: True
-            continuous:
-              days: 7
-            alerts:
-              retain:
-                days: 30
-                mode: all
-            detections:
-              retain:
-                days: 30
-                mode: all
-
-          snapshots:
-            enabled: True
-            retain:
-              default: 30
-
-          go2rtc:
-            ffmpeg:
-              global: "-vaapi_device /dev/dri/renderD128"
-            streams:
-              tapo_c200:
-                - rtsp://{FRIGATE_TAPO_USER}:{FRIGATE_TAPO_PASSWORD}@it06cm.alexlebens.dev:554/stream1
-              tapo_c200_sub:
-                - rtsp://{FRIGATE_TAPO_USER}:{FRIGATE_TAPO_PASSWORD}@it06cm.alexlebens.dev:554/stream2
-              ps09rp_audio:
-                - rtsp://ps09rp.alexlebens.dev:8554/mic
-                - "ffmpeg:ps09rp_audio#audio=opus"
-
-          cameras:
-            tapo_c200:
-              ffmpeg:
-                inputs:
-                  - path: rtsp://127.0.0.1:8554/tapo_c200
-                    roles:
-                      - record
-                  - path: rtsp://127.0.0.1:8554/tapo_c200_sub
-                    roles:
-                      - detect
-              detect:
-                enabled: true
-                width: 640
-                height: 360
-                fps: 5
-              motion:
-                enabled: true
-                improve_contrast: true
-                threshold: 30
-                contour_area: 30
-              audio:
-                enabled: false
-            ps09rp_audio:
-              ffmpeg:
-                inputs:
-                  - path: rtsp://127.0.0.1:8554/ps09rp_audio
-                    roles:
-                      - audio
-                      - record
-              detect:
-                enabled: false
-              audio:
-                enabled: true
-                listen:
-                  - speech
-                  - scream
-                  - yell
-                  - bark
-                  - dog
-                min_volume: 500
   persistence:
     config:
       forceRename: frigate-config
