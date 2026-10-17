@@ -26,7 +26,7 @@ loki:
         type: s3
         s3:
           bucket_name: loki-data
-          endpoint: synology.alexlebens.dev:3900
+          endpoint: a.s3.alexlebens.dev
           region: garage
           access_key_id: ${AWS_ACCESS_KEY_ID}
           secret_access_key: ${AWS_SECRET_ACCESS_KEY}
@@ -70,11 +70,16 @@ loki:
     replicas: 1
     resources:
       requests:
-        cpu: 100m
-        memory: 300Mi
+        cpu: 50m
+        memory: 500Mi
     persistence:
       size: 10Gi
       storageClass: ceph-block
+  lokiCanary:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 20Mi
   write:
     enabled: false
     replicas: 0
@@ -90,13 +95,18 @@ loki:
   resultsCache:
     allocatedMemory: 256
     allocatedCPU: 100m
+
 alloy:
   crds:
     create: true
   alloy:
+    resources:
+      requests:
+        cpu: 20m
+        memory: 250Mi
     configMap:
       create: true
-      content: |
+      content: |-
         logging {
           level  = "info"
           format = "logfmt"
@@ -181,6 +191,10 @@ s3-bucket:
   enabled: true
   bucketName: loki-data
   target: a
+
+common-helpers:
+  probe:
+    internal: http://loki.loki:3100/ready
 
 grafanaDashboard:
   folder: platform
