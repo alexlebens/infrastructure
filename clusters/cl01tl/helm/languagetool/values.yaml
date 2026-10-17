@@ -3,8 +3,25 @@ languagetool:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 100
+          runAsGroup: 101
+          fsGroup: 101
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
           image:
             repository: erikvl87/languagetool
             tag: 6.8@sha256:ef8fa12cbd485166c9ceeb7139d76d56d07707a624da6bb1fc1fbb5411750527
@@ -17,8 +34,8 @@ languagetool:
               value: 1g
           resources:
             requests:
-              cpu: 1m
-              memory: 800Mi
+              cpu: 10m
+              memory: 850Mi
           probes:
             liveness:
               enabled: true
@@ -43,6 +60,7 @@ languagetool:
                   port: 8010
   service:
     main:
+      forceRename: languagetool
       ports:
         http:
           port: 80
@@ -85,3 +103,8 @@ volsync-target-data:
   d:
     enabled: true
     schedule: 45 9 * * 0
+
+common-helpers:
+  probe:
+    internal: http://languagetool.languagetool:80/v2/healthcheck
+    external: https://languagetool.alexlebens.dev/v2/healthcheck
