@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: librechat
     helm.sh/chart: librechat-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
   namespace: librechat
 spec:
   revisionHistoryLimit: 3
@@ -21,8 +23,6 @@ spec:
       app.kubernetes.io/name: librechat
   template:
     metadata:
-      annotations:
-        checksum/configMaps: a116ffbb8c327c4866f515d2125fd725f39ead5f0f408194d2c58f0c135d7831
       labels:
         app.kubernetes.io/controller: litellm
         app.kubernetes.io/instance: librechat
@@ -34,6 +34,8 @@ spec:
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -77,8 +79,14 @@ spec:
             timeoutSeconds: 5
           resources:
             requests:
-              cpu: 20m
-              memory: 128Mi
+              cpu: 10m
+              memory: 550Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
           volumeMounts:
             - mountPath: /etc/litellm/config.yaml
               name: litellm-config
