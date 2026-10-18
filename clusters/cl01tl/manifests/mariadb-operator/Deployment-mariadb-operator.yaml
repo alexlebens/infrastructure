@@ -26,6 +26,10 @@ spec:
       serviceAccountName: mariadb-operator
       automountServiceAccountToken: true
       terminationGracePeriodSeconds: 10
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - image: "ghcr.io/mariadb-operator/mariadb-operator:26.10.1"
           imagePullPolicy: IfNotPresent
@@ -53,3 +57,13 @@ spec:
                   fieldPath: metadata.namespace
             - name: MARIADB_OPERATOR_SA_PATH
               value: /var/run/secrets/kubernetes.io/serviceaccount/token
+          resources:
+            requests:
+              cpu: 10m
+              memory: 150Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true

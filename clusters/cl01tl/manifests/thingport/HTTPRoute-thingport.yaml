@@ -1,0 +1,38 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: thingport
+  labels:
+    app.kubernetes.io/instance: thingport
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: thingport
+    helm.sh/chart: thingport-5.3.0
+  annotations:
+    gethomepage.dev/description: 3D Model Library
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Analysis
+    gethomepage.dev/icon: https://raw.githubusercontent.com/TautvydasDerzinskas/Thingport/develop/frontend/src/assets/logos/thingport-icon-color.svg
+    gethomepage.dev/name: Thingport
+    gethomepage.dev/siteMonitor: http://thingport.thingport:80
+    gethomepage.dev/weight: "100"
+  namespace: thingport
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: "traefik"
+  hostnames:
+    - "thingport.alexlebens.dev"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: thingport
+          namespace: thingport
+          port: 80
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
