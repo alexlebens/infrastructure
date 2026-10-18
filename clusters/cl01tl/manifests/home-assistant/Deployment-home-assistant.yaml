@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: home-assistant
     helm.sh/chart: home-assistant-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
   namespace: home-assistant
 spec:
   revisionHistoryLimit: 3
@@ -49,9 +51,47 @@ spec:
               cpu: 5m
               memory: 350Mi
           volumeMounts:
+            - mountPath: /config/bubble_card/modules
+              name: bubble-modules
+              readOnly: true
             - mountPath: /config
               name: config
+            - mountPath: /config/configuration.yaml
+              name: config-file
+              readOnly: true
+              subPath: configuration.yaml
+            - mountPath: /config/dashboards
+              name: dashboards
+              readOnly: true
+            - mountPath: /config/packages
+              name: packages
+              readOnly: true
+            - mountPath: /config/secrets.yaml
+              name: secrets-file
+              readOnly: true
+              subPath: secrets.yaml
+            - mountPath: /config/themes
+              name: themes
+              readOnly: true
       volumes:
+        - configMap:
+            name: home-assistant-bubble-modules
+          name: bubble-modules
         - name: config
           persistentVolumeClaim:
             claimName: home-assistant-config
+        - configMap:
+            name: home-assistant-config
+          name: config-file
+        - configMap:
+            name: home-assistant-dashboards
+          name: dashboards
+        - configMap:
+            name: home-assistant-packages
+          name: packages
+        - name: secrets-file
+          secret:
+            secretName: home-assistant-secrets
+        - configMap:
+            name: home-assistant-themes
+          name: themes
