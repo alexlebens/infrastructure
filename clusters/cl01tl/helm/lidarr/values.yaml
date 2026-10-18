@@ -9,6 +9,8 @@ lidarr:
           runAsGroup: 1000
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -29,8 +31,8 @@ lidarr:
               value: "*"
           resources:
             requests:
-              cpu: 100m
-              memory: 300Mi
+              cpu: 50m
+              memory: 250Mi
           probes:
             liveness:
               enabled: true
@@ -65,6 +67,12 @@ lidarr:
                 failureThreshold: 30
                 periodSeconds: 5
         metrics:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/onedr0p/exportarr
             tag: v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
@@ -80,7 +88,17 @@ lidarr:
               value: false
             - name: ENABLE_UNKNOWN_QUEUE_ITEMS
               value: false
+          resources:
+            requests:
+              cpu: 1m
+              memory: 30Mi
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -104,6 +122,10 @@ lidarr:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
           probes:
             liveness:
               enabled: true
@@ -127,6 +149,7 @@ lidarr:
                 failureThreshold: 3
   service:
     main:
+      forceRename: lidarr
       ports:
         http:
           port: 80
@@ -139,11 +162,7 @@ lidarr:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: lidarr
-          app.kubernetes.io/instance: lidarr
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: lidarr
       endpoints:
         - port: metrics
           interval: 3m
@@ -152,6 +171,19 @@ lidarr:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Music"
+        gethomepage.dev/description: "Lidarr"
+        gethomepage.dev/group: "Media"
+        gethomepage.dev/icon: "sh-lidarr.webp"
+        gethomepage.dev/siteMonitor: "http://lidarr.lidarr:80"
+        gethomepage.dev/weight: "50"
+        gethomepage.dev/pod-selector: ""
+        gethomepage.dev/widget.type: "lidarr"
+        gethomepage.dev/widget.url: "http://lidarr.lidarr:80"
+        gethomepage.dev/widget.key: "{{`{{HOMEPAGE_VAR_LIDARR_KEY}}`}}"
+        gethomepage.dev/widget.fields: '["wanted", "queued", "artists"]'
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -184,6 +216,23 @@ lidarr:
         main:
           main:
             - path: /mnt/store
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  client:
+    displayName: "Lidarr"
+    description: "A music collection manager for Usenet and BitTorrent users."
+    clientID: 209274EA-537A-4E54-8A91-25A82EB1877B
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
+      - name: user
+        namespace: pocket-id-operator
 
 postgres-18-cluster:
   mode: recovery
@@ -195,10 +244,6 @@ postgres-18-cluster:
     postgresql:
       parameters:
         shared_buffers: 512MB
-    initdb:
-      postInitSQL:
-        - CREATE DATABASE IF NOT EXISTS "lidarr-main" OWNER "app";
-        - CREATE DATABASE IF NOT EXISTS "lidarr-log" OWNER "app";
   recovery:
     objectStore:
       index: 1
@@ -208,6 +253,13 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 45 5 * * *"
+  databases:
+    - name: lidarr-main
+      ensure: present
+      owner: app
+    - name: lidarr-log
+      ensure: present
+      owner: app
 
 volsync-target-config:
   pvcTarget: lidarr-config
@@ -225,3 +277,11 @@ volsync-target-config:
   d:
     enabled: true
     schedule: 45 9 * * 1
+
+common-helpers:
+  probe:
+    internal: http://lidarr.lidarr:80
+    external: https://lidarr.alexlebens.dev
+
+grafanaDashboard:
+  folder: applications

@@ -1,0 +1,331 @@
+thingport:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+          image:
+            repository: ghcr.io/tautvydasderzinskas/thingport-frontend
+            tag: latest@sha256:a97f1ed9544c87bff5e2c79e4b707c50d09a2698dee107181d305d9574eced1a
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+                periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+                initialDelaySeconds: 5
+                periodSeconds: 5
+                failureThreshold: 30
+    backend:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: ghcr.io/tautvydasderzinskas/thingport-backend
+            tag: latest@sha256:f9085cb647db9389a49ef0117bb061c3560cdf5f2fa0ae1572c9f33393ceb72c
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - npx prisma migrate deploy && exec node dist/server.js
+          env:
+            - name: HOME
+              value: /tmp
+            - name: NPM_CONFIG_CACHE
+              value: /tmp/.npm
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: API_PORT
+              value: "8000"
+            - name: PUBLIC_URL
+              value: https://thingport.alexlebens.dev
+            - name: CORS_ORIGINS
+              value: https://thingport.alexlebens.dev
+            - name: FILE_STORAGE
+              value: /app/storage
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: thingport-postgresql-18-cluster-app
+                  key: uri
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: thingport-config
+                  key: AUTH_SECRET
+            - name: AUTH_TOKEN_TTL
+              value: "43200"
+            - name: FLARESOLVERR_URL
+              value: http://flaresolverr:8191/v1
+            - name: SMTP_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: SMTP_PORT
+              value: "25"
+            - name: SMTP_SECURE
+              value: "false"
+            - name: SMTP_FROM
+              value: Thingport <no-reply@alexlebens.dev>
+          resources:
+            requests:
+              cpu: 50m
+              memory: 200Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 8000
+                periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 8000
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 8000
+                initialDelaySeconds: 10
+                periodSeconds: 5
+                failureThreshold: 30
+    flaresolverr:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: flaresolverr/flaresolverr
+            tag: v3.3.21@sha256:f104ee51e5124d83cf3be9b37480649355d223f7d8f9e453d0d5ef06c6e3b31b
+          env:
+            - name: LOG_LEVEL
+              value: info
+            - name: TZ
+              value: America/Chicago
+          resources:
+            requests:
+              cpu: 10m
+              memory: 120Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 8191
+                periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 8191
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+  service:
+    main:
+      forceRename: thingport
+      controller: main
+      ports:
+        http:
+          port: 80
+    backend:
+      forceRename: backend
+      controller: backend
+      ports:
+        http:
+          port: 8000
+    flaresolverr:
+      forceRename: flaresolverr
+      controller: flaresolverr
+      ports:
+        http:
+          port: 8191
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Thingport"
+        gethomepage.dev/description: "3D Model Library"
+        gethomepage.dev/group: "Analysis"
+        gethomepage.dev/icon: "https://raw.githubusercontent.com/TautvydasDerzinskas/Thingport/develop/frontend/src/assets/logos/thingport-icon-color.svg"
+        gethomepage.dev/siteMonitor: "http://thingport.thingport:80"
+        gethomepage.dev/weight: "100"
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - thingport.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: thingport
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    storage:
+      forceRename: thingport-storage
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 20Gi
+      advancedMounts:
+        backend:
+          main:
+            - path: /app/storage
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+        backend:
+          main:
+            - path: /tmp
+    nginx-cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /var/cache/nginx
+    nginx-run:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /var/run
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Thingport"
+    description: "Personal 3D model library."
+    callbackUrls:
+      - https://thingport.alexlebens.dev/api/auth/oidc/pocket-id/callback
+      - https://thingport.alexlebens.dev/oidc-callback
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
+      - name: user
+        namespace: pocket-id-operator
+  seedJob:
+    enabled: true
+
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 35 7 * * *"
+
+volsync-target-storage:
+  pvcTarget: thingport-storage
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+  a:
+    enabled: true
+    schedule: 15 12 * * *
+  c:
+    enabled: true
+    schedule: 10 11 * * 1
+  d:
+    enabled: true
+    schedule: 10 10 * * 1
+
+common-helpers:
+  probe:
+    internal: http://thingport.thingport:80
+    external: https://thingport.alexlebens.dev
