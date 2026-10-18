@@ -1,0 +1,65 @@
+origami_climate:
+  name: Origami • Climate
+  version: "2.0.2"
+  supported:
+    - button
+  description:
+    "The Climate module styles thermostat cards together with Base. A card counts as on only while hvac_action shows
+    that the thermostat is working. A selected mode alone does not count. An idle thermostat shows Auto, and a
+    thermostat that is off shows Off. The icon and state line follow what the thermostat is doing, and Base sets the
+    color. Set state_content to an empty list so that the module controls the state line."
+  code: |-
+    ${(() => {
+      card._orgStateClaim = hass;
+      const st = hass.states[entity];
+      const a = st?.attributes ?? {};
+      const mode = st?.state ?? "unknown";
+      const act = String(a.hvac_action ?? "").toLowerCase();
+      const dead = ["unavailable", "unknown"].includes(mode);
+      const off = mode === "off" || act === "off";
+      const busy = ["heating", "preheating", "cooling", "drying", "fan", "defrosting"];
+      card._orgCl = { st, a, mode, act, dead, off, active: !off && !dead && busy.includes(act) };
+      return "";
+    })()}
+    ha-card .bubble-icon-container.bubble-main-icon-container .bubble-icon,
+    ha-card .bubble-icon-container.bubble-main-icon-container .bubble-main-icon {
+      opacity: ${card._orgCl.off ? "var(--opacity-muted)" : "1"} !important;
+    }
+    ${(() => {
+      const c = card._orgCl;
+      const map = {
+        heating: "mdi:radiator", preheating: "mdi:radiator", cooling: "mdi:snowflake",
+        drying: "mdi:water-percent", fan: "mdi:fan", defrosting: "mdi:snowflake-melt"
+      };
+      const next = c.dead ? "mdi:radiator-off"
+        : c.off ? "mdi:radiator-off"
+        : map[c.act] ?? "mdi:thermostat";
+      if (icon && icon.getAttribute("icon") !== next) icon.setAttribute("icon", next);
+      return "";
+    })()}
+    ${(() => {
+      const el = card.querySelector(".bubble-state");
+      if (!el) return "";
+      const c = card._orgCl;
+      const de = String(hass.locale?.language ?? hass.language ?? "").startsWith("de");
+      const words = de ? {
+        heating: "Heizt", preheating: "Heizt vor", cooling: "Kühlt",
+        drying: "Trocknet", fan: "Lüftet", defrosting: "Taut ab"
+      } : {
+        heating: "Heating", preheating: "Preheating", cooling: "Cooling",
+        drying: "Drying", fan: "Fan", defrosting: "Defrosting"
+      };
+      const next = c.dead ? (de ? "Fehler" : "Error")
+        : c.off ? (de ? "Aus" : "Off")
+        : words[c.act] ?? "Auto";
+      if (el.innerText !== next) card.querySelector('.bubble-state').innerText = next;
+      return "";
+    })()}
+    ${(() => {
+      const el = card.querySelector(".readout .bubble-sub-button-name-container");
+      const t = card._orgCl.a.temperature;
+      if (!el || t == null) return "";
+      const next = Math.round(Number(t)) + "°";
+      if (el.innerText !== next) el.innerText = next;
+      return "";
+    })()}
