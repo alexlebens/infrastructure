@@ -7,6 +7,9 @@ navidrome:
         reloader.stakater.com/auto: "true"
       pod:
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
           seccompProfile:
@@ -25,6 +28,10 @@ navidrome:
           command:
             - /bin/sh
             - /scripts/download-plugins.sh
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
       containers:
         main:
           securityContext:
@@ -99,12 +106,18 @@ navidrome:
         reloader.stakater.com/auto: "true"
       pod:
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 101
+          runAsGroup: 101
+          fsGroup: 101
+          fsGroupChangePolicy: OnRootMismatch
           seccompProfile:
             type: RuntimeDefault
       containers:
         main:
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -146,12 +159,18 @@ navidrome:
         reloader.stakater.com/auto: "true"
       pod:
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
           seccompProfile:
             type: RuntimeDefault
       containers:
         main:
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -159,6 +178,14 @@ navidrome:
             repository: ghcr.io/neptunehub/audiomuse-ai
             tag: 3.6.4@sha256:811f1f0bd0de97a1b4ab6601898297010da18fc957312b1ed3bb62990683630c
           env:
+            - name: HOME
+              value: /home/ubuntu
+            - name: TEMP_DIR
+              value: /tmp/temp_audio
+            - name: IVF_DISK_CACHE_DIR
+              value: /tmp/ivf_cache
+            - name: CLAP_OTHER_FEATURES_CACHE_DIR
+              value: /tmp/ivf_cache
             - name: TZ
               value: America/Chicago
             - name: REDIS_URL
@@ -214,12 +241,18 @@ navidrome:
         reloader.stakater.com/auto: "true"
       pod:
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
           seccompProfile:
             type: RuntimeDefault
       containers:
         main:
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -227,6 +260,14 @@ navidrome:
             repository: ghcr.io/neptunehub/audiomuse-ai
             tag: 3.6.4@sha256:811f1f0bd0de97a1b4ab6601898297010da18fc957312b1ed3bb62990683630c
           env:
+            - name: HOME
+              value: /home/ubuntu
+            - name: TEMP_DIR
+              value: /tmp/temp_audio
+            - name: IVF_DISK_CACHE_DIR
+              value: /tmp/ivf_cache
+            - name: CLAP_OTHER_FEATURES_CACHE_DIR
+              value: /tmp/ivf_cache
             - name: AUDIOMUSE_ROLE
               value: worker
             - name: TZ
@@ -354,6 +395,36 @@ navidrome:
             - path: /tmp
           download-plugins:
             - path: /tmp
+        feishin:
+          main:
+            - path: /tmp
+        audiomuse:
+          main:
+            - path: /tmp
+        audiomuse-worker:
+          main:
+            - path: /tmp
+    feishin-conf:
+      type: emptyDir
+      advancedMounts:
+        feishin:
+          main:
+            - path: /etc/nginx/conf.d
+    feishin-cache:
+      type: emptyDir
+      advancedMounts:
+        feishin:
+          main:
+            - path: /var/cache/nginx
+    audiomuse-home:
+      type: emptyDir
+      advancedMounts:
+        audiomuse:
+          main:
+            - path: /home/ubuntu
+        audiomuse-worker:
+          main:
+            - path: /home/ubuntu
     scripts:
       type: configMap
       name: navidrome-scripts
