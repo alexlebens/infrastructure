@@ -30,7 +30,9 @@ spec:
         app.kubernetes.io/component: synapse
     spec:
       serviceAccountName: matrix-synapse
-      securityContext: {}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: volume-permissions
           command:
@@ -40,7 +42,10 @@ spec:
               chown 666:666 -R /synapse/data
           image: "alpine:3.24.2@sha256:3cf95fe0816180395592b8373f3ec60663f076127617bbacb4eacf9667afe2e9"
           imagePullPolicy: Always
-          resources: {}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
           securityContext:
             runAsNonRoot: false
             runAsUser: 0
@@ -76,7 +81,11 @@ spec:
                   key: password
           image: "ghcr.io/element-hq/synapse:v1.163.0@sha256:e98ab72138d90fa8b8876c6421fe78a9fdb181c0d7cc690ad740e5173e0c65e6"
           imagePullPolicy: IfNotPresent
-          securityContext: {}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - name: http
               containerPort: 8008

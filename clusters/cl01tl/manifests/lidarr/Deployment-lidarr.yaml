@@ -34,6 +34,8 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
         runAsGroup: 1000
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -70,8 +72,8 @@ spec:
               port: 8686
           resources:
             requests:
-              cpu: 100m
-              memory: 300Mi
+              cpu: 50m
+              memory: 250Mi
           startupProbe:
             failureThreshold: 30
             httpGet:
@@ -101,6 +103,16 @@ spec:
               value: "false"
           image: ghcr.io/onedr0p/exportarr:v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
           name: metrics
+          resources:
+            requests:
+              cpu: 1m
+              memory: 30Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /config
               name: config
@@ -141,6 +153,19 @@ spec:
               port: 4180
             periodSeconds: 10
             timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: config
           persistentVolumeClaim:
@@ -148,3 +173,5 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: lidarr-nfs-storage
+        - emptyDir: {}
+          name: tmp

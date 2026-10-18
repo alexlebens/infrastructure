@@ -1,0 +1,87 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: thingport-storage-backup
+  namespace: thingport
+  labels:
+    app.kubernetes.io/name: thingport-storage-backup
+    helm.sh/chart: volsync-target-storage-3.0.1
+    app.kubernetes.io/instance: thingport
+    app.kubernetes.io/part-of: thingport
+    app.kubernetes.io/version: "0.16.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  groups:
+    - name: volsync.alerts
+      rules:
+        - alert: VolSyncBackupPodFailed
+          expr: |
+            sum by (namespace) (
+              (kube_pod_status_phase{namespace="thingport", phase="Failed", pod=~"volsync-.*thingport-storage-backup-.*"} == 1)
+              * on(namespace, pod) group_left(owner_name)
+              kube_pod_owner{namespace="thingport", owner_kind="Job", owner_name=~"volsync-.*thingport-storage-backup-.*"}
+            ) > 0
+          keep_firing_for: 10m
+          labels:
+            severity: critical
+            pvc: thingport-storage
+          annotations:
+            summary: "VolSync backup pod failed in {{ $labels.namespace }}"
+            description: |
+              {{ $value }} VolSync backup pod(s) failed for PVC 'thingport-storage'.
+              Target: thingport-storage-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="thingport-storage-backup-source-a", obj_namespace="thingport"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="thingport", job_name=~"volsync-.*thingport-storage-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: thingport-storage
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'thingport-storage' has not completed successfully in 36h (schedule: '15 12 * * *').
+              Target: thingport-storage-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="thingport-storage-backup-source-c", obj_namespace="thingport"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="thingport", job_name=~"volsync-.*thingport-storage-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: thingport-storage
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'thingport-storage' has not completed successfully in 8d (schedule: '10 11 * * 1').
+              Target: thingport-storage-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="thingport-storage-backup-source-d", obj_namespace="thingport"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="thingport", job_name=~"volsync-.*thingport-storage-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: thingport-storage
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'thingport-storage' has not completed successfully in 8d (schedule: '10 10 * * 1').
+              Target: thingport-storage-backup-source-d
+              Namespace: {{ $labels.namespace }}
