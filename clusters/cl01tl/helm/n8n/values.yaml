@@ -13,6 +13,15 @@ n8n:
     storageClassName: ceph-block
   strategy:
     type: Recreate
+  resources:
+    main:
+      requests:
+        cpu: 20m
+        memory: 350Mi
+    worker:
+      requests:
+        cpu: 20m
+        memory: 400Mi
   config:
     timezone: America/Chicago
     extraEnv:
@@ -68,6 +77,7 @@ n8n:
       name: n8n-postgresql-18-cluster-app
   redis:
     host: n8n-valkey.n8n
+
 oauth2-proxy:
   nameOverride: oauth2-proxy
   fullnameOverride: n8n-oauth2-proxy
@@ -75,11 +85,29 @@ oauth2-proxy:
     main:
       type: deployment
       strategy: RollingUpdate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          fsGroup: 65532
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
+          envFrom:
+            - secretRef:
+                name: n8n-oauth-proxy
           env:
             - name: OAUTH2_PROXY_HTTP_ADDRESS
               value: 0.0.0.0:4180
@@ -101,9 +129,6 @@ oauth2-proxy:
               value: "^/webhook/.*|^/webhook-test/.*|^/webhook-waiting/.*|^/healthz.*"
             - name: OAUTH2_PROXY_PROXY_WEBSOCKETS
               value: "true"
-          envFrom:
-            - secretRef:
-                name: n8n-oauth-proxy
           resources:
             requests:
               cpu: 10m
@@ -123,8 +148,16 @@ oauth2-proxy:
                 httpGet:
                   path: /ready
                   port: 4180
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          oauth:
+            - path: /tmp
   service:
     main:
+      forceRename: n8n-oauth2-proxy
       ports:
         http:
           port: 4180
@@ -132,13 +165,18 @@ oauth2-proxy:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/service: n8n-oauth2-proxy
-          app.kubernetes.io/instance: n8n
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: n8n-oauth2-proxy
       endpoints:
         - port: metrics
+
+pocket-id-client:
+  client:
+    displayName: "n8n"
+    description: "Workflow automation tool"
+    clientID: E7B3A1C2-5D4E-4F87-A6C1-9E5F2D8A7C3B
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
 
 postgres-18-cluster:
   mode: recovery
@@ -205,3 +243,8 @@ volsync-target-data:
   d:
     enabled: true
     schedule: 50 9 * * 2
+
+common-helpers:
+  probe:
+    internal: http://n8n-main.n8n:5678/healthz
+    external: https://n8n.alexlebens.dev/healthz
