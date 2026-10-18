@@ -1,50 +1,46 @@
 navidrome:
   controllers:
     main:
+      replicas: 0
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       initContainers:
         download-plugins:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: busybox
             tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
           command:
             - /bin/sh
-            - -c
-            - |
-              umask 022
-              mkdir -p /data/plugins
-              install_plugin() {
-                PLUGIN_NAME=$1
-                VERSION=$2
-                URL=$3
-                if [ ! -f "/data/plugins/.${PLUGIN_NAME}.${VERSION}" ]; then
-                  echo ">> Downloading ${PLUGIN_NAME} version ${VERSION}..."
-                  rm -f /data/plugins/${PLUGIN_NAME}
-                  rm -f /data/plugins/.${PLUGIN_NAME}.*
-                  wget -qO /data/plugins/${PLUGIN_NAME} ${URL}
-                  touch "/data/plugins/.${PLUGIN_NAME}.${VERSION}"
-                else
-                  echo ">> ${PLUGIN_NAME} version ${VERSION} is already installed, skipping ..."
-                fi
-              }
-              # renovate: datasource=github-releases depName=NeptuneHub/AudioMuse-AI-NV-plugin
-              install_plugin "audiomuseai.ndp" "v9" "https://github.com/NeptuneHub/AudioMuse-AI-NV-plugin/releases/download/v9/audiomuseai.ndp"
-
-              # renovate: datasource=github-releases depName=J0R6IT0/navidrome-lyrics-plugin
-              install_plugin "nd-lyrics.ndp" "v7.1.0" "https://github.com/J0R6IT0/navidrome-lyrics-plugin/releases/download/v7.1.0/nd-lyrics.ndp"
-
-              # renovate: datasource=github-releases depName=andykelk/navidrome-ntfy-plugin
-              install_plugin "navidrome-ntfy.ndp" "v1.1.0" "https://github.com/andykelk/navidrome-ntfy-plugin/releases/download/v1.1.0/navidrome-ntfy.ndp"
-
-              chown -R 1000:1000 /data/plugins
-              chmod -R 775 /data/plugins
+            - /scripts/download-plugins.sh
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/navidrome/navidrome
             tag: 0.64.2@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52
@@ -78,8 +74,8 @@ navidrome:
               gpu.intel.com/i915: 1
             requests:
               gpu.intel.com/i915: 1
-              cpu: 10m
-              memory: 50Mi
+              cpu: 15m
+              memory: 180Mi
           probes:
             startup:
               enabled: true
@@ -105,10 +101,28 @@ navidrome:
                   path: /ping
                   port: 4533
     feishin:
+      replicas: 0
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 101
+          runAsGroup: 101
+          fsGroup: 101
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/jeffvli/feishin
             tag: 1.17.0@sha256:6c75a4d3b99065ac245e2eb2b693fde3e5f2a6fe41c9e255da4fcb8948071965
@@ -123,7 +137,7 @@ navidrome:
               value: https://navidrome.alexlebens.dev
           resources:
             requests:
-              cpu: 1m
+              cpu: 5m
               memory: 20Mi
           probes:
             liveness:
@@ -141,14 +155,40 @@ navidrome:
                   path: /
                   port: 9180
     audiomuse:
+      replicas: 0
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/neptunehub/audiomuse-ai
             tag: 3.6.4@sha256:811f1f0bd0de97a1b4ab6601898297010da18fc957312b1ed3bb62990683630c
           env:
+            - name: HOME
+              value: /home/ubuntu
+            - name: TEMP_DIR
+              value: /tmp/temp_audio
+            - name: IVF_DISK_CACHE_DIR
+              value: /tmp/ivf_cache
+            - name: CLAP_OTHER_FEATURES_CACHE_DIR
+              value: /tmp/ivf_cache
             - name: TZ
               value: America/Chicago
             - name: REDIS_URL
@@ -181,7 +221,7 @@ navidrome:
           resources:
             requests:
               cpu: 10m
-              memory: 100Mi
+              memory: 550Mi
           probes:
             liveness:
               enabled: true
@@ -198,14 +238,40 @@ navidrome:
                   path: /
                   port: 8000
     audiomuse-worker:
+      replicas: 0
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/neptunehub/audiomuse-ai
             tag: 3.6.4@sha256:811f1f0bd0de97a1b4ab6601898297010da18fc957312b1ed3bb62990683630c
           env:
+            - name: HOME
+              value: /home/ubuntu
+            - name: TEMP_DIR
+              value: /tmp/temp_audio
+            - name: IVF_DISK_CACHE_DIR
+              value: /tmp/ivf_cache
+            - name: CLAP_OTHER_FEATURES_CACHE_DIR
+              value: /tmp/ivf_cache
             - name: AUDIOMUSE_ROLE
               value: worker
             - name: TZ
@@ -239,34 +305,32 @@ navidrome:
                   key: port
           resources:
             requests:
-              cpu: 50m
+              cpu: 10m
               memory: 200Mi
   service:
     main:
+      forceRename: navidrome-main
       controller: main
       ports:
         http:
           port: 80
           targetPort: 4533
     feishin:
+      forceRename: navidrome-feishin
       controller: feishin
       ports:
         http:
           port: 80
           targetPort: 9180
     audiomuse:
+      forceRename: navidrome-audiomuse
       controller: audiomuse
       ports:
         http:
           port: 8000
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: navidrome
-          app.kubernetes.io/instance: navidrome
-          app.kubernetes.io/service: navidrome-main
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: navidrome-main
       endpoints:
         - port: http
   route:
@@ -287,6 +351,15 @@ navidrome:
                 value: /
     feishin:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Music"
+        gethomepage.dev/description: "Feishin"
+        gethomepage.dev/group: "Media"
+        gethomepage.dev/icon: "sh-feishin.webp"
+        gethomepage.dev/siteMonitor: "http://navidrome-feishin.navidrome:80"
+        gethomepage.dev/weight: "150"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -318,6 +391,54 @@ navidrome:
         main:
           main:
             - path: /cache
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+          download-plugins:
+            - path: /tmp
+        feishin:
+          main:
+            - path: /tmp
+        audiomuse:
+          main:
+            - path: /tmp
+        audiomuse-worker:
+          main:
+            - path: /tmp
+    feishin-conf:
+      type: emptyDir
+      advancedMounts:
+        feishin:
+          main:
+            - path: /etc/nginx/conf.d
+    feishin-cache:
+      type: emptyDir
+      advancedMounts:
+        feishin:
+          main:
+            - path: /var/cache/nginx
+    audiomuse-home:
+      type: emptyDir
+      advancedMounts:
+        audiomuse:
+          main:
+            - path: /home/ubuntu
+        audiomuse-worker:
+          main:
+            - path: /home/ubuntu
+    scripts:
+      type: configMap
+      name: navidrome-scripts
+      defaultMode: 0755
+      advancedMounts:
+        main:
+          download-plugins:
+            - path: /scripts/download-plugins.sh
+              subPath: download-plugins.sh
+              readOnly: true
     music:
       existingClaim: navidrome-music-nfs-storage
       advancedMounts:
@@ -405,6 +526,11 @@ volsync-target-data:
   d:
     enabled: true
     schedule: 50 9 * * 3
+
+common-helpers:
+  probe:
+    internal: http://navidrome-main.navidrome:80/ping
+    external: https://navidrome.alexlebens.dev/ping
 
 grafanaDashboard:
   folder: applications
