@@ -1,0 +1,219 @@
+origami_button:
+  name: "Origami • Button"
+  version: "1.0.1"
+  supported:
+    - sub-buttons
+  description:
+    "The Button module creates rows and grids of buttons on a sub-buttons card. Put every button in the bottom list
+    under sub_button, and turn on show_name for each one. With Background on, the buttons are filled. With Background
+    off, they are plain text. Setting Columns to 0 sizes the buttons to their text, and 1 to 6 creates an even grid.
+    Active takes a template or plain text and highlights every button whose name or css_class matches it. Separate
+    several values with commas. A button whose entity is on is also highlighted."
+  editor:
+    - name: background
+      label: "Background"
+      selector:
+        boolean: {}
+      default: true
+    - name: align
+      label: "Alignment"
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - label: Left
+              value: start
+            - label: Center
+              value: center
+            - label: Right
+              value: end
+      default: start
+    - name: columns
+      label: "Columns (0 = sized to text)"
+      selector:
+        number:
+          min: 0
+          max: 6
+          step: 1
+          mode: box
+      default: 0
+    - name: muted
+      label: "Muted"
+      selector:
+        boolean: {}
+      default: false
+    - name: icon_size
+      label: "Icon size"
+      selector:
+        text: {}
+      default: "var(--icon-size-2xs)"
+    - name: padding
+      label: "Outer padding"
+      selector:
+        text: {}
+      default: "0"
+    - name: active
+      label: "Active button (template or text)"
+      selector:
+        template: {}
+    - name: active_style
+      label: "Active style"
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - label: Lamp
+              value: lamp
+            - label: Toggle
+              value: toggle
+      default: lamp
+    - name: animate
+      label: "Fade in"
+      selector:
+        boolean: {}
+      default: false
+    - name: press
+      label: "Press feedback"
+      selector:
+        boolean: {}
+      default: true
+  code: |
+    ${(() => {
+      const cfg = this.config.origami_button ?? {};
+      const norm = (v) => String(v ?? "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      const raw = cfg.active ? String((typeof renderTemplate === "function" ? renderTemplate(cfg.active) : cfg.active) ?? "").trim() : "";
+      let list = [];
+      if (raw.startsWith("[")) {
+        try { list = JSON.parse(raw); } catch (e) { list = [raw]; }
+      } else if (raw) {
+        list = raw.split(",");
+      }
+      const classes = (Array.isArray(list) ? list : [list]).map(norm).filter(Boolean);
+      const base = "ha-card .bubble-sub-button-bottom-container .bubble-sub-button";
+      const sel = [base + ".background-on"].concat(classes.map((c) => base + "." + CSS.escape(c)));
+      const align = ["start", "center", "end"].includes(cfg.align) ? cfg.align : "start";
+      const cols = Math.max(0, Math.min(6, parseInt(cfg.columns ?? 0, 10) || 0));
+      const pad = String(cfg.padding ?? "").trim();
+      const size = String(cfg.icon_size ?? "").trim();
+      card._orgB = {
+        bg: cfg.background ?? true,
+        muted: !!cfg.muted,
+        toggle: cfg.active_style === "toggle",
+        animate: !!cfg.animate,
+        press: cfg.press ?? true,
+        cols,
+        pad: pad || "0",
+        size: size || "var(--icon-size-2xs)",
+        row: { start: "flex-start", center: "center", end: "flex-end" }[align],
+        rev: { start: "flex-end", center: "center", end: "flex-start" }[align],
+        active: sel.join(",\n    ")
+      };
+      return "";
+    })()}
+    ha-card {
+      --org-btn-height: ${card._orgB.bg ? "var(--control-height-icon)" : "auto"};
+      --org-btn-padding: ${card._orgB.bg ? "0 var(--ha-space-4)" : "var(--ha-space-2) var(--ha-space-4)"};
+      --org-btn-bg: ${card._orgB.bg ? "var(--fill-subtle)" : "transparent"};
+      --org-btn-opacity: ${card._orgB.muted ? "var(--opacity-muted)" : "1"};
+      --org-btn-icon-size: ${card._orgB.size};
+    }
+    ha-card .bubble-container {
+      display: block !important;
+      height: auto !important;
+      min-height: 0 !important;
+      padding: ${card._orgB.pad} !important;
+      box-sizing: border-box !important;
+      background: none !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      overflow: visible !important;
+    }
+    ha-card .bubble-container > .bubble-sub-button-container {
+      display: none !important;
+    }
+    ha-card .bubble-sub-button-bottom-container {
+      position: static !important;
+      inset: auto !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      gap: var(--ha-space-2) !important;
+      pointer-events: auto !important;
+      ${card._orgB.cols ? `display: grid !important;
+      grid-template-columns: repeat(${card._orgB.cols}, minmax(0, 1fr)) !important;` : `display: flex !important;
+      flex-wrap: wrap !important;
+      justify-content: ${card._orgB.row} !important;`}
+      ${card._orgB.animate ? `opacity: 0;
+      transform: translateY(10px);
+      animation: origami-button-in var(--duration-slow) ease-in forwards;` : ""}
+    }
+    @keyframes origami-button-in {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    ha-card .bubble-sub-button-bottom-container .bubble-sub-button-alignment-lane,
+    ha-card .bubble-sub-button-bottom-container .bubble-sub-button-group:not(.hidden) {
+      display: contents !important;
+    }
+    ha-card .bubble-sub-button-bottom-container .bubble-sub-button {
+      box-sizing: border-box !important;
+      ${card._orgB.cols ? "width: auto !important;" : "flex: 0 0 auto !important;\n      width: auto !important;"}
+      min-width: 0 !important;
+      height: var(--org-btn-height) !important;
+      padding: var(--org-btn-padding) !important;
+      justify-content: ${card._orgB.rev} !important;
+      align-items: center !important;
+      gap: 0 !important;
+      border-radius: var(--radius-inner) !important;
+      background: var(--org-btn-bg) !important;
+      box-shadow: none !important;
+      color: var(--secondary-text-color) !important;
+      font-size: var(--ha-font-size-m) !important;
+      white-space: nowrap !important;
+      transition: var(--transition-interactive) !important;
+    }
+    ha-card .bubble-sub-button-bottom-container .bubble-sub-button.content-icon-right {
+      justify-content: ${card._orgB.row} !important;
+    }
+    ${card._orgB.press ? `ha-card .bubble-sub-button-bottom-container .bubble-sub-button.bubble-action-enabled:active {
+      transform: scale(var(--press-scale));
+    }` : ""}
+    ha-card .bubble-sub-button-bottom-container .bubble-sub-button-name-container {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap !important;
+      font-size: var(--ha-font-size-s) !important;
+      font-weight: var(--ha-font-weight-medium) !important;
+      color: inherit !important;
+      opacity: var(--org-btn-opacity) !important;
+    }
+    ha-card .bubble-sub-button-bottom-container .bubble-sub-button .bubble-sub-button-icon:not(.hidden) {
+      display: block !important;
+      flex-shrink: 0;
+      --mdc-icon-size: var(--org-btn-icon-size) !important;
+      margin: 0 var(--ha-space-2) 0 0 !important;
+      color: inherit !important;
+      opacity: var(--org-btn-opacity) !important;
+    }
+    ha-card .bubble-sub-button-bottom-container .bubble-sub-button.content-icon-right .bubble-sub-button-icon:not(.hidden) {
+      margin: 0 0 0 var(--ha-space-2) !important;
+    }
+    ha-card .bubble-sub-button-bottom-container .bubble-sub-button .bubble-sub-button-icon.icon-without-state:not(.hidden) {
+      margin: 0 !important;
+    }
+    ${card._orgB.active} {
+      ${card._orgB.bg ? (card._orgB.toggle ? "background: var(--toggle-on) !important;" : "background: var(--lamp-tint) !important;") : ""}
+      color: ${card._orgB.toggle ? "var(--ha-card-background)" : "var(--primary-text-color)"} !important;
+    }
+    ${card._orgB.active.split(",\n    ").map((s) => s + " .bubble-sub-button-icon:not(.hidden)").join(",\n    ")} {
+      color: ${card._orgB.toggle ? "var(--ha-card-background)" : "var(--lamp-color)"} !important;
+      opacity: 1 !important;
+    }
+    ${card._orgB.active.split(",\n    ").map((s) => s + " .bubble-sub-button-name-container").join(",\n    ")} {
+      opacity: 1 !important;
+      ${card._orgB.toggle ? "" : "font-weight: var(--ha-font-weight-bold) !important;"}
+    }

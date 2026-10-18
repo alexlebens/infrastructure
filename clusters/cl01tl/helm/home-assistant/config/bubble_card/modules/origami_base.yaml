@@ -1,0 +1,400 @@
+origami_base:
+  name: "Origami • Base"
+  version: "9.4.3"
+  supported:
+    - button
+    - media-player
+    - cover
+    - climate
+    - select
+    - calendar
+    - sub-buttons
+    - separator
+  description:
+    "The Base module is the frame for button and media player cards. On other card types, it only styles the
+    sub-buttons. List Base first and then the module for the device. Its options create a slim row, add a pill switch,
+    group the sub-buttons or turn the card into a tile. The icon shows Home Assistant's state color while the entity is
+    on, and the controls stay neutral. A sub-button is filled while its entity is on, unless it navigates, opens a URL
+    or opens the more-info dialog. To keep a sub-button neutral, set its css_class to plain. To fill it while its entity
+    is on, even if it navigates, set css_class to accent. The module reference in bubble_card/README.md explains every
+    option."
+  editor:
+    - name: compact
+      label: "Compact"
+      selector:
+        boolean: {}
+      default: false
+    - name: toggle
+      label: "Pill switch"
+      selector:
+        boolean: {}
+      default: false
+    - name: group
+      label: "Grouped sub-buttons"
+      selector:
+        boolean: {}
+      default: false
+    - name: tile
+      label: "Tile"
+      selector:
+        boolean: {}
+      default: false
+    - name: solid_controls
+      label: "Filled play and power buttons (media cards)"
+      selector:
+        boolean: {}
+      default: false
+  code: |
+    ${(() => {
+      card._orgT = !!this.config.origami_base?.toggle;
+      card._orgG = !!this.config.origami_base?.group;
+      card._orgC = !!this.config.origami_base?.compact;
+      card._orgF = !!this.config.origami_base?.tile;
+      card._orgFrame = ["button", "media-player"].includes(this.config.card_type ?? "button");
+      card._orgFlatMedia = this.config.card_type === "media-player" && !this.config.cover_background
+        && !(this.config.modules ?? []).includes("origami_speaker");
+      const resting = {
+        alarm_control_panel: ["disarmed"], alert: ["idle"], cover: ["closed"], device_tracker: ["not_home"], person: ["not_home"],
+        lawn_mower: ["docked", "paused", "idle"], lock: ["locked"], media_player: ["standby", "idle", "paused"],
+        vacuum: ["idle", "docked", "paused"], valve: ["closed"]
+      };
+      const mode = { heating: "heat", preheating: "heat", cooling: "cool", defrosting: "cool", drying: "dry", fan: "fan_only" };
+      const coloured = ["alarm_control_panel", "alert", "automation", "binary_sensor", "calendar", "camera", "climate", "cover",
+        "device_tracker", "fan", "humidifier", "input_boolean", "lawn_mower", "light", "lock", "media_player", "person", "plant",
+        "remote", "schedule", "script", "siren", "sun", "switch", "timer", "update", "vacuum", "valve", "water_heater"];
+      const look = (id) => {
+        const st = hass.states[id];
+        const s = String(st?.state ?? "unavailable").toLowerCase();
+        const a = st?.attributes ?? {};
+        let d = (id ?? "").split(".")[0];
+        if (d === "group") d = String(a.entity_id?.[0] ?? "group.").split(".")[0];
+        const act = String(a.hvac_action ?? "").toLowerCase();
+        const key = (d === "climate" ? (mode[act] ?? s) : s).replace(/[^a-z0-9]+/g, "_");
+        const names = ["--state-" + d + "-" + key + "-color", "--state-" + d + "-active-color", "--state-active-color"];
+        if (a.device_class) names.unshift("--state-" + d + "-" + a.device_class + "-" + key + "-color");
+        const on = !["unavailable", "unknown", "off"].includes(s) && !(resting[d] ?? []).includes(s)
+          && (d !== "climate" || !["", "off", "idle"].includes(act));
+        return { on, coloured: coloured.includes(d), lit: on && coloured.includes(d), color: names.reduceRight((acc, n) => acc ? "var(" + n + ", " + acc + ")" : "var(" + n + ")", "") };
+      };
+      const me = look(entity);
+      card._orgLook = look;
+      card._orgOn = me.on;
+      card._orgLit = me.lit;
+      card._orgColor = me.color;
+      card._orgDark = !!hass.themes?.darkMode;
+      return "";
+    })()}
+    ha-card {
+      --bubble-border: var(--border-width) solid var(--border-color);
+      --bubble-sub-slider-height: var(--control-height-mini);
+      --bubble-slider-fill-color: var(--org-slider-fill);
+      --org-slider-fill: color-mix(in srgb, var(--fill-base) 38%, var(--ha-card-background));
+      --org-slider-mark: var(--primary-text-color);
+      --org-color: ${card._orgColor};
+      --org-surface: ${card._orgF ? "var(--tile-background, var(--fill-subtle))" : "var(--ha-card-background)"};
+      --org-surface-shadow: ${card._orgF ? "0 0 #0000" : "var(--ha-card-box-shadow)"};
+      --org-inset: ${card._orgF ? "var(--tile-chip-background, var(--ha-card-background))" : "var(--fill-subtle)"};
+      --org-inset-shadow: ${card._orgF ? "var(--tile-chip-shadow, var(--ha-card-box-shadow))" : "0 0 #0000"};
+      --org-field: ${card._orgF ? "var(--tint)" : "color-mix(in srgb, currentColor var(--tint-strength), var(--fill-subtle))"};
+      --org-key-field: ${card._orgF ? "color-mix(in srgb, currentColor var(--tint-strength), var(--fill-subtle))" : card._orgDark ? "color-mix(in srgb, currentColor var(--tint-strength), var(--fill-strong))" : "var(--tint)"};
+      --org-chip-bg: ${card._orgLit ? "var(--org-field)" : "var(--org-tile-bg, var(--org-inset))"};
+      --org-chip-ink: ${card._orgLit ? "var(--org-color)" : "var(--primary-text-color)"};
+      --org-key-bg: ${card._orgF ? "var(--fill-subtle)" : card._orgDark ? "var(--fill-strong)" : "var(--ha-card-background)"};
+      ${card._orgC ? "--org-row-height: var(--control-height);" : ""}
+      ${card._orgC ? "--org-tile-size: var(--org-toggle-h);" : ""}
+      ${card._orgC ? "--org-tile-radius: calc(var(--radius-small) + 2px);" : ""}
+      ${card._orgC ? "--org-tile-inset: calc((var(--org-row-height) - var(--org-tile-size)) / 2);" : ""}
+      ${card._orgC ? "--org-icon-size: var(--icon-size-xs);" : ""}
+      ${card._orgC ? "--org-name-size: var(--ha-font-size-m);" : ""}
+      ${card._orgC ? "--org-text-gap: calc(var(--org-tile-inset) - var(--ha-space-1));" : ""}
+      ${card._orgC ? "--org-state-display: none;" : ""}
+      ${card._orgC ? "--org-toggle-w: var(--tile-size);" : ""}
+      ${card._orgC ? "--org-toggle-h: var(--icon-size-l);" : ""}
+      ${card._orgC ? "--org-toggle-knob: var(--icon-size-s);" : ""}
+      ${card._orgC ? "--org-toggle-gap: calc((var(--org-row-height) - var(--org-toggle-h)) / 2);" : ""}
+      ${card._orgC ? "--org-text-max: 100%;" : ""}
+    }
+    .bubble-sub-button-icon {
+      --mdc-icon-size: var(--org-icon-size, var(--icon-size-m));
+      color: var(--primary-text-color) !important;
+    }
+    ${card._orgFrame ? `
+    .card-content {
+      display: flex;
+      align-items: center;
+      margin: 0;
+      box-shadow: none;
+      border-radius: var(--ha-card-border-radius);
+    }
+    .card-content:not(:has(.with-bottom-buttons)) {
+      height: var(--org-row-height, calc(var(--tile-size) + 2 * var(--ha-space-4)));
+    }
+    .with-bottom-buttons .bubble-content-container,
+    .with-bottom-buttons .bubble-sub-button-container.fixed-top {
+      height: var(--org-row-height, calc(var(--tile-size) + 2 * var(--ha-space-4)));
+      min-height: 0 !important;
+      margin-top: 0 !important;
+      align-self: flex-start;
+      align-items: center !important;
+    }
+    .bubble-button-card-container,
+    .bubble-container {
+      min-height: 100% !important;
+    }
+    .bubble-container {
+      box-shadow: var(--org-surface-shadow);
+    }
+    .bubble-background {
+      background-color: var(--org-surface) !important;
+    }
+    .bubble-button-background {
+      opacity: 1 !important;
+    }
+    ${card._orgFlatMedia ? `
+    .bubble-background {
+      filter: none !important;
+      opacity: 1 !important;
+    }` : ""}
+    ${card._orgF ? "ha-card .bubble-container { background-color: transparent !important; }" : ""}
+    .bubble-icon-container {
+      min-width: var(--org-tile-size, var(--tile-size)) !important;
+      width: var(--org-tile-size, var(--tile-size)) !important;
+      min-height: var(--org-tile-size, var(--tile-size)) !important;
+      height: var(--org-tile-size, var(--tile-size)) !important;
+      margin: 0 var(--ha-space-1) 0 var(--org-tile-inset, var(--ha-space-4)) !important;
+      border-radius: var(--org-tile-radius, var(--radius-inner)) !important;
+      color: var(--org-chip-ink) !important;
+      background-color: var(--org-chip-bg) !important;
+      box-shadow: var(--org-inset-shadow);
+      transition: var(--transition-interactive);
+    }
+    .bubble-icon,
+    .bubble-media-button-icon,
+    .icon-without-state {
+      --mdc-icon-size: var(--org-icon-size, var(--icon-size-m));
+      color: var(--primary-text-color) !important;
+    }
+    .is-off .bubble-main-icon {
+      opacity: 1 !important;
+    }
+    .bubble-main-icon-container .bubble-icon,
+    .bubble-main-icon-container .bubble-main-icon {
+      color: var(--org-chip-ink) !important;
+    }
+    .bubble-name-container,
+    .bubble-media-info-container {
+      gap: var(--ha-space-1) !important;
+      margin-left: var(--org-text-gap, var(--ha-space-3));
+    }
+    .bubble-name,
+    .bubble-title {
+      font-size: var(--org-name-size, var(--ha-font-size-m));
+      font-weight: var(--ha-font-weight-bold);
+      white-space: nowrap !important;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bubble-state,
+    .bubble-artist {
+      display: var(--org-state-display, block) !important;
+      max-width: var(--org-text-max, 150px) !important;
+      font-size: var(--ha-font-size-s);
+      font-weight: var(--ha-font-weight-bold);
+      color: var(--secondary-text-color);
+      opacity: 1 !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis;
+    }
+    ` : ""}
+    ha-card .bubble-sub-button {
+      color: var(--primary-text-color);
+    }
+    .bubble-sub-button-name-container {
+      font-size: var(--ha-font-size-s);
+      font-weight: var(--ha-font-weight-medium);
+      white-space: nowrap !important;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    ha-card [class*="bubble-sub-button-slider-"] {
+      height: var(--control-height-mini) !important;
+      min-height: var(--control-height-mini) !important;
+      border-radius: var(--radius-small) !important;
+      background-color: var(--org-inset) !important;
+      box-shadow: var(--card-ring), var(--org-inset-shadow);
+    }
+    ha-card .bubble-range-fill {
+      position: relative;
+    }
+    ha-card .bubble-range-fill::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      right: var(--ha-space-2);
+      width: 5px;
+      height: var(--icon-size-xs);
+      border-radius: var(--radius-inner);
+      background-color: var(--org-slider-mark);
+      opacity: var(--opacity-strong);
+    }
+    ha-card .bubble-range-fill {
+      background-color: var(--org-slider-fill) !important;
+      opacity: 1 !important;
+    }
+    ha-card [class*="bubble-sub-button-slider-"] .bubble-range-fill {
+      border-radius: var(--radius-small) 4px 4px var(--radius-small) !important;
+    }
+    ha-card .bubble-range-value.in-info-wrapper {
+      font-size: var(--ha-font-size-s);
+    }
+    .bubble-sub-button-bottom-container {
+      width: calc(100% - 2 * var(--ha-space-4)) !important;
+      margin: 0 var(--ha-space-4) var(--ha-space-4) !important;
+    }
+    ha-card .bubble-sub-slider-wrapper,
+    ha-card .bubble-sub-slider-container {
+      height: var(--control-height-mini) !important;
+      min-height: var(--control-height-mini) !important;
+    }
+    ${card._orgT ? `
+    .bubble-sub-button-container {
+      margin-right: var(--org-toggle-gap, calc(var(--ha-space-4) + var(--ha-space-2))) !important;
+      inset-inline-end: 0 !important;
+    }
+    ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      box-sizing: border-box;
+      min-width: unset !important;
+      width: var(--org-toggle-w, calc(var(--tile-size) + var(--ha-space-2))) !important;
+      height: var(--org-toggle-h, var(--control-height-mini)) !important;
+      padding: var(--ha-space-1);
+      border-radius: var(--radius-inner) !important;
+      color: ${card._orgOn ? "var(--text-color-active)" : "var(--primary-text-color)"};
+      background-color: ${card._orgOn ? "var(--fill-active)" : "var(--org-inset)"} !important;
+      box-shadow: var(--card-ring), var(--org-inset-shadow);
+      transition: var(--transition-interactive);
+    }
+    ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) .bubble-sub-button-icon {
+      --mdc-icon-size: var(--org-toggle-knob, var(--icon-size-m));
+      margin-left: ${card._orgOn ? "calc(var(--org-toggle-w, calc(var(--tile-size) + var(--ha-space-2))) - 2 * var(--ha-space-1) - var(--org-toggle-knob, var(--icon-size-m)))" : "0px"} !important;
+      opacity: ${card._orgOn ? "1" : "var(--opacity-quiet)"} !important;
+      color: ${card._orgOn ? "var(--text-color-active)" : "var(--primary-text-color)"} !important;
+      transition: all var(--duration-normal) var(--ease-standard);
+    }` : `
+    ${card._orgFrame ? `
+    ha-card .bubble-sub-button-container {
+      margin-right: var(--org-tile-inset, var(--ha-space-4)) !important;
+      inset-inline-end: 0 !important;
+    }` : ""}
+    ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      min-width: var(--org-tile-size, var(--tile-size)) !important;
+      width: auto !important;
+      height: var(--org-tile-size, var(--tile-size)) !important;
+      padding: 0 var(--ha-space-2) !important;
+      border-radius: var(--radius-inner) !important;
+      background: none !important;
+      box-shadow: none !important;
+      transition: var(--transition-interactive);
+    }
+    ha-card .bubble-sub-button.background-on:not([class*="bubble-sub-button-slider-"]),
+    ha-card .bubble-sub-button.background-off:not([class*="bubble-sub-button-slider-"]) {
+      background-color: var(--org-tile-bg, var(--org-inset)) !important;
+      box-shadow: var(--org-inset-shadow) !important;
+    }
+    ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) .bubble-sub-button-icon {
+      --mdc-icon-size: var(--org-icon-size, var(--icon-size-m));
+      margin: 0 !important;
+      color: var(--primary-text-color) !important;
+    }
+    `}
+    ${card._orgG ? `
+    ha-card {
+      --org-group-key: min(var(--control-height-mini), var(--org-tile-size, var(--tile-size)));
+      --org-group-pad: calc((var(--org-tile-size, var(--tile-size)) - var(--org-group-key)) / 2);
+    }
+    ha-card .bubble-sub-button-container {
+      --bubble-sub-button-outline: none;
+      height: var(--org-tile-size, var(--tile-size)) !important;
+      align-items: center;
+      padding: 0 var(--org-group-pad) !important;
+      gap: var(--ha-space-1) !important;
+      background-color: var(--org-inset) !important;
+      box-shadow: var(--org-inset-shadow);
+      border-radius: var(--radius-inner) !important;
+    }
+    ha-card .with-bottom-buttons .bubble-sub-button-container.fixed-top {
+      height: var(--org-tile-size, var(--tile-size)) !important;
+      margin-top: calc((var(--org-row-height, calc(var(--tile-size) + 2 * var(--ha-space-4))) - var(--org-tile-size, var(--tile-size))) / 2) !important;
+      align-self: flex-start;
+    }
+    ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) {
+      box-sizing: border-box;
+      min-width: var(--org-group-key) !important;
+      width: auto !important;
+      height: var(--org-group-key) !important;
+      padding: 0 var(--ha-space-1) !important;
+      border-radius: var(--radius-small) !important;
+      background: none !important;
+      box-shadow: none !important;
+    }
+    ha-card .bubble-sub-button.background-on:not([class*="bubble-sub-button-slider-"]),
+    ha-card .bubble-sub-button.background-off:not([class*="bubble-sub-button-slider-"]) {
+      background-color: var(--org-key-bg) !important;
+    }
+    ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) .bubble-sub-button-icon {
+      --mdc-icon-size: var(--icon-size-xs);
+      margin: 0 !important;
+    }
+    ha-card .bubble-sub-button-name-container {
+      font-size: var(--ha-font-size-s);
+      font-weight: var(--ha-font-weight-bold);
+    }
+    ` : ""}
+    ${(() => {
+      const look = card._orgLook;
+      if (card._orgT || !look) return "";
+      const auto = !(this.config.modules ?? []).some((m) => m === "origami_fan" || m === "origami_climate");
+      const ids = [entity];
+      const walk = (list) => (Array.isArray(list) ? list : []).forEach((b) => {
+        if (!b || typeof b !== "object") return;
+        if (Array.isArray(b.group)) walk(b.group);
+        if (typeof b.entity === "string" && /^[a-z0-9_]+\.[a-z0-9_]+$/.test(b.entity) && !ids.includes(b.entity)) ids.push(b.entity);
+      });
+      const sb = this.config.sub_button;
+      if (Array.isArray(sb)) walk(sb); else if (sb && typeof sb === "object") { walk(sb.main); walk(sb.bottom); }
+      const keep = ':not(.is-select):not(.readout):not(.plain):not([class*="bubble-sub-button-slider-"])';
+      const link = ':not([data-tap-action*="navigate"]):not([data-tap-action*="more-info"]):not([data-tap-action*="url_path"])';
+      const sel = [];
+      ids.filter((id) => look(id).lit).forEach((id) => {
+        const own = ['[data-entity="' + id + '"]'].concat(id === entity ? [':not([data-entity])', '[data-entity=""]'] : []);
+        own.forEach((o) => {
+          if (auto) sel.push("ha-card .bubble-sub-button:is(.background-on, .background-off)" + o + keep + link);
+          sel.push("ha-card .bubble-sub-button.accent:is(.background-on, .background-off)" + o + keep);
+        });
+      });
+      if (!sel.length) return "";
+      return "    " + sel.join(",\n    ") + " {\n      color: var(--text-color-active) !important;\n      background-color: var(--fill-active) !important;\n    }\n    "
+        + sel.map((s) => s + " .bubble-sub-button-icon").join(",\n    ") + " {\n      color: var(--text-color-active) !important;\n      opacity: 1 !important;\n    }\n";
+    })()}
+    ${(() => {
+      const domain = (entity ?? "").split(".")[0];
+      if (!card._orgFrame || ["light", "media_player", "fan", "climate"].includes(domain)) return "";
+      const el = card.querySelector(".bubble-state");
+      if (!el) return "";
+      const st = hass.states[entity];
+      const w = String(hass.locale?.language ?? hass.language ?? "").startsWith("de")
+        ? { on: "An", off: "Aus", error: "Fehler" }
+        : { on: "On", off: "Off", error: "Error" };
+      const next = !st || ["unavailable", "unknown"].includes(st.state) ? w.error
+        : card._orgOn ? w.on : w.off;
+      if (el.innerText !== next) el.innerText = next;
+      return "";
+    })()}
