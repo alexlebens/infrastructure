@@ -26,49 +26,10 @@ openbao:
             namespace: traefik
     authDelegator:
       enabled: true
-    extraContainers:
-      - name: logrotate
-        image: alpine:3.24.2@sha256:3cf95fe0816180395592b8373f3ec60663f076127617bbacb4eacf9667afe2e9
-        command:
-          - /bin/sh
-          - -c
-          - |
-            apk add --no-cache logrotate procps
-            cat <<'EOF' > /etc/logrotate.d/openbao
-            /openbao/audit/*.log {
-                daily
-                maxsize 10G
-                rotate 30
-                maxage 30
-                missingok
-                compress
-                delaycompress
-                notifempty
-                create 0600 vault vault
-                sharedscripts
-                postrotate
-                    pkill -HUP -f "openbao server" || pkill -HUP -f "vault server" || true
-                endscript
-            }
-            EOF
-            echo "0 * * * * /usr/sbin/logrotate -v /etc/logrotate.d/openbao" > /etc/crontabs/root
-            exec crond -f -l 2
-        volumeMounts:
-          - name: audit
-            mountPath: /openbao/audit
-        resources:
-          requests:
-            cpu: 1m
-            memory: 10Mi
-    shareProcessNamespace: true
     livenessProbe:
       enabled: true
     dataStorage:
       size: 1Gi
-      storageClass: ceph-block
-    auditStorage: # https://openbao.org/docs/audit/file/#log-file-rotation
-      enabled: true
-      size: 10Gi
       storageClass: ceph-block
     standalone:
       enabled: false
@@ -78,6 +39,12 @@ openbao:
         enabled: true
         config: |
           ui = true
+
+          audit "file" "stdout" {
+            options = {
+              file_path = "stdout"
+            }
+          }
 
           listener "tcp" {
             tls_disable = 1
