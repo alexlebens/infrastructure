@@ -3,12 +3,22 @@ navidrome:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       initContainers:
         download-plugins:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: busybox
             tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
@@ -41,10 +51,16 @@ navidrome:
               # renovate: datasource=github-releases depName=andykelk/navidrome-ntfy-plugin
               install_plugin "navidrome-ntfy.ndp" "v1.1.0" "https://github.com/andykelk/navidrome-ntfy-plugin/releases/download/v1.1.0/navidrome-ntfy.ndp"
 
-              chown -R 1000:1000 /data/plugins
-              chmod -R 775 /data/plugins
+              chown -R 1000:1000 /data/plugins 2>/dev/null || true
+              chmod -R 775 /data/plugins 2>/dev/null || true
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/navidrome/navidrome
             tag: 0.64.2@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52
@@ -78,8 +94,8 @@ navidrome:
               gpu.intel.com/i915: 1
             requests:
               gpu.intel.com/i915: 1
-              cpu: 10m
-              memory: 50Mi
+              cpu: 15m
+              memory: 180Mi
           probes:
             startup:
               enabled: true
@@ -107,8 +123,19 @@ navidrome:
     feishin:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/jeffvli/feishin
             tag: 1.17.0@sha256:6c75a4d3b99065ac245e2eb2b693fde3e5f2a6fe41c9e255da4fcb8948071965
@@ -123,7 +150,7 @@ navidrome:
               value: https://navidrome.alexlebens.dev
           resources:
             requests:
-              cpu: 1m
+              cpu: 5m
               memory: 20Mi
           probes:
             liveness:
@@ -143,8 +170,19 @@ navidrome:
     audiomuse:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/neptunehub/audiomuse-ai
             tag: 3.6.4@sha256:811f1f0bd0de97a1b4ab6601898297010da18fc957312b1ed3bb62990683630c
@@ -181,7 +219,7 @@ navidrome:
           resources:
             requests:
               cpu: 10m
-              memory: 100Mi
+              memory: 550Mi
           probes:
             liveness:
               enabled: true
@@ -200,8 +238,19 @@ navidrome:
     audiomuse-worker:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/neptunehub/audiomuse-ai
             tag: 3.6.4@sha256:811f1f0bd0de97a1b4ab6601898297010da18fc957312b1ed3bb62990683630c
@@ -239,34 +288,32 @@ navidrome:
                   key: port
           resources:
             requests:
-              cpu: 50m
+              cpu: 10m
               memory: 200Mi
   service:
     main:
+      forceRename: navidrome-main
       controller: main
       ports:
         http:
           port: 80
           targetPort: 4533
     feishin:
+      forceRename: navidrome-feishin
       controller: feishin
       ports:
         http:
           port: 80
           targetPort: 9180
     audiomuse:
+      forceRename: navidrome-audiomuse
       controller: audiomuse
       ports:
         http:
           port: 8000
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: navidrome
-          app.kubernetes.io/instance: navidrome
-          app.kubernetes.io/service: navidrome-main
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: navidrome-main
       endpoints:
         - port: http
   route:
@@ -287,6 +334,15 @@ navidrome:
                 value: /
     feishin:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Music"
+        gethomepage.dev/description: "Feishin"
+        gethomepage.dev/group: "Media"
+        gethomepage.dev/icon: "sh-feishin.webp"
+        gethomepage.dev/siteMonitor: "http://navidrome-feishin.navidrome:80"
+        gethomepage.dev/weight: "150"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -318,6 +374,14 @@ navidrome:
         main:
           main:
             - path: /cache
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+          download-plugins:
+            - path: /tmp
     music:
       existingClaim: navidrome-music-nfs-storage
       advancedMounts:
@@ -405,6 +469,11 @@ volsync-target-data:
   d:
     enabled: true
     schedule: 50 9 * * 3
+
+common-helpers:
+  probe:
+    internal: http://navidrome-main.navidrome:80/ping
+    external: https://navidrome.alexlebens.dev/ping
 
 grafanaDashboard:
   folder: applications
