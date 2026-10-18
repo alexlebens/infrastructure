@@ -8,10 +8,12 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: navidrome
     helm.sh/chart: navidrome-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
   namespace: navidrome
 spec:
   revisionHistoryLimit: 3
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate
   selector:
@@ -29,12 +31,28 @@ spec:
       enableServiceLinks: false
       serviceAccountName: navidrome
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
       containers:
         - env:
+            - name: HOME
+              value: /home/ubuntu
+            - name: TEMP_DIR
+              value: /tmp/temp_audio
+            - name: IVF_DISK_CACHE_DIR
+              value: /tmp/ivf_cache
+            - name: CLAP_OTHER_FEATURES_CACHE_DIR
+              value: /tmp/ivf_cache
             - name: TZ
               value: America/Chicago
             - name: REDIS_URL
@@ -77,8 +95,16 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 100Mi
+              memory: 550Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
+            - mountPath: /home/ubuntu
+              name: audiomuse-home
             - mountPath: /music
               name: music
               readOnly: true
@@ -91,7 +117,11 @@ spec:
             - mountPath: /music-youtube
               name: music-youtube
               readOnly: true
+            - mountPath: /tmp
+              name: tmp
       volumes:
+        - emptyDir: {}
+          name: audiomuse-home
         - name: music
           persistentVolumeClaim:
             claimName: navidrome-music-nfs-storage
@@ -104,3 +134,5 @@ spec:
         - name: music-youtube
           persistentVolumeClaim:
             claimName: navidrome-music-youtube-nfs-storage
+        - emptyDir: {}
+          name: tmp

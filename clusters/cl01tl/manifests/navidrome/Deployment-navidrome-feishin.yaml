@@ -8,10 +8,12 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: navidrome
     helm.sh/chart: navidrome-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
   namespace: navidrome
 spec:
   revisionHistoryLimit: 3
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate
   selector:
@@ -29,6 +31,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: navidrome
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 101
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 101
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -55,5 +65,25 @@ spec:
               port: 9180
           resources:
             requests:
-              cpu: 1m
+              cpu: 5m
               memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /var/cache/nginx
+              name: feishin-cache
+            - mountPath: /etc/nginx/conf.d
+              name: feishin-conf
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - emptyDir: {}
+          name: feishin-cache
+        - emptyDir: {}
+          name: feishin-conf
+        - emptyDir: {}
+          name: tmp
