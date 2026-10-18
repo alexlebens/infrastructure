@@ -524,23 +524,43 @@ views:
               rows: auto
             sub_button:
               bottom:
-                # Music, from 22:00 to 4:00
-                - name: Bedroom
-                  entity: media_player.bedroom
-                  icon: mdi:speaker
+                # Music (Navidrome & Feishin)
+                - name: Music
+                  entity: media_player.navidrome
+                  icon: mdi:music
                   force_icon: true
                   origami_tiles:
-                    state: Music
+                    state: >-
+                      {% if is_state('media_player.navidrome', 'playing') %}
+                        Playing
+                      {% elif is_state('media_player.navidrome', 'paused') %}
+                        Paused
+                      {% else %}
+                        {{ states('sensor.navidrome_total_songs') ~ ' tracks' }}
+                      {% endif %}
                     color: var(--state-media_player-active-color)
-                  visibility:
-                    - condition: time
-                      after: "22:00"
-                      before: "03:59:59"
                   tap_action:
                     action: navigate
                     navigation_path: "#popup_music"
                   hold_action:
-                    action: more-info
+                    action: url
+                    url_path: https://feishin.alexlebens.dev
+                # Movies & TV (Jellyfin)
+                - name: Jellyfin
+                  entity: sensor.jellyfin_active_clients
+                  icon: mdi:filmstrip
+                  force_icon: true
+                  origami_tiles:
+                    state: >-
+                      {% set clients = states('sensor.jellyfin_active_clients') | int(0) %} {{ clients ~ ' active' if
+                      clients > 0 else 'Online' }}
+                    color: var(--state-media_player-active-color)
+                  tap_action:
+                    action: navigate
+                    navigation_path: "#popup_tv"
+                  hold_action:
+                    action: url
+                    url_path: https://jellyfin.alexlebens.dev
                 # Fan, while it runs or when the living room or the bedroom is above 24°
                 - name: Fan
                   entity: fan.bedroom
@@ -2037,7 +2057,9 @@ views:
                 icon: mdi:speaker
                 icon_selected: mdi:speaker-play
                 selected_color: var(--state-media_player-active-color)
-                selected: "[[[ return Number(states['sensor.active_speaker_count']?.state) > 0; ]]]"
+                selected:
+                  "[[[ return states['media_player.navidrome']?.state === 'playing' ||
+                  Number(states['sensor.active_speaker_count']?.state) > 0; ]]]"
                 tap_action:
                   action: navigate
                   navigation_path: "#popup_music"
@@ -2057,12 +2079,16 @@ views:
                       hass.callService('media_player', 'media_play_pause', { entity_id });
                     ]]]
                 badge:
-                  show: "[[[ return Number(states['sensor.active_speaker_count']?.state) > 0; ]]]"
+                  show:
+                    "[[[ return states['media_player.navidrome']?.state === 'playing' ||
+                    Number(states['sensor.active_speaker_count']?.state) > 0; ]]]"
                   count: "[[[ return states['sensor.active_speaker_count']?.state ?? ''; ]]]"
               - label: TV
                 icon: mdi:remote-tv
                 selected_color: var(--state-media_player-active-color)
-                selected: "[[[ return states['media_player.living_room_tv']?.state === 'on'; ]]]"
+                selected:
+                  "[[[ return states['media_player.living_room_tv']?.state === 'on' ||
+                  Number(states['sensor.jellyfin_active_clients']?.state) > 0; ]]]"
                 tap_action:
                   action: navigate
                   navigation_path: "#popup_tv"
@@ -2172,6 +2198,13 @@ views:
                       document.documentElement.style.setProperty('--navbar-player-group', a.group === 'yes' ? '1' : '0');
                       return a.speaker ?? '';
                     ]]]
+                  tap_action:
+                    action: navigate
+                    navigation_path: "#popup_music"
+                - entity: media_player.navidrome
+                  show: "[[[ return ['playing', 'paused'].includes(states['media_player.navidrome']?.state); ]]]"
+                  title: "[[[ return states['media_player.navidrome']?.attributes?.media_title || 'Navidrome'; ]]]"
+                  subtitle: "[[[ return states['media_player.navidrome']?.attributes?.media_artist || 'Music'; ]]]"
                   tap_action:
                     action: navigate
                     navigation_path: "#popup_music"
@@ -2700,6 +2733,106 @@ views:
                 live:
                   preload: true
                   auto_play: all
+          # Music pop-up (Navidrome & Feishin), opened by the Music tile and navbar
+          - type: custom:bubble-card
+            card_type: pop-up
+            hash: "#popup_music"
+            name: Music & Audio
+            icon: mdi:music
+            button_type: name
+            show_header: true
+            show_name: true
+            show_icon: true
+            card_layout: large
+            buttons_position: right
+            scrolling_effect: false
+            margin: 7px
+            margin_top_mobile: 22px
+            margin_top_desktop: 15%
+            bg_color: transparent
+            bg_opacity: "100"
+            bg_blur: "0"
+            shadow_opacity: "12"
+            hide_backdrop: false
+            modules:
+              - default
+              - origami_popup
+            origami_popup:
+              subtitle_style: text
+            cards:
+              - type: vertical-stack
+                cards:
+                  - type: custom:bubble-card
+                    card_type: media-player
+                    entity: media_player.navidrome
+                    name: Navidrome
+                    icon: mdi:music
+                    button_type: state
+                    show_state: true
+                    modules:
+                      - origami_base
+                      - origami_media
+                      - "!default"
+                    tap_action:
+                      action: more-info
+                    sub_button:
+                      main:
+                        - icon: mdi:web
+                          show_background: true
+                          tap_action:
+                            action: url
+                            url_path: https://feishin.alexlebens.dev
+                        - icon: mdi:refresh
+                          show_background: true
+                          tap_action:
+                            action: perform-action
+                            perform_action: button.press
+                            target:
+                              entity_id: button.navidrome_start_scan
+                  - type: custom:bubble-card
+                    card_type: sub-buttons
+                    modules:
+                      - origami_tiles
+                    grid_options:
+                      columns: full
+                      rows: auto
+                    sub_button:
+                      bottom:
+                        - name: Feishin Web
+                          icon: mdi:play-circle-outline
+                          force_icon: true
+                          origami_tiles:
+                            state: Open Player
+                            color: var(--state-media_player-active-color)
+                          tap_action:
+                            action: url
+                            url_path: https://feishin.alexlebens.dev
+                        - name: Navidrome
+                          icon: mdi:music-box-outline
+                          force_icon: true
+                          origami_tiles:
+                            state: Open Server
+                          tap_action:
+                            action: url
+                            url_path: https://navidrome.alexlebens.dev
+                        - name: Tracks
+                          icon: mdi:music-note-multiple
+                          force_icon: true
+                          origami_tiles:
+                            state: >-
+                              {{ states('sensor.navidrome_total_songs') ~ ' Tracks' }}
+                          tap_action:
+                            action: more-info
+                            entity: sensor.navidrome_total_songs
+                        - name: Artists
+                          icon: mdi:account-music
+                          force_icon: true
+                          origami_tiles:
+                            state: >-
+                              {{ states('sensor.navidrome_total_artists') ~ ' Artists' }}
+                          tap_action:
+                            action: more-info
+                            entity: sensor.navidrome_total_artists
           # Living room pop-up, opened by the living room card. Copy it for the other rooms.
           - type: custom:bubble-card
             card_type: pop-up
@@ -3528,6 +3661,12 @@ views:
                         tap_action:
                           service_data:
                             source: Plex
+                      - name: Jellyfin
+                        active:
+                          - org.jellyfin.androidtv
+                        tap_action:
+                          action: url
+                          url_path: https://jellyfin.alexlebens.dev
 
                   # The remote has back and home buttons and a round pad. Holding an arrow repeats its command.
                   - type: custom:paper-buttons-row
