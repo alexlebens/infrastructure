@@ -5,14 +5,28 @@ music-grabber:
       strategy: Recreate
       pod:
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: g33kphr33k/musicgrabber
             tag: 4.3.1@sha256:696ae0eda6c6f0149c22d5264c5a1a32d2f78733ec2f205ed451134eeda173dc
           env:
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
             - name: MUSIC_DIR
               value: /mnt/store/Music Grabber/
             - name: ENABLE_MUSICBRAINZ
@@ -46,12 +60,16 @@ music-grabber:
             - name: SLSKD_DOWNLOADS_PATH
               value: /mnt/store/slskd/Downloads
           resources:
-            limits:
-              cpu: 100m
             requests:
               cpu: 10m
-              memory: 50Mi
+              memory: 100Mi
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -77,6 +95,10 @@ music-grabber:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 15Mi
           probes:
             liveness:
               enabled: true
@@ -94,6 +116,7 @@ music-grabber:
                   port: 4180
   service:
     main:
+      forceRename: music-grabber
       ports:
         http:
           port: 80
@@ -104,16 +127,21 @@ music-grabber:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: music-grabber
-          app.kubernetes.io/instance: music-grabber
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: music-grabber
       endpoints:
         - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Replicate Music playlists"
+        gethomepage.dev/description: "Music Grabber"
+        gethomepage.dev/group: "Music"
+        gethomepage.dev/icon: "sh-music-grabber.webp"
+        gethomepage.dev/siteMonitor: "http://music-grabber.music-grabber:80"
+        gethomepage.dev/weight: "150"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -122,7 +150,7 @@ music-grabber:
       rules:
         - backendRefs:
             - name: music-grabber
-              port: 80
+              port: 4180
           matches:
             - path:
                 type: PathPrefix
@@ -143,9 +171,26 @@ music-grabber:
         main:
           main:
             - path: /mnt/store/
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  client:
+    displayName: "Music Grabber"
+    description: "A self-hosted music acquisition service."
+    clientID: 0BF3D1EA-4A90-48F6-ABB0-17FF2236ACD8
 
 volsync-target-data:
   pvcTarget: music-grabber-data
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
   a:
     enabled: true
     schedule: 55 9 * * *
@@ -155,3 +200,8 @@ volsync-target-data:
   d:
     enabled: true
     schedule: 50 9 * * 1
+
+common-helpers:
+  probe:
+    internal: http://music-grabber.music-grabber:80
+    external: https://music-grabber.alexlebens.dev

@@ -7,6 +7,8 @@ medialyze:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -23,8 +25,8 @@ medialyze:
               value: /media
           resources:
             requests:
-              cpu: 5m
-              memory: 100Mi
+              cpu: 10m
+              memory: 150Mi
           probes:
             startup:
               enabled: true
@@ -60,6 +62,12 @@ medialyze:
                 timeoutSeconds: 3
                 failureThreshold: 3
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -85,6 +93,10 @@ medialyze:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
           probes:
             liveness:
               enabled: true
@@ -102,6 +114,7 @@ medialyze:
                   port: 4180
   service:
     main:
+      forceRename: medialyze
       ports:
         http:
           port: 80
@@ -112,16 +125,21 @@ medialyze:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: medialyze
-          app.kubernetes.io/instance: medialyze
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: medialyze
       endpoints:
         - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Media Library Statistics"
+        gethomepage.dev/description: "MediaLyze"
+        gethomepage.dev/group: "Analysis"
+        gethomepage.dev/icon: "sh-medialyze.webp"
+        gethomepage.dev/siteMonitor: "http://medialyze.medialyze:80"
+        gethomepage.dev/weight: "300"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -152,9 +170,29 @@ medialyze:
           main:
             - path: /media
               readOnly: true
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  client:
+    displayName: "MediaLyze"
+    description: "Self-hosted media library analysis for large video collections."
+    clientID: 3D6B1C7B-03C7-43F7-B5FD-9369CB5CFC9C
+    allowedUserGroups:
+      - name: user
+        namespace: pocket-id-operator
 
 volsync-target-data:
   pvcTarget: medialyze-data
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
   a:
     enabled: true
     schedule: 50 9 * * *
@@ -164,3 +202,8 @@ volsync-target-data:
   d:
     enabled: true
     schedule: 50 9 * * 0
+
+common-helpers:
+  probe:
+    internal: http://medialyze.medialyze:80
+    external: https://medialyze.alexlebens.dev

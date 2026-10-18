@@ -1,9 +1,10 @@
 memos:
-  storageEndpoint: http://cluster-b.garage-b:3900
   controllers:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         securityContext:
           runAsNonRoot: true
@@ -17,7 +18,7 @@ memos:
         main:
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -61,7 +62,7 @@ memos:
           resources:
             requests:
               cpu: 10m
-              memory: 100Mi
+              memory: 60Mi
           probes:
             liveness:
               enabled: true
@@ -111,7 +112,7 @@ memos:
         gethomepage.dev/group: "Knowledge"
         gethomepage.dev/icon: "sh-memos.webp"
         gethomepage.dev/siteMonitor: "http://memos.memos:80/healthz"
-        gethomepage.dev/weight: "300"
+        gethomepage.dev/weight: "250"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -144,6 +145,12 @@ memos:
           main:
             - path: /etc/secrets
               readOnly: true
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
 
 pocket-id-client:
   mode: oidc
