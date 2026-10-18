@@ -8,6 +8,68 @@ metadata:
     app.kubernetes.io/instance: home-assistant
     app.kubernetes.io/part-of: home-assistant
 data:
+  airgradient.yaml: |-
+    # AirGradient Indoor Air Quality Monitor (it01ag.alexlebens.dev / 10.232.1.83)
+    # Scrapes Prometheus metrics exporter on port 9926 (ag-br-1: Bedroom)
+
+    rest:
+      - resource: http://it01ag.alexlebens.dev:9926/metrics
+        scan_interval: 30
+        sensor:
+          - name: "AirGradient Temperature"
+            unique_id: airgradient_temperature
+            device_class: temperature
+            state_class: measurement
+            unit_of_measurement: "°C"
+            value_template: >-
+              {{ value | regex_findall_index('atmp\{[^}]*\}\s*([0-9.]+)') | float(default=none) }}
+
+          - name: "AirGradient Humidity"
+            unique_id: airgradient_humidity
+            device_class: humidity
+            state_class: measurement
+            unit_of_measurement: "%"
+            value_template: >-
+              {{ value | regex_findall_index('rhum\{[^}]*\}\s*([0-9.]+)') | float(default=none) }}
+
+          - name: "AirGradient CO2"
+            unique_id: airgradient_co2
+            device_class: carbon_dioxide
+            state_class: measurement
+            unit_of_measurement: "ppm"
+            value_template: >-
+              {{ value | regex_findall_index('rco2\{[^}]*\}\s*([0-9.]+)') | int(default=none) }}
+
+          - name: "AirGradient PM2.5"
+            unique_id: airgradient_pm25
+            device_class: pm25
+            state_class: measurement
+            unit_of_measurement: "µg/m³"
+            value_template: >-
+              {{ value | regex_findall_index('pm02\{[^}]*\}\s*([0-9.]+)') | int(default=none) }}
+
+    template:
+      - sensor:
+          - name: "Bedroom Temperature"
+            unique_id: bedroom_temperature_airgradient
+            device_class: temperature
+            state_class: measurement
+            unit_of_measurement: "°C"
+            state: "{{ states('sensor.airgradient_temperature') }}"
+
+          - name: "Bedroom Humidity"
+            unique_id: bedroom_humidity_airgradient
+            device_class: humidity
+            state_class: measurement
+            unit_of_measurement: "%"
+            state: "{{ states('sensor.airgradient_humidity') }}"
+
+          - name: "Bedroom CO2"
+            unique_id: bedroom_co2_airgradient
+            device_class: carbon_dioxide
+            state_class: measurement
+            unit_of_measurement: "ppm"
+            state: "{{ states('sensor.airgradient_co2') }}"
   origami.yaml: |-
     # The Origami helpers as a package. Copy this file to /config/packages/ and replace the example entities with your own.
     # Packages need these lines in configuration.yaml.
@@ -615,3 +677,21 @@ data:
           - action: fan.turn_off
             target:
               entity_id: fan.living_room
+  shelly_plugs.yaml: |-
+    # Shelly Smart Plugs Helpers (it05sp.alexlebens.dev & it07sp.alexlebens.dev)
+    # READ-ONLY / POWER MONITORING ONLY - Fail-safe lock prevents switching off
+
+    template:
+      - sensor:
+          - name: "Total Plug Power"
+            unique_id: total_plug_power
+            device_class: power
+            state_class: measurement
+            unit_of_measurement: "W"
+            state: >-
+              {{ ((states('sensor.it05sp_power') | float(0)) + (states('sensor.it07sp_power') | float(0))) | round(1) }}
+
+          - name: "Plugs Active Count"
+            unique_id: plugs_active_count
+            state: >-
+              {{ [states('switch.it05sp'), states('switch.it07sp')] | select('eq', 'on') | list | count }}
