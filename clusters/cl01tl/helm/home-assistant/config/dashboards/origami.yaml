@@ -570,26 +570,19 @@ views:
                     action: toggle
                   hold_action:
                     action: more-info
-                # Smart Plugs (Shelly)
-                - name: Plugs
-                  entity: switch.shelly_plug
-                  icon: mdi:power-plug-outline
+                # Power Monitoring (Shelly Plugs)
+                - name: Power
+                  icon: mdi:flash-outline
                   origami_tiles:
-                    state:
-                      "on": On
-                      "off": "Off"
-                    color:
-                      "on": var(--state-switch-active-color)
-                  visibility:
-                    - condition: state
-                      entity: switch.shelly_plug
-                      state_not:
-                        - unknown
-                        - unavailable
+                    state: >-
+                      {% set power = ((states('sensor.it05sp_power') | float(0)) + (states('sensor.it07sp_power') |
+                      float(0))) | round(0) %} {{ power ~ ' W' if power > 0 else 'Idle' }}
+                    color: var(--state-sensor-active-color)
                   tap_action:
-                    action: toggle
+                    action: navigate
+                    navigation_path: "#popup_plugs"
                   hold_action:
-                    action: more-info
+                    action: none
                 # Cameras (Frigate NVR)
                 - name: Cameras
                   entity: camera.frigate
@@ -2611,6 +2604,67 @@ views:
       - type: grid
         column_span: 1
         cards:
+          # Plugs pop-up, opened by the Power tile (Read-Only Power Monitoring)
+          - type: custom:bubble-card
+            card_type: pop-up
+            hash: "#popup_plugs"
+            name: Power Monitoring
+            icon: mdi:flash-outline
+            button_type: name
+            show_header: true
+            show_name: true
+            show_icon: true
+            card_layout: large
+            buttons_position: right
+            scrolling_effect: false
+            margin: 7px
+            margin_top_mobile: 22px
+            margin_top_desktop: 15%
+            bg_color: transparent
+            bg_opacity: "100"
+            bg_blur: "0"
+            shadow_opacity: "12"
+            hide_backdrop: false
+            modules:
+              - default
+              - origami_popup
+            origami_popup:
+              subtitle_style: text
+            cards:
+              - type: vertical-stack
+                cards:
+                  - type: custom:bubble-card
+                    card_type: button
+                    button_type: state
+                    entity: sensor.it05sp_power
+                    name: Node 1 Power (it05sp)
+                    icon: mdi:server-network
+                    show_state: true
+                    modules:
+                      - origami_base
+                    origami_base:
+                      compact: true
+                      tile: true
+                    tap_action:
+                      action: none
+                    hold_action:
+                      action: none
+                  - type: custom:bubble-card
+                    card_type: button
+                    button_type: state
+                    entity: sensor.it07sp_power
+                    name: Node 2 Power (it07sp)
+                    icon: mdi:server-network
+                    show_state: true
+                    modules:
+                      - origami_base
+                    origami_base:
+                      compact: true
+                      tile: true
+                    tap_action:
+                      action: none
+                    hold_action:
+                      action: none
           # Cameras pop-up, opened by the Cameras tile
           - type: custom:bubble-card
             card_type: pop-up
