@@ -1,0 +1,2153 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: home-assistant-bubble-modules
+  namespace: home-assistant
+  labels:
+    app.kubernetes.io/name: home-assistant-bubble-modules
+    app.kubernetes.io/instance: home-assistant
+    app.kubernetes.io/part-of: home-assistant
+data:
+  origami_base.yaml: |-
+    origami_base:
+      name: "Origami • Base"
+      version: "9.4.3"
+      supported:
+        - button
+        - media-player
+        - cover
+        - climate
+        - select
+        - calendar
+        - sub-buttons
+        - separator
+      description:
+        "The Base module is the frame for button and media player cards. On other card types, it only styles the
+        sub-buttons. List Base first and then the module for the device. Its options create a slim row, add a pill switch,
+        group the sub-buttons or turn the card into a tile. The icon shows Home Assistant's state color while the entity is
+        on, and the controls stay neutral. A sub-button is filled while its entity is on, unless it navigates, opens a URL
+        or opens the more-info dialog. To keep a sub-button neutral, set its css_class to plain. To fill it while its entity
+        is on, even if it navigates, set css_class to accent. The module reference in bubble_card/README.md explains every
+        option."
+      editor:
+        - name: compact
+          label: "Compact"
+          selector:
+            boolean: {}
+          default: false
+        - name: toggle
+          label: "Pill switch"
+          selector:
+            boolean: {}
+          default: false
+        - name: group
+          label: "Grouped sub-buttons"
+          selector:
+            boolean: {}
+          default: false
+        - name: tile
+          label: "Tile"
+          selector:
+            boolean: {}
+          default: false
+        - name: solid_controls
+          label: "Filled play and power buttons (media cards)"
+          selector:
+            boolean: {}
+          default: false
+      code: |
+        ${(() => {
+          card._orgT = !!this.config.origami_base?.toggle;
+          card._orgG = !!this.config.origami_base?.group;
+          card._orgC = !!this.config.origami_base?.compact;
+          card._orgF = !!this.config.origami_base?.tile;
+          card._orgFrame = ["button", "media-player"].includes(this.config.card_type ?? "button");
+          card._orgFlatMedia = this.config.card_type === "media-player" && !this.config.cover_background
+            && !(this.config.modules ?? []).includes("origami_speaker");
+          const resting = {
+            alarm_control_panel: ["disarmed"], alert: ["idle"], cover: ["closed"], device_tracker: ["not_home"], person: ["not_home"],
+            lawn_mower: ["docked", "paused", "idle"], lock: ["locked"], media_player: ["standby", "idle", "paused"],
+            vacuum: ["idle", "docked", "paused"], valve: ["closed"]
+          };
+          const mode = { heating: "heat", preheating: "heat", cooling: "cool", defrosting: "cool", drying: "dry", fan: "fan_only" };
+          const coloured = ["alarm_control_panel", "alert", "automation", "binary_sensor", "calendar", "camera", "climate", "cover",
+            "device_tracker", "fan", "humidifier", "input_boolean", "lawn_mower", "light", "lock", "media_player", "person", "plant",
+            "remote", "schedule", "script", "siren", "sun", "switch", "timer", "update", "vacuum", "valve", "water_heater"];
+          const look = (id) => {
+            const st = hass.states[id];
+            const s = String(st?.state ?? "unavailable").toLowerCase();
+            const a = st?.attributes ?? {};
+            let d = (id ?? "").split(".")[0];
+            if (d === "group") d = String(a.entity_id?.[0] ?? "group.").split(".")[0];
+            const act = String(a.hvac_action ?? "").toLowerCase();
+            const key = (d === "climate" ? (mode[act] ?? s) : s).replace(/[^a-z0-9]+/g, "_");
+            const names = ["--state-" + d + "-" + key + "-color", "--state-" + d + "-active-color", "--state-active-color"];
+            if (a.device_class) names.unshift("--state-" + d + "-" + a.device_class + "-" + key + "-color");
+            const on = !["unavailable", "unknown", "off"].includes(s) && !(resting[d] ?? []).includes(s)
+              && (d !== "climate" || !["", "off", "idle"].includes(act));
+            return { on, coloured: coloured.includes(d), lit: on && coloured.includes(d), color: names.reduceRight((acc, n) => acc ? "var(" + n + ", " + acc + ")" : "var(" + n + ")", "") };
+          };
+          const me = look(entity);
+          card._orgLook = look;
+          card._orgOn = me.on;
+          card._orgLit = me.lit;
+          card._orgColor = me.color;
+          card._orgDark = !!hass.themes?.darkMode;
+          return "";
+        })()}
+        ha-card {
+          --bubble-border: var(--border-width) solid var(--border-color);
+          --bubble-sub-slider-height: var(--control-height-mini);
+          --bubble-slider-fill-color: var(--org-slider-fill);
+          --org-slider-fill: color-mix(in srgb, var(--fill-base) 38%, var(--ha-card-background));
+          --org-slider-mark: var(--primary-text-color);
+          --org-color: ${card._orgColor};
+          --org-surface: ${card._orgF ? "var(--tile-background, var(--fill-subtle))" : "var(--ha-card-background)"};
+          --org-surface-shadow: ${card._orgF ? "0 0 #0000" : "var(--ha-card-box-shadow)"};
+          --org-inset: ${card._orgF ? "var(--tile-chip-background, var(--ha-card-background))" : "var(--fill-subtle)"};
+          --org-inset-shadow: ${card._orgF ? "var(--tile-chip-shadow, var(--ha-card-box-shadow))" : "0 0 #0000"};
+          --org-field: ${card._orgF ? "var(--tint)" : "color-mix(in srgb, currentColor var(--tint-strength), var(--fill-subtle))"};
+          --org-key-field: ${card._orgF ? "color-mix(in srgb, currentColor var(--tint-strength), var(--fill-subtle))" : card._orgDark ? "color-mix(in srgb, currentColor var(--tint-strength), var(--fill-strong))" : "var(--tint)"};
+          --org-chip-bg: ${card._orgLit ? "var(--org-field)" : "var(--org-tile-bg, var(--org-inset))"};
+          --org-chip-ink: ${card._orgLit ? "var(--org-color)" : "var(--primary-text-color)"};
+          --org-key-bg: ${card._orgF ? "var(--fill-subtle)" : card._orgDark ? "var(--fill-strong)" : "var(--ha-card-background)"};
+          ${card._orgC ? "--org-row-height: var(--control-height);" : ""}
+          ${card._orgC ? "--org-tile-size: var(--org-toggle-h);" : ""}
+          ${card._orgC ? "--org-tile-radius: calc(var(--radius-small) + 2px);" : ""}
+          ${card._orgC ? "--org-tile-inset: calc((var(--org-row-height) - var(--org-tile-size)) / 2);" : ""}
+          ${card._orgC ? "--org-icon-size: var(--icon-size-xs);" : ""}
+          ${card._orgC ? "--org-name-size: var(--ha-font-size-m);" : ""}
+          ${card._orgC ? "--org-text-gap: calc(var(--org-tile-inset) - var(--ha-space-1));" : ""}
+          ${card._orgC ? "--org-state-display: none;" : ""}
+          ${card._orgC ? "--org-toggle-w: var(--tile-size);" : ""}
+          ${card._orgC ? "--org-toggle-h: var(--icon-size-l);" : ""}
+          ${card._orgC ? "--org-toggle-knob: var(--icon-size-s);" : ""}
+          ${card._orgC ? "--org-toggle-gap: calc((var(--org-row-height) - var(--org-toggle-h)) / 2);" : ""}
+          ${card._orgC ? "--org-text-max: 100%;" : ""}
+        }
+        .bubble-sub-button-icon {
+          --mdc-icon-size: var(--org-icon-size, var(--icon-size-m));
+          color: var(--primary-text-color) !important;
+        }
+        ${card._orgFrame ? `
+        .card-content {
+          display: flex;
+          align-items: center;
+          margin: 0;
+          box-shadow: none;
+          border-radius: var(--ha-card-border-radius);
+        }
+        .card-content:not(:has(.with-bottom-buttons)) {
+          height: var(--org-row-height, calc(var(--tile-size) + 2 * var(--ha-space-4)));
+        }
+        .with-bottom-buttons .bubble-content-container,
+        .with-bottom-buttons .bubble-sub-button-container.fixed-top {
+          height: var(--org-row-height, calc(var(--tile-size) + 2 * var(--ha-space-4)));
+          min-height: 0 !important;
+          margin-top: 0 !important;
+          align-self: flex-start;
+          align-items: center !important;
+        }
+        .bubble-button-card-container,
+        .bubble-container {
+          min-height: 100% !important;
+        }
+        .bubble-container {
+          box-shadow: var(--org-surface-shadow);
+        }
+        .bubble-background {
+          background-color: var(--org-surface) !important;
+        }
+        .bubble-button-background {
+          opacity: 1 !important;
+        }
+        ${card._orgFlatMedia ? `
+        .bubble-background {
+          filter: none !important;
+          opacity: 1 !important;
+        }` : ""}
+        ${card._orgF ? "ha-card .bubble-container { background-color: transparent !important; }" : ""}
+        .bubble-icon-container {
+          min-width: var(--org-tile-size, var(--tile-size)) !important;
+          width: var(--org-tile-size, var(--tile-size)) !important;
+          min-height: var(--org-tile-size, var(--tile-size)) !important;
+          height: var(--org-tile-size, var(--tile-size)) !important;
+          margin: 0 var(--ha-space-1) 0 var(--org-tile-inset, var(--ha-space-4)) !important;
+          border-radius: var(--org-tile-radius, var(--radius-inner)) !important;
+          color: var(--org-chip-ink) !important;
+          background-color: var(--org-chip-bg) !important;
+          box-shadow: var(--org-inset-shadow);
+          transition: var(--transition-interactive);
+        }
+        .bubble-icon,
+        .bubble-media-button-icon,
+        .icon-without-state {
+          --mdc-icon-size: var(--org-icon-size, var(--icon-size-m));
+          color: var(--primary-text-color) !important;
+        }
+        .is-off .bubble-main-icon {
+          opacity: 1 !important;
+        }
+        .bubble-main-icon-container .bubble-icon,
+        .bubble-main-icon-container .bubble-main-icon {
+          color: var(--org-chip-ink) !important;
+        }
+        .bubble-name-container,
+        .bubble-media-info-container {
+          gap: var(--ha-space-1) !important;
+          margin-left: var(--org-text-gap, var(--ha-space-3));
+        }
+        .bubble-name,
+        .bubble-title {
+          font-size: var(--org-name-size, var(--ha-font-size-m));
+          font-weight: var(--ha-font-weight-bold);
+          white-space: nowrap !important;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .bubble-state,
+        .bubble-artist {
+          display: var(--org-state-display, block) !important;
+          max-width: var(--org-text-max, 150px) !important;
+          font-size: var(--ha-font-size-s);
+          font-weight: var(--ha-font-weight-bold);
+          color: var(--secondary-text-color);
+          opacity: 1 !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis;
+        }
+        ` : ""}
+        ha-card .bubble-sub-button {
+          color: var(--primary-text-color);
+        }
+        .bubble-sub-button-name-container {
+          font-size: var(--ha-font-size-s);
+          font-weight: var(--ha-font-weight-medium);
+          white-space: nowrap !important;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        ha-card [class*="bubble-sub-button-slider-"] {
+          height: var(--control-height-mini) !important;
+          min-height: var(--control-height-mini) !important;
+          border-radius: var(--radius-small) !important;
+          background-color: var(--org-inset) !important;
+          box-shadow: var(--card-ring), var(--org-inset-shadow);
+        }
+        ha-card .bubble-range-fill {
+          position: relative;
+        }
+        ha-card .bubble-range-fill::after {
+          content: "";
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          right: var(--ha-space-2);
+          width: 5px;
+          height: var(--icon-size-xs);
+          border-radius: var(--radius-inner);
+          background-color: var(--org-slider-mark);
+          opacity: var(--opacity-strong);
+        }
+        ha-card .bubble-range-fill {
+          background-color: var(--org-slider-fill) !important;
+          opacity: 1 !important;
+        }
+        ha-card [class*="bubble-sub-button-slider-"] .bubble-range-fill {
+          border-radius: var(--radius-small) 4px 4px var(--radius-small) !important;
+        }
+        ha-card .bubble-range-value.in-info-wrapper {
+          font-size: var(--ha-font-size-s);
+        }
+        .bubble-sub-button-bottom-container {
+          width: calc(100% - 2 * var(--ha-space-4)) !important;
+          margin: 0 var(--ha-space-4) var(--ha-space-4) !important;
+        }
+        ha-card .bubble-sub-slider-wrapper,
+        ha-card .bubble-sub-slider-container {
+          height: var(--control-height-mini) !important;
+          min-height: var(--control-height-mini) !important;
+        }
+        ${card._orgT ? `
+        .bubble-sub-button-container {
+          margin-right: var(--org-toggle-gap, calc(var(--ha-space-4) + var(--ha-space-2))) !important;
+          inset-inline-end: 0 !important;
+        }
+        ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          box-sizing: border-box;
+          min-width: unset !important;
+          width: var(--org-toggle-w, calc(var(--tile-size) + var(--ha-space-2))) !important;
+          height: var(--org-toggle-h, var(--control-height-mini)) !important;
+          padding: var(--ha-space-1);
+          border-radius: var(--radius-inner) !important;
+          color: ${card._orgOn ? "var(--text-color-active)" : "var(--primary-text-color)"};
+          background-color: ${card._orgOn ? "var(--fill-active)" : "var(--org-inset)"} !important;
+          box-shadow: var(--card-ring), var(--org-inset-shadow);
+          transition: var(--transition-interactive);
+        }
+        ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) .bubble-sub-button-icon {
+          --mdc-icon-size: var(--org-toggle-knob, var(--icon-size-m));
+          margin-left: ${card._orgOn ? "calc(var(--org-toggle-w, calc(var(--tile-size) + var(--ha-space-2))) - 2 * var(--ha-space-1) - var(--org-toggle-knob, var(--icon-size-m)))" : "0px"} !important;
+          opacity: ${card._orgOn ? "1" : "var(--opacity-quiet)"} !important;
+          color: ${card._orgOn ? "var(--text-color-active)" : "var(--primary-text-color)"} !important;
+          transition: all var(--duration-normal) var(--ease-standard);
+        }` : `
+        ${card._orgFrame ? `
+        ha-card .bubble-sub-button-container {
+          margin-right: var(--org-tile-inset, var(--ha-space-4)) !important;
+          inset-inline-end: 0 !important;
+        }` : ""}
+        ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-sizing: border-box;
+          min-width: var(--org-tile-size, var(--tile-size)) !important;
+          width: auto !important;
+          height: var(--org-tile-size, var(--tile-size)) !important;
+          padding: 0 var(--ha-space-2) !important;
+          border-radius: var(--radius-inner) !important;
+          background: none !important;
+          box-shadow: none !important;
+          transition: var(--transition-interactive);
+        }
+        ha-card .bubble-sub-button.background-on:not([class*="bubble-sub-button-slider-"]),
+        ha-card .bubble-sub-button.background-off:not([class*="bubble-sub-button-slider-"]) {
+          background-color: var(--org-tile-bg, var(--org-inset)) !important;
+          box-shadow: var(--org-inset-shadow) !important;
+        }
+        ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) .bubble-sub-button-icon {
+          --mdc-icon-size: var(--org-icon-size, var(--icon-size-m));
+          margin: 0 !important;
+          color: var(--primary-text-color) !important;
+        }
+        `}
+        ${card._orgG ? `
+        ha-card {
+          --org-group-key: min(var(--control-height-mini), var(--org-tile-size, var(--tile-size)));
+          --org-group-pad: calc((var(--org-tile-size, var(--tile-size)) - var(--org-group-key)) / 2);
+        }
+        ha-card .bubble-sub-button-container {
+          --bubble-sub-button-outline: none;
+          height: var(--org-tile-size, var(--tile-size)) !important;
+          align-items: center;
+          padding: 0 var(--org-group-pad) !important;
+          gap: var(--ha-space-1) !important;
+          background-color: var(--org-inset) !important;
+          box-shadow: var(--org-inset-shadow);
+          border-radius: var(--radius-inner) !important;
+        }
+        ha-card .with-bottom-buttons .bubble-sub-button-container.fixed-top {
+          height: var(--org-tile-size, var(--tile-size)) !important;
+          margin-top: calc((var(--org-row-height, calc(var(--tile-size) + 2 * var(--ha-space-4))) - var(--org-tile-size, var(--tile-size))) / 2) !important;
+          align-self: flex-start;
+        }
+        ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) {
+          box-sizing: border-box;
+          min-width: var(--org-group-key) !important;
+          width: auto !important;
+          height: var(--org-group-key) !important;
+          padding: 0 var(--ha-space-1) !important;
+          border-radius: var(--radius-small) !important;
+          background: none !important;
+          box-shadow: none !important;
+        }
+        ha-card .bubble-sub-button.background-on:not([class*="bubble-sub-button-slider-"]),
+        ha-card .bubble-sub-button.background-off:not([class*="bubble-sub-button-slider-"]) {
+          background-color: var(--org-key-bg) !important;
+        }
+        ha-card .bubble-sub-button:not([class*="bubble-sub-button-slider-"]) .bubble-sub-button-icon {
+          --mdc-icon-size: var(--icon-size-xs);
+          margin: 0 !important;
+        }
+        ha-card .bubble-sub-button-name-container {
+          font-size: var(--ha-font-size-s);
+          font-weight: var(--ha-font-weight-bold);
+        }
+        ` : ""}
+        ${(() => {
+          const look = card._orgLook;
+          if (card._orgT || !look) return "";
+          const auto = !(this.config.modules ?? []).some((m) => m === "origami_fan" || m === "origami_climate");
+          const ids = [entity];
+          const walk = (list) => (Array.isArray(list) ? list : []).forEach((b) => {
+            if (!b || typeof b !== "object") return;
+            if (Array.isArray(b.group)) walk(b.group);
+            if (typeof b.entity === "string" && /^[a-z0-9_]+\.[a-z0-9_]+$/.test(b.entity) && !ids.includes(b.entity)) ids.push(b.entity);
+          });
+          const sb = this.config.sub_button;
+          if (Array.isArray(sb)) walk(sb); else if (sb && typeof sb === "object") { walk(sb.main); walk(sb.bottom); }
+          const keep = ':not(.is-select):not(.readout):not(.plain):not([class*="bubble-sub-button-slider-"])';
+          const link = ':not([data-tap-action*="navigate"]):not([data-tap-action*="more-info"]):not([data-tap-action*="url_path"])';
+          const sel = [];
+          ids.filter((id) => look(id).lit).forEach((id) => {
+            const own = ['[data-entity="' + id + '"]'].concat(id === entity ? [':not([data-entity])', '[data-entity=""]'] : []);
+            own.forEach((o) => {
+              if (auto) sel.push("ha-card .bubble-sub-button:is(.background-on, .background-off)" + o + keep + link);
+              sel.push("ha-card .bubble-sub-button.accent:is(.background-on, .background-off)" + o + keep);
+            });
+          });
+          if (!sel.length) return "";
+          return "    " + sel.join(",\n    ") + " {\n      color: var(--text-color-active) !important;\n      background-color: var(--fill-active) !important;\n    }\n    "
+            + sel.map((s) => s + " .bubble-sub-button-icon").join(",\n    ") + " {\n      color: var(--text-color-active) !important;\n      opacity: 1 !important;\n    }\n";
+        })()}
+        ${(() => {
+          const domain = (entity ?? "").split(".")[0];
+          if (!card._orgFrame || ["light", "media_player", "fan", "climate"].includes(domain)) return "";
+          const el = card.querySelector(".bubble-state");
+          if (!el) return "";
+          const st = hass.states[entity];
+          const w = String(hass.locale?.language ?? hass.language ?? "").startsWith("de")
+            ? { on: "An", off: "Aus", error: "Fehler" }
+            : { on: "On", off: "Off", error: "Error" };
+          const next = !st || ["unavailable", "unknown"].includes(st.state) ? w.error
+            : card._orgOn ? w.on : w.off;
+          if (el.innerText !== next) el.innerText = next;
+          return "";
+        })()}
+  origami_button.yaml: |-
+    origami_button:
+      name: "Origami • Button"
+      version: "1.0.1"
+      supported:
+        - sub-buttons
+      description:
+        "The Button module creates rows and grids of buttons on a sub-buttons card. Put every button in the bottom list
+        under sub_button, and turn on show_name for each one. With Background on, the buttons are filled. With Background
+        off, they are plain text. Setting Columns to 0 sizes the buttons to their text, and 1 to 6 creates an even grid.
+        Active takes a template or plain text and highlights every button whose name or css_class matches it. Separate
+        several values with commas. A button whose entity is on is also highlighted."
+      editor:
+        - name: background
+          label: "Background"
+          selector:
+            boolean: {}
+          default: true
+        - name: align
+          label: "Alignment"
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Left
+                  value: start
+                - label: Center
+                  value: center
+                - label: Right
+                  value: end
+          default: start
+        - name: columns
+          label: "Columns (0 = sized to text)"
+          selector:
+            number:
+              min: 0
+              max: 6
+              step: 1
+              mode: box
+          default: 0
+        - name: muted
+          label: "Muted"
+          selector:
+            boolean: {}
+          default: false
+        - name: icon_size
+          label: "Icon size"
+          selector:
+            text: {}
+          default: "var(--icon-size-2xs)"
+        - name: padding
+          label: "Outer padding"
+          selector:
+            text: {}
+          default: "0"
+        - name: active
+          label: "Active button (template or text)"
+          selector:
+            template: {}
+        - name: active_style
+          label: "Active style"
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Lamp
+                  value: lamp
+                - label: Toggle
+                  value: toggle
+          default: lamp
+        - name: animate
+          label: "Fade in"
+          selector:
+            boolean: {}
+          default: false
+        - name: press
+          label: "Press feedback"
+          selector:
+            boolean: {}
+          default: true
+      code: |
+        ${(() => {
+          const cfg = this.config.origami_button ?? {};
+          const norm = (v) => String(v ?? "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+          const raw = cfg.active ? String((typeof renderTemplate === "function" ? renderTemplate(cfg.active) : cfg.active) ?? "").trim() : "";
+          let list = [];
+          if (raw.startsWith("[")) {
+            try { list = JSON.parse(raw); } catch (e) { list = [raw]; }
+          } else if (raw) {
+            list = raw.split(",");
+          }
+          const classes = (Array.isArray(list) ? list : [list]).map(norm).filter(Boolean);
+          const base = "ha-card .bubble-sub-button-bottom-container .bubble-sub-button";
+          const sel = [base + ".background-on"].concat(classes.map((c) => base + "." + CSS.escape(c)));
+          const align = ["start", "center", "end"].includes(cfg.align) ? cfg.align : "start";
+          const cols = Math.max(0, Math.min(6, parseInt(cfg.columns ?? 0, 10) || 0));
+          const pad = String(cfg.padding ?? "").trim();
+          const size = String(cfg.icon_size ?? "").trim();
+          card._orgB = {
+            bg: cfg.background ?? true,
+            muted: !!cfg.muted,
+            toggle: cfg.active_style === "toggle",
+            animate: !!cfg.animate,
+            press: cfg.press ?? true,
+            cols,
+            pad: pad || "0",
+            size: size || "var(--icon-size-2xs)",
+            row: { start: "flex-start", center: "center", end: "flex-end" }[align],
+            rev: { start: "flex-end", center: "center", end: "flex-start" }[align],
+            active: sel.join(",\n    ")
+          };
+          return "";
+        })()}
+        ha-card {
+          --org-btn-height: ${card._orgB.bg ? "var(--control-height-icon)" : "auto"};
+          --org-btn-padding: ${card._orgB.bg ? "0 var(--ha-space-4)" : "var(--ha-space-2) var(--ha-space-4)"};
+          --org-btn-bg: ${card._orgB.bg ? "var(--fill-subtle)" : "transparent"};
+          --org-btn-opacity: ${card._orgB.muted ? "var(--opacity-muted)" : "1"};
+          --org-btn-icon-size: ${card._orgB.size};
+        }
+        ha-card .bubble-container {
+          display: block !important;
+          height: auto !important;
+          min-height: 0 !important;
+          padding: ${card._orgB.pad} !important;
+          box-sizing: border-box !important;
+          background: none !important;
+          border: none !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          overflow: visible !important;
+        }
+        ha-card .bubble-container > .bubble-sub-button-container {
+          display: none !important;
+        }
+        ha-card .bubble-sub-button-bottom-container {
+          position: static !important;
+          inset: auto !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          gap: var(--ha-space-2) !important;
+          pointer-events: auto !important;
+          ${card._orgB.cols ? `display: grid !important;
+          grid-template-columns: repeat(${card._orgB.cols}, minmax(0, 1fr)) !important;` : `display: flex !important;
+          flex-wrap: wrap !important;
+          justify-content: ${card._orgB.row} !important;`}
+          ${card._orgB.animate ? `opacity: 0;
+          transform: translateY(10px);
+          animation: origami-button-in var(--duration-slow) ease-in forwards;` : ""}
+        }
+        @keyframes origami-button-in {
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        ha-card .bubble-sub-button-bottom-container .bubble-sub-button-alignment-lane,
+        ha-card .bubble-sub-button-bottom-container .bubble-sub-button-group:not(.hidden) {
+          display: contents !important;
+        }
+        ha-card .bubble-sub-button-bottom-container .bubble-sub-button {
+          box-sizing: border-box !important;
+          ${card._orgB.cols ? "width: auto !important;" : "flex: 0 0 auto !important;\n      width: auto !important;"}
+          min-width: 0 !important;
+          height: var(--org-btn-height) !important;
+          padding: var(--org-btn-padding) !important;
+          justify-content: ${card._orgB.rev} !important;
+          align-items: center !important;
+          gap: 0 !important;
+          border-radius: var(--radius-inner) !important;
+          background: var(--org-btn-bg) !important;
+          box-shadow: none !important;
+          color: var(--secondary-text-color) !important;
+          font-size: var(--ha-font-size-m) !important;
+          white-space: nowrap !important;
+          transition: var(--transition-interactive) !important;
+        }
+        ha-card .bubble-sub-button-bottom-container .bubble-sub-button.content-icon-right {
+          justify-content: ${card._orgB.row} !important;
+        }
+        ${card._orgB.press ? `ha-card .bubble-sub-button-bottom-container .bubble-sub-button.bubble-action-enabled:active {
+          transform: scale(var(--press-scale));
+        }` : ""}
+        ha-card .bubble-sub-button-bottom-container .bubble-sub-button-name-container {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap !important;
+          font-size: var(--ha-font-size-s) !important;
+          font-weight: var(--ha-font-weight-medium) !important;
+          color: inherit !important;
+          opacity: var(--org-btn-opacity) !important;
+        }
+        ha-card .bubble-sub-button-bottom-container .bubble-sub-button .bubble-sub-button-icon:not(.hidden) {
+          display: block !important;
+          flex-shrink: 0;
+          --mdc-icon-size: var(--org-btn-icon-size) !important;
+          margin: 0 var(--ha-space-2) 0 0 !important;
+          color: inherit !important;
+          opacity: var(--org-btn-opacity) !important;
+        }
+        ha-card .bubble-sub-button-bottom-container .bubble-sub-button.content-icon-right .bubble-sub-button-icon:not(.hidden) {
+          margin: 0 0 0 var(--ha-space-2) !important;
+        }
+        ha-card .bubble-sub-button-bottom-container .bubble-sub-button .bubble-sub-button-icon.icon-without-state:not(.hidden) {
+          margin: 0 !important;
+        }
+        ${card._orgB.active} {
+          ${card._orgB.bg ? (card._orgB.toggle ? "background: var(--toggle-on) !important;" : "background: var(--lamp-tint) !important;") : ""}
+          color: ${card._orgB.toggle ? "var(--ha-card-background)" : "var(--primary-text-color)"} !important;
+        }
+        ${card._orgB.active.split(",\n    ").map((s) => s + " .bubble-sub-button-icon:not(.hidden)").join(",\n    ")} {
+          color: ${card._orgB.toggle ? "var(--ha-card-background)" : "var(--lamp-color)"} !important;
+          opacity: 1 !important;
+        }
+        ${card._orgB.active.split(",\n    ").map((s) => s + " .bubble-sub-button-name-container").join(",\n    ")} {
+          opacity: 1 !important;
+          ${card._orgB.toggle ? "" : "font-weight: var(--ha-font-weight-bold) !important;"}
+        }
+  origami_climate.yaml: |-
+    origami_climate:
+      name: Origami • Climate
+      version: "2.0.2"
+      supported:
+        - button
+      description:
+        "The Climate module styles thermostat cards together with Base. A card counts as on only while hvac_action shows
+        that the thermostat is working. A selected mode alone does not count. An idle thermostat shows Auto, and a
+        thermostat that is off shows Off. The icon and state line follow what the thermostat is doing, and Base sets the
+        color. Set state_content to an empty list so that the module controls the state line."
+      code: |-
+        ${(() => {
+          card._orgStateClaim = hass;
+          const st = hass.states[entity];
+          const a = st?.attributes ?? {};
+          const mode = st?.state ?? "unknown";
+          const act = String(a.hvac_action ?? "").toLowerCase();
+          const dead = ["unavailable", "unknown"].includes(mode);
+          const off = mode === "off" || act === "off";
+          const busy = ["heating", "preheating", "cooling", "drying", "fan", "defrosting"];
+          card._orgCl = { st, a, mode, act, dead, off, active: !off && !dead && busy.includes(act) };
+          return "";
+        })()}
+        ha-card .bubble-icon-container.bubble-main-icon-container .bubble-icon,
+        ha-card .bubble-icon-container.bubble-main-icon-container .bubble-main-icon {
+          opacity: ${card._orgCl.off ? "var(--opacity-muted)" : "1"} !important;
+        }
+        ${(() => {
+          const c = card._orgCl;
+          const map = {
+            heating: "mdi:radiator", preheating: "mdi:radiator", cooling: "mdi:snowflake",
+            drying: "mdi:water-percent", fan: "mdi:fan", defrosting: "mdi:snowflake-melt"
+          };
+          const next = c.dead ? "mdi:radiator-off"
+            : c.off ? "mdi:radiator-off"
+            : map[c.act] ?? "mdi:thermostat";
+          if (icon && icon.getAttribute("icon") !== next) icon.setAttribute("icon", next);
+          return "";
+        })()}
+        ${(() => {
+          const el = card.querySelector(".bubble-state");
+          if (!el) return "";
+          const c = card._orgCl;
+          const de = String(hass.locale?.language ?? hass.language ?? "").startsWith("de");
+          const words = de ? {
+            heating: "Heizt", preheating: "Heizt vor", cooling: "Kühlt",
+            drying: "Trocknet", fan: "Lüftet", defrosting: "Taut ab"
+          } : {
+            heating: "Heating", preheating: "Preheating", cooling: "Cooling",
+            drying: "Drying", fan: "Fan", defrosting: "Defrosting"
+          };
+          const next = c.dead ? (de ? "Fehler" : "Error")
+            : c.off ? (de ? "Aus" : "Off")
+            : words[c.act] ?? "Auto";
+          if (el.innerText !== next) card.querySelector('.bubble-state').innerText = next;
+          return "";
+        })()}
+        ${(() => {
+          const el = card.querySelector(".readout .bubble-sub-button-name-container");
+          const t = card._orgCl.a.temperature;
+          if (!el || t == null) return "";
+          const next = Math.round(Number(t)) + "°";
+          if (el.innerText !== next) el.innerText = next;
+          return "";
+        })()}
+  origami_fan.yaml: |-
+    origami_fan:
+      name: Origami • Fan
+      version: "2.4.2"
+      supported:
+        - button
+      description:
+        "The Fan module styles fan cards. It works with Base and its Grouped sub-buttons option. The icon spins at the fan's
+        speed. The power button and the button for the current speed are filled while the fan runs. Sub-button 1 is the
+        power button, and the next sub-buttons are the speed buttons."
+      code: |-
+        ${(() => {
+          card._orgStateClaim = hass;
+          const st = hass.states[entity];
+          const on = st?.state === "on";
+          const pct = Math.min(Math.max(Number(st?.attributes?.percentage) || 0, 0), 100);
+          card._orgFanSpin = on ? "origami-fan-spin " + (2.8 - pct / 100 * 2.1).toFixed(2) + "s linear infinite" : "none";
+          const level = !on ? 0 : pct <= 34 ? 1 : pct <= 67 ? 2 : 3;
+          card._orgFanPower = on ? ".bubble-sub-button.bubble-sub-button-1:not([class*='bubble-sub-button-slider-'])" : ".origami-inactive";
+          card._orgFanStep = level ? ".bubble-sub-button.bubble-sub-button-" + (level + 1) + ":not([class*='bubble-sub-button-slider-'])" : ".origami-inactive";
+          return "";
+        })()}
+        @keyframes origami-fan-spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        ha-card .bubble-icon {
+          animation: ${card._orgFanSpin} !important;
+          transform-origin: center;
+        }
+        ha-card .bubble-sub-button.background-on:not([class*='bubble-sub-button-slider-']),
+        ha-card .bubble-sub-button.background-off:not([class*='bubble-sub-button-slider-']) {
+          background-color: ${this.config.origami_base?.group ? "var(--org-key-bg)" : "var(--org-tile-bg, var(--org-inset))"} !important;
+        }
+        ha-card .bubble-sub-button:not([class*='bubble-sub-button-slider-']) .bubble-sub-button-icon {
+          color: var(--primary-text-color) !important;
+        }
+        ha-card ${card._orgFanPower},
+        ha-card ${card._orgFanStep} {
+          color: var(--text-color-active);
+          background-color: var(--fill-active) !important;
+          box-shadow: none !important;
+        }
+        ha-card ${card._orgFanPower} .bubble-sub-button-icon,
+        ha-card ${card._orgFanStep} .bubble-sub-button-icon,
+        ha-card ${card._orgFanStep} .bubble-sub-button-name-container {
+          color: var(--text-color-active) !important;
+          opacity: 1 !important;
+        }
+        ${(() => {
+          const el = card.querySelector(".bubble-state");
+          if (!el) return "";
+          const st = hass.states[entity];
+          const pct = Math.round(Number(st?.attributes?.percentage) || 0);
+          const w = String(hass.locale?.language ?? hass.language ?? "").startsWith("de")
+            ? { on: "An", off: "Aus", error: "Fehler" }
+            : { on: "On", off: "Off", error: "Error" };
+          const next = !st || ["unavailable", "unknown"].includes(st.state) ? w.error
+            : st.state !== "on" ? w.off
+            : pct ? pct + " %"
+            : w.on;
+          if (el.innerText !== next) card.querySelector('.bubble-state').innerText = next;
+          return "";
+        })()}
+  origami_header.yaml: |-
+    origami_header:
+      name: "Origami • Header"
+      version: "1.4.1"
+      supported:
+        - separator
+      description:
+        "The Header module creates a section header on a separator card. The card's name is the title, and the sub-buttons
+        are the values on the right. Setting Value style to Chips turns the values into pills. A sub-button with
+        show_background turned off stays plain. Each sub-button can have an origami_header key with name, icon, color and
+        background. These keys accept a value, a map from the entity's state to a value, or JavaScript in ${ }. The header
+        leaves 24 px of space above it and 8 px below it, and it sets its own height."
+      editor:
+        - name: value_style
+          label: "Value style"
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Text
+                  value: text
+                - label: Chips
+                  value: chip
+          default: text
+        - name: weight
+          label: "Value weight"
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Bold
+                  value: bold
+                - label: Medium
+                  value: medium
+                - label: Regular
+                  value: regular
+          default: bold
+        - name: icon_color
+          label: "Icon color (color or template)"
+          selector:
+            template: {}
+        - name: icon_size
+          label: "Icon size"
+          selector:
+            text: {}
+          default: "var(--dot-size, 12px)"
+        - name: value_max_width
+          label: "Value max width (for example 50%)"
+          selector:
+            text: {}
+      code: |
+        ${(() => {
+          // A header is taller than the separator's default 0.8 grid rows, so it asks for auto height unless rows are set
+          const setRows = this.config.grid_options?.rows ?? this.config.rows;
+          if (setRows === undefined && !this._orgHAutoRows && typeof this.getGridOptions === "function") {
+            const base = this.getGridOptions.bind(this);
+            this.getGridOptions = () => ({ ...base(), rows: "auto", min_rows: undefined, max_rows: undefined });
+            this._orgHAutoRows = true;
+            requestAnimationFrame(() => this.dispatchEvent(new CustomEvent("card-updated", { bubbles: true, composed: true })));
+          }
+          const cfg = this.config.origami_header ?? {};
+          const raw = cfg.icon_color ? (typeof renderTemplate === "function" ? renderTemplate(cfg.icon_color) : cfg.icon_color) : "";
+          const size = String(cfg.icon_size ?? "").trim();
+          const max = String(cfg.value_max_width ?? "").trim();
+          card._orgH = {
+            weight: cfg.weight === "regular" ? "var(--ha-font-weight-normal)" : cfg.weight === "medium" ? "var(--ha-font-weight-medium)" : "var(--ha-font-weight-bold)",
+            color: String(raw ?? "").trim() || "currentcolor",
+            size: size || "var(--dot-size, 12px)",
+            max,
+            chip: cfg.value_style === "chip"
+          };
+          const S = hass.states;
+          const sb = this.config.sub_button;
+          const flat = (list) => [
+            ...list.filter((i) => Array.isArray(i?.group)).flatMap((i) => i.group.filter(Boolean)),
+            ...list.filter((i) => i && !Array.isArray(i.group))
+          ];
+          const items = [
+            ...flat(Array.isArray(sb) ? sb : (sb?.main ?? [])),
+            ...flat(Array.isArray(sb) ? [] : (sb?.bottom ?? []))
+          ];
+          const now = new Date();
+          const states = (id) => S[id]?.state ?? "unknown";
+          const minutesUntil = (id) => {
+            const v = String(states(id));
+            const t = v.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+            let end;
+            if (t) {
+              end = new Date(now);
+              end.setHours(Number(t[1]), Number(t[2]), Number(t[3] ?? 0), 0);
+              if (end < now) end.setDate(end.getDate() + 1);
+            } else {
+              end = new Date(v.replace(" ", "T"));
+            }
+            const m = Math.round((end - now) / 60000);
+            return Number.isNaN(m) ? "" : m;
+          };
+          const fill = (strings, ...values) => values.some((v) => v === null || v === undefined || v === "" || Number.isNaN(v))
+            ? ""
+            : strings.reduce((out, s, i) => out + s + (i < values.length ? values[i] : ""), "");
+          const fns = card._orgHFns ?? (card._orgHFns = new Map());
+          const run = (value, ctx) => {
+            if (typeof value !== "string") return value;
+            if (/\{(\{|%)/.test(value)) return renderTemplate(value, ctx.entity);
+            if (!value.includes("${")) return value;
+            let fn = fns.get(value);
+            if (!fn) {
+              try {
+                fn = new Function("fill", "hass", "entity", "state", "attr", "states", "minutesUntil", "return fill`" + value + "`;");
+              } catch (e) {
+                fn = () => "";
+              }
+              fns.set(value, fn);
+            }
+            try {
+              return fn(fill, hass, ctx.entity, ctx.state, ctx.attr, states, minutesUntil);
+            } catch (e) {
+              return "";
+            }
+          };
+          const pick = (option, ctx) => {
+            if (option === undefined || option === null) return "";
+            if (typeof option === "object" && !Array.isArray(option)) {
+              const key = String(ctx.state).toLowerCase();
+              const hit = Object.keys(option).find((k) => k.toLowerCase() === key);
+              return hit === undefined ? "" : run(option[hit], ctx);
+            }
+            return run(option, ctx);
+          };
+          const has = (v) => v !== undefined && v !== null && String(v).trim() !== "";
+          const q = (v) => JSON.stringify(String(v));
+          const rules = [];
+          card._orgHIcons = [];
+          items.forEach((item, i) => {
+            const opt = item.origami_header;
+            if (!opt) return;
+            const entity = item.entity ?? this.config.entity;
+            const obj = S[entity];
+            const ctx = { entity, state: obj?.state ?? "unknown", attr: obj?.attributes ?? {} };
+            const sel = "ha-card .bubble-sub-button-container .bubble-sub-button.bubble-sub-button-" + (i + 1);
+            const name = pick(opt.name, ctx);
+            const icon = pick(opt.icon, ctx);
+            const color = pick(opt.color, ctx);
+            const background = pick(opt.background, ctx);
+            if (has(name)) {
+              rules.push(sel + " .bubble-sub-button-name-container, " + sel + " .bubble-sub-button-name-container:empty { display: flex !important; font-size: 0 !important; }");
+              rules.push(sel + " .bubble-sub-button-name-container::before { content: " + q(name) + "; display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: var(--ha-font-size-m); }");
+              if (!card._orgH.chip) rules.push(sel + ":not(.content-icon-right) .bubble-sub-button-icon.icon-without-state:not(.hidden) { margin-inline-end: var(--ha-space-1) !important; }");
+            }
+            if (has(color)) {
+              rules.push(sel + " { color: " + color + " !important; }");
+              rules.push(sel + " .bubble-sub-button-icon:not(.hidden) { color: " + color + " !important; }");
+            }
+            if (has(background)) rules.push(sel + " { --org-header-chip: " + background + "; }");
+            if (has(icon)) card._orgHIcons.push([i + 1, String(icon)]);
+          });
+          card._orgHCss = rules.join("\n");
+          return "";
+        })()}
+        ha-card {
+          --org-header-weight: ${card._orgH.weight};
+          --org-header-icon-color: ${card._orgH.color};
+          --org-header-icon-size: ${card._orgH.size};
+        }
+        ha-card .bubble-container {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: flex-start !important;
+          gap: 0 !important;
+          height: auto !important;
+          min-height: 0 !important;
+          padding: var(--ha-space-6, 24px) 0 var(--ha-space-2) 0 !important;
+          background: none !important;
+          border: none !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          overflow: visible !important;
+        }
+        ha-card .bubble-container > .bubble-icon,
+        ha-card .bubble-container > .bubble-line {
+          display: none !important;
+        }
+        ha-card .bubble-container > .bubble-name {
+          display: block !important;
+          flex: 0 1 auto;
+          min-width: 0;
+          margin: 0 !important;
+          padding: 0 !important;
+          font-size: var(--ha-font-size-l) !important;
+          font-weight: var(--ha-font-weight-bold) !important;
+          color: var(--primary-text-color) !important;
+          white-space: nowrap !important;
+          overflow-x: clip;
+          overflow-y: visible;
+          text-overflow: ellipsis;
+        }
+        ha-card .bubble-sub-button-container {
+          position: relative !important;
+          inset-inline-end: 0 !important;
+          flex: 1 1 0% !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: flex-end !important;
+          gap: var(--ha-space-3) !important;
+          height: auto !important;
+          margin: 0 0 0 var(--ha-space-3) !important;
+          padding: 0 !important;
+          background: none !important;
+        }
+        ha-card .bubble-sub-button-container .bubble-sub-button {
+          width: auto !important;
+          min-width: 0 !important;
+          height: auto !important;
+          padding: 0 !important;
+          border-radius: 0 !important;
+          background: none !important;
+          box-shadow: none !important;
+          font-size: var(--ha-font-size-m) !important;
+          font-weight: var(--org-header-weight) !important;
+          color: var(--secondary-text-color) !important;
+          white-space: nowrap !important;
+        }
+        ha-card .bubble-sub-button-container .bubble-sub-button:not(.bubble-action-enabled) {
+          pointer-events: none;
+        }
+        ha-card .bubble-sub-button-container .bubble-sub-button-name-container {
+          font-size: inherit !important;
+          font-weight: inherit !important;
+          color: inherit !important;
+          opacity: 1 !important;
+        }
+        ha-card .bubble-sub-button-container .bubble-sub-button .bubble-sub-button-icon:not(.hidden) {
+          display: block !important;
+          flex-shrink: 0;
+          font-weight: var(--ha-font-weight-normal) !important;
+          --mdc-icon-size: var(--org-header-icon-size) !important;
+          margin: -2px var(--ha-space-1) 0 0 !important;
+          color: var(--org-header-icon-color) !important;
+          opacity: 1 !important;
+        }
+        ha-card .bubble-sub-button-container .bubble-sub-button.content-icon-right .bubble-sub-button-icon:not(.hidden) {
+          margin: 0 !important;
+        }
+        ha-card .bubble-sub-button-container .bubble-sub-button .bubble-sub-button-icon.icon-without-state:not(.hidden) {
+          margin: -2px 0 0 0 !important;
+        }
+        ${card._orgH.max ? `
+        ha-card .bubble-sub-button-container {
+          flex: 0 1 auto !important;
+          min-width: 0 !important;
+          max-width: ${card._orgH.max} !important;
+          margin: 0 0 0 auto !important;
+        }
+        ha-card .bubble-sub-button-container .bubble-sub-button {
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+        ha-card .bubble-sub-button-container .bubble-sub-button-name-container {
+          display: block !important;
+          min-width: 0 !important;
+          overflow: hidden !important;
+          white-space: nowrap !important;
+          text-overflow: ellipsis !important;
+          -webkit-line-clamp: unset !important;
+          line-height: inherit !important;
+        }
+        ` : ""}
+        ${card._orgH.chip ? `
+        ha-card .bubble-sub-button-container {
+          gap: var(--ha-space-2) !important;
+        }
+        ha-card .bubble-sub-button-container .bubble-sub-button.background-off,
+        ha-card .bubble-sub-button-container .bubble-sub-button.background-on {
+          gap: var(--ha-space-1) !important;
+          min-height: var(--control-height-mini) !important;
+          padding: 0 var(--ha-space-3) !important;
+          border-radius: var(--radius-inner) !important;
+          background-color: var(--org-header-chip, var(--fill-subtle)) !important;
+          color: var(--primary-text-color) !important;
+          font-variant-numeric: tabular-nums;
+        }
+        ha-card .bubble-sub-button-container .bubble-sub-button.background-off .bubble-sub-button-icon:not(.hidden),
+        ha-card .bubble-sub-button-container .bubble-sub-button.background-on .bubble-sub-button-icon:not(.hidden) {
+          --mdc-icon-size: var(--icon-size-2xs) !important;
+          margin: 0 !important;
+          color: inherit !important;
+        }
+        ha-card .bubble-sub-button-container .bubble-sub-button.background-off .bubble-sub-button-name-container:empty,
+        ha-card .bubble-sub-button-container .bubble-sub-button.background-on .bubble-sub-button-name-container:empty {
+          display: none !important;
+        }
+        ` : ""}
+        ${card._orgHCss}
+        ${(() => {
+          (card._orgHIcons ?? []).forEach(([n, icon]) => {
+            const el = card.querySelector(".bubble-sub-button-container .bubble-sub-button-" + n + " .bubble-sub-button-icon");
+            if (el && el.getAttribute("icon") !== icon) el.setAttribute("icon", icon);
+          });
+          return "";
+        })()}
+  origami_light.yaml: |-
+    origami_light:
+      name: "Origami • Light"
+      version: "5.1.3"
+      supported:
+        - button
+      description:
+        "The Light module styles light cards together with Base. Set rows to 1.375 on regular cards and to 1 on compact
+        cards, including cards in pop-ups. Base sets the color. This module colors the slider, places the brightness value
+        and sets the state line's text. In dark mode, the fill stays neutral and only the slider mark is colored, because
+        Bubble Card keeps light text on the fill."
+      code: |
+        ha-card {
+          --org-slider-fill: ${hass.themes?.darkMode ? "color-mix(in srgb, var(--org-color) var(--tint-strength), color-mix(in srgb, var(--fill-base) 38%, var(--ha-card-background)))" : "color-mix(in srgb, var(--org-color) var(--fill-strength), var(--ha-card-background))"};
+          --org-slider-mark: var(--org-color);
+        }
+        .bubble-range-value {
+          right: calc(var(--tile-size) + var(--ha-space-3));
+          font-size: var(--ha-font-size-s);
+          font-weight: var(--ha-font-weight-bold);
+        }
+        ${(() => {
+          const el = card.querySelector(".bubble-state");
+          if (!el) return "";
+          const st = hass.states[entity];
+          const bri = st?.attributes?.brightness;
+          const w = String(hass.locale?.language ?? hass.language ?? "").startsWith("de")
+            ? { on: "An", off: "Aus", error: "Fehler" }
+            : { on: "On", off: "Off", error: "Error" };
+          const next = !st || ["unavailable", "unknown"].includes(st.state) ? w.error
+            : st.state !== "on" ? w.off
+            : bri != null ? w.on + " • " + Math.round((bri / 255) * 100) + "%"
+            : w.on;
+          if (el.innerText !== next) el.innerText = next;
+          return "";
+        })()}
+  origami_media.yaml: |-
+    origami_media:
+      name: "Origami • Media"
+      version: "4.5.3"
+      supported:
+        - media-player
+      description:
+        "The Media module styles media player cards together with Base. Turn on Compact for slim rows. With an artwork
+        entity or an app entity, the card is in TV mode. Without either, the card is in speaker mode. In TV mode, the card's
+        entity decides whether the TV is on, and the app entity takes over when that entity is unavailable. The artwork
+        entity adds the title, the app and a picture while it is playing. Cards with a slider at the bottom need rows set to
+        2.2. When the Base option for filled play and power buttons is on, the play button is filled while media is playing,
+        and the power button is filled while the player is on."
+      editor:
+        - name: compact
+          label: Compact
+          selector:
+            boolean: {}
+        - name: collapse
+          label: "Hide the slider when inactive"
+          selector:
+            boolean: {}
+        - name: art_entity
+          label: "Artwork entity (optional, enables TV mode)"
+          selector:
+            entity:
+              domain: media_player
+        - name: app_entity
+          label: "App entity (optional, enables TV mode)"
+          selector:
+            entity:
+              domain: media_player
+      code: |
+        ${(() => {
+          const s = hass.states;
+          const cfg = this.config.origami_media ?? {};
+          const ent = s[entity] ?? {};
+          const artEnt = cfg.art_entity ? (s[cfg.art_entity] ?? null) : null;
+          const appEnt = cfg.app_entity ? (s[cfg.app_entity] ?? null) : null;
+          const tvMode = !!(cfg.art_entity || cfg.app_entity);
+          const live = (e) => e && e.state && !["unavailable", "unknown"].includes(e.state) ? e.state : null;
+          const entSt = live(ent);
+          const appSt = live(appEnt);
+          const artSt = live(artEnt);
+          const castActive = ["playing", "paused", "buffering"].includes(artSt);
+          const power = entSt ? !["off", "standby"].includes(entSt)
+            : appSt ? appSt !== "off"
+            : artSt ? castActive
+            : null;
+          const masterId = s["sensor.linkplay_master"]?.state;
+          const base = !tvMode && ent.attributes?.group_role === "slave" && masterId ? (s[masterId] ?? ent) : ent;
+          const lpArt = s["sensor.linkplay_" + ((entity ?? "").split(".")[1] ?? "")]?.attributes?.entity_picture;
+          const tvArt = power !== true ? null
+            : [castActive ? artEnt : null, appSt ? appEnt : null, entSt ? ent : null]
+              .map((e) => e?.attributes?.entity_picture)
+              .find((p) => typeof p === "string" && p.length > 0);
+          const art = tvMode ? tvArt : lpArt;
+          const src = (base.attributes?.source ?? "").toLowerCase();
+          card._orgMC = !!cfg.compact;
+          card._orgM = {
+            de: String(hass.locale?.language ?? hass.language ?? "").startsWith("de"),
+            ent,
+            base,
+            src,
+            tvMode,
+            artEnt,
+            appEnt,
+            entSt,
+            appSt,
+            artSt,
+            castActive,
+            power,
+            collapse: !!cfg.collapse,
+            solid: !!(this.config.origami_base?.solid_controls ?? cfg.solid_controls),
+            entSrc: (ent.attributes?.source ?? "").toLowerCase(),
+            art: typeof art === "string" ? 'url("' + art + '")' : "none",
+            on: tvMode ? power === true : (["playing", "on"].includes(base.state) || ["bluetooth", "optical"].includes(src)),
+            playing: ["playing", "buffering"].includes(tvMode ? (entSt ?? appSt ?? "") : (base.state ?? "")),
+            physical: ["bluetooth", "optical", "optical-in", "line in", "line-in", "hdmi", "coaxial", "tv", "aux", "phono"].includes(src)
+          };
+          return "";
+        })()}
+        ha-card {
+          --org-color: var(--state-media_player-active-color);
+          --org-chip-bg: ${card._orgM.on ? "var(--org-field)" : "var(--org-tile-bg, var(--org-inset))"};
+          --org-chip-ink: ${card._orgM.on ? "var(--org-color)" : "var(--primary-text-color)"};
+          ${card._orgMC ? "--org-row-height: var(--control-height);" : ""}
+          ${card._orgMC ? "--org-tile-size: var(--org-toggle-h);" : ""}
+          ${card._orgMC ? "--org-tile-radius: calc(var(--radius-small) + 2px);" : ""}
+          ${card._orgMC ? "--org-tile-inset: calc((var(--org-row-height) - var(--org-tile-size)) / 2);" : ""}
+          ${card._orgMC ? "--org-icon-size: var(--icon-size-xs);" : ""}
+          ${card._orgMC ? "--org-name-size: var(--ha-font-size-m);" : ""}
+          ${card._orgMC ? "--org-text-gap: calc(var(--org-tile-inset) - var(--ha-space-1));" : ""}
+          ${card._orgMC ? "--org-state-display: none;" : ""}
+          ${card._orgMC ? "--org-text-max: 100%;" : ""}
+          ${card._orgMC ? "--org-toggle-w: var(--tile-size);" : ""}
+          ${card._orgMC ? "--org-toggle-h: var(--icon-size-l);" : ""}
+          ${card._orgMC ? "--org-toggle-knob: var(--icon-size-s);" : ""}
+          ${card._orgMC ? "--org-toggle-gap: calc((var(--org-row-height) - var(--org-toggle-h)) / 2);" : ""}
+        }
+        ${card._orgM.collapse && !card._orgM.on ? `
+        .bubble-container,
+        .bubble-media-player-container {
+          height: var(--org-row-height, calc(var(--tile-size) + 2 * var(--ha-space-4))) !important;
+          min-height: 0 !important;
+          max-height: var(--org-row-height, calc(var(--tile-size) + 2 * var(--ha-space-4))) !important;
+          overflow: hidden !important;
+        }
+        .bubble-sub-button-bottom-container,
+        .with-bottom-buttons .bubble-sub-button-container:not(.fixed-top) {
+          display: none !important;
+        }
+        ` : ""}
+        .bubble-icon-container {
+          position: relative;
+          pointer-events: none;
+        }
+        .bubble-icon-container,
+        .bubble-main-icon-container {
+          overflow: visible;
+          background-image: none !important;
+        }
+        .bubble-icon-container.bubble-main-icon-container {
+          background-color: var(--org-chip-bg) !important;
+        }
+        .bubble-main-icon-container::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          z-index: 2;
+          border-radius: var(--org-tile-radius, var(--radius-inner));
+          background-image: ${card._orgM.art};
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+        }
+        .bubble-media-player .bubble-entity-picture {
+          display: none !important;
+        }
+        .bubble-main-icon-container .bubble-icon {
+          color: var(--org-chip-ink) !important;
+          transition: opacity var(--duration-normal) ease, color var(--duration-normal) ease;
+          opacity: ${(() => {
+            if (card._orgM.tvMode) return card._orgM.art !== "none" ? 0 : 1;
+            const a = card._orgM.ent.attributes ?? {};
+            const dlna = hass.states[entity + "_dlna"]?.attributes ?? {};
+            if (a.source?.toLowerCase() === "optical" || a.entity_picture) return 1;
+            if (dlna.entity_picture && dlna.source?.toLowerCase() === "dlna") return 0;
+            return 1;
+          })()} !important;
+        }
+        .bubble-name,
+        .bubble-title,
+        .bubble-state,
+        .bubble-artist {
+          display: block !important;
+          max-width: var(--org-text-max, 150px) !important;
+          margin: 0 !important;
+          line-height: var(--ha-line-height-normal);
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis;
+        }
+        .bubble-state,
+        .bubble-artist {
+          display: var(--org-state-display, block) !important;
+        }
+        .bubble-sub-button-container {
+          gap: var(--ha-space-2) !important;
+          padding: 0;
+          margin-right: var(--ha-space-4);
+        }
+        .bubble-sub-button,
+        .bubble-media-button {
+          min-width: var(--tile-size) !important;
+          width: var(--tile-size) !important;
+          height: var(--tile-size) !important;
+          border-radius: var(--radius-inner) !important;
+          transition: var(--transition-interactive);
+        }
+        .bubble-media-button {
+          background-color: transparent !important;
+        }
+        ${card._orgM.solid && card._orgM.playing ? `
+        .bubble-play-pause-button {
+          color: var(--text-color-active);
+          background-color: var(--fill-active) !important;
+        }
+        .bubble-play-pause-button .bubble-media-button-icon {
+          color: var(--text-color-active) !important;
+          --icon-primary-color: var(--text-color-active) !important;
+        }
+        ` : ""}
+        ${card._orgM.solid && card._orgM.on ? `
+        .bubble-power-button {
+          color: var(--text-color-active);
+          background-color: var(--fill-active) !important;
+        }
+        .bubble-power-button .bubble-media-button-icon {
+          color: var(--text-color-active) !important;
+          --icon-primary-color: var(--text-color-active) !important;
+        }
+        ` : ""}
+        ${(card._orgM.tvMode ? !card._orgM.on : ["off", "standby", "idle", "unavailable", "unknown"].includes(hass.states[entity]?.state)) ? ".bubble-entity-picture { display: none !important; }" : ""}
+        ${card._orgM.tvMode ? ".bubble-artist { display: none !important; }" : ""}
+        ${(() => {
+          if (card._orgM.tvMode) return "";
+          const m = card._orgM;
+          const next = m.entSrc === "bluetooth" ? "mdi:speaker-bluetooth"
+            : m.entSrc === "optical" ? "mdi:television-speaker"
+            : ["off", "standby", "unavailable", "unknown"].includes(m.ent.state) ? "mdi:speaker-off"
+            : m.ent.state === "playing" ? "mdi:speaker-pause"
+            : "mdi:speaker";
+          if (icon.getAttribute("icon") !== next) icon.setAttribute("icon", next);
+          return "";
+        })()}
+        ${(() => {
+          if (card._orgM.tvMode) return "";
+          const el = card.querySelector(".bubble-state");
+          if (!el) return "";
+          const m = card._orgM;
+          const map = m.de ? {
+            playing: "Wiedergabe", paused: "Aus", idle: "Aus", off: "Aus",
+            standby: "Aus", unavailable: "Fehler", unknown: "Fehler"
+          } : {
+            playing: "Playing", paused: "Off", idle: "Off", off: "Off",
+            standby: "Off", unavailable: "Error", unknown: "Error"
+          };
+          const next = m.entSrc === "optical" ? (m.de ? "TV-Eingang" : "TV input")
+            : m.entSrc === "bluetooth" ? "Bluetooth"
+            : map[m.ent.state] ?? m.ent.state ?? "";
+          if (el.innerText !== next) el.innerText = next;
+          return "";
+        })()}
+        ${(() => {
+          if (card._orgM.tvMode) return "";
+          const el = card.querySelector(".bubble-title");
+          if (!el) return "";
+          const m = card._orgM;
+          const names = {
+            Wohnzimmer: "Wohnzi", Potterbox: "Potti", Mandaloffice: "Anlage",
+            Hedwig: "Hedwig", Mandalotsen: "Lotsen", Gandalf: "Gandalf"
+          };
+          const fn = m.ent.attributes?.friendly_name;
+          const short = names[fn] ?? fn ?? (m.de ? "Lautsprecher" : "Speaker");
+          const title = m.base.attributes?.media_title ?? "";
+          const next = !m.physical && m.base.state === "playing" && title && !title.includes("flow/")
+            ? title
+            : short;
+          if (el.innerText !== next) el.innerText = next;
+          return "";
+        })()}
+        ${(() => {
+          if (card._orgM.tvMode) return "";
+          const el = card.querySelector(".bubble-artist");
+          if (!el) return "";
+          const m = card._orgM;
+          const a = m.base.attributes ?? {};
+          const map = m.de ? {
+            playing: "Wiedergabe", paused: "Pausiert", buffering: "Puffert", on: "An",
+            off: "Aus", idle: "Inaktiv", standby: "Standby", unavailable: "Nicht verfügbar"
+          } : {
+            playing: "Playing", paused: "Paused", buffering: "Buffering", on: "On",
+            off: "Off", idle: "Idle", standby: "Standby", unavailable: "Unavailable"
+          };
+          const next = m.physical ? (a.source ?? "External Input")
+            : m.base.state === "playing" && a.media_artist ? a.media_artist
+            : map[m.base.state] ?? m.base.state ?? "";
+          if (el.innerText !== next) el.innerText = next;
+          return "";
+        })()}
+        ${(() => {
+          if (!card._orgM.tvMode) return "";
+          const el = card.querySelector(".bubble-state");
+          if (!el) return "";
+          const m = card._orgM;
+          const appMap = {
+            "Prime Video": "Prime",
+            "com.amazon.amazonvideo.livingroom": "Prime",
+            "Netflix": "Netflix",
+            "Google Cast": "Cast",
+            "Play Store": "Play Store",
+            "Android TV Launcher": "Launcher",
+            "com.liskovsoft.smarttubetv.beta": "YouTube",
+            "de.prosiebensat1digital.seventv": "Joyn",
+            "org.dtvkit.inputsource": "TV",
+            "com.droidlogic.tvinput": "TV",
+            "com.android.vending:background": "Play Store",
+            "com.android.systemui": "System",
+            "com.google.android.gms": "System",
+            "com.google.android.gms.unstable": "System",
+            "com.google.android.gms.persistent": "System",
+            "com.google.process.gapps": "System",
+            "com.google.process.gservices": "System",
+            "com.google.android.katniss:search": "Search",
+            "com.google.android.katniss:interactor": "Assistant"
+          };
+          const readable = (app) => {
+            if (typeof app !== "string" || !app) return null;
+            const mapped = appMap[app];
+            if (mapped) return mapped === "System" ? null : mapped;
+            return app.includes(".") && !app.includes(" ") ? null : app;
+          };
+          const appOf = (e) => readable(e?.attributes?.app_name) ?? readable(e?.attributes?.app_id);
+          const castTitle = m.castActive ? m.artEnt?.attributes?.media_title : null;
+          const w = m.de
+            ? { on: "An", off: "Aus", error: "Fehler", paused: "Pause" }
+            : { on: "On", off: "Off", error: "Error", paused: "Paused" };
+          const next = m.power === null ? w.error
+            : !m.power ? w.off
+            : (typeof castTitle === "string" && castTitle ? castTitle : null)
+            ?? (m.castActive ? appOf(m.artEnt) : null)
+            ?? (m.appSt ? appOf(m.appEnt) : null)
+            ?? (m.entSt ? appOf(m.ent) : null)
+            ?? (m.artSt === "paused" || m.appSt === "paused" ? w.paused : w.on);
+          if (el.innerText !== next) el.innerText = next;
+          return "";
+        })()}
+  origami_popup.yaml: |-
+    origami_popup:
+      name: Origami • Popup
+      version: "3.3.2"
+      supported:
+        - pop-up
+      description:
+        "The Popup module styles a pop-up's header, backdrop and close button. The pop-up's sub-buttons appear below the
+        title, as text or as chips."
+      code: |-
+        .bubble-pop-up {
+          gap: 0px !important;
+          --org-popup-pad: var(--ha-space-4);
+          --org-header-pad-bottom: var(--ha-space-2);
+        }
+        .bubble-pop-up.no-header:not(.popup-mode-centered):not(.editor) > .bubble-header-container::before {
+            display: none;
+        }
+        .bubble-pop-up-container {
+          margin-top: 0px !important;
+          padding: var(--org-popup-pad) calc(2 * var(--ha-space-4)) !important;
+        }
+        .bubble-pop-up-container.is-scrollable {
+          --bubble-pop-up-mask-top-stop: var(--org-popup-pad) !important;
+          --bubble-pop-up-mask-bottom-stop: var(--org-popup-pad) !important;
+        }
+        .bubble-backdrop {
+          backdrop-filter: blur(4px) !important;
+        }
+        div.bubble-header .bubble-button-card-container,
+        .bubble-icon-container {
+          background: transparent !important;
+        }
+        .bubble-icon-container {
+          pointer-events: none;
+        }
+        .bubble-icon {
+          --mdc-icon-size: 36px;
+        }
+        .bubble-header-container {
+          margin: 0px !important;
+          padding: calc(2 * var(--ha-space-4)) calc(2 * var(--ha-space-4)) var(--org-header-pad-bottom) !important;
+          height: calc(2 * var(--ha-space-4) + var(--org-header-pad-bottom) + var(--control-height-icon)) !important;
+          z-index: 4 !important;
+        }
+        .bubble-header-container > .bubble-header-actions {
+          height: var(--control-height-icon) !important;
+          align-items: center !important;
+        }
+        div.bubble-header .bubble-container {
+          height: var(--control-height-icon) !important;
+          min-height: 0px !important;
+          overflow: visible !important;
+        }
+        div.bubble-header .bubble-name-container {
+          margin-inline-start: 0px !important;
+          min-height: 0px !important;
+        }
+        .bubble-name {
+          font-size: 24px !important;
+          font-weight: var(--ha-font-weight-bold);
+          line-height: var(--ha-line-height-condensed) !important;
+          margin-left: 0px !important;
+        }
+        .bubble-close-button {
+          display: flex;
+          border-radius: var(--radius-inner) !important;
+          background-color: transparent !important;
+          opacity: var(--opacity-quiet);
+          font-weight: var(--ha-font-weight-medium) !important;
+          min-width: var(--control-height-icon) !important;
+          min-height: var(--control-height-icon) !important;
+          margin-right: 0px !important;
+        }
+        .bubble-close-icon {
+          --mdc-icon-size: 32px;
+        }
+        .bubble-header-action-icon svg {
+          width: 32px !important;
+          height: 32px !important;
+        }
+        .bubble-header-container:has(.bubble-sub-button) {
+          height: calc(2 * var(--ha-space-4) + var(--org-header-pad-bottom) + var(--control-height-icon) + var(--control-height-mini)) !important;
+        }
+        div.bubble-header:has(.bubble-sub-button) .bubble-container {
+          height: calc(var(--control-height-icon) + var(--control-height-mini)) !important;
+        }
+        div.bubble-header:has(.bubble-sub-button) .bubble-wrapper {
+          display: grid !important;
+          grid-template-areas: "i n a" "i b a" !important;
+          grid-template-columns: auto 1fr auto !important;
+          grid-template-rows: var(--control-height-icon) var(--control-height-mini) !important;
+          align-items: center !important;
+        }
+        div.bubble-header .bubble-icon-container {
+          grid-area: i !important;
+        }
+        div.bubble-header .bubble-content-container,
+        div.bubble-header .bubble-name-container {
+          grid-area: n !important;
+          min-height: 0px !important;
+          align-self: center !important;
+        }
+        div.bubble-header .bubble-buttons-container {
+          grid-area: a !important;
+        }
+        div.bubble-header .bubble-sub-button-container {
+          grid-area: b !important;
+          position: relative !important;
+          justify-self: start !important;
+          align-self: center !important;
+          justify-content: flex-start !important;
+          width: auto !important;
+          inset-inline-end: 0px !important;
+          margin: 0px auto 0px 0px !important;
+          padding: 0px !important;
+        }
+        div.bubble-header .bubble-sub-button {
+          width: auto !important;
+          min-width: 0px !important;
+        }
+        ${this.config.origami_popup?.subtitle_style === "chip" ? `
+        div.bubble-header .bubble-sub-button-container {
+          gap: var(--ha-space-2) !important;
+        }
+        div.bubble-header .bubble-sub-button {
+          height: var(--control-height-mini) !important;
+          padding: 0px var(--ha-space-2) !important;
+          border-radius: var(--radius-inner) !important;
+          background-color: var(--fill-subtle) !important;
+          box-shadow: var(--card-ring);
+        }
+        div.bubble-header .bubble-sub-button,
+        div.bubble-header .bubble-sub-button-name-container,
+        div.bubble-header .bubble-sub-button-state {
+          font-size: var(--font-size-compact) !important;
+          font-weight: var(--ha-font-weight-bold) !important;
+          color: var(--primary-text-color) !important;
+        }
+        ` : `
+        div.bubble-header .bubble-sub-button-container {
+          gap: var(--ha-space-3) !important;
+        }
+        div.bubble-header .bubble-sub-button {
+          height: auto !important;
+          padding: 0px !important;
+          border-radius: 0px !important;
+          background: none !important;
+          box-shadow: none !important;
+        }
+        div.bubble-header .bubble-sub-button,
+        div.bubble-header .bubble-sub-button-name-container,
+        div.bubble-header .bubble-sub-button-state {
+          font-size: var(--ha-font-size-m) !important;
+          font-weight: var(--ha-font-weight-medium) !important;
+          color: var(--secondary-text-color) !important;
+        }
+        `}
+        div.bubble-header .bubble-sub-button-icon {
+          --mdc-icon-size: var(--icon-size-2xs) !important;
+          margin: 0px var(--ha-space-1) 0px 0px !important;
+          opacity: var(--opacity-muted);
+        }
+      editor:
+        - name: subtitle_style
+          label: "Sub-button style"
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Text
+                  value: text
+                - label: Chips
+                  value: chip
+  origami_slider.yaml: |-
+    origami_slider:
+      name: Origami • Slider
+      version: "1.3.1"
+      supported:
+        - button
+      description:
+        "The Slider module turns a slider button into a standalone slider. List Base first, then Slider. The module hides
+        the icon, name and state, so the card itself is the track. Set rows to 1."
+      code: |
+        ha-card {
+          --org-row-height: var(--control-height-icon);
+          --bubble-border: none;
+        }
+        .large .bubble-container {
+            border: none !important;
+        }
+        .bubble-button-card-container,
+        .bubble-container {
+          height: var(--control-height-icon) !important;
+          min-height: var(--control-height-icon) !important;
+        }
+        .bubble-content-container,
+        .bubble-icon-container,
+        .bubble-name-container {
+          display: none !important;
+        }
+        .bubble-button-background {
+          opacity: 0 !important;
+        }
+        .bubble-container {
+          overflow: hidden;
+          border-radius: var(--radius-small) !important;
+          background-color: var(--fill-subtle);
+          box-shadow: var(--card-ring);
+        }
+        .bubble-range-slider,
+        .bubble-background,
+        .card-content {
+          border-radius: var(--radius-small) !important;
+        }
+        .bubble-range-fill {
+          border-radius: var(--radius-small) 4px 4px var(--radius-small) !important;
+        }
+        .bubble-range-value {
+          right: var(--ha-space-2) !important;
+          opacity: 1 !important;
+          display: block !important;
+          font-size: var(--ha-font-size-s);
+          font-weight: var(--ha-font-weight-bold);
+          color: var(--secondary-text-color);
+        }
+  origami_speaker.yaml: |-
+    origami_speaker:
+      name: "Origami • Speaker Select"
+      version: "4.1.4"
+      supported:
+        - media-player
+      description:
+        "The Speaker Select module creates the speaker rows for a music pop-up and works with Base. The Media module is not
+        needed. The speaker's name is always visible, followed by what it is playing. Album art fills the icon and appears
+        blurred behind the row. A crown marks the group leader, and a link marks its members. When a speaker is selected in
+        input_select.lautsprecher_wahlen, its row has a stronger fill. If the volume sub-button has css_class set to
+        readout, the module writes the volume into it as a percentage. In a sections view, set rows to 1. The example in
+        bubble_card/README.md shows the other card options."
+      code: |
+        ${(() => {
+          const s = hass.states;
+          const st = s[entity];
+          const a = st?.attributes ?? {};
+          const link = s["sensor.linkplay_" + (entity ?? "").split(".")[1]];
+          const g = link?.attributes?.group_state;
+          const slave = g === "slave";
+          const masterId = s["sensor.linkplay_master"]?.state;
+          const master = slave && masterId ? s[masterId] : null;
+          const showId = master ? masterId : (entity ?? "");
+          const show = master ?? st;
+          const showLink = s["sensor.linkplay_" + showId.split(".")[1]];
+          const src = (showLink?.attributes?.source ?? "").trim().toLowerCase();
+          const tvSrc = ["optical", "optical-in", "optical in", "spdif", "coaxial", "co-axial", "coax", "hdmi", "arc", "tv"];
+          const artless = ["optical", "optical-in", "optical in", "spdif", "coaxial", "co-axial", "coax", "hdmi", "arc", "tv", "line in", "line-in", "line-in2", "line_in", "aux", "rca", "xlr", "phono", "fm", "cd"];
+          const ignore = String(this.config.origami_speaker?.ignore_art ?? "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
+          const clean = (u) => {
+            const v = typeof u === "string" ? u.trim() : "";
+            if (!v || ["unknown", "unavailable", "none", "null", "undefined"].includes(v.toLowerCase())) return null;
+            if (!/^https?:\/\//i.test(v) && !v.startsWith("/")) return null;
+            if (ignore.some(f => v.toLowerCase().includes(f))) return null;
+            return v;
+          };
+          const norm = (v) => {
+            const parts = v.split("?");
+            const query = parts[1] ?? "";
+            const cache = new URLSearchParams(query).get("cache");
+            return parts[0] + "|" + (cache ?? query.replace(/(^|&)token=[^&]*/g, ""));
+          };
+          if (!window.__origamiBadArt) window.__origamiBadArt = new Set();
+          const bad = window.__origamiBadArt;
+          const raw = clean(s["sensor.linkplay_" + showId.split(".")[1]]?.attributes?.entity_picture ?? show?.attributes?.entity_picture);
+          if (raw && artless.includes(src)) bad.add(norm(raw));
+          const hasTrack = !!(show?.attributes?.media_title || show?.attributes?.media_artist || show?.attributes?.media_album_name);
+          const live = ["playing", "paused", "buffering", "on"].includes(show?.state ?? "");
+          const physical = artless.includes(src) || src === "bluetooth";
+          const art = raw && !physical && live && hasTrack && !bad.has(norm(raw)) ? raw : null;
+          const ownTitle = String(a.media_title ?? "").trim();
+          const ownArtist = String(a.media_artist ?? "").trim();
+          const ownSrc = String(a.source ?? "").trim();
+          card._orgSp = {
+            st,
+            show,
+            showId,
+            slave,
+            grouped: ["master", "slave"].includes(g),
+            dead: !st || ["unavailable", "unknown", "off", "standby"].includes(st.state),
+            chosen: s["input_select.lautsprecher_wahlen"]?.state === entity,
+            bt: src === "bluetooth",
+            tv: tvSrc.includes(src),
+            showPlaying: ["playing", "buffering"].includes(show?.state),
+            audible: ["playing", "buffering"].includes(st?.state) || (slave && ["playing", "buffering"].includes(master?.state)),
+            nativeInfo: !((ownTitle + ownArtist) === "" || (ownTitle !== "" && ownSrc !== "" && ownTitle === ownSrc)) && st?.state !== "idle",
+            hasArt: !!art,
+            art: art ? 'url("' + art + '")' : "none",
+            masterName: master ? ({ Wohnzimmer: "Wohnzi", Potterbox: "Potti", Mandaloffice: "Office", Hedwig: "Hedwig", Mandalotsen: "Lotsen", Gandalf: "Gandalf" }[master.attributes?.friendly_name] ?? master.attributes?.friendly_name) : null
+          };
+          const mass = s[showId + "_mass"];
+          const massOn = mass && ["playing", "paused", "buffering"].includes(mass.state);
+          const lineTitle = (massOn ? mass.attributes?.media_title : null) || show?.attributes?.media_title || "";
+          const lineArtist = (massOn ? mass.attributes?.media_artist : null) || show?.attributes?.media_artist || "";
+          card._orgSp.line = lineTitle && lineArtist ? lineTitle + " \u2022 " + lineArtist : lineTitle || lineArtist;
+          return "";
+        })()}
+        ha-card {
+          --org-row-height: calc(var(--control-height-list) + 2px);
+          --org-icon-size: var(--icon-size-xs);
+          --org-tile-size: calc(var(--org-icon-size) + 2 * var(--ha-space-1));
+          --org-chip-inset: calc((var(--org-row-height) - var(--org-tile-size)) / 2);
+          --org-name-size: var(--ha-font-size-m);
+          --org-color: var(--state-media_player-active-color);
+          --org-chip-bg: ${card._orgSp.audible ? "var(--org-field)" : "var(--fill-subtle)"};
+          --org-chip-ink: ${card._orgSp.audible ? "var(--org-color)" : "var(--primary-text-color)"};
+          --org-text-max: 100%;
+        }
+        ha-card .bubble-container {
+          height: 100% !important;
+        }
+        .bubble-background {
+          background-color: var(--fill-subtle) !important;
+          background-image: ${card._orgSp.chosen && card._orgSp.grouped ? "linear-gradient(var(--fill-loud), var(--fill-loud)), linear-gradient(var(--fill-strong), var(--fill-strong))" : card._orgSp.chosen ? "linear-gradient(var(--fill-loud), var(--fill-loud))" : card._orgSp.grouped ? "linear-gradient(var(--fill-strong), var(--fill-strong))" : "none"};
+          overflow: hidden;
+        }
+        .bubble-background::before {
+          content: ${card._orgSp.hasArt ? '""' : "none"};
+          position: absolute;
+          inset: 0;
+          background-image: ${card._orgSp.art};
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          filter: blur(40px);
+          opacity: 0.2;
+          pointer-events: none;
+        }
+        ha-card .bubble-icon-container {
+          min-height: 0px !important;
+          margin: 0px var(--ha-space-1) 0px var(--org-chip-inset) !important;
+          border-radius: max(var(--radius-small), calc(var(--ha-card-border-radius, var(--bubble-border-radius, 24px)) - var(--org-chip-inset))) !important;
+          position: relative;
+          overflow: visible !important;
+        }
+        ha-card .bubble-main-icon-container::before {
+          content: ${card._orgSp.hasArt ? '""' : "none"};
+          position: absolute;
+          inset: 0;
+          z-index: 2;
+          border-radius: inherit;
+          background-image: ${card._orgSp.art};
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+        }
+        .bubble-media-player .bubble-entity-picture,
+        .bubble-main-icon-container .bubble-entity-picture {
+          display: none !important;
+        }
+        ha-card .bubble-icon-container .bubble-icon {
+          color: var(--org-chip-ink) !important;
+          transition: opacity var(--duration-normal) ease, color var(--duration-normal) ease;
+          opacity: ${card._orgSp.hasArt ? "0" : card._orgSp.dead ? "var(--opacity-disabled)" : card._orgSp.audible || card._orgSp.chosen ? "1" : "var(--opacity-quiet)"} !important;
+        }
+        .org-group-badge {
+          position: absolute;
+          top: -3px;
+          right: -3px;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--org-color);
+          background-color: var(--tint);
+          box-shadow: 0 0 0 2px var(--ha-card-background);
+          pointer-events: none;
+          z-index: 3;
+          --mdc-icon-size: 10px;
+        }
+        .org-group-badge ha-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 0;
+        }
+        ha-card .bubble-content-container {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          gap: var(--ha-space-2);
+          flex: 1 1 auto;
+          min-width: 0;
+          overflow: visible;
+          margin-right: var(--ha-space-2);
+        }
+        ha-card .bubble-name-container {
+          display: flex !important;
+          flex: ${card._orgSp.nativeInfo ? "0 0 auto" : "0 1 auto"} !important;
+          flex-direction: row !important;
+          justify-content: flex-start !important;
+          align-items: baseline !important;
+          gap: var(--ha-space-2) !important;
+          min-width: 0;
+          overflow: hidden;
+          margin: 0px !important;
+        }
+        ha-card .bubble-media-info-container {
+          flex: 1 1 0% !important;
+          min-width: 0;
+          margin: 0px !important;
+        }
+        .bubble-name {
+          flex-shrink: 0;
+          line-height: var(--ha-line-height-normal);
+          opacity: ${card._orgSp.dead ? "var(--opacity-disabled)" : card._orgSp.chosen ? "1" : "var(--opacity-strong)"} !important;
+        }
+        ha-card .bubble-state,
+        ha-card .bubble-title {
+          min-width: 0;
+          font-size: var(--ha-font-size-s) !important;
+          font-weight: var(--ha-font-weight-medium) !important;
+          line-height: var(--ha-line-height-normal) !important;
+          color: var(--secondary-text-color) !important;
+          opacity: 1 !important;
+        }
+        ha-card .bubble-state {
+          display: ${card._orgSp.nativeInfo && !card._orgSp.slave ? "none" : "flex"} !important;
+        }
+        ha-card .bubble-artist {
+          display: none !important;
+        }
+        ha-card .bubble-name[data-animated="true"],
+        ha-card .bubble-title[data-animated="true"] {
+          text-overflow: clip;
+        }
+        ha-card .bubble-sub-button.readout {
+          padding: 0px !important;
+          justify-content: flex-end !important;
+        }
+        ha-card .bubble-sub-button.readout .bubble-sub-button-name-container {
+          font-size: var(--ha-font-size-s) !important;
+          font-weight: var(--ha-font-weight-bold) !important;
+          color: var(--secondary-text-color);
+        }
+        ${(() => {
+          const m = card._orgSp;
+          const next = m.dead ? "mdi:speaker-off"
+            : m.bt ? "mdi:bluetooth"
+            : m.tv ? "mdi:television"
+            : m.showPlaying ? "mdi:speaker-pause"
+            : "mdi:speaker";
+          if (icon && icon.getAttribute("icon") !== next) icon.setAttribute("icon", next);
+          return "";
+        })()}
+        ${(() => {
+          const host = card.querySelector(".bubble-main-icon-container") ?? card.querySelector(".bubble-icon-container");
+          if (!host) return "";
+          let b = host.querySelector(".org-group-badge");
+          if (!b) {
+            b = document.createElement("div");
+            b.className = "org-group-badge";
+            b.appendChild(document.createElement("ha-icon"));
+            host.appendChild(b);
+          }
+          const m = card._orgSp;
+          const wanted = m.grouped ? "flex" : "none";
+          if (b.style.display !== wanted) b.style.display = wanted;
+          const ic = b.querySelector("ha-icon");
+          const glyph = m.slave ? "mdi:link-variant" : "mdi:crown";
+          if (ic && ic.getAttribute("icon") !== glyph) ic.setAttribute("icon", glyph);
+          return "";
+        })()}
+        ${(() => {
+          const el = card.querySelector(".bubble-state");
+          if (!el) return "";
+          const m = card._orgSp;
+          const w = String(hass.locale?.language ?? hass.language ?? "").startsWith("de")
+            ? { group: "Gruppe", playing: "läuft", paused: "pausiert", idle: "inaktiv" }
+            : { group: "group", playing: "playing", paused: "paused", idle: "idle" };
+          const next = m.dead ? "offline"
+            : m.slave ? ("\u2192 " + (m.masterName ?? w.group))
+            : m.bt ? "Bluetooth"
+            : m.tv ? "TV"
+            : m.showPlaying ? (m.line || w.playing)
+            : m.show?.state === "paused" ? w.paused
+            : w.idle;
+          if (el.innerText !== next) el.innerText = next;
+          return "";
+        })()}
+        ${(() => {
+          const el = card.querySelector(".bubble-title");
+          if (!el) return "";
+          el.templateDetected = true;
+          const m = card._orgSp;
+          const full = m.nativeInfo && !m.slave ? m.line : "";
+          if (!full) {
+            if (el.textContent !== "") el.textContent = "";
+            if (el.getAttribute("data-animated") === "true") el.removeAttribute("data-animated");
+            el._orgTxt = "";
+            el._orgAnim = false;
+            return "";
+          }
+          if (el._orgTxt !== full) {
+            el._orgTxt = full;
+            el._orgAnim = false;
+            el.removeAttribute("data-animated");
+            el.textContent = full;
+          }
+          if (el.clientWidth === 0) return "";
+          if (!el._orgAnim) {
+            const over = el.scrollWidth > el.clientWidth + 1;
+            if (over) {
+              const sep = '<span class="bubble-scroll-separator"> | </span>';
+              const esc = full.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+              el.innerHTML = '<div class="scrolling-container"><span>' + esc + sep + esc + sep + "</span></div>";
+              const span = el.querySelector(".scrolling-container span");
+              if (span) {
+                span.style.animationDuration = Math.max(1, span.getBoundingClientRect().width / 2 / 16).toFixed(2) + "s";
+                span.style.animationPlayState = "running";
+              }
+              el._orgAnim = true;
+            }
+          }
+          if (el._orgAnim && el.getAttribute("data-animated") !== "true") el.setAttribute("data-animated", "true");
+          if (!el._orgAnim && el.getAttribute("data-animated") === "true") el.removeAttribute("data-animated");
+          return "";
+        })()}
+        ${(() => {
+          const sb = card.querySelector(".readout");
+          const el = sb?.querySelector(".bubble-sub-button-state") ?? sb?.querySelector(".bubble-sub-button-name-container");
+          if (!el) return "";
+          const m = card._orgSp;
+          const v = m.st?.attributes?.volume_level;
+          const next = v != null && !m.dead ? Math.round(v * 100) + " %" : "–";
+          if (el.innerText !== next) el.innerText = next;
+          return "";
+        })()}
+  origami_tiles.yaml: |-
+    origami_tiles:
+      name: "Origami • Tiles"
+      version: "1.0.1"
+      supported:
+        - sub-buttons
+      description:
+        "The Tiles module turns a sub-buttons card into a grid of tiles with an icon, a name and a state line. Set up each
+        tile under its sub-button's origami_tiles key, which takes name, state, color, order, image and name_color. Each of
+        these accepts a value, a map from the entity's state to a value, or JavaScript in ${ }. Bubble Card's visibility
+        conditions decide when a tile appears."
+      editor:
+        - name: columns
+          label: "Columns"
+          selector:
+            number:
+              min: 1
+              max: 6
+              step: 1
+              mode: box
+          default: 2
+      code: |
+        ${(() => {
+          const S = hass.states;
+          const sb = this.config.sub_button;
+          const bottom = Array.isArray(sb) ? [] : (sb?.bottom ?? []);
+          const tiles = [
+            ...bottom.filter((i) => Array.isArray(i?.group)).flatMap((i) => i.group.filter(Boolean)),
+            ...bottom.filter((i) => i && !Array.isArray(i.group))
+          ];
+          const now = new Date();
+          const states = (id) => S[id]?.state ?? "unknown";
+          const minutesUntil = (id) => {
+            const v = String(states(id));
+            const t = v.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+            let end;
+            if (t) {
+              end = new Date(now);
+              end.setHours(Number(t[1]), Number(t[2]), Number(t[3] ?? 0), 0);
+              if (end < now) end.setDate(end.getDate() + 1);
+            } else {
+              end = new Date(v.replace(" ", "T"));
+            }
+            const m = Math.round((end - now) / 60000);
+            return Number.isNaN(m) ? "" : m;
+          };
+          const fill = (strings, ...values) => values.some((v) => v === null || v === undefined || v === "" || Number.isNaN(v))
+            ? ""
+            : strings.reduce((out, s, i) => out + s + (i < values.length ? values[i] : ""), "");
+          const fns = card._orgTilesFns ?? (card._orgTilesFns = new Map());
+          const run = (value, ctx) => {
+            if (typeof value !== "string") return value;
+            if (/\{(\{|%)/.test(value)) return renderTemplate(value, ctx.entity);
+            if (!value.includes("${")) return value;
+            let fn = fns.get(value);
+            if (!fn) {
+              try {
+                fn = new Function("fill", "hass", "entity", "state", "attr", "states", "minutesUntil", "return fill`" + value + "`;");
+              } catch (e) {
+                fn = () => "";
+              }
+              fns.set(value, fn);
+            }
+            try {
+              return fn(fill, hass, ctx.entity, ctx.state, ctx.attr, states, minutesUntil);
+            } catch (e) {
+              return "";
+            }
+          };
+          const pick = (option, ctx) => {
+            if (option === undefined || option === null) return "";
+            if (typeof option === "object" && !Array.isArray(option)) {
+              const key = String(ctx.state).toLowerCase();
+              const hit = Object.keys(option).find((k) => k.toLowerCase() === key);
+              return hit === undefined ? "" : run(option[hit], ctx);
+            }
+            return run(option, ctx);
+          };
+          const has = (v) => v !== undefined && v !== null && String(v).trim() !== "";
+          const q = (v) => JSON.stringify(String(v));
+          const slug = (v) => String(v).toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+          card._orgTilesCols = Math.max(1, Math.min(6, parseInt(this.config.origami_tiles?.columns ?? 2, 10) || 2));
+          card._orgTilesCss = tiles.map((item, i) => {
+            const sel = ".bubble-sub-button.bubble-sub-button-" + (i + 1);
+            const entity = item.entity ?? this.config.entity;
+            const obj = S[entity];
+            const ctx = { entity, state: obj?.state ?? "unknown", attr: obj?.attributes ?? {} };
+            const opt = item.origami_tiles ?? {};
+            const domain = String(entity ?? "").split(".")[0];
+            const key = slug(ctx.state);
+            const dc = ctx.attr.device_class;
+            const auto = (dc ? "var(--state-" + domain + "-" + dc + "-" + key + "-color, " : "")
+              + "var(--state-" + domain + "-" + key + "-color, var(--state-" + domain + "-active-color, var(--state-active-color)))"
+              + (dc ? ")" : "");
+            const name = [pick(opt.name, ctx), run(item.name, ctx), ctx.attr.friendly_name].find(has) ?? "";
+            const state = [pick(opt.state, ctx), obj ? (hass.formatEntityState?.(obj) ?? obj.state) : ""].find(has) ?? "";
+            const color = pick(opt.color, ctx);
+            const order = pick(opt.order, ctx);
+            const image = pick(opt.image, ctx);
+            const nameColor = pick(opt.name_color, ctx);
+            const rules = [sel + " { --org-tile-auto: " + auto + "; --org-tile-name: " + q(name) + "; --org-tile-state: " + q(state) + ";" + (has(order) ? " order: " + order + ";" : "") + " }"];
+            if (has(color)) rules.push(sel + " { --org-tile-color: " + color + "; --org-tile-chip: var(--tint); }");
+            if (has(nameColor)) rules.push(sel + " .bubble-sub-button-name-container { color: " + nameColor + "; }");
+            if (has(image)) rules.push(sel + " .bubble-sub-button-icon { --mdc-icon-size: 0px !important; background-image: url(" + q(image) + "); background-size: var(--org-tile-image-size, 230%); background-position: center; }");
+            return rules.join("\n");
+          }).join("\n");
+          return "";
+        })()}
+        .bubble-container {
+          height: auto !important;
+          overflow: visible !important;
+          border: none !important;
+          border-radius: 0 !important;
+          background: none !important;
+          box-shadow: none !important;
+        }
+        .bubble-sub-button-container {
+          display: none !important;
+        }
+        .bubble-sub-button-bottom-container {
+          position: static !important;
+          width: 100% !important;
+          margin: 0 !important;
+        }
+        .bubble-sub-button-group:not(.hidden) {
+          display: grid !important;
+          grid-template-columns: repeat(${card._orgTilesCols}, minmax(0, 1fr));
+          gap: var(--ha-space-3) !important;
+          width: 100%;
+        }
+        .bubble-sub-button {
+          flex-direction: row !important;
+          justify-content: flex-start !important;
+          width: auto !important;
+          min-width: 0 !important;
+          height: auto !important;
+          padding: var(--ha-space-4) !important;
+          border-radius: var(--ha-card-border-radius) !important;
+          background-color: var(--fill-subtle) !important;
+          color: var(--primary-text-color) !important;
+          transition: var(--transition-interactive) !important;
+        }
+        .bubble-sub-button.background-on {
+          --org-tile-color: var(--org-tile-auto);
+          --org-tile-chip: var(--tint);
+        }
+        .bubble-sub-button-icon,
+        .bubble-sub-button-image {
+          position: static !important;
+          order: -1;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: var(--tile-size) !important;
+          min-width: var(--tile-size) !important;
+          height: var(--tile-size) !important;
+          margin: 0 var(--ha-space-3) 0 0 !important;
+          border-radius: var(--radius-inner) !important;
+          box-shadow: var(--ha-card-box-shadow);
+          transition: var(--transition-interactive);
+        }
+        .bubble-sub-button-icon {
+          --mdc-icon-size: var(--icon-size-m) !important;
+          background-color: var(--org-tile-chip, var(--ha-card-background));
+          color: var(--org-tile-color, var(--primary-text-color)) !important;
+        }
+        .bubble-sub-button-name-container {
+          display: flex !important;
+          flex: 1 1 auto;
+          flex-direction: column;
+          align-items: flex-start;
+          min-width: 0;
+          overflow: visible !important;
+          white-space: nowrap !important;
+          font-size: 0 !important;
+          font-weight: var(--ha-font-weight-bold);
+          line-height: inherit !important;
+        }
+        .bubble-sub-button-name-container::before,
+        .bubble-sub-button-name-container::after {
+          box-sizing: content-box;
+          padding: 2px;
+          margin: -2px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .bubble-sub-button-name-container::before {
+          content: var(--org-tile-name, "");
+          max-width: 100%;
+          font-size: var(--ha-font-size-m);
+        }
+        .bubble-sub-button-name-container::after {
+          content: var(--org-tile-state, "");
+          max-width: min(var(--org-tile-state-max, 80px), 100%);
+          margin-top: calc(var(--ha-space-1) - 2px);
+          font-size: var(--ha-font-size-s);
+          color: var(--secondary-text-color);
+        }
+        ${card._orgTilesCss}
