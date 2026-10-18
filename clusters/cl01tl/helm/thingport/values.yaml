@@ -11,6 +11,7 @@ thingport:
         main:
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -70,6 +71,7 @@ thingport:
         main:
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -82,6 +84,10 @@ thingport:
           args:
             - npx prisma migrate deploy && exec node dist/server.js
           env:
+            - name: HOME
+              value: /tmp
+            - name: NPM_CONFIG_CACHE
+              value: /tmp/.npm
             - name: PUID
               value: "1000"
             - name: PGID
@@ -156,6 +162,9 @@ thingport:
       strategy: Recreate
       pod:
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
           seccompProfile:
             type: RuntimeDefault
       containers:
@@ -251,6 +260,27 @@ thingport:
         backend:
           main:
             - path: /app/storage
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+        backend:
+          main:
+            - path: /tmp
+    nginx-cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /var/cache/nginx
+    nginx-run:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /var/run
 
 pocket-id-client:
   mode: oidc
@@ -293,7 +323,7 @@ volsync-target-storage:
     schedule: 10 11 * * 1
   d:
     enabled: true
-    schedule: 10 11 * * 1
+    schedule: 10 10 * * 1
 
 common-helpers:
   probe:
