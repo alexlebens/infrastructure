@@ -72,10 +72,8 @@ mealie:
               value: "admin"
           resources:
             requests:
-              cpu: 50m
-              memory: 256Mi
-            limits:
-              memory: 1Gi
+              cpu: 5m
+              memory: 250Mi
           probes:
             startup:
               enabled: true
@@ -123,7 +121,7 @@ mealie:
         gethomepage.dev/group: "Applications"
         gethomepage.dev/icon: "sh-mealie.webp"
         gethomepage.dev/siteMonitor: "http://mealie.mealie:9000"
-        gethomepage.dev/weight: "360"
+        gethomepage.dev/weight: "350"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -164,16 +162,22 @@ pocket-id-client:
 
 postgres-18-cluster:
   mode: recovery
-  cluster:
-    initdb:
-      postInitTemplateSQL:
-        - CREATE EXTENSION IF NOT EXISTS pg_trgm;
+  recovery:
+    objectStore:
+      index: 1
   backup:
     objectStore:
       index: 1
     scheduledBackups:
       suspend: false
       schedule: "0 55 5 * * *"
+  databases:
+    - name: app
+      ensure: present
+      owner: app
+      extensions:
+        - name: pg_trgm
+          ensure: present
 
 volsync-target-data:
   pvcTarget: mealie-data
@@ -186,3 +190,8 @@ volsync-target-data:
   c:
     enabled: true
     schedule: 45 10 * * 6
+
+common-helpers:
+  probe:
+    internal: http://mealie.mealie:9000
+    external: https://mealie.alexlebens.dev
