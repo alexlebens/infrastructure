@@ -32,6 +32,8 @@ spec:
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -66,8 +68,8 @@ spec:
             timeoutSeconds: 3
           resources:
             requests:
-              cpu: 5m
-              memory: 100Mi
+              cpu: 10m
+              memory: 150Mi
           startupProbe:
             failureThreshold: 60
             httpGet:
@@ -114,6 +116,19 @@ spec:
             httpGet:
               path: /ready
               port: 4180
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -121,3 +136,5 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: medialyze-nfs-storage
+        - emptyDir: {}
+          name: tmp

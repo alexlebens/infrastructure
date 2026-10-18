@@ -32,12 +32,21 @@ spec:
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
       containers:
         - env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
             - name: MUSIC_DIR
               value: /mnt/store/Music Grabber/
             - name: ENABLE_MUSICBRAINZ
@@ -73,11 +82,14 @@ spec:
           image: g33kphr33k/musicgrabber:4.3.1@sha256:696ae0eda6c6f0149c22d5264c5a1a32d2f78733ec2f205ed451134eeda173dc
           name: main
           resources:
-            limits:
-              cpu: 100m
             requests:
               cpu: 10m
-              memory: 50Mi
+              memory: 100Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           volumeMounts:
             - mountPath: /data
               name: data
@@ -115,6 +127,19 @@ spec:
             httpGet:
               path: /ready
               port: 4180
+          resources:
+            requests:
+              cpu: 1m
+              memory: 15Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -122,3 +147,5 @@ spec:
         - name: music
           persistentVolumeClaim:
             claimName: music-grabber-nfs-storage
+        - emptyDir: {}
+          name: tmp

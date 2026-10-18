@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: memos
     helm.sh/chart: memos-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
   namespace: memos
 spec:
   revisionHistoryLimit: 3
@@ -97,13 +99,13 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 100Mi
+              memory: 60Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
           startupProbe:
             failureThreshold: 30
             httpGet:
@@ -114,6 +116,8 @@ spec:
             - mountPath: /etc/secrets
               name: secrets
               readOnly: true
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: secrets
           projected:
@@ -126,3 +130,5 @@ spec:
                   name: memos-ai-config
               - configMap:
                   name: memos-general-config
+        - emptyDir: {}
+          name: tmp
