@@ -37,7 +37,7 @@ data:
           VERSION_FILE="/ext/.readability-version"
           ;;
         xExtension-FeedDigest)
-          VERSION_FILE="/ext/.feeddigest-version-v3"
+          VERSION_FILE="/ext/.feeddigest-version-v4"
           ;;
         *)
           VERSION_FILE="/ext/.${EXTENSION_NAME}-version"
@@ -82,8 +82,209 @@ data:
     cp -r "${src_dir}/." "/ext/${EXTENSION_NAME}/"
 
     # Extension-specific patches
-    if [ "${EXTENSION_NAME}" = "xExtension-FeedDigest" ] && [ -f "/ext/${EXTENSION_NAME}/metadata.json" ]; then
-      sed -i 's/"name": "Feed Digest"/"name": "FeedDigest"/g' "/ext/${EXTENSION_NAME}/metadata.json"
+    if [ "${EXTENSION_NAME}" = "xExtension-FeedDigest" ]; then
+      cat << 'EOF' > /tmp/feeddigest.patch
+    --- a/metadata.json
+    +++ b/metadata.json
+    @@ -1,5 +1,5 @@
+     {
+    -	"name": "Feed Digest",
+    +	"name": "FeedDigest",
+     	"author": "Chang Feng",
+     	"description": "Automatically summarizes newly retrieved RSS articles using LLM APIs (OpenAI-compatible)",
+     	"version": "1.0.0",
+    --- a/views/helpers/feed/update.phtml
+    +++ b/views/helpers/feed/update.phtml
+    @@ -18,6 +18,10 @@
+     // Build our extension fields
+     $batchSize = $this->feed->attributeInt('feed_digest_batch_size') ?: 10;
+     $enabled = $this->feed->attributeBoolean('feed_digest_enabled');
+    +$frequency = $this->feed->attributeInt('feed_digest_frequency');
+    +if ($frequency === null) {
+    +	$frequency = 12;
+    +}
+
+     $our_fields = '
+     <hr />
+    @@ -36,6 +40,18 @@
+     	</div>
+
+     	<div class="form-group">
+    +		<label class="group-name" for="feed_digest_frequency">' . _t('ext.feed_digest.frequency_label', 'Summarize frequency') . '</label>
+    +		<div class="group-controls">
+    +			<select name="feed_digest_frequency" id="feed_digest_frequency" class="w50">
+    +				<option value="12"' . ($frequency === 12 ? ' selected="selected"' : '') . '>Twice a day (~every 12 hours)</option>
+    +				<option value="24"' . ($frequency === 24 ? ' selected="selected"' : '') . '>Once a day (~every 24 hours)</option>
+    +				<option value="0"' . ($frequency === 0 ? ' selected="selected"' : '') . '>Every feed refresh</option>
+    +			</select>
+    +			<p class="help">' . _i('help') . ' How often to generate an AI summary digest of unread articles.</p>
+    +		</div>
+    +	</div>
+    +
+    +	<div class="form-group">
+     		<label class="group-name" for="feed_digest_batch_size">' . _t('ext.feed_digest.batch_size_label', 'Articles per summary batch') . '</label>
+     		<div class="group-controls">
+     			<input type="number" name="feed_digest_batch_size" id="feed_digest_batch_size"
+    --- a/extension.php
+    +++ b/extension.php
+    @@ -34,6 +34,9 @@
+     		$batchSize = Minz_Request::paramInt('feed_digest_batch_size');
+     		$feed->_attribute('feed_digest_batch_size', $batchSize > 0 ? $batchSize : 10);
+
+    +		$frequency = Minz_Request::paramInt('feed_digest_frequency');
+    +		$feed->_attribute('feed_digest_frequency', $frequency !== null ? $frequency : 12);
+    +
+     		return $feed;
+     	}
+
+    @@ -61,6 +64,9 @@
+     					$batchSize = Minz_Request::paramInt('feed_digest_batch_size');
+     					$feed->_attribute('feed_digest_batch_size', $batchSize > 0 ? $batchSize : 10);
+
+    +					$frequency = Minz_Request::paramInt('feed_digest_frequency');
+    +					$feed->_attribute('feed_digest_frequency', $frequency !== null ? $frequency : 12);
+    +
+     					// Update the feed with the new attributes
+     					$feedDAO->updateFeed($feedId, ['attributes' => $feed->attributes()]);
+
+    @@ -121,6 +127,16 @@
+     	private function processFeed(FreshRSS_Feed $feed, string $apiEndpoint, string $secretKey,
+     	                             string $model, string $destLanguage, int $maxContentLength): void {
+     		try {
+    +			// Check schedule frequency: twice a day (every 12 hours) by default, or configured frequency
+    +			$frequency = $feed->attributeInt('feed_digest_frequency');
+    +			if ($frequency === null) {
+    +				$frequency = 12; // default: twice a day
+    +			}
+    +			$lastRun = $feed->attributeInt('feed_digest_last_run') ?: 0;
+    +			if ($frequency > 0 && (time() - $lastRun) < ($frequency * 3600)) {
+    +				return;
+    +			}
+    +
+     			$entryDAO = FreshRSS_Factory::createEntryDao();
+
+     			// Get batch size for this feed (default 10)
+    @@ -190,27 +206,30 @@
+     			$totalWorthy = count($worthSummarizing);
+     			$totalImageOnly = count($skippedArticles);
+
+    -			// Check if we have enough articles to process at least one batch
+    -			if ($totalWorthy < $batchSize) {
+    -				Minz_Log::warning("Feed Digest: Skipping {$feed->name()} - only {$totalWorthy} articles worth summarizing (batch size: {$batchSize})");
+    -				return; // Don't mark as read, wait for more articles
+    +			if ($totalWorthy === 0) {
+    +				return;
+     			}
+
+    -			// Process in batches
+    +			// Process all worthy articles in batches (up to 20 per digest)
+    +			$chunkSize = max(5, min(20, $batchSize));
+    +			if ($batchSize === 1) {
+    +				$chunkSize = 1;
+    +			}
+     			$batchNumber = 0;
+     			$totalProcessed = 0;
+
+    -			while (count($worthSummarizing) >= $batchSize) {
+    +			while (!empty($worthSummarizing)) {
+     				$batchNumber++;
+
+    -				// Take first $batchSize articles
+    -				$batch = array_slice($worthSummarizing, 0, $batchSize);
+    -				$worthSummarizing = array_slice($worthSummarizing, $batchSize);
+    +				// Take up to $chunkSize articles
+    +				$batch = array_slice($worthSummarizing, 0, $chunkSize);
+    +				$worthSummarizing = array_slice($worthSummarizing, $chunkSize);
+
+     				try {
+    -					Minz_Log::notice("Feed Digest: Processing {$feed->name()} batch #{$batchNumber} - {$batchSize} articles");
+    +					$currentBatchSize = count($batch);
+    +					Minz_Log::notice("Feed Digest: Processing {$feed->name()} batch #{$batchNumber} - {$currentBatchSize} articles");
+
+    -					if ($batchSize === 1) {
+    +					if ($chunkSize === 1) {
+     						$this->processTranslation($feed, $batch, $apiEndpoint, $secretKey, $model, $destLanguage);
+     						Minz_Log::notice("Feed Digest: Successfully translated {$feed->name()} batch #{$batchNumber}");
+     					} else {
+    @@ -227,6 +246,11 @@
+     				}
+     			}
+
+    +			// Update last run timestamp
+    +			$feedDAO = FreshRSS_Factory::createFeedDao();
+    +			$feed->_attribute('feed_digest_last_run', time());
+    +			$feedDAO->updateFeed($feed->id(), ['attributes' => $feed->attributes()]);
+    +
+     			$remainingWorthy = count($worthSummarizing);
+     			$totalRemaining = $remainingWorthy + $totalImageOnly;
+
+    @@ -262,8 +286,8 @@
+     	 */
+     	private function isAlreadyProcessed(FreshRSS_Entry $entry): bool {
+     		$content = $entry->content();
+    -		// Check for any Feed Digest marker (summary box or skip note)
+    -		return strpos($content, 'Feed Digest') !== false;
+    +		// Only check for generated summary box, not skip notes
+    +		return strpos($content, '<strong>Feed Digest Summary:</strong>') !== false;
+     	}
+
+     	/**
+    @@ -278,11 +302,10 @@
+     		$plainText = trim(preg_replace('/\s+/', ' ', $plainText));
+
+     		$textLength = strlen($plainText);
+    -		$hasImages = preg_match('/<img[^>]*>/i', $content);
+
+    -		// Simple rule: Skip only if it has images AND insufficient text
+    -		if ($hasImages && $textLength < 200) {
+    -			return 'Article contains images but has insufficient text (less than 200 characters)';
+    +		// Skip only if text is essentially empty (less than 20 characters)
+    +		if ($textLength < 20) {
+    +			return 'Article content is empty or too short to summarize';
+     		}
+
+     		return null; // Article is worth summarizing
+    @@ -386,6 +409,8 @@
+
+     		foreach ($entries as $index => $entry) {
+     			$content = $entry->content();
+    +			// Strip any legacy skip warning notes from article content
+    +			$content = preg_replace('/<div style="[^"]*"><strong>Feed Digest:<\/strong>[^<]*<\/div>/i', '', $content);
+
+     			// Truncate if too long
+     			if (strlen($content) > $maxLength) {
+    @@ -580,8 +605,8 @@
+
+     		$summaries = json_decode($content, true);
+
+    -		if (!is_array($summaries) || count($summaries) !== $expectedCount) {
+    -			throw new Exception("Expected $expectedCount summaries, got " . (is_array($summaries) ? count($summaries) : 0));
+    +		if (!is_array($summaries) || empty($summaries)) {
+    +			throw new Exception("Expected non-empty summaries array from LLM");
+     		}
+
+     		// Validate structure
+    @@ -641,12 +666,11 @@
+     	private function formatSummaryContent(array $entries, array $summaries): string {
+     		$html = '<div class="llm-summary">';
+
+    -		foreach ($entries as $index => $entry) {
+    -			$summary = $summaries[$index];
+    -
+    -			$title = htmlspecialchars($summary['title'], ENT_QUOTES, 'UTF-8');
+    -			$summaryText = htmlspecialchars($summary['summary'], ENT_QUOTES, 'UTF-8');
+    -			$link = htmlspecialchars($entry->link(), ENT_QUOTES, 'UTF-8');
+    +		foreach ($summaries as $index => $summary) {
+    +			$title = htmlspecialchars($summary['title'] ?? 'Summary', ENT_QUOTES, 'UTF-8');
+    +			$summaryText = htmlspecialchars($summary['summary'] ?? '', ENT_QUOTES, 'UTF-8');
+    +			$entry = $entries[$index] ?? null;
+    +			$link = $entry ? htmlspecialchars($entry->link(), ENT_QUOTES, 'UTF-8') : htmlspecialchars($feed->website(), ENT_QUOTES, 'UTF-8');
+
+     			$html .= '<div class="summary-item">';
+     			$html .= '<h3><a href="' . $link . '" target="_blank">' . $title . '</a></h3>';
+    EOF
+      cd "/ext/${EXTENSION_NAME}" && patch -p1 -i /tmp/feeddigest.patch
+      rm -f /tmp/feeddigest.patch
     fi
 
     rm -rf /tmp/ext-unzipped /tmp/ext.zip
