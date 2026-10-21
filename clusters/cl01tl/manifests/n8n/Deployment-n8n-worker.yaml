@@ -4,10 +4,10 @@ metadata:
   name: n8n-worker
   namespace: n8n
   labels:
-    helm.sh/chart: n8n-1.16.0
+    helm.sh/chart: n8n-1.17.0
     app.kubernetes.io/name: n8n
     app.kubernetes.io/instance: n8n
-    app.kubernetes.io/version: "2.43.5"
+    app.kubernetes.io/version: "2.44.5"
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/component: worker
 spec:
@@ -21,15 +21,15 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: a1396ae886fe54bf04c51b139bbc7d2ac14a3232281c7a744c122c1f56be9a0b
+        checksum/config: d898b0a4bee332ec5da74537bf7c782055931559cd18008deb42e12d42431dd7
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
         app.kubernetes.io/component: worker
         app.kubernetes.io/instance: n8n
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: n8n
-        app.kubernetes.io/version: 2.43.5
-        helm.sh/chart: n8n-1.16.0
+        app.kubernetes.io/version: 2.44.5
+        helm.sh/chart: n8n-1.17.0
     spec:
       serviceAccountName: n8n
       securityContext:
@@ -151,6 +151,10 @@ spec:
                 secretKeyRef:
                   name: n8n-postgresql-18-cluster-app
                   key: password
+            - name: QUEUE_HEALTH_CHECK_ACTIVE
+              value: "true"
+            - name: QUEUE_HEALTH_CHECK_PORT
+              value: "5678"
             - name: EXECUTIONS_TIMEOUT_MAX
               value: "3600"
             - name: EXECUTIONS_DATA_SAVE_ON_ERROR
@@ -220,22 +224,24 @@ spec:
               value: http://ollama-router.ollama:11434/v1
             - name: N8N_INSTANCE_AI_SEARXNG_URL
               value: http://searxng-api.searxng:8080
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            failureThreshold: 30
+            periodSeconds: 10
           readinessProbe:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - pgrep -f 'n8n worker' > /dev/null
+            httpGet:
+              path: /healthz/readiness
+              port: 5678
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 6
           livenessProbe:
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - pgrep -f 'n8n worker' > /dev/null
+            httpGet:
+              path: /healthz
+              port: 5678
             initialDelaySeconds: 60
             periodSeconds: 30
             timeoutSeconds: 5
