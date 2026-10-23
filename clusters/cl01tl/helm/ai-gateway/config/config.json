@@ -1,0 +1,107 @@
+{
+  "$schema": "https://www.getbifrost.ai/schema",
+  "encryption_key": "env.BIFROST_ENCRYPTION_KEY",
+  "client": {
+    "drop_excess_requests": false,
+    "enable_logging": true,
+    "enforce_auth_on_inference": true
+  },
+  "providers": {
+    "gemini": {
+      "keys": [
+        {
+          "name": "gemini-primary",
+          "value": "env.GEMINI_API_KEY",
+          "models": ["gemini-3.5-flash-lite", "gemini-3.8-flash"],
+          "weight": 1.0
+        }
+      ]
+    },
+    "ollama": {
+      "network_config": {
+        "allow_private_network": true
+      },
+      "keys": [
+        {
+          "name": "ollama-desktop",
+          "url": "https://ollama-pd05wd.boreal-beaufort.ts.net",
+          "models": [
+            "gemma4:e4b",
+            "embeddinggemma:latest",
+            "text-embedding-ada-002",
+            "text-embedding-3-small",
+            "gemma4:12b",
+            "qwen3:14b"
+          ],
+          "weight": 1.0
+        },
+        {
+          "name": "ollama-cluster",
+          "url": "http://ollama-server.ollama:11434",
+          "models": ["gemma4:e4b", "embeddinggemma:latest", "text-embedding-ada-002", "text-embedding-3-small"],
+          "weight": 0.0
+        }
+      ]
+    }
+  },
+  "governance": {
+    "routing_rules": [
+      {
+        "name": "ollama-desktop-with-cluster-fallback",
+        "match_expression": "request.provider == 'ollama'",
+        "targets": [
+          {
+            "provider": "ollama",
+            "provider_key_name": "ollama-desktop"
+          }
+        ],
+        "fallbacks": [
+          {
+            "provider": "ollama",
+            "provider_key_name": "ollama-cluster"
+          }
+        ]
+      }
+    ],
+    "virtual_keys": [
+      {
+        "id": "vk-librechat",
+        "name": "LibreChat Virtual Key",
+        "value": "env.LIBRECHAT_VIRTUAL_KEY",
+        "description": "Restricted virtual key for LibreChat exclusively accessing Gemini models",
+        "is_active": true,
+        "provider_configs": [
+          {
+            "provider": "gemini",
+            "allow_all_providers": false,
+            "key_ids": ["*"],
+            "allowed_models": ["gemini-3.5-flash-lite", "gemini-3.8-flash", "regex:gemini-.*"]
+          }
+        ]
+      },
+      {
+        "id": "vk-homelab",
+        "name": "Homelab Services Virtual Key",
+        "value": "env.HOMELAB_VIRTUAL_KEY",
+        "description": "Virtual key for internal homelab services restricted to local Ollama inference",
+        "is_active": true,
+        "provider_configs": [
+          {
+            "provider": "ollama",
+            "allow_all_providers": false,
+            "key_ids": ["*"],
+            "allowed_models": [
+              "gemma4:e4b",
+              "embeddinggemma:latest",
+              "text-embedding-ada-002",
+              "text-embedding-3-small"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "config_store": {
+    "enabled": false
+  }
+}
