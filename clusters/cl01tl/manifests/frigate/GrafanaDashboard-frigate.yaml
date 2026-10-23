@@ -134,10 +134,10 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "100 * (frigate_storage_used_bytes / frigate_storage_total_bytes)",
-              "instant": false,
+              "expr": "100 * max by(storage) (frigate_storage_used_bytes{job=\"frigate\"}) / max by(storage) (frigate_storage_total_bytes{job=\"frigate\"})",
+              "instant": true,
               "legendFormat": "{{storage}}",
-              "range": true,
+              "range": false,
               "refId": "A"
             }
           ],
@@ -202,9 +202,9 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "frigate_service_uptime_seconds",
+              "expr": "max(frigate_service_uptime_seconds{job=\"frigate\"})",
               "instant": false,
-              "legendFormat": "__auto",
+              "legendFormat": "Uptime",
               "range": true,
               "refId": "A"
             }
@@ -283,10 +283,10 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "frigate_service_info",
-              "instant": false,
+              "expr": "max by(version, latest_version) (frigate_service_info{job=\"frigate\"})",
+              "instant": true,
               "legendFormat": "__auto",
-              "range": true,
+              "range": false,
               "refId": "A"
             }
           ],
@@ -412,7 +412,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "frigate_cpu_usage_percent{pid=\"frigate.full_system\"}",
+              "expr": "max by(pid) (frigate_cpu_usage_percent{job=\"frigate\", pid=\"frigate.full_system\"})",
               "instant": false,
               "legendFormat": "{{pid}}",
               "range": true,
@@ -516,7 +516,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "frigate_mem_usage_percent{pid=\"frigate.full_system\"}",
+              "expr": "max by(pid) (frigate_mem_usage_percent{job=\"frigate\", pid=\"frigate.full_system\"})",
               "instant": false,
               "legendFormat": "{{pid}}",
               "range": true,
@@ -620,7 +620,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "avg by(process, type) (frigate_cpu_usage_percent)",
+              "expr": "avg by(process, type) (frigate_cpu_usage_percent{job=\"frigate\"})",
               "instant": false,
               "legendFormat": "{{process}} {{type}}",
               "range": true,
@@ -724,7 +724,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "avg by(process, type) (frigate_mem_usage_percent)",
+              "expr": "avg by(process, type) (frigate_mem_usage_percent{job=\"frigate\"})",
               "instant": false,
               "legendFormat": "{{process}} {{type}}",
               "range": true,
@@ -856,7 +856,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "avg by(camera_name) (frigate_process_fps)",
+              "expr": "avg by(camera_name) (frigate_process_fps{job=\"frigate\"})",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -960,7 +960,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "avg by(camera_name) (frigate_camera_fps)",
+              "expr": "avg by(camera_name) (frigate_camera_fps{job=\"frigate\"})",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -1064,7 +1064,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "avg by(camera_name) (frigate_detection_fps)",
+              "expr": "avg by(camera_name) (frigate_detection_fps{job=\"frigate\"})",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -1167,7 +1167,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "avg by(camera_name) (frigate_skipped_fps)",
+              "expr": "avg by(camera_name) (frigate_skipped_fps{job=\"frigate\"})",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -1234,7 +1234,8 @@ spec:
                     "value": 80
                   }
                 ]
-              }
+              },
+              "unit": "s"
             },
             "overrides": []
           },
@@ -1270,7 +1271,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "frigate_detector_inference_speed_seconds{name=\"cpu\"}",
+              "expr": "max by(name) (frigate_detector_inference_speed_seconds{job=\"frigate\"})",
               "instant": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -1362,7 +1363,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "sum(increase(python_gc_objects_collected_total[5m]))\r\n/\r\n(\r\n  sum(increase(python_gc_objects_collected_total[5m]))\r\n  + sum(increase(python_gc_objects_uncollectable_total[5m]))\r\n) * 100",
+              "expr": "sum(increase(python_gc_objects_collected_total{job=\"frigate\"}[5m]))\n/\n(\n  sum(increase(python_gc_objects_collected_total{job=\"frigate\"}[5m]))\n  + sum(increase(python_gc_objects_uncollectable_total{job=\"frigate\"}[5m]))\n) * 100",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -1429,7 +1430,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "increase(python_gc_objects_uncollectable_total[1h])",
+              "expr": "sum by(generation) (increase(python_gc_objects_uncollectable_total{job=\"frigate\"}[1h]))",
               "instant": false,
               "legendFormat": "Generation {{generation}}",
               "range": true,
@@ -1532,7 +1533,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "sum(rate(python_gc_objects_collected_total[5m]))",
+              "expr": "sum(rate(python_gc_objects_collected_total{job=\"frigate\"}[5m]))",
               "instant": false,
               "legendFormat": "Total GC Collected/sec",
               "range": true,
@@ -1636,7 +1637,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "rate(python_gc_collections_total[5m]) * 60",
+              "expr": "sum by(generation) (rate(python_gc_collections_total{job=\"frigate\"}[5m])) * 60",
               "instant": false,
               "legendFormat": "GC Gen {{generation}}",
               "range": true,
@@ -1740,7 +1741,7 @@ spec:
                 "uid": "kube-prometheus-stack"
               },
               "editorMode": "code",
-              "expr": "rate(python_gc_objects_collected_total[5m])",
+              "expr": "sum by(generation) (rate(python_gc_objects_collected_total{job=\"frigate\"}[5m]))",
               "instant": false,
               "legendFormat": "GC Gen {{generation}}",
               "range": true,
