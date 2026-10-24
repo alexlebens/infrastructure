@@ -10,6 +10,7 @@ on:
       - "main"
     paths:
       - "clusters/cl01tl/helm/komodo/**"
+      - "hosts/ps10rp/komodo-periphery/**"
       - ".gitea/workflows/update-komodo-periphery.yaml"
 
   workflow_dispatch:
@@ -21,6 +22,7 @@ on:
           - all
           - ps08rp
           - ps09rp
+          - ps10rp
         default: all
         required: true
 
@@ -49,6 +51,18 @@ jobs:
             echo ">> Running Komodo Periphery setup/update script with sudo..."
             curl -sSL https://raw.githubusercontent.com/moghtech/komodo/main/scripts/setup-periphery.py \
               | sudo -n python3 - --core-address="https://komodo.alexlebens.dev"
+
+            echo ">> Waiting for Periphery agent to initialize..."
+            sleep 3
+
+            echo ">> Verifying systemd service status..."
+            sudo -n systemctl is-active periphery.service
+
+            echo ">> Installed binary version:"
+            /usr/local/bin/periphery --version || periphery --version || true
+
+            echo ">> Recent service journal logs:"
+            sudo -n journalctl -u periphery -n 6 --no-pager
           '
 
       - name: ntfy Success
@@ -97,7 +111,7 @@ jobs:
 
       - name: Update Komodo Periphery on ps09rp
         env:
-          TARGET_HOST: "${{ vars.HOST_PS09RP || 'ps09rp' }}"
+          TARGET_HOST: "${{ vars.HOST_PS09RP }}"
           SSH_USER: "${{ vars.SSH_USER }}"
           SSH_PORT: "${{ vars.SSH_PORT }}"
         run: |
@@ -107,6 +121,18 @@ jobs:
             echo ">> Running Komodo Periphery setup/update script with sudo..."
             curl -sSL https://raw.githubusercontent.com/moghtech/komodo/main/scripts/setup-periphery.py \
               | sudo -n python3 - --core-address="https://komodo.alexlebens.dev"
+
+            echo ">> Waiting for Periphery agent to initialize..."
+            sleep 3
+
+            echo ">> Verifying systemd service status..."
+            sudo -n systemctl is-active periphery.service
+
+            echo ">> Installed binary version:"
+            /usr/local/bin/periphery --version || periphery --version || true
+
+            echo ">> Recent service journal logs:"
+            sudo -n journalctl -u periphery -n 6 --no-pager
           '
 
       - name: ntfy Success
@@ -141,9 +167,93 @@ jobs:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
             }}/actions/runs/${{ github.run_id }}", "clear": true}]'
 
-  # ---------------------------------------------------------------------------
-  # Docker Compose Hosts (Saved for future phase)
-  # ---------------------------------------------------------------------------
-  # update-komodo-pd05wd: ...
-  # update-komodo-ps02sn: ...
-  # update-komodo-ps10rp: ...
+  update-komodo-ps10rp:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      github.event.inputs.target_host == 'all' ||
+      github.event.inputs.target_host == 'ps10rp'
+    steps:
+      - name: Set Up SSH Agent
+        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 # v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HOSTS_SSH_KEY }}
+
+      - name: Update Komodo Periphery on ps10rp
+        env:
+          TARGET_HOST: "${{ vars.HOST_PS10RP }}"
+          SSH_USER: "${{ vars.SSH_USER }}"
+          SSH_PORT: "${{ vars.SSH_PORT }}"
+        run: |
+          echo "Connecting to ${SSH_USER}@${TARGET_HOST}:${SSH_PORT}..."
+          ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" '
+            set -euo pipefail
+
+            TARGET_DIR="/mnt/data/infrastructure"
+            if [ ! -d "${TARGET_DIR}" ]; then
+              echo "Error: Directory ${TARGET_DIR} not found!"
+              exit 1
+            fi
+
+            echo ">> Pulling latest changes in ${TARGET_DIR}..."
+            cd "${TARGET_DIR}"
+            git pull
+
+            echo ">> Navigating to hosts/ps10rp/komodo-periphery..."
+            cd hosts/ps10rp/komodo-periphery
+
+            echo ">> Pulling latest images..."
+            docker compose pull || true
+
+            echo ">> Recreating containers..."
+            docker compose down
+            docker compose up -d
+
+            echo ">> Waiting for containers to initialize..."
+            sleep 5
+
+            echo ">> Verifying container status..."
+            docker compose ps
+
+            failed_containers=$(docker compose ps --filter "status=restarting" --filter "status=exited" --filter "status=dead" -q)
+            if [ -n "${failed_containers}" ]; then
+              echo "::error::One or more containers failed to start or crashed!"
+              docker compose logs --tail=25
+              exit 1
+            fi
+
+            echo ">> Recent Periphery startup logs:"
+            docker compose logs --tail=8 komodo-periphery
+          '
+
+      - name: ntfy Success
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: success()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🟢 Komodo Periphery Updated - ps10rp"
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: komodo,successfully,completed
+          details: "Komodo Periphery was successfully updated on ps10rp (Docker Compose)."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+      - name: ntfy Failure
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Komodo Periphery Update Failed - ps10rp"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: komodo,failed
+          details: "Failed to update Komodo Periphery on ps10rp."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
