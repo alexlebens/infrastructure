@@ -10,6 +10,7 @@ on:
       - "main"
     paths:
       - "clusters/cl01tl/helm/komodo/**"
+      - "hosts/ps02sn/komodo-periphery/**"
       - "hosts/ps10rp/komodo-periphery/**"
       - ".gitea/scripts/deploy-remote-compose.sh"
       - ".gitea/scripts/update-remote-periphery-systemd.sh"
@@ -22,6 +23,7 @@ on:
         type: choice
         options:
           - all
+          - ps02sn
           - ps08rp
           - ps09rp
           - ps10rp
@@ -176,6 +178,7 @@ jobs:
             --host "${TARGET_HOST}" \
             --user "${SSH_USER}" \
             --port "${SSH_PORT}" \
+            --repo-dir "/mnt/data/infrastructure" \
             --service-path "hosts/ps10rp/komodo-periphery"
 
       - name: ntfy Success
@@ -205,6 +208,68 @@ jobs:
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: komodo,failed
           details: "Failed to update Komodo Periphery on ps10rp."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+  update-komodo-ps02sn:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      github.event.inputs.target_host == 'all' ||
+      github.event.inputs.target_host == 'ps02sn'
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: Set Up SSH Agent
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.HOSTS_SSH_KEY }}
+
+      - name: Update Komodo Periphery on ps02sn
+        env:
+          TARGET_HOST: "${{ vars.HOST_PS02SN }}"
+          SSH_USER: "${{ vars.SSH_USER }}"
+          SSH_PORT: "${{ vars.SSH_PORT }}"
+        run: |
+          ./.gitea/scripts/deploy-remote-compose.sh \
+            --host "${TARGET_HOST}" \
+            --user "${SSH_USER}" \
+            --port "${SSH_PORT}" \
+            --repo-dir "/volume1/docker/infrastructure" \
+            --service-path "hosts/ps02sn/komodo-periphery"
+
+      - name: ntfy Success
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: success()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🟢 Komodo Periphery Updated - ps02sn"
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: komodo,successfully,completed
+          details: "Komodo Periphery was successfully updated on ps02sn (Docker Compose)."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+      - name: ntfy Failure
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Komodo Periphery Update Failed - ps02sn"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: komodo,failed
+          details: "Failed to update Komodo Periphery on ps02sn."
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
