@@ -11,6 +11,8 @@ on:
     paths:
       - "clusters/cl01tl/helm/komodo/**"
       - "hosts/ps10rp/komodo-periphery/**"
+      - ".gitea/scripts/deploy-remote-compose.sh"
+      - ".gitea/scripts/update-remote-periphery-systemd.sh"
       - ".gitea/workflows/update-komodo-periphery.yaml"
 
   workflow_dispatch:
@@ -34,6 +36,11 @@ jobs:
       github.event.inputs.target_host == 'all' ||
       github.event.inputs.target_host == 'ps08rp'
     steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
       - name: Set Up SSH Agent
         uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
         with:
@@ -45,25 +52,10 @@ jobs:
           SSH_USER: "${{ vars.SSH_USER }}"
           SSH_PORT: "${{ vars.SSH_PORT }}"
         run: |
-          echo "Connecting to ${SSH_USER}@${TARGET_HOST}:${SSH_PORT}..."
-          ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" '
-            set -euo pipefail
-            echo ">> Running Komodo Periphery setup/update script with sudo..."
-            curl -sSL https://raw.githubusercontent.com/moghtech/komodo/main/scripts/setup-periphery.py \
-              | sudo -n python3 - --core-address="https://komodo.alexlebens.dev"
-
-            echo ">> Waiting for Periphery agent to initialize..."
-            sleep 3
-
-            echo ">> Verifying systemd service status..."
-            sudo -n systemctl is-active periphery.service
-
-            echo ">> Installed binary version:"
-            /usr/local/bin/periphery --version || periphery --version || true
-
-            echo ">> Recent service journal logs:"
-            sudo -n journalctl -u periphery -n 6 --no-pager
-          '
+          ./.gitea/scripts/update-remote-periphery-systemd.sh \
+            --host "${TARGET_HOST}" \
+            --user "${SSH_USER}" \
+            --port "${SSH_PORT}"
 
       - name: ntfy Success
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -104,6 +96,11 @@ jobs:
       github.event.inputs.target_host == 'all' ||
       github.event.inputs.target_host == 'ps09rp'
     steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
       - name: Set Up SSH Agent
         uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
         with:
@@ -115,25 +112,10 @@ jobs:
           SSH_USER: "${{ vars.SSH_USER }}"
           SSH_PORT: "${{ vars.SSH_PORT }}"
         run: |
-          echo "Connecting to ${SSH_USER}@${TARGET_HOST}:${SSH_PORT}..."
-          ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" '
-            set -euo pipefail
-            echo ">> Running Komodo Periphery setup/update script with sudo..."
-            curl -sSL https://raw.githubusercontent.com/moghtech/komodo/main/scripts/setup-periphery.py \
-              | sudo -n python3 - --core-address="https://komodo.alexlebens.dev"
-
-            echo ">> Waiting for Periphery agent to initialize..."
-            sleep 3
-
-            echo ">> Verifying systemd service status..."
-            sudo -n systemctl is-active periphery.service
-
-            echo ">> Installed binary version:"
-            /usr/local/bin/periphery --version || periphery --version || true
-
-            echo ">> Recent service journal logs:"
-            sudo -n journalctl -u periphery -n 6 --no-pager
-          '
+          ./.gitea/scripts/update-remote-periphery-systemd.sh \
+            --host "${TARGET_HOST}" \
+            --user "${SSH_USER}" \
+            --port "${SSH_PORT}"
 
       - name: ntfy Success
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -174,8 +156,13 @@ jobs:
       github.event.inputs.target_host == 'all' ||
       github.event.inputs.target_host == 'ps10rp'
     steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
       - name: Set Up SSH Agent
-        uses: webfactory/ssh-agent@a6f90b1f127823b31d4d4a8d96047790581349bd # v0.9.1
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
         with:
           ssh-private-key: ${{ secrets.HOSTS_SSH_KEY }}
 
@@ -185,46 +172,11 @@ jobs:
           SSH_USER: "${{ vars.SSH_USER }}"
           SSH_PORT: "${{ vars.SSH_PORT }}"
         run: |
-          echo "Connecting to ${SSH_USER}@${TARGET_HOST}:${SSH_PORT}..."
-          ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" '
-            set -euo pipefail
-
-            TARGET_DIR="/mnt/data/infrastructure"
-            if [ ! -d "${TARGET_DIR}" ]; then
-              echo "Error: Directory ${TARGET_DIR} not found!"
-              exit 1
-            fi
-
-            echo ">> Pulling latest changes in ${TARGET_DIR}..."
-            cd "${TARGET_DIR}"
-            git pull
-
-            echo ">> Navigating to hosts/ps10rp/komodo-periphery..."
-            cd hosts/ps10rp/komodo-periphery
-
-            echo ">> Pulling latest images..."
-            docker compose pull || true
-
-            echo ">> Recreating containers..."
-            docker compose down
-            docker compose up -d
-
-            echo ">> Waiting for containers to initialize..."
-            sleep 5
-
-            echo ">> Verifying container status..."
-            docker compose ps
-
-            failed_containers=$(docker compose ps --filter "status=restarting" --filter "status=exited" --filter "status=dead" -q)
-            if [ -n "${failed_containers}" ]; then
-              echo "::error::One or more containers failed to start or crashed!"
-              docker compose logs --tail=25
-              exit 1
-            fi
-
-            echo ">> Recent Periphery startup logs:"
-            docker compose logs --tail=8 komodo-periphery
-          '
+          ./.gitea/scripts/deploy-remote-compose.sh \
+            --host "${TARGET_HOST}" \
+            --user "${SSH_USER}" \
+            --port "${SSH_PORT}" \
+            --service-path "hosts/ps10rp/komodo-periphery"
 
       - name: ntfy Success
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
