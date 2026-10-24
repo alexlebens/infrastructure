@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   name: tdarr-node
   labels:
@@ -12,15 +12,13 @@ metadata:
 spec:
   revisionHistoryLimit: 3
   replicas: 3
-  podManagementPolicy: OrderedReady
-  updateStrategy:
-    type: RollingUpdate
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/controller: node
       app.kubernetes.io/instance: tdarr
       app.kubernetes.io/name: tdarr
-  serviceName: tdarr
   template:
     metadata:
       labels:
@@ -42,7 +40,11 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchExpressions:
-                  - key: app.kubernetes.io/instance
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - tdarr
+                  - key: app.kubernetes.io/controller
                     operator: In
                     values:
                       - node
@@ -80,21 +82,14 @@ spec:
               gpu.intel.com/i915: 1
               memory: 100Mi
           volumeMounts:
+            - mountPath: /tcache
+              name: cache
             - mountPath: /mnt/store
               name: media
-            - mountPath: /tcache
-              name: transcode-cache
       volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: tdarr-cache
         - name: media
           persistentVolumeClaim:
             claimName: tdarr-nfs-storage
-  volumeClaimTemplates:
-    - metadata:
-        name: transcode-cache
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: 20Gi
-        storageClassName: local-path
