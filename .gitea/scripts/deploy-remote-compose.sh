@@ -53,10 +53,13 @@ fi
 
 echo ">> Connecting to ${SSH_USER}@${TARGET_HOST}:${SSH_PORT} to deploy ${SERVICE_PATH}..."
 
-ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" bash -s -- "${SERVICE_PATH}" "${REPO_DIR}" << 'EOF'
+ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" bash -s -- "${SERVICE_PATH}" "${REPO_DIR:-none}" << 'EOF'
   set -euo pipefail
-  SERVICE_PATH="$1"
-  CUSTOM_REPO_DIR="$2"
+  SERVICE_PATH="${1:-}"
+  CUSTOM_REPO_DIR="${2:-}"
+  if [[ "${CUSTOM_REPO_DIR}" == "none" ]]; then
+    CUSTOM_REPO_DIR=""
+  fi
 
   CANDIDATE_DIRS=("${CUSTOM_REPO_DIR}" "/mnt/data/infrastructure" "/opt/compose/infrastructure" "${HOME}/infrastructure")
   TARGET_DIR=""
