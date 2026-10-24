@@ -60,6 +60,7 @@ echo ">> Connecting to ${SSH_USER}@${TARGET_HOST}:${SSH_PORT} to deploy ${SERVIC
 
 ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" bash -s -- "${SERVICE_PATH}" "${REPO_DIR}" << 'EOF'
   set -euo pipefail
+  export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:${PATH:-}"
   SERVICE_PATH="$1"
   TARGET_DIR="$2"
 
