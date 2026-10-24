@@ -46,6 +46,11 @@ if [[ -z "${TARGET_HOST}" ]]; then
   exit 1
 fi
 
+if [[ -z "${REPO_DIR}" ]]; then
+  echo "Error: --repo-dir (or REPO_DIR) is required." >&2
+  exit 1
+fi
+
 if [[ -z "${SERVICE_PATH}" ]]; then
   echo "Error: --service-path (or SERVICE_PATH) is required." >&2
   exit 1
@@ -53,26 +58,13 @@ fi
 
 echo ">> Connecting to ${SSH_USER}@${TARGET_HOST}:${SSH_PORT} to deploy ${SERVICE_PATH}..."
 
-ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" bash -s -- "${SERVICE_PATH}" "${REPO_DIR:-none}" << 'EOF'
+ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" bash -s -- "${SERVICE_PATH}" "${REPO_DIR}" << 'EOF'
   set -euo pipefail
-  SERVICE_PATH="${1:-}"
-  CUSTOM_REPO_DIR="${2:-}"
-  if [[ "${CUSTOM_REPO_DIR}" == "none" ]]; then
-    CUSTOM_REPO_DIR=""
-  fi
+  SERVICE_PATH="$1"
+  TARGET_DIR="$2"
 
-  CANDIDATE_DIRS=("${CUSTOM_REPO_DIR}" "/mnt/data/infrastructure" "/opt/compose/infrastructure" "${HOME}/infrastructure")
-  TARGET_DIR=""
-
-  for dir in "${CANDIDATE_DIRS[@]}"; do
-    if [[ -n "${dir}" && -d "${dir}" ]]; then
-      TARGET_DIR="${dir}"
-      break
-    fi
-  done
-
-  if [[ -z "${TARGET_DIR}" ]]; then
-    echo "::error::Target infrastructure repository directory not found on host!" >&2
+  if [[ ! -d "${TARGET_DIR}" ]]; then
+    echo "::error::Target repository directory '${TARGET_DIR}' not found on host!" >&2
     exit 1
   fi
 
