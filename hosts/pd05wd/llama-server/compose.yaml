@@ -1,0 +1,61 @@
+---
+name: llama-server
+services:
+  llama-server:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda@sha256:490d8cd8000203a3ab8fdfce14ef931e2aa85affd4dd4447bcc75f299f00fd9a
+    container_name: llama-server
+    command:
+      - '--hf-repo'
+      - 'unsloth/gemma-4-E4B-it-GGUF'
+      - '--hf-file'
+      - 'gemma-4-E4B-it-Q4_K_M.gguf'
+      - '--alias'
+      - 'gemma4:e4b'
+      - '--host'
+      - '0.0.0.0'
+      - '--port'
+      - '8080'
+      - '--ctx-size'
+      - '8192'
+      - '--n-gpu-layers'
+      - '99'
+      - '--flash-attn'
+    volumes:
+      - models:/models/cache
+    environment:
+      - HF_HUB_CACHE=/models/cache
+      - LLAMA_CACHE=/models/cache
+      - TZ=America/Chicago
+    restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ['gpu']
+              count: all
+
+  tailscale-llama-server:
+    image: ghcr.io/tailscale/tailscale:v1.104.2@sha256:b11583ad2e93e4671128538c88cf11f460444a5d7e449311dd1933a400ab849d
+    container_name: tailscale-llama-server
+    volumes:
+      - tailscale:/var/lib/tailscale
+      - ./serve.json:/config/serve.json
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_ENABLE_METRICS=true
+      - TS_HOSTNAME=llama-server-pd05wd
+      - TS_SERVE_CONFIG=/config/serve.json
+    env_file:
+      - .ts-env
+    network_mode: service:llama-server
+    restart: always
+    cap_add:
+      - net_admin
+      - sys_module
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+volumes:
+  tailscale:
+  models:
