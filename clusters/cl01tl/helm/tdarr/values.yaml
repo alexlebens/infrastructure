@@ -101,23 +101,20 @@ tdarr:
                   path: /ready
                   port: 4180
     node:
-      type: statefulset
       replicas: 3
-      statefulset:
-        volumeClaimTemplates:
-          - name: transcode-cache
-            accessMode: ReadWriteOnce
-            size: 20Gi
-            storageClass: local-path
-            globalMounts:
-              - path: /tcache
+      type: deployment
+      strategy: Recreate
       pod:
         affinity:
           podAntiAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
               - labelSelector:
                   matchExpressions:
-                    - key: app.kubernetes.io/instance
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - tdarr
+                    - key: app.kubernetes.io/controller
                       operator: In
                       values:
                         - node
@@ -217,10 +214,16 @@ tdarr:
         server:
           main:
             - path: /app/server
-    server-cache:
-      type: emptyDir
+    cache:
+      forceRename: tdarr-cache
+      storageClass: ceph-filesystem
+      accessMode: ReadWriteMany
+      size: 100Gi
       advancedMounts:
         server:
+          main:
+            - path: /tcache
+        node:
           main:
             - path: /tcache
     media:
