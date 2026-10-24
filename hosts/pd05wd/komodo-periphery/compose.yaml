@@ -1,0 +1,45 @@
+---
+name: komodo-periphery
+services:
+  komodo-periphery:
+    image: ghcr.io/moghtech/komodo-periphery:2.3.4@sha256:71da0378b22d541b9b84390ffdb69863a8eeb5b16bbd9d457eb26a37a1be022e
+    container_name: komodo-periphery
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - keys:/config/keys
+    environment:
+      - TZ=America/Chicago
+      - PERIPHERY_PORT=8120
+      - PERIPHERY_CORE_ADDRESS=https://komodo.alexlebens.dev
+      - PERIPHERY_CONNECT_AS=pd05wd
+    env_file:
+      - path: .komodo-env
+        required: false
+    ports:
+      - '0.0.0.0:8120:8120'
+    restart: always
+    init: true
+
+  tailscale-komodo-periphery:
+    image: ghcr.io/tailscale/tailscale:v1.104.2@sha256:b11583ad2e93e4671128538c88cf11f460444a5d7e449311dd1933a400ab849d
+    container_name: tailscale-komodo-periphery
+    volumes:
+      - tailscale:/var/lib/tailscale
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_ENABLE_METRICS=true
+      - TS_HOSTNAME=komodo-periphery-pd05wd
+    env_file:
+      - path: .ts-env
+        required: false
+    network_mode: service:komodo-periphery
+    restart: always
+    cap_add:
+      - net_admin
+      - sys_module
+    devices:
+      - /dev/net/tun:/dev/net/tun
+
+volumes:
+  keys:
+  tailscale:
