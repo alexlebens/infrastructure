@@ -1,0 +1,149 @@
+name: update-komodo-periphery
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "clusters/cl01tl/helm/komodo/**"
+      - ".gitea/workflows/update-komodo-periphery.yaml"
+
+  workflow_dispatch:
+    inputs:
+      target_host:
+        description: "Target host to update (or 'all')"
+        type: choice
+        options:
+          - all
+          - ps08rp
+          - ps09rp
+        default: all
+        required: true
+
+jobs:
+  update-komodo-ps08rp:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      github.event.inputs.target_host == 'all' ||
+      github.event.inputs.target_host == 'ps08rp'
+    steps:
+      - name: Set Up SSH Agent
+        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 # v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HOSTS_SSH_KEY }}
+
+      - name: Update Komodo Periphery on ps08rp
+        env:
+          TARGET_HOST: "${{ vars.HOST_PS08RP }}"
+          SSH_USER: "${{ vars.SSH_USER }}"
+          SSH_PORT: "${{ vars.SSH_PORT }}"
+        run: |
+          echo "Connecting to ${SSH_USER}@${TARGET_HOST}:${SSH_PORT}..."
+          ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" '
+            set -euo pipefail
+            echo ">> Running Komodo Periphery setup/update script with sudo..."
+            curl -sSL https://raw.githubusercontent.com/moghtech/komodo/main/scripts/setup-periphery.py \
+              | sudo -n python3 - --core-address="https://komodo.alexlebens.dev"
+          '
+
+      - name: ntfy Success
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: success()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🟢 Komodo Periphery Updated - ps08rp"
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: komodo,successfully,completed
+          details: "Komodo Periphery was successfully updated on ps08rp (Systemd)."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+      - name: ntfy Failure
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Komodo Periphery Update Failed - ps08rp"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: komodo,failed
+          details: "Failed to update Komodo Periphery on ps08rp."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+  update-komodo-ps09rp:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      github.event.inputs.target_host == 'all' ||
+      github.event.inputs.target_host == 'ps09rp'
+    steps:
+      - name: Set Up SSH Agent
+        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 # v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HOSTS_SSH_KEY }}
+
+      - name: Update Komodo Periphery on ps09rp
+        env:
+          TARGET_HOST: "${{ vars.HOST_PS09RP || 'ps09rp' }}"
+          SSH_USER: "${{ vars.SSH_USER }}"
+          SSH_PORT: "${{ vars.SSH_PORT }}"
+        run: |
+          echo "Connecting to ${SSH_USER}@${TARGET_HOST}:${SSH_PORT}..."
+          ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" '
+            set -euo pipefail
+            echo ">> Running Komodo Periphery setup/update script with sudo..."
+            curl -sSL https://raw.githubusercontent.com/moghtech/komodo/main/scripts/setup-periphery.py \
+              | sudo -n python3 - --core-address="https://komodo.alexlebens.dev"
+          '
+
+      - name: ntfy Success
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: success()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🟢 Komodo Periphery Updated - ps09rp"
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: komodo,successfully,completed
+          details: "Komodo Periphery was successfully updated on ps09rp (Systemd)."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+      - name: ntfy Failure
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Komodo Periphery Update Failed - ps09rp"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: komodo,failed
+          details: "Failed to update Komodo Periphery on ps09rp."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+  # ---------------------------------------------------------------------------
+  # Docker Compose Hosts (Saved for future phase)
+  # ---------------------------------------------------------------------------
+  # update-komodo-pd05wd: ...
+  # update-komodo-ps02sn: ...
+  # update-komodo-ps10rp: ...
