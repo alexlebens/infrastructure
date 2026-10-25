@@ -18,7 +18,7 @@
         }
       ]
     },
-    "llama": {
+    "ollama": {
       "network_config": {
         "allow_private_network": true
       },
@@ -29,14 +29,7 @@
           "ollama_key_config": {
             "url": "https://ollama-pd05wd.boreal-beaufort.ts.net"
           },
-          "models": [
-            "gemma4:e4b",
-            "gemma4:12b",
-            "embeddinggemma:latest",
-            "embeddinggemma-2:latest",
-            "text-embedding-ada-002",
-            "text-embedding-3-small"
-          ],
+          "models": ["gemma4", "gemma4:12b"],
           "weight": 1.0
         },
         {
@@ -46,7 +39,7 @@
             "url": "http://llama-server-gemma4-e4b.llama-server:8080"
           },
           "value": "env.LLAMA_SERVER_API_KEY",
-          "models": ["gemma4:e4b"],
+          "models": ["gemma4", "gemma4:e4b"],
           "weight": 0.0
         },
         {
@@ -65,22 +58,31 @@
   "governance": {
     "routing_rules": [
       {
-        "name": "ollama-desktop-with-cluster-fallback",
-        "match_expression": "request.provider == 'ollama'",
+        "name": "gemma4-routing",
+        "match_expression": "request.model == 'gemma4' || request.model == 'gemma4:e4b' || request.model == 'gemma4:12b'",
         "targets": [
           {
             "provider": "ollama",
-            "provider_key_name": "ollama-desktop"
+            "provider_key_name": "ollama-desktop",
+            "model": "gemma4:12b"
           }
         ],
         "fallbacks": [
           {
             "provider": "ollama",
-            "provider_key_name": "llama-server-gemma4-e4b"
-          },
+            "provider_key_name": "llama-server-gemma4-e4b",
+            "model": "gemma4:e4b"
+          }
+        ]
+      },
+      {
+        "name": "embeddings-cluster",
+        "match_expression": "request.model == 'embeddinggemma-2:latest' || request.model == 'text-embedding-ada-002' || request.model == 'text-embedding-3-small'",
+        "targets": [
           {
             "provider": "ollama",
-            "provider_key_name": "llama-server-embeddinggemma-2"
+            "provider_key_name": "llama-server-embeddinggemma-2",
+            "model": "embeddinggemma-2:latest"
           }
         ]
       }
@@ -103,14 +105,7 @@
             "provider": "ollama",
             "allow_all_providers": false,
             "key_ids": ["*"],
-            "allowed_models": [
-              "gemma4:e4b",
-              "gemma4:12b",
-              "embeddinggemma:latest",
-              "embeddinggemma-2:latest",
-              "text-embedding-ada-002",
-              "text-embedding-3-small"
-            ]
+            "allowed_models": ["gemma4", "embeddinggemma-2:latest", "text-embedding-ada-002", "text-embedding-3-small"]
           }
         ]
       },
@@ -125,14 +120,7 @@
             "provider": "ollama",
             "allow_all_providers": false,
             "key_ids": ["*"],
-            "allowed_models": [
-              "gemma4:e4b",
-              "gemma4:12b",
-              "embeddinggemma:latest",
-              "embeddinggemma-2:latest",
-              "text-embedding-ada-002",
-              "text-embedding-3-small"
-            ]
+            "allowed_models": ["gemma4", "embeddinggemma-2:latest", "text-embedding-ada-002", "text-embedding-3-small"]
           }
         ]
       }
