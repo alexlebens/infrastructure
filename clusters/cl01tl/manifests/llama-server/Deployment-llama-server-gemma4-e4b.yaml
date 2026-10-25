@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: llama-server-embeddings
+  name: llama-server-gemma4-e4b
   labels:
-    app.kubernetes.io/controller: embeddings
+    app.kubernetes.io/controller: gemma4-e4b
     app.kubernetes.io/instance: llama-server
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: llama-server
@@ -16,13 +16,13 @@ spec:
     type: RollingUpdate
   selector:
     matchLabels:
-      app.kubernetes.io/controller: embeddings
+      app.kubernetes.io/controller: gemma4-e4b
       app.kubernetes.io/instance: llama-server
       app.kubernetes.io/name: llama-server
   template:
     metadata:
       labels:
-        app.kubernetes.io/controller: embeddings
+        app.kubernetes.io/controller: gemma4-e4b
         app.kubernetes.io/instance: llama-server
         app.kubernetes.io/name: llama-server
     spec:
@@ -41,21 +41,48 @@ spec:
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - jellyfin
+              namespaces:
+                - jellyfin
+              topologyKey: kubernetes.io/hostname
       containers:
         - args:
             - --hf-repo
-            - ggml-org/embeddinggemma-300M-GGUF
+            - unsloth/gemma-4-E4B-it-GGUF
             - --hf-file
-            - embeddinggemma-300M-Q8_0.gguf
+            - gemma-4-E4B-it-Q4_K_M.gguf
             - --alias
-            - embeddinggemma:latest
-            - --embeddings
+            - gemma4:e4b
+            - --jinja
+            - --flash-attn
             - --host
             - 0.0.0.0
             - --port
-            - "8081"
+            - "8080"
             - --threads
             - "2"
+            - --threads-batch
+            - "2"
+            - --ctx-size
+            - "4096"
+            - --batch-size
+            - "512"
+            - --ubatch-size
+            - "512"
+            - --cache-type-k
+            - q8_0
+            - --cache-type-v
+            - q8_0
+            - --parallel
+            - "1"
             - --load-mode
             - none
             - --metrics
@@ -80,8 +107,8 @@ spec:
             failureThreshold: 5
             httpGet:
               path: /health
-              port: 8081
-            initialDelaySeconds: 60
+              port: 8080
+            initialDelaySeconds: 120
             periodSeconds: 15
             timeoutSeconds: 5
           name: main
@@ -89,17 +116,17 @@ spec:
             failureThreshold: 3
             httpGet:
               path: /health
-              port: 8081
-            initialDelaySeconds: 20
+              port: 8080
+            initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
           resources:
             limits:
-              cpu: 500m
-              memory: 1500Mi
+              cpu: "2"
+              memory: 10Gi
             requests:
-              cpu: 50m
-              memory: 500Mi
+              cpu: 200m
+              memory: 6Gi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -108,12 +135,12 @@ spec:
             readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /models/cache
-              name: embedding-cache
+              name: gemma4-e4b-cache
             - mountPath: /tmp
               name: tmp
       volumes:
-        - name: embedding-cache
+        - name: gemma4-e4b-cache
           persistentVolumeClaim:
-            claimName: llama-server-embedding-cache
+            claimName: llama-server-gemma4-e4b-cache
         - emptyDir: {}
           name: tmp
