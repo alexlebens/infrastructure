@@ -1,6 +1,6 @@
 llama-server:
   controllers:
-    qwen:
+    qwen3-5-4b:
       replicas: 1
       type: deployment
       strategy: RollingUpdate
@@ -112,7 +112,7 @@ llama-server:
                 periodSeconds: 10
                 timeoutSeconds: 5
                 failureThreshold: 3
-    embeddings:
+    embeddinggemma-2:
       replicas: 1
       type: deployment
       strategy: RollingUpdate
@@ -138,11 +138,11 @@ llama-server:
             tag: server-b11854@sha256:20c4196fc08b459a34ef78aaa05b101333b2fac687e30ec99f37b3c9dc071b44
           args:
             - "--hf-repo"
-            - "ggml-org/embeddinggemma-300M-GGUF"
+            - "ggml-org/embeddinggemma-2-GGUF"
             - "--hf-file"
-            - "embeddinggemma-300M-Q8_0.gguf"
+            - "embeddinggemma-2-Q8_0.gguf"
             - "--alias"
-            - "embeddinggemma:latest"
+            - "embeddinggemma-2:latest"
             - "--embeddings"
             - "--host"
             - "0.0.0.0"
@@ -199,115 +199,22 @@ llama-server:
                 periodSeconds: 10
                 timeoutSeconds: 5
                 failureThreshold: 3
-    embeddings-2:
-      replicas: 1
-      type: deployment
-      strategy: RollingUpdate
-      pod:
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
-          runAsGroup: 1000
-          fsGroup: 1000
-          fsGroupChangePolicy: OnRootMismatch
-          seccompProfile:
-            type: RuntimeDefault
-      containers:
-        main:
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop:
-                - ALL
-          image:
-            repository: ghcr.io/ggml-org/llama.cpp
-            tag: server-b11854@sha256:20c4196fc08b459a34ef78aaa05b101333b2fac687e30ec99f37b3c9dc071b44
-          args:
-            - "--hf-repo"
-            - "ggml-org/embeddinggemma-2-GGUF"
-            - "--hf-file"
-            - "embeddinggemma-2-Q8_0.gguf"
-            - "--alias"
-            - "embeddinggemma-2:latest"
-            - "--embeddings"
-            - "--host"
-            - "0.0.0.0"
-            - "--port"
-            - "8082"
-            - "--threads"
-            - "2"
-            - "--load-mode"
-            - "none"
-            - "--metrics"
-            - "--api-key"
-            - "$(LLAMA_API_KEY)"
-            - "--cors-origins"
-            - "localhost"
-          env:
-            - name: LLAMA_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: llama-server-secret
-                  key: api-key
-            - name: HF_HUB_CACHE
-              value: /models/cache
-            - name: LLAMA_CACHE
-              value: /models/cache
-            - name: TZ
-              value: America/Chicago
-          resources:
-            requests:
-              cpu: 50m
-              memory: 500Mi
-            limits:
-              cpu: 500m
-              memory: 1500Mi
-          probes:
-            liveness:
-              enabled: true
-              custom: true
-              spec:
-                httpGet:
-                  path: /health
-                  port: 8082
-                initialDelaySeconds: 60
-                periodSeconds: 15
-                timeoutSeconds: 5
-                failureThreshold: 5
-            readiness:
-              enabled: true
-              custom: true
-              spec:
-                httpGet:
-                  path: /health
-                  port: 8082
-                initialDelaySeconds: 20
-                periodSeconds: 10
-                timeoutSeconds: 5
-                failureThreshold: 3
   service:
-    qwen:
-      controller: qwen
-      forceRename: llama-server-qwen
+    qwen3-5-4b:
+      controller: qwen3-5-4b
+      forceRename: llama-server-qwen3-5-4b
       ports:
         http:
           port: 8080
-    embeddings:
-      controller: embeddings
-      forceRename: llama-server-embeddings
+    embeddinggemma-2:
+      controller: embeddinggemma-2
+      forceRename: llama-server-embeddinggemma-2
       ports:
         http:
           port: 8081
-    embeddings-2:
-      controller: embeddings-2
-      forceRename: llama-server-embeddings-2
-      ports:
-        http:
-          port: 8082
   serviceMonitor:
-    qwen:
-      serviceName: llama-server-qwen
+    qwen3-5-4b:
+      serviceName: llama-server-qwen3-5-4b
       endpoints:
         - port: http
           interval: 15s
@@ -315,17 +222,8 @@ llama-server:
             credentials:
               name: llama-server-secret
               key: api-key
-    embeddings:
-      serviceName: llama-server-embeddings
-      endpoints:
-        - port: http
-          interval: 15s
-          authorization:
-            credentials:
-              name: llama-server-secret
-              key: api-key
-    embeddings-2:
-      serviceName: llama-server-embeddings-2
+    embeddinggemma-2:
+      serviceName: llama-server-embeddinggemma-2
       endpoints:
         - port: http
           interval: 15s
@@ -334,31 +232,22 @@ llama-server:
               name: llama-server-secret
               key: api-key
   persistence:
-    qwen-cache:
+    qwen3-5-4b-cache:
       type: persistentVolumeClaim
       storageClass: ceph-filesystem
       accessMode: ReadWriteMany
       size: 15Gi
       advancedMounts:
-        qwen:
+        qwen3-5-4b:
           main:
             - path: /models/cache
-    embedding-cache:
+    embeddinggemma-2-cache:
       type: persistentVolumeClaim
       storageClass: ceph-filesystem
       accessMode: ReadWriteMany
       size: 3Gi
       advancedMounts:
-        embeddings:
-          main:
-            - path: /models/cache
-    embedding-2-cache:
-      type: persistentVolumeClaim
-      storageClass: ceph-filesystem
-      accessMode: ReadWriteMany
-      size: 3Gi
-      advancedMounts:
-        embeddings-2:
+        embeddinggemma-2:
           main:
             - path: /models/cache
     tmp:
@@ -368,4 +257,4 @@ llama-server:
 
 common-helpers:
   probe:
-    internal: http://llama-server-qwen.llama-server:8080/health
+    internal: http://llama-server-qwen3-5-4b.llama-server:8080/health
