@@ -71,21 +71,11 @@ librechat:
                 secretKeyRef:
                   name: librechat-secrets
                   key: jwt-refresh-secret
-            - name: LITELLM_MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: litellm-secrets
-                  key: master-key
             - name: AI_GATEWAY_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: librechat-secrets
                   key: ai-gateway-api-key
-            - name: OLLAMA_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: librechat-secrets
-                  key: ollama-api-key
             - name: KARAKEEP_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -265,73 +255,6 @@ librechat:
                 periodSeconds: 10
                 timeoutSeconds: 5
                 failureThreshold: 3
-    litellm:
-      type: deployment
-      strategy: Recreate
-      annotations:
-        reloader.stakater.com/auto: "true"
-      pod:
-        securityContext:
-          fsGroup: 1000
-          fsGroupChangePolicy: OnRootMismatch
-          seccompProfile:
-            type: RuntimeDefault
-      containers:
-        litellm:
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            capabilities:
-              drop:
-                - ALL
-          image:
-            repository: ghcr.io/berriai/litellm
-            tag: v1.106.3@sha256:74d0696a9f0afcc993c7659d246f0c542f003368298633e852228250779f1032
-          args:
-            - "--config"
-            - "/etc/litellm/config.yaml"
-            - "--port"
-            - "4000"
-          env:
-            - name: PORT
-              value: "4000"
-            - name: LITELLM_MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: litellm-secrets
-                  key: master-key
-            - name: GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: litellm-secrets
-                  key: gemini-api-key
-          resources:
-            requests:
-              cpu: 10m
-              memory: 550Mi
-          probes:
-            liveness:
-              enabled: true
-              custom: true
-              spec:
-                httpGet:
-                  path: /health/liveliness
-                  port: 4000
-                initialDelaySeconds: 30
-                periodSeconds: 15
-                timeoutSeconds: 5
-                failureThreshold: 5
-            readiness:
-              enabled: true
-              custom: true
-              spec:
-                httpGet:
-                  path: /health/readiness
-                  port: 4000
-                initialDelaySeconds: 20
-                periodSeconds: 10
-                timeoutSeconds: 5
-                failureThreshold: 3
     rag-api:
       type: deployment
       strategy: Recreate
@@ -377,14 +300,14 @@ librechat:
             - name: EMBEDDINGS_MODEL
               value: "embeddinggemma:latest"
             - name: RAG_OPENAI_BASEURL
-              value: "http://ollama-router.ollama.svc.cluster.local:11434/v1"
+              value: "http://ai-gateway.ai-gateway.svc.cluster.local:8080/v1"
             - name: OPENAI_REVERSE_PROXY
-              value: "http://ollama-router.ollama.svc.cluster.local:11434/v1"
+              value: "http://ai-gateway.ai-gateway.svc.cluster.local:8080/v1"
             - name: RAG_OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: litellm-secrets
-                  key: ollama-master-key
+                  name: librechat-secrets
+                  key: ai-gateway-api-key
             - name: RAG_CHECK_EMBEDDING_CTX_LENGTH
               value: "false"
           resources:
@@ -423,12 +346,6 @@ librechat:
         http:
           port: 80
           targetPort: 3080
-    litellm:
-      controller: litellm
-      forceRename: librechat-litellm
-      ports:
-        http:
-          port: 4000
     rag-api:
       controller: rag-api
       forceRename: librechat-rag-api
@@ -470,21 +387,12 @@ librechat:
             - path: /app/librechat.yaml
               subPath: librechat.yaml
               readOnly: true
-    litellm-config:
-      type: configMap
-      name: litellm-config
-      advancedMounts:
-        litellm:
-          litellm:
-            - path: /etc/litellm/config.yaml
-              subPath: config.yaml
-              readOnly: true
 
 pocket-id-client:
   mode: oidc
   client:
     displayName: "LibreChat"
-    description: "AI chat interface with LiteLLM and MCP integration."
+    description: "AI chat interface with AI Gateway and MCP integration."
     launchUrl: "https://ai.alexlebens.dev"
     clientID: E83B2C91-4D5F-467A-B192-3C4D5E6F7A8B
     callbackUrls:
