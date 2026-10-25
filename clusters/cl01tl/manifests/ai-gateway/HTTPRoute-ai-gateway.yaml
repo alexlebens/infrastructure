@@ -1,0 +1,39 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ai-gateway
+  labels:
+    app.kubernetes.io/instance: ai-gateway
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: ai-gateway
+    helm.sh/chart: ai-gateway-5.3.0
+  annotations:
+    gethomepage.dev/description: Bifrost
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Automation
+    gethomepage.dev/icon: mdi-brain
+    gethomepage.dev/name: AI Gateway
+    gethomepage.dev/pod-selector: ""
+    gethomepage.dev/siteMonitor: http://ai-gateway.ai-gateway:8080/health
+    gethomepage.dev/weight: "300"
+  namespace: ai-gateway
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: "traefik"
+  hostnames:
+    - "ai-gateway.alexlebens.dev"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: ai-gateway
+          namespace: ai-gateway
+          port: 8080
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /

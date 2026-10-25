@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: whodb
     helm.sh/chart: whodb-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
   namespace: whodb
 spec:
   revisionHistoryLimit: 3
@@ -35,10 +37,15 @@ spec:
       dnsPolicy: ClusterFirst
       containers:
         - env:
-            - name: WHODB_OLLAMA_HOST
-              value: ollama-server.ollama
-            - name: WHODB_OLLAMA_PORT
-              value: "11434"
+            - name: WHODB_OPENAI_ENDPOINT
+              value: http://ai-gateway.ai-gateway:8080/v1
+            - name: WHODB_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: apiKey
+                  name: whodb-ai-key
+            - name: WHODB_OPENAI_NAME
+              value: AI Gateway
           image: clidey/whodb:0.136.0@sha256:6d773a55e016c06c20204657ac3f63109d371d7a8b7aa2ab406dd8a0ed6278a4
           livenessProbe:
             httpGet:
