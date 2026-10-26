@@ -32,6 +32,11 @@ spec:
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 100
+        runAsNonRoot: true
+        runAsUser: 99
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -42,6 +47,12 @@ spec:
               value: America/Chicago
             - name: UN_WEBSERVER_METRICS
               value: "true"
+            - name: UN_WEBSERVER_UI_PASSWORD
+              value: webauth:X-Forwarded-User
+            - name: UN_WEBSERVER_API_KEYS_0_NAME
+              value: prometheus
+            - name: UN_WEBSERVER_API_KEYS_0_ROLES_0
+              value: admin
             - name: UN_SONARR_0_URL
               value: http://sonarr.sonarr:80
             - name: UN_SONARR_0_PATHS_0
@@ -77,24 +88,81 @@ spec:
           envFrom:
             - secretRef:
                 name: unpackerr-key-config
-          image: golift/unpackerr:v0.16.1@sha256:244fc45cb207308f60e8f52dd703c2b3463385752de0f9517c58ff9d331ed15e
+          image: golift/unpackerr:v1.0.0@sha256:95ed846fb79cc870c7d745acaebf7e49883a29c5625e4679f9a1aded6f283304
           livenessProbe:
             httpGet:
-              path: /metrics
+              path: /
               port: 5656
           name: main
           readinessProbe:
             httpGet:
-              path: /metrics
+              path: /
               port: 5656
           resources:
             requests:
               cpu: 10m
-              memory: 10Mi
+              memory: 30Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
+            - mountPath: /config
+              name: config
             - mountPath: /mnt/store
               name: storage
+            - mountPath: /tmp
+              name: tmp
+        - env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:5656
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: '*'
+          envFrom:
+            - secretRef:
+                name: unpackerr-oauth-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+          name: oauth
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4180
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
       volumes:
+        - emptyDir: {}
+          name: config
         - name: storage
           persistentVolumeClaim:
             claimName: unpackerr-nfs-storage
+        - emptyDir: {}
+          name: tmp
