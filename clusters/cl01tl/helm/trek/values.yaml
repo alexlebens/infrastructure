@@ -1,13 +1,30 @@
 trek:
   controllers:
     main:
+      annotations:
+        reloader.stakater.com/auto: "true"
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETUID
+                - SETGID
           image:
             repository: mauriceboe/trek
-            tag: 4.3.4@sha256:6b7c8f275cc0ff3ca44979084bf078f553c96a0564493a132c1631ffaf6c3e77
+            tag: 5.0.0@sha256:0c0a8f5b488fc2967248695e04bb000bb177d0b63d3385089d33dca6fde4daf9
           env:
             - name: NODE_ENV
               value: production
@@ -66,11 +83,28 @@ trek:
               value: "587"
             - name: SMTP_FROM
               value: trek@alexlebens.dev
+            - name: AI_GATEWAY_URL
+              value: http://ai-gateway.ai-gateway:8080/v1
+            - name: AI_GATEWAY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: trek-ai-gateway
+                  key: apiKey
           resources:
             requests:
-              cpu: 25m
-              memory: 100Mi
+              cpu: 10m
+              memory: 350Mi
           probes:
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3000
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                failureThreshold: 60
             liveness:
               enabled: true
               custom: true
@@ -78,8 +112,22 @@ trek:
                 httpGet:
                   path: /api/health
                   port: 3000
+                periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/health
+                  port: 3000
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
   service:
     main:
+      forceRename: trek
       ports:
         http:
           port: 80
@@ -87,6 +135,15 @@ trek:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Travel"
+        gethomepage.dev/description: "TREK"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "sh-trek-light.webp"
+        gethomepage.dev/siteMonitor: "http://trek.trek:80/api/health"
+        gethomepage.dev/weight: "250"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -119,6 +176,28 @@ trek:
         main:
           main:
             - path: /app/uploads
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "TREK"
+    description: "A self-hosted travel planner to organize your trips, itineraries, and bookings."
+    clientID: B4903AAD-1944-488A-AB5D-6C955F376541
+    callbackUrls:
+      - https://trek.alexlebens.dev/api/auth/oidc/callback
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
+      - name: user
+        namespace: pocket-id-operator
+    logo:
+      selfhstDarkLogo: true
 
 cloudflared:
   probe:
@@ -158,3 +237,8 @@ volsync-target-uploads:
   d:
     enabled: true
     schedule: 10 10 * * 3
+
+common-helpers:
+  probe:
+    internal: http://trek.trek:80/api/health
+    external: https://trek.alexlebens.dev
