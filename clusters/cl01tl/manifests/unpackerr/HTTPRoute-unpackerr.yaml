@@ -1,0 +1,39 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: unpackerr
+  labels:
+    app.kubernetes.io/instance: unpackerr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: unpackerr
+    helm.sh/chart: unpackerr-5.3.0
+  annotations:
+    gethomepage.dev/description: Unpackerr
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Content
+    gethomepage.dev/icon: sh-unpackerr.webp
+    gethomepage.dev/name: Torrent Archive Management
+    gethomepage.dev/pod-selector: ""
+    gethomepage.dev/siteMonitor: http://unpackerr.unpackerr:80
+    gethomepage.dev/weight: "100"
+  namespace: unpackerr
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: "traefik"
+  hostnames:
+    - "unpackerr.alexlebens.dev"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: unpackerr
+          namespace: unpackerr
+          port: 4180
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
