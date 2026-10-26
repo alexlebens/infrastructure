@@ -5,18 +5,38 @@ unpackerr:
       strategy: Recreate
       pod:
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 99
+          runAsGroup: 100
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: golift/unpackerr
-            tag: v0.16.1@sha256:244fc45cb207308f60e8f52dd703c2b3463385752de0f9517c58ff9d331ed15e
+            tag: v1.0.0@sha256:95ed846fb79cc870c7d745acaebf7e49883a29c5625e4679f9a1aded6f283304
+          envFrom:
+            - secretRef:
+                name: unpackerr-key-config
           env:
             - name: TZ
               value: America/Chicago
             - name: UN_WEBSERVER_METRICS
-              value: true
+              value: "true"
+            - name: UN_WEBSERVER_UI_PASSWORD
+              value: "webauth:X-Forwarded-User"
+            - name: UN_WEBSERVER_API_KEYS_0_NAME
+              value: prometheus
+            - name: UN_WEBSERVER_API_KEYS_0_ROLES_0
+              value: admin
             - name: UN_SONARR_0_URL
               value: http://sonarr.sonarr:80
             - name: UN_SONARR_0_PATHS_0
@@ -49,12 +69,58 @@ unpackerr:
               value: http://lidarr.lidarr:80
             - name: UN_LIDARR_0_PATHS_0
               value: /mnt/store/Torrent/FINISHED/COMPLETED
-          envFrom:
-            - secretRef:
-                name: unpackerr-key-config
           resources:
             requests:
               cpu: 10m
+              memory: 30Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 5656
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 5656
+        oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
+          envFrom:
+            - secretRef:
+                name: unpackerr-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:5656
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+          resources:
+            requests:
+              cpu: 1m
               memory: 10Mi
           probes:
             liveness:
@@ -62,30 +128,60 @@ unpackerr:
               custom: true
               spec:
                 httpGet:
-                  path: /metrics
-                  port: 5656
+                  path: /ping
+                  port: 4180
             readiness:
               enabled: true
               custom: true
               spec:
                 httpGet:
-                  path: /metrics
-                  port: 5656
+                  path: /ready
+                  port: 4180
   service:
     main:
+      forceRename: unpackerr
       ports:
-        metrics:
-          port: 5656
+        http:
+          port: 80
+          targetPort: 5656
+        oauth:
+          port: 4180
+        oauth-metrics:
+          port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: unpackerr
-          app.kubernetes.io/instance: unpackerr
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: unpackerr
       endpoints:
-        - port: metrics
-          interval: 5m
+        - port: http
+          bearerTokenSecret:
+            name: unpackerr-key-config
+            key: UN_WEBSERVER_API_KEYS_0_KEY
+        - port: oauth-metrics
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Torrent Archive Management"
+        gethomepage.dev/description: "Unpackerr"
+        gethomepage.dev/group: "Content"
+        gethomepage.dev/icon: "sh-unpackerr.webp"
+        gethomepage.dev/siteMonitor: "http://unpackerr.unpackerr:80"
+        gethomepage.dev/weight: "100"
+        gethomepage.dev/pod-selector: ""
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - unpackerr.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: unpackerr
+              port: 4180
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
   persistence:
     storage:
       existingClaim: unpackerr-nfs-storage
@@ -93,6 +189,35 @@ unpackerr:
         main:
           main:
             - path: /mnt/store
+    config:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  client:
+    displayName: "Unpackerr"
+    description: "A Servarr companion app that unpacks archived downloads."
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
+  seedJob:
+    enabled: true
+
+common-helpers:
+  probe:
+    internal: http://unpackerr.unpackerr:80
+    external: https://unpackerr.alexlebens.dev
 
 grafanaDashboard:
   folder: applications
