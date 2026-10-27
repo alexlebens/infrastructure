@@ -7,16 +7,24 @@ tubearchivist:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       initContainers:
         gluetun:
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
           restartPolicy: Always
-          image:
-            repository: ghcr.io/qdm12/gluetun
-            tag: v3.41.3@sha256:fa19cc76b2af13d57a8d3dc3066f2ada061b1c761b8aecf989b3877c0486e027
           lifecycle:
             postStart:
               exec:
                 command: ["/bin/sh", "-c", "(ip rule del table 51820; ip -6 rule del table 51820) || true"]
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: v3.41.3@sha256:fa19cc76b2af13d57a8d3dc3066f2ada061b1c761b8aecf989b3877c0486e027
           env:
             - name: VPN_SERVICE_PROVIDER
               value: airvpn
@@ -45,13 +53,11 @@ tubearchivist:
             - name: FIREWALL_OUTBOUND_SUBNETS
               value: 127.0.0.0/8,192.168.1.0/24,10.244.0.0/16,10.96.0.0/12
             - name: FIREWALL_INPUT_PORTS
-              value: "24000,4180,44180"
-          securityContext:
-            privileged: true
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_MODULE
+              value: "8000,4180,44180"
+          resources:
+            requests:
+              cpu: 5m
+              memory: 30Mi
           probes:
             readiness:
               enabled: true
@@ -68,16 +74,17 @@ tubearchivist:
                 timeoutSeconds: 5
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
           image:
             repository: bbilly1/tubearchivist
-            tag: v0.5.12@sha256:ba1c846ddd0c6fdd0f040727129d2466e03b7a0c26499223839d450c7586ac09
+            tag: v0.6.0@sha256:0cbc18aa953c72ec7dfdd6f8fa7c2fe89b5d04489857d7baa354fecbd6181e69
+          envFrom:
+            - secretRef:
+                name: tubearchivist-config
           env:
             - name: TZ
               value: America/Chicago
-            - name: HOST_UID
-              value: 1000
-            - name: HOST_GID
-              value: 1000
             - name: ES_URL
               value: https://elasticsearch-tubearchivist-es-http.tubearchivist:9200
             - name: ES_DISABLE_VERIFY_SSL
@@ -87,7 +94,7 @@ tubearchivist:
             - name: TA_HOST
               value: https://tubearchivist.alexlebens.dev http://tubearchivist.tubearchivist:80/
             - name: TA_PORT
-              value: 24000
+              value: 8000
             - name: TA_USERNAME
               value: admin
             - name: TA_LOGIN_AUTH_MODE
@@ -96,13 +103,10 @@ tubearchivist:
               value: X_FORWARDED_USER
             - name: TA_AUTH_PROXY_LOGOUT_URL
               value: https://tubearchivist.alexlebens.dev/oauth2/sign_out
-          envFrom:
-            - secretRef:
-                name: tubearchivist-config
           resources:
             requests:
               cpu: 50m
-              memory: 900Mi
+              memory: 1000Mi
           probes:
             liveness:
               enabled: true
@@ -112,17 +116,32 @@ tubearchivist:
                   command:
                     - curl
                     - -f
-                    - http://localhost:24000/api/health/
+                    - http://localhost:8000/api/health/
                 failureThreshold: 5
                 initialDelaySeconds: 30
                 periodSeconds: 30
                 successThreshold: 1
                 timeoutSeconds: 15
         bgutil:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: brainicism/bgutil-ytdlp-pot-provider
             tag: 2.0.2@sha256:d7d34108b76e52c7d3b575fe9e797e4bf41c1b2a08f80c5292eff6f851ce8472
+          resources:
+            requests:
+              cpu: 5m
+              memory: 50Mi
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -135,7 +154,7 @@ tubearchivist:
             - name: OAUTH2_PROXY_METRICS_ADDRESS
               value: 0.0.0.0:44180
             - name: OAUTH2_PROXY_UPSTREAMS
-              value: http://localhost:24000
+              value: http://localhost:8000
             - name: OAUTH2_PROXY_PROVIDER
               value: oidc
             - name: OAUTH2_PROXY_USER_ID_CLAIM
@@ -176,11 +195,23 @@ tubearchivist:
                   path: /ready
                   port: 4180
     metrics:
-      replicas: 0
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/prometheuscommunity/elasticsearch-exporter
             tag: v1.11.0@sha256:a056739b095df4baaa076f0b31321394233da9a240eeada2623d1b028b7ee7a6
@@ -198,7 +229,7 @@ tubearchivist:
       ports:
         http:
           port: 80
-          targetPort: 24000
+          targetPort: 8000
         oauth:
           port: 4180
         oauth-metrics:
@@ -210,14 +241,14 @@ tubearchivist:
         metrics:
           port: 9114
   serviceMonitor:
-    metrics:
-      serviceName: tubearchivist-metrics
-      endpoints:
-        - port: metrics
     oauth:
       serviceName: tubearchivist
       endpoints:
         - port: oauth-metrics
+    metrics:
+      serviceName: tubearchivist-metrics
+      endpoints:
+        - port: metrics
   route:
     main:
       kind: HTTPRoute
@@ -230,6 +261,7 @@ tubearchivist:
         gethomepage.dev/href: "https://tubearchivist.alexlebens.dev/login"
         gethomepage.dev/siteMonitor: "http://tubearchivist.tubearchivist:80"
         gethomepage.dev/weight: "300"
+        gethomepage.dev/podSelector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -266,3 +298,16 @@ tubearchivist:
         main:
           main:
             - path: /youtube
+
+pocket-id-client:
+  client:
+    displayName: "TubeArchivist"
+    description: "Your self-hosted YouTube media server."
+    clientID: "6E47FD34-A072-4A91-B315-09F2770C4623"
+    logo:
+      selfhstLogoName: "tube-archivist"
+
+common-helpers:
+  probe:
+    internal: http://tubearchivist.tubearchivist:80
+    external: https://tubearchivist.alexlebens.dev
