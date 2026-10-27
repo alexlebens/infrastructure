@@ -98,9 +98,22 @@ jobs:
       - name: Set Up yq
         run: ./infrastructure/.gitea/scripts/install-yq.sh
 
+      - name: Get Cluster Fingerprint
+        id: cluster-fingerprint
+        run: ./infrastructure/.gitea/scripts/kubectl-get-cluster-api-versions.sh --fingerprint
+
+      - name: Cache Cluster API Versions
+        id: cache-api-versions
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.cache/k8s-api-versions
+          key: ${{ runner.os }}-k8s-api-versions-${{ steps.cluster-fingerprint.outputs.fingerprint }}
+
       - name: Get Cluster API Versions
         id: get-api-versions
-        run: ./infrastructure/.gitea/scripts/kubectl-get-cluster-api-versions.sh
+        run:
+          ./infrastructure/.gitea/scripts/kubectl-get-cluster-api-versions.sh --cache-file
+          ~/.cache/k8s-api-versions/api-versions.txt
 
       - name: Determine Mode & Prepare Branch
         id: mode

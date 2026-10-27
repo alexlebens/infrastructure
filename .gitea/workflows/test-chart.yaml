@@ -105,11 +105,23 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBECONFIG }}
 
+      - name: Get Cluster Fingerprint
+        id: cluster-fingerprint
+        run: ./.gitea/scripts/kubectl-get-cluster-api-versions.sh --fingerprint
+
+      - name: Cache Cluster API Versions
+        id: cache-api-versions
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.cache/k8s-api-versions
+          key: ${{ runner.os }}-k8s-api-versions-${{ steps.cluster-fingerprint.outputs.fingerprint }}
+
       - name: Get Cluster API Versions
         id: get-api-versions
         # Step Outputs:
         #   - api-versions: comma-separated list of API versions and kinds
-        run: ./.gitea/scripts/kubectl-get-cluster-api-versions.sh
+        run:
+          ./.gitea/scripts/kubectl-get-cluster-api-versions.sh --cache-file ~/.cache/k8s-api-versions/api-versions.txt
 
       - name: Cache yq
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
