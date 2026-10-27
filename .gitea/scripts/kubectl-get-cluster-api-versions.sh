@@ -43,7 +43,7 @@ compute_sha256() {
 if [ "${FINGERPRINT_ONLY}" = true ]; then
   echo ">> Computing cluster API and CRD fingerprint ..."
   VERSION_INFO=$(kubectl get --raw /version 2>/dev/null || kubectl version -o json 2>/dev/null || true)
-  CRD_INFO=$(kubectl get crd -o go-template='{{if .items}}{{range .items}}{{.metadata.name}}:{{.metadata.generation}}{{"\n"}}{{end}}{{else}}{{.metadata.name}}:{{.metadata.generation}}{{"\n"}}{{end}}' 2>/dev/null || true)
+  CRD_INFO=$(kubectl get crd -o go-template='{{if .items}}{{range .items}}{{.metadata.name}}:{{.metadata.generation}}{{"\n"}}{{end}}{{else}}{{.metadata.name}}:{{.metadata.generation}}{{"\n"}}{{end}}' 2>/dev/null | sort || true)
   FINGERPRINT=$(printf "%s\n%s" "${VERSION_INFO}" "${CRD_INFO}" | compute_sha256)
 
   echo ">> Cluster Fingerprint: ${FINGERPRINT}"
