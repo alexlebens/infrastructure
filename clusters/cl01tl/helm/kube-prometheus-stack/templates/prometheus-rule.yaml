@@ -1,0 +1,133 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: external-nodes
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: external-nodes
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: external-nodes.rules
+      rules:
+        - alert: NodeBtrfsDeviceError
+          annotations:
+            summary: Btrfs device errors detected on {{ `{{ $labels.instance }}` }}.
+            description: >-
+              Btrfs device {{ `{{ $labels.device }}` }} (UUID {{ `{{ $labels.btrfs_dev_uuid }}` }})
+              on {{ `{{ $labels.instance }}` }} has reported {{ `{{ $value }}` }} {{ `{{ $labels.type }}` }} errors.
+          expr: |
+            node_btrfs_device_errors_total > 0
+          for: 5m
+          labels:
+            severity: critical
+        - alert: NodeBtrfsDeviceErrorRate
+          annotations:
+            summary: Btrfs device error count is actively increasing on {{ `{{ $labels.instance }}` }}.
+            description: >-
+              Btrfs device {{ `{{ $labels.device }}` }} (UUID {{ `{{ $labels.btrfs_dev_uuid }}` }})
+              on {{ `{{ $labels.instance }}` }} is experiencing new {{ `{{ $labels.type }}` }} errors.
+          expr: |
+            increase(node_btrfs_device_errors_total[15m]) > 0
+          for: 0m
+          labels:
+            severity: critical
+        - alert: NodeFilesystemReadOnly
+          annotations:
+            summary: Filesystem mounted read-only on {{ `{{ $labels.instance }}` }}.
+            description: >-
+              Filesystem on {{ `{{ $labels.device }}` }} ({{ `{{ $labels.fstype }}` }}) mounted at
+              {{ `{{ $labels.mountpoint }}` }} on {{ `{{ $labels.instance }}` }} is read-only,
+              indicating potential SD card or disk corruption.
+          expr: |
+            node_filesystem_readonly{device=~"/dev/(mmcblk.*|sd.*|nvme.*|md.*|mapper/.*)", mountpoint!~"/boot.*|/var/lib/docker/.*|/etc/.*|/usr/.*"} == 1
+          for: 5m
+          labels:
+            severity: critical
+        - alert: NodeFilesystemDeviceError
+          annotations:
+            summary: Filesystem device error on {{ `{{ $labels.instance }}` }}.
+            description: >-
+              Node exporter encountered an error ({{ `{{ $labels.device_error }}` }}) while stating
+              filesystem {{ `{{ $labels.device }}` }} mounted at {{ `{{ $labels.mountpoint }}` }}
+              on {{ `{{ $labels.instance }}` }}.
+          expr: |
+            node_filesystem_device_error{device=~"/dev/(mmcblk.*|sd.*|nvme.*|md.*|mapper/.*)", device_error!="permission denied"} == 1
+          for: 5m
+          labels:
+            severity: critical
+        - alert: ExternalNodeFilesystemSpaceFillingUp
+          annotations:
+            summary: Filesystem on external node {{ `{{ $labels.instance }}` }} is predicted to run out of space within 24 hours.
+            description: >-
+              Filesystem on {{ `{{ $labels.device }}` }}, mounted on {{ `{{ $labels.mountpoint }}` }},
+              at {{ `{{ $labels.instance }}` }} has only {{ `{{ printf "%.2f" $value }}` }}% available space left and is filling up.
+          expr: |
+            (
+              node_filesystem_avail_bytes{job="external-nodes",fstype!="",mountpoint!=""} / node_filesystem_size_bytes{job="external-nodes",fstype!="",mountpoint!=""} * 100 < 15
+            and
+              predict_linear(node_filesystem_avail_bytes{job="external-nodes",fstype!="",mountpoint!=""}[6h], 24*60*60) < 0
+            and
+              node_filesystem_readonly{job="external-nodes",fstype!="",mountpoint!=""} == 0
+            )
+          for: 1h
+          labels:
+            severity: warning
+        - alert: ExternalNodeFilesystemAlmostOutOfSpace
+          annotations:
+            summary: Filesystem on external node {{ `{{ $labels.instance }}` }} has less than 5% space left.
+            description: >-
+              Filesystem on {{ `{{ $labels.device }}` }}, mounted on {{ `{{ $labels.mountpoint }}` }},
+              at {{ `{{ $labels.instance }}` }} has only {{ `{{ printf "%.2f" $value }}` }}% available space left.
+          expr: |
+            (
+              node_filesystem_avail_bytes{job="external-nodes",fstype!="",mountpoint!=""} / node_filesystem_size_bytes{job="external-nodes",fstype!="",mountpoint!=""} * 100 < 5
+            and
+              node_filesystem_readonly{job="external-nodes",fstype!="",mountpoint!=""} == 0
+            )
+          for: 30m
+          labels:
+            severity: critical
+        - alert: ExternalNodeDiskIOSaturation
+          annotations:
+            summary: High disk I/O saturation on external node {{ `{{ $labels.instance }}` }}.
+            description: >-
+              Disk I/O queue weighted time on device {{ `{{ $labels.device }}` }} at {{ `{{ $labels.instance }}` }}
+              is {{ `{{ printf "%.2f" $value }}` }}s/s, indicating severe I/O saturation or a stalling disk/SD card.
+          expr: |
+            rate(node_disk_io_time_weighted_seconds_total{job="external-nodes", device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"}[5m]) > 10
+          for: 30m
+          labels:
+            severity: warning
+        - alert: ExternalNodeRAIDDegraded
+          annotations:
+            summary: RAID array is degraded on external node {{ `{{ $labels.instance }}` }}.
+            description: >-
+              RAID array '{{ `{{ $labels.device }}` }}' on {{ `{{ $labels.instance }}` }} is in degraded state
+              due to one or more failed disks.
+          expr: |
+            node_md_disks_required{job="external-nodes",device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"} - ignoring (state) (node_md_disks{state="active",job="external-nodes",device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"}) > 0
+          for: 15m
+          labels:
+            severity: critical
+        - alert: ExternalNodeRAIDDiskFailure
+          annotations:
+            summary: Failed device in RAID array on external node {{ `{{ $labels.instance }}` }}.
+            description: >-
+              At least one device in RAID array on {{ `{{ $labels.instance }}` }} has failed.
+              Array '{{ `{{ $labels.device }}` }}' needs attention.
+          expr: |
+            node_md_disks{state="failed",job="external-nodes",device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"} > 0
+          for: 0m
+          labels:
+            severity: warning
+        - alert: ExternalNodeExporterDown
+          annotations:
+            summary: External node exporter is unreachable on {{ `{{ $labels.instance }}` }}.
+            description: >-
+              Prometheus has been unable to scrape node_exporter on {{ `{{ $labels.instance }}` }} for over 5 minutes.
+          expr: |
+            up{job="external-nodes"} == 0
+          for: 5m
+          labels:
+            severity: critical
