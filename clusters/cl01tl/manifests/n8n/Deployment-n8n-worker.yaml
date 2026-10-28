@@ -21,7 +21,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: 97bea0c27cdd906ef21dddd196dfaf25f17d1af3bdb52779efdb45cb87cddde1
+        checksum/config: 9d34ae64ffb93c03409a16bf435d0ed14a041a6c15692ee4b6547eef5772246d
         checksum/secret: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
       labels:
         app.kubernetes.io/component: worker
@@ -42,7 +42,7 @@ spec:
       terminationGracePeriodSeconds: 60
       containers:
         - name: n8n-worker
-          image: "n8nio/n8n:2.46.1@sha256:67cb2970ded37cc40a8f91ce3325f44e88a1bf58e0f75d1fa2e0a5f6fc8a972a"
+          image: "n8nio/n8n:3.0.1@sha256:4ebd866ae91d222ffa6dd3731eade80ba71b4d13f7470172a7e66a81fe31faa0"
           imagePullPolicy: IfNotPresent
           command: ["n8n"]
           args:
@@ -151,6 +151,16 @@ spec:
                 configMapKeyRef:
                   name: n8n
                   key: N8N_GRACEFUL_SHUTDOWN_TIMEOUT
+            - name: N8N_RUNNERS_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n
+                  key: N8N_RUNNERS_MODE
+            - name: N8N_RUNNERS_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-config-secret
+                  key: N8N_RUNNERS_AUTH_TOKEN
             - name: DB_POSTGRESDB_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -187,12 +197,24 @@ spec:
                 secretKeyRef:
                   name: n8n-config-secret
                   key: N8N_ENCRYPTION_KEY
+            - name: N8N_RUNNERS_BROKER_LISTEN_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n
+                  key: N8N_RUNNERS_BROKER_LISTEN_ADDRESS
+            - name: N8N_NATIVE_PYTHON_RUNNER
+              valueFrom:
+                configMapKeyRef:
+                  name: n8n
+                  key: N8N_NATIVE_PYTHON_RUNNER
             - name: N8N_WEBHOOK_URL
               value: https://n8n.alexlebens.dev/
             - name: N8N_DIAGNOSTICS_ENABLED
               value: "false"
             - name: N8N_VERSION_NOTIFICATIONS_ENABLED
               value: "false"
+            - name: N8N_DEFAULT_BINARY_DATA_MODE
+              value: database
             - name: N8N_UNVERIFIED_PACKAGES_ENABLED
               value: "true"
             - name: N8N_RUNNERS_TASK_TIMEOUT
@@ -259,4 +281,39 @@ spec:
               cpu: 20m
               memory: 400Mi
           volumeMounts:
+        - name: task-runner
+          image: "n8nio/runners:3.0.1@sha256:646753ac617c9b796dc92440206ff369df7508e87257eb85dae1f29bf8cb465f"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: N8N_RUNNERS_TASK_BROKER_URI
+              value: "http://localhost:5679"
+            - name: N8N_RUNNERS_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-config-secret
+                  key: N8N_RUNNERS_AUTH_TOKEN
+            - name: N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT
+              value: "15"
+            - name: N8N_RUNNERS_LAUNCHER_LOG_LEVEL
+              value: "info"
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5680
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 30
+            failureThreshold: 6
       volumes:
