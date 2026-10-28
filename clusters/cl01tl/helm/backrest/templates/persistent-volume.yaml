@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: {{ .Values.backrest.persistence.storage.existingClaim }}
+  name: {{ .Values.backrest.persistence.mntStorage.existingClaim }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: {{ .Values.backrest.persistence.storage.existingClaim }}
+    app.kubernetes.io/name: {{ .Values.backrest.persistence.mntStorage.existingClaim }}
     {{- include "custom.labels" . | nindent 4 }}
 spec:
   persistentVolumeReclaimPolicy: Retain
@@ -24,10 +24,33 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: {{ .Values.backrest.persistence.share.existingClaim }}
+  name: {{ .Values.backrest.persistence.mntShare.existingClaim }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app.kubernetes.io/name: {{ .Values.backrest.persistence.share.existingClaim }}
+    app.kubernetes.io/name: {{ .Values.backrest.persistence.mntShare.existingClaim }}
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-client
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    path: /volume1/Share
+    server: synology-bond{{ include "custom.domain" . }}
+  mountOptions:
+    - vers=4
+    - minorversion=1
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.backrest.persistence.mntData.existingClaim }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.backrest.persistence.mntData.existingClaim }}
     {{- include "custom.labels" . | nindent 4 }}
 spec:
   persistentVolumeReclaimPolicy: Retain
