@@ -69,6 +69,30 @@ ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p
     exit 1
   fi
 
+  echo ">> Waiting for any in-flight Komodo docker compose operations to finish..."
+  sleep 10
+  idle_checks=0
+  elapsed=0
+  max_wait=300
+  while [[ "${idle_checks}" -lt 2 ]]; do
+    if pgrep -f "docker[ -]compose" >/dev/null 2>&1; then
+      idle_checks=0
+      if [[ "${elapsed}" -ge "${max_wait}" ]]; then
+        echo "::warning::Timed out after ${max_wait}s waiting for docker compose operations; proceeding with deploy..."
+        break
+      fi
+      echo "   Active docker compose process detected; waiting 5s (${elapsed}s/${max_wait}s)..."
+      sleep 5
+      elapsed=$((elapsed + 5))
+    else
+      idle_checks=$((idle_checks + 1))
+      if [[ "${idle_checks}" -lt 2 ]]; then
+        sleep 5
+        elapsed=$((elapsed + 5))
+      fi
+    fi
+  done
+
   echo ">> Pulling latest changes in ${TARGET_DIR}..."
   cd "${TARGET_DIR}"
   git pull

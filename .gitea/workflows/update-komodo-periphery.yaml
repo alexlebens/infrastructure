@@ -10,9 +10,9 @@ on:
       - "main"
     paths:
       - "clusters/cl01tl/helm/komodo/**"
-      - "hosts/ps02sn/komodo-periphery/**"
-      - "hosts/ps10rp/komodo-periphery/**"
+      - "hosts/*/komodo-periphery/**"
       - ".gitea/scripts/deploy-remote-compose.sh"
+      - ".gitea/scripts/detect-periphery-changes.sh"
       - ".gitea/scripts/update-remote-periphery-systemd.sh"
       - ".gitea/workflows/update-komodo-periphery.yaml"
 
@@ -31,10 +31,31 @@ on:
         required: true
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      systemd: ${{ steps.changes.outputs.systemd }}
+      compose-hosts: ${{ steps.changes.outputs.compose-hosts }}
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Detect Periphery Changes
+        id: changes
+        if: github.event_name == 'push'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: ./.gitea/scripts/detect-periphery-changes.sh
+
   update-komodo-ps08rp:
+    needs: [detect-changes]
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'push' ||
+      (github.event_name == 'push' && needs.detect-changes.outputs.systemd == 'true') ||
       github.event.inputs.target_host == 'all' ||
       github.event.inputs.target_host == 'ps08rp'
     steps:
@@ -92,11 +113,15 @@ jobs:
             }}/actions/runs/${{ github.run_id }}", "clear": true}]'
 
   update-komodo-ps09rp:
+    needs: [detect-changes, update-komodo-ps08rp]
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'push' ||
-      github.event.inputs.target_host == 'all' ||
-      github.event.inputs.target_host == 'ps09rp'
+      !cancelled() &&
+      needs.detect-changes.result == 'success' && (
+        (github.event_name == 'push' && needs.detect-changes.outputs.systemd == 'true') ||
+        github.event.inputs.target_host == 'all' ||
+        github.event.inputs.target_host == 'ps09rp'
+      )
     steps:
       - name: Checkout
         uses: builtin:checkout
@@ -152,11 +177,15 @@ jobs:
             }}/actions/runs/${{ github.run_id }}", "clear": true}]'
 
   update-komodo-ps10rp:
+    needs: [detect-changes, update-komodo-ps09rp]
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'push' ||
-      github.event.inputs.target_host == 'all' ||
-      github.event.inputs.target_host == 'ps10rp'
+      !cancelled() &&
+      needs.detect-changes.result == 'success' && (
+        (github.event_name == 'push' && contains(fromJSON(needs.detect-changes.outputs.compose-hosts || '[]'), 'ps10rp')) ||
+        github.event.inputs.target_host == 'all' ||
+        github.event.inputs.target_host == 'ps10rp'
+      )
     steps:
       - name: Checkout
         uses: builtin:checkout
@@ -214,11 +243,15 @@ jobs:
             }}/actions/runs/${{ github.run_id }}", "clear": true}]'
 
   update-komodo-ps02sn:
+    needs: [detect-changes, update-komodo-ps10rp]
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'push' ||
-      github.event.inputs.target_host == 'all' ||
-      github.event.inputs.target_host == 'ps02sn'
+      !cancelled() &&
+      needs.detect-changes.result == 'success' && (
+        (github.event_name == 'push' && contains(fromJSON(needs.detect-changes.outputs.compose-hosts || '[]'), 'ps02sn')) ||
+        github.event.inputs.target_host == 'all' ||
+        github.event.inputs.target_host == 'ps02sn'
+      )
     steps:
       - name: Checkout
         uses: builtin:checkout
