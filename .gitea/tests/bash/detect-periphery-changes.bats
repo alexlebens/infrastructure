@@ -62,5 +62,5 @@ hosts/ps10rp/komodo-periphery/compose.yaml"
 
   run cat "${TEST_OUTPUT_FILE}"
   assert_line "systemd=false"
-  assert_line 'compose-hosts=["ps02sn","ps10rp"]'
+  assert_line 'compose-hosts=["pd05wd","ps02sn","ps10rp"]'
 }
