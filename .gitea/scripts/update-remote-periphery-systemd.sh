@@ -71,6 +71,11 @@ ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p
     fi
   done
 
+  echo ">> Configuring systemd drop-in override (KillMode=process)..."
+  sudo -n mkdir -p /etc/systemd/system/periphery.service.d
+  printf "[Service]\nKillMode=process\n" | sudo -n tee /etc/systemd/system/periphery.service.d/override.conf >/dev/null
+  sudo -n systemctl daemon-reload
+
   echo ">> Running Komodo Periphery setup/update script with sudo..."
   curl -sSL https://raw.githubusercontent.com/moghtech/komodo/main/scripts/setup-periphery.py \
     | sudo -n python3 - --core-address="${CORE_ADDRESS}"
