@@ -1,0 +1,77 @@
+name: package-models
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "models/**"
+      - ".gitea/scripts/package-oci-model.sh"
+      - ".gitea/workflows/package-models.yaml"
+
+env:
+  YQ_VERSION: "v4.54.1"
+
+jobs:
+  package-models:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: Cache yq
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.local/bin/yq
+          key: ${{ runner.os }}-yq-${{ env.YQ_VERSION }}
+
+      - name: Set Up yq
+        run: ./.gitea/scripts/install-yq.sh
+
+      - name: Set Up Crane
+        uses: imjasonh/setup-crane@feee3b6bb0d4c68370f256a4502498c9227e5c6b # v0.7
+
+      - name: Package & Push OCI Models
+        env:
+          HARBOR_HOST: ${{ vars.HARBOR_HOST }}
+          HARBOR_USER: ${{ vars.HARBOR_USER }}
+          HARBOR_SECRET: ${{ secrets.HARBOR_USER_SECRET }}
+        run: ./.gitea/scripts/package-oci-model.sh
+
+      - name: ntfy Success
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: success()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "✅ OCI Models Packaged"
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,successfully,completed
+          details: "OCI model images have been packaged and pushed to Harbor (${{ vars.HARBOR_HOST }}/models)."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 OCI Model Packaging Failed"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "Failed to package and push OCI model images to Harbor."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
