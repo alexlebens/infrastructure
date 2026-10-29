@@ -1,0 +1,87 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pipedash-data-backup
+  namespace: pipedash
+  labels:
+    app.kubernetes.io/name: pipedash-data-backup
+    helm.sh/chart: volsync-target-data-3.1.0
+    app.kubernetes.io/instance: pipedash
+    app.kubernetes.io/part-of: pipedash
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  groups:
+    - name: volsync.alerts
+      rules:
+        - alert: VolSyncBackupPodFailed
+          expr: |
+            sum by (namespace) (
+              (kube_pod_status_phase{namespace="pipedash", phase="Failed", pod=~"volsync-.*pipedash-data-backup-.*"} == 1)
+              * on(namespace, pod) group_left(owner_name)
+              kube_pod_owner{namespace="pipedash", owner_kind="Job", owner_name=~"volsync-.*pipedash-data-backup-.*"}
+            ) > 0
+          keep_firing_for: 10m
+          labels:
+            severity: critical
+            pvc: pipedash-data
+          annotations:
+            summary: "VolSync backup pod failed in {{ $labels.namespace }}"
+            description: |
+              {{ $value }} VolSync backup pod(s) failed for PVC 'pipedash-data'.
+              Target: pipedash-data-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="pipedash-data-backup-source-a", obj_namespace="pipedash"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="pipedash", job_name=~"volsync-.*pipedash-data-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: pipedash-data
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'pipedash-data' has not completed successfully in 36h (schedule: '35 12 * * *').
+              Target: pipedash-data-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="pipedash-data-backup-source-c", obj_namespace="pipedash"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="pipedash", job_name=~"volsync-.*pipedash-data-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: pipedash-data
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'pipedash-data' has not completed successfully in 8d (schedule: '10 11 * * 5').
+              Target: pipedash-data-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="pipedash-data-backup-source-d", obj_namespace="pipedash"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="pipedash", job_name=~"volsync-.*pipedash-data-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: pipedash-data
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'pipedash-data' has not completed successfully in 8d (schedule: '10 10 * * 5').
+              Target: pipedash-data-backup-source-d
+              Namespace: {{ $labels.namespace }}

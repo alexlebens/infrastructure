@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pipedash
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: pipedash
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: pipedash
+    helm.sh/chart: pipedash-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
+  namespace: pipedash
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/instance: pipedash
+      app.kubernetes.io/name: pipedash
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: pipedash
+        app.kubernetes.io/name: pipedash
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: pipedash
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: PIPEDASH_BIND_ADDR
+              value: 0.0.0.0:8080
+            - name: PIPEDASH_DATA_DIR
+              value: /data
+            - name: PIPEDASH_CONFIG_PATH
+              value: /data/config.toml
+            - name: PIPEDASH_VAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: vault-password
+                  name: pipedash-key
+            - name: PIPEDASH_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  key: uri
+                  name: pipedash-postgresql-18-cluster-app
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: github-token
+                  name: pipedash-key
+            - name: GITEA_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: gitea-token
+                  name: pipedash-key
+            - name: ARGOCD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: argocd-token
+                  name: pipedash-key
+          image: ghcr.io/hcavarsan/pipedash-web:0.6.0@sha256:41903c5e49d1f24a2a82fa33a789a39851ecf1b333a98b826c85ceaccaafe7fe
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+          name: main
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+          resources:
+            requests:
+              cpu: 5m
+              memory: 30Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /data/config.toml
+              name: config
+              readOnly: true
+              subPath: config.toml
+            - mountPath: /data
+              name: data
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - configMap:
+            name: pipedash-config
+          name: config
+        - name: data
+          persistentVolumeClaim:
+            claimName: pipedash-data
+        - emptyDir: {}
+          name: tmp

@@ -1,0 +1,39 @@
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: pipedash-postgresql-18-backup
+  namespace: pipedash
+  labels:
+    app.kubernetes.io/name: pipedash-postgresql-18-backup
+    helm.sh/chart: postgres-18-cluster-8.7.1
+    app.kubernetes.io/instance: pipedash
+    app.kubernetes.io/part-of: pipedash
+    app.kubernetes.io/version: "v1.30.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  retentionPolicy: 7d
+  instanceSidecarConfiguration:
+    env:
+      - name: AWS_REQUEST_CHECKSUM_CALCULATION
+        value: when_required
+      - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+        value: when_required
+  configuration:
+    destinationPath: s3://postgres-backups/cl01tl/pipedash/pipedash-postgresql-18-cluster
+    endpointURL: http://synology.alexlebens.dev:3900
+    wal:
+      compression: snappy
+      maxParallel: 4
+    data:
+      compression: snappy
+      jobs: 4
+    s3Credentials:
+      accessKeyId:
+        name: pipedash-postgresql-18-backup-secret
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: pipedash-postgresql-18-backup-secret
+        key: ACCESS_SECRET_KEY
+      region:
+        name: pipedash-postgresql-18-backup-secret
+        key: ACCESS_REGION

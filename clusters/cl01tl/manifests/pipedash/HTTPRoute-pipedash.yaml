@@ -1,0 +1,39 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pipedash
+  labels:
+    app.kubernetes.io/instance: pipedash
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: pipedash
+    helm.sh/chart: pipedash-5.3.0
+  annotations:
+    gethomepage.dev/description: Pipedash
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Tools
+    gethomepage.dev/icon: https://raw.githubusercontent.com/hcavarsan/pipedash/main/app-icon.png
+    gethomepage.dev/name: Pipelines
+    gethomepage.dev/pod-selector: ""
+    gethomepage.dev/siteMonitor: http://pipedash.pipedash:80/api/v1/health
+    gethomepage.dev/weight: "200"
+  namespace: pipedash
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: "traefik"
+  hostnames:
+    - "pipedash.alexlebens.dev"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: pipedash
+          namespace: pipedash
+          port: 80
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
