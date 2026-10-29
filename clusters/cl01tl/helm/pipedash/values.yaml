@@ -1,0 +1,171 @@
+pipedash:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: ghcr.io/hcavarsan/pipedash-web
+            tag: 0.6.0@sha256:41903c5e49d1f24a2a82fa33a789a39851ecf1b333a98b826c85ceaccaafe7fe
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: PIPEDASH_BIND_ADDR
+              value: 0.0.0.0:8080
+            - name: PIPEDASH_DATA_DIR
+              value: /data
+            - name: PIPEDASH_CONFIG_PATH
+              value: /data/config.toml
+            - name: PIPEDASH_VAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pipedash-key
+                  key: vault-password
+            - name: PIPEDASH_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pipedash-postgresql-18-cluster-app
+                  key: uri
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: pipedash-key
+                  key: github-token
+            - name: GITEA_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: pipedash-key
+                  key: gitea-token
+            - name: ARGOCD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: pipedash-key
+                  key: argocd-token
+          resources:
+            requests:
+              cpu: 5m
+              memory: 30Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/v1/health
+                  port: 8080
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /api/v1/health
+                  port: 8080
+  service:
+    main:
+      forceRename: pipedash
+      ports:
+        http:
+          port: 80
+          targetPort: 8080
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Pipelines"
+        gethomepage.dev/description: "Pipedash"
+        gethomepage.dev/group: "Tools"
+        gethomepage.dev/icon: "https://raw.githubusercontent.com/hcavarsan/pipedash/main/app-icon.png"
+        gethomepage.dev/siteMonitor: "http://pipedash.pipedash:80/api/v1/health"
+        gethomepage.dev/weight: "200"
+        gethomepage.dev/pod-selector: ""
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - pipedash.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: pipedash
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    config:
+      type: configMap
+      name: pipedash-config
+      advancedMounts:
+        main:
+          main:
+            - path: /data/config.toml
+              subPath: config.toml
+              readOnly: true
+    data:
+      forceRename: pipedash-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 2Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
+postgres-18-cluster:
+  mode: standalone
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackup:
+      suspend: false
+      schedule: "0 45 7 * * *"
+
+volsync-target-data:
+  pvcTarget: pipedash-data
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+  a:
+    enabled: true
+    schedule: 35 12 * * *
+  c:
+    enabled: true
+    schedule: 10 11 * * 5
+  d:
+    enabled: true
+    schedule: 10 10 * * 5
+
+common-helpers:
+  probe:
+    internal: http://pipedash.pipedash:80/api/v1/health
+    external: https://pipedash.alexlebens.dev
