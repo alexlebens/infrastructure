@@ -13,7 +13,7 @@ terraform {
     }
     aws = {
       source  = "hashicorp/aws"
-      version = "6.70.0"
+      version = "6.71.0"
     }
     b2 = {
       source  = "Backblaze/b2"
