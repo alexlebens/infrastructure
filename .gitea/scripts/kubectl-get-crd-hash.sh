@@ -18,7 +18,15 @@ done
 
 GITHUB_OUTPUT="${GITHUB_OUTPUT:-}"
 
-CRD_HASH=$(kubectl get crds -o jsonpath='{range .items[*]}{.metadata.name}:{.metadata.generation}{"\n"}{end}' | sha256sum | awk '{print $1}')
+compute_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    shasum -a 256 | awk '{print $1}'
+  fi
+}
+
+CRD_HASH=$(kubectl get crds -o jsonpath='{range .items[*]}{.metadata.name}:{.metadata.generation}{"\n"}{end}' | compute_sha256)
 
 echo ">> Cluster CRD Hash:"
 echo "${CRD_HASH}"
