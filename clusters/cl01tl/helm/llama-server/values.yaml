@@ -59,10 +59,8 @@ llama-server:
             repository: ghcr.io/ggml-org/llama.cpp
             tag: server-b11870@sha256:1fa7f8f0ca663fdcf3203dc125a7e0b5c9e49c9ed054b049599666cd7e300eb0
           args:
-            - "--hf-repo"
-            - "unsloth/gemma-4-E4B-it-GGUF"
-            - "--hf-file"
-            - "gemma-4-E4B-it-Q4_K_M.gguf"
+            - "-m"
+            - "/models/gemma-4-E4B-it-Q4_K_M.gguf"
             - "--alias"
             - "gemma4:e4b"
             - "--jinja"
@@ -109,10 +107,6 @@ llama-server:
                 secretKeyRef:
                   name: llama-server-secret
                   key: api-key
-            - name: HF_HUB_CACHE
-              value: /models/cache
-            - name: LLAMA_CACHE
-              value: /models/cache
             - name: TZ
               value: America/Chicago
           resources:
@@ -204,10 +198,8 @@ llama-server:
             repository: ghcr.io/ggml-org/llama.cpp
             tag: server-b11870@sha256:1fa7f8f0ca663fdcf3203dc125a7e0b5c9e49c9ed054b049599666cd7e300eb0
           args:
-            - "--hf-repo"
-            - "ggml-org/embeddinggemma-2-GGUF"
-            - "--hf-file"
-            - "embeddinggemma-2-Q8_0.gguf"
+            - "-m"
+            - "/models/embeddinggemma-2-Q8_0.gguf"
             - "--alias"
             - "embeddinggemma-2:latest"
             - "--embeddings"
@@ -247,10 +239,6 @@ llama-server:
                 secretKeyRef:
                   name: llama-server-secret
                   key: api-key
-            - name: HF_HUB_CACHE
-              value: /models/cache
-            - name: LLAMA_CACHE
-              value: /models/cache
             - name: TZ
               value: America/Chicago
           resources:
@@ -316,24 +304,22 @@ llama-server:
               name: llama-server-secret
               key: api-key
   persistence:
-    gemma4-e4b-cache:
-      type: persistentVolumeClaim
-      storageClass: ceph-filesystem
-      accessMode: ReadWriteMany
-      size: 15Gi
+    gemma4-e4b-model:
+      type: image
+      image: harbor.alexlebens.dev/models/gemma-4-e4b-it:Q4_K_M
       advancedMounts:
         gemma4-e4b:
           main:
-            - path: /models/cache
-    embeddinggemma-2-cache:
-      type: persistentVolumeClaim
-      storageClass: ceph-filesystem
-      accessMode: ReadWriteMany
-      size: 3Gi
+            - path: /models
+              readOnly: true
+    embeddinggemma-2-model:
+      type: image
+      image: harbor.alexlebens.dev/models/embeddinggemma-2:Q8_0
       advancedMounts:
         embeddinggemma-2:
           main:
-            - path: /models/cache
+            - path: /models
+              readOnly: true
     tmp:
       type: emptyDir
       globalMounts:
