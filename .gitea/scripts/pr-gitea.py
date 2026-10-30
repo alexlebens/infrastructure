@@ -29,12 +29,56 @@ def run_cmd(
 
 
 def write_github_output(outputs: dict[str, str]):
-    """Append outputs to GITHUB_OUTPUT environment file."""
+    """Append outputs to GITHUB_OUTPUT environment file.
+
+    Multi-line values are written using the heredoc syntax so they cannot
+    corrupt subsequent outputs.
+    """
     output_file = os.getenv("GITHUB_OUTPUT")
     if not output_file:
         return
     with open(output_file, "a", encoding="utf-8") as f:
-        f.writelines(f"{key}={value}\n" for key, value in outputs.items())
+        for key, value in outputs.items():
+            value = str(value)
+            if "\n" in value:
+                delimiter = "EOF"
+                while delimiter in value.splitlines():
+                    delimiter = f"EOF_{random.randint(0, 1_000_000)}"
+                f.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
+            else:
+                f.write(f"{key}={value}\n")
+
+
+def redact(text: str, secret: str) -> str:
+    """Replace every occurrence of secret in text with a placeholder."""
+    if not secret:
+        return text
+    return text.replace(secret, "***")
+
+
+def build_auth_repo_url(gitea_url: str, repo: str, token: str) -> str:
+    """Build an authenticated HTTPS clone/push URL for repo on gitea_url."""
+    parsed_url = urlparse(gitea_url)
+    auth_netloc = f"oauth2:{token}@{parsed_url.netloc}"
+    repo_path = repo.strip("/")
+    if not repo_path.endswith(".git"):
+        repo_path = f"{repo_path}.git"
+    return f"{parsed_url.scheme}://{auth_netloc}/{repo_path}"
+
+
+def find_open_pr(
+    gitea_url: str, repo: str, token: str, head_branch: str
+) -> dict | None:
+    """Return the first open PR whose head ref matches head_branch, if any."""
+    list_url = f"{gitea_url}/api/v1/repos/{repo}/pulls?state=open&page=1"
+    status_code, pulls_data = gitea_api_request(list_url, token, method="GET")
+    if status_code != 200 or not isinstance(pulls_data, list):
+        return None
+    for p in pulls_data:
+        head_ref = (p.get("head") or {}).get("ref", "")
+        if head_ref in (head_branch, f"refs/heads/{head_branch}"):
+            return p
+    return None
 
 
 def gitea_api_request(
@@ -254,13 +298,7 @@ def main():
     run_cmd(["git", "commit", "-m", commit_msg], cwd=work_dir)
 
     # Construct authenticated push URL
-    parsed_url = urlparse(gitea_url)
-    auth_netloc = f"oauth2:{token}@{parsed_url.netloc}"
-    auth_repo_url = (
-        f"{parsed_url.scheme}://{auth_netloc}/{repo.lstrip('/')}.git"
-        if not repo.endswith(".git")
-        else f"{parsed_url.scheme}://{auth_netloc}/{repo.lstrip('/')}"
-    )
+    auth_repo_url = build_auth_repo_url(gitea_url, repo, token)
 
     push_cmd = ["git", "push", "-u"]
     if force_push:
@@ -270,7 +308,15 @@ def main():
     print(
         f">> Pushing changes to {gitea_url}/{repo} on branch {head_branch} (force={force_push}) ..."
     )
-    run_cmd(push_cmd, cwd=work_dir)
+    # Never let a CalledProcessError traceback leak the tokenised push URL.
+    push_proc = run_cmd(push_cmd, cwd=work_dir, check=False)
+    if push_proc.returncode != 0:
+        print(
+            f">> Error: git push failed (exit {push_proc.returncode}):\n"
+            f"{redact(push_proc.stderr.strip(), token)}",
+            flush=True,
+        )
+        sys.exit(1)
     print(">> Push completed successfully.")
     print()
     print("----")
@@ -291,20 +337,11 @@ def main():
 
     # If not an automerge PR, check if an open PR from head_branch into base_branch already exists
     if not is_automerge:
-        list_url = f"{gitea_url}/api/v1/repos/{repo}/pulls?state=open&page=1"
         print(
             f">> Checking for existing open PR from {head_branch} into"
             f" {base_branch} ..."
         )
-        status_code, pulls_data = gitea_api_request(list_url, token, method="GET")
-
-        existing_pr = None
-        if status_code == 200 and isinstance(pulls_data, list):
-            for p in pulls_data:
-                head_ref = p.get("head", {}).get("ref", "")
-                if head_ref == head_branch or head_ref == f"refs/heads/{head_branch}":
-                    existing_pr = p
-                    break
+        existing_pr = find_open_pr(gitea_url, repo, token, head_branch)
 
         if existing_pr:
             existing_pr_number = existing_pr["number"]
@@ -382,21 +419,13 @@ def main():
         elif create_status in (409, 422):
             print(f">> Pull Request already exists (HTTP {create_status}).")
             # Retrieve existing PR number so automerge can proceed
-            list_url = f"{gitea_url}/api/v1/repos/{repo}/pulls?state=open&page=1"
-            status_code, pulls_data = gitea_api_request(list_url, token, method="GET")
-            if status_code == 200 and isinstance(pulls_data, list):
-                for p in pulls_data:
-                    head_ref = p.get("head", {}).get("ref", "")
-                    if (
-                        head_ref == head_branch
-                        or head_ref == f"refs/heads/{head_branch}"
-                    ):
-                        pr_number = str(p.get("number", ""))
-                        pr_url = p.get(
-                            "html_url", f"{gitea_url}/{repo}/pulls/{pr_number}"
-                        )
-                        print(f">> Found existing open PR #{pr_number}.")
-                        break
+            existing = find_open_pr(gitea_url, repo, token, head_branch)
+            if existing:
+                pr_number = str(existing.get("number", ""))
+                pr_url = existing.get(
+                    "html_url", f"{gitea_url}/{repo}/pulls/{pr_number}"
+                )
+                print(f">> Found existing open PR #{pr_number}.")
         else:
             print(
                 f">> Failed to create PR, HTTP {create_status}: {create_data}",
@@ -498,7 +527,7 @@ def main():
             )
             if del_proc.returncode != 0:
                 print(
-                    f">> Note: Failed to delete remote branch {head_branch}: {del_proc.stderr.strip()}",
+                    f">> Note: Failed to delete remote branch {head_branch}: {redact(del_proc.stderr.strip(), token)}",
                     flush=True,
                 )
             sys.exit(1)
