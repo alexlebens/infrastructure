@@ -552,6 +552,14 @@ def main():
     )
     args = parser.parse_args()
 
+    helm_dir = args.main_dir / "clusters" / args.cluster / "helm"
+    if not helm_dir.is_dir():
+        print(f"Error: Helm directory not found: {helm_dir}", file=sys.stderr)
+        sys.exit(1)
+    if args.interval_minutes < 1:
+        print("Error: --interval-minutes must be >= 1", file=sys.stderr)
+        sys.exit(1)
+
     print(f">> Scanning backup targets for cluster: {args.cluster} ...")
     rows, changed_count = rebalance_schedules(
         main_dir=args.main_dir,
