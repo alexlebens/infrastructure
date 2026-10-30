@@ -77,10 +77,8 @@ spec:
               weight: 100
       containers:
         - args:
-            - --hf-repo
-            - ggml-org/embeddinggemma-2-GGUF
-            - --hf-file
-            - embeddinggemma-2-Q8_0.gguf
+            - -m
+            - /models/embeddinggemma-2-Q8_0.gguf
             - --alias
             - embeddinggemma-2:latest
             - --embeddings
@@ -120,10 +118,6 @@ spec:
                 secretKeyRef:
                   key: api-key
                   name: llama-server-secret
-            - name: HF_HUB_CACHE
-              value: /models/cache
-            - name: LLAMA_CACHE
-              value: /models/cache
             - name: TZ
               value: America/Chicago
           image: ghcr.io/ggml-org/llama.cpp:server-b11870@sha256:1fa7f8f0ca663fdcf3203dc125a7e0b5c9e49c9ed054b049599666cd7e300eb0
@@ -158,13 +152,14 @@ spec:
                 - ALL
             readOnlyRootFilesystem: true
           volumeMounts:
-            - mountPath: /models/cache
-              name: embeddinggemma-2-cache
+            - mountPath: /models
+              name: embeddinggemma-2-model
+              readOnly: true
             - mountPath: /tmp
               name: tmp
       volumes:
-        - name: embeddinggemma-2-cache
-          persistentVolumeClaim:
-            claimName: llama-server-embeddinggemma-2-cache
+        - image:
+            reference: harbor.alexlebens.dev/models/embeddinggemma-2:Q8_0
+          name: embeddinggemma-2-model
         - emptyDir: {}
           name: tmp
