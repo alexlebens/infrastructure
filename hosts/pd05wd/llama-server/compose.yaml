@@ -15,6 +15,7 @@ services:
         required: false
     ports:
       - '0.0.0.0:8080:8080'
+      - '0.0.0.0:8081:8081'
     command:
       - '--hf-repo'
       - 'unsloth/gemma-4-12B-it-GGUF'
@@ -33,7 +34,7 @@ services:
       - '--threads'
       - '6'
       - '--ctx-size'
-      - '40960'
+      - '16384'
       - '--parallel'
       - '1'
       - '--cache-type-k'
@@ -70,6 +71,70 @@ services:
               capabilities: ['gpu']
               count: all
 
+  llama-server-embedding:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda-b12019@sha256:c1d664830580e1651c1cc8d3bbc161af474800a56a83226e6e22f94bb8ba1c59
+    container_name: llama-server-embedding
+    volumes:
+      - models:/models/cache
+    environment:
+      - HF_HUB_CACHE=/models/cache
+      - LLAMA_CACHE=/models/cache
+      - LLAMA_API_KEY=${LLAMA_API_KEY}
+    env_file:
+      - path: .env
+        required: false
+    command:
+      - '--hf-repo'
+      - 'ggml-org/embeddinggemma-2-GGUF'
+      - '--hf-file'
+      - 'embeddinggemma-2-Q8_0.gguf'
+      - '--alias'
+      - 'embeddinggemma-2:latest'
+      - '--alias'
+      - 'embeddinggemma-2'
+      - '--host'
+      - '0.0.0.0'
+      - '--port'
+      - '8081'
+      - '--n-gpu-layers'
+      - '99'
+      - '--embeddings'
+      - '--pooling'
+      - 'mean'
+      - '--embd-normalize'
+      - '2'
+      - '--threads'
+      - '4'
+      - '--threads-batch'
+      - '4'
+      - '--ctx-size'
+      - '8192'
+      - '--batch-size'
+      - '2048'
+      - '--ubatch-size'
+      - '512'
+      - '--parallel'
+      - '1'
+      - '--cont-batching'
+      - '--flash-attn'
+      - 'on'
+      - '--metrics'
+      - '--api-key'
+      - '${LLAMA_API_KEY}'
+      - '--cors-origins'
+      - 'localhost'
+    restart: always
+    network_mode: service:llama-server
+    depends_on:
+      - llama-server
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ['gpu']
+              count: all
+
   tailscale-llama-server:
     image: ghcr.io/tailscale/tailscale:v1.104.4@sha256:ed6480b33c6eb67c9cbd203ed42b9fb57e361986725b6856def71b7a3d9e276c
     container_name: tailscale-llama-server
@@ -86,6 +151,8 @@ services:
       - path: .env
         required: false
     network_mode: service:llama-server
+    depends_on:
+      - llama-server
     restart: always
     cap_add:
       - net_admin
