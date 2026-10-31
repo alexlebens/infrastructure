@@ -74,6 +74,8 @@ services:
   llama-server-embedding:
     image: ghcr.io/ggml-org/llama.cpp:server-cuda-b12019@sha256:c1d664830580e1651c1cc8d3bbc161af474800a56a83226e6e22f94bb8ba1c59
     container_name: llama-server-embedding
+    depends_on:
+      - llama-server
     volumes:
       - models:/models/cache
     environment:
@@ -83,6 +85,7 @@ services:
     env_file:
       - path: .env
         required: false
+    network_mode: service:llama-server
     command:
       - '--hf-repo'
       - 'ggml-org/embeddinggemma-2-GGUF'
@@ -124,9 +127,6 @@ services:
       - '--cors-origins'
       - 'localhost'
     restart: always
-    network_mode: service:llama-server
-    depends_on:
-      - llama-server
     deploy:
       resources:
         reservations:
@@ -138,6 +138,8 @@ services:
   tailscale-llama-server:
     image: ghcr.io/tailscale/tailscale:v1.104.4@sha256:ed6480b33c6eb67c9cbd203ed42b9fb57e361986725b6856def71b7a3d9e276c
     container_name: tailscale-llama-server
+    depends_on:
+      - llama-server
     volumes:
       - tailscale:/var/lib/tailscale
       - ./serve.json:/config/serve.json
@@ -151,8 +153,6 @@ services:
       - path: .env
         required: false
     network_mode: service:llama-server
-    depends_on:
-      - llama-server
     restart: always
     cap_add:
       - net_admin
