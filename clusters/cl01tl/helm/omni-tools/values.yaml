@@ -3,8 +3,23 @@ omni-tools:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+                - SETGID
+                - SETUID
+                - CHOWN
           image:
             repository: iib0011/omni-tools
             tag: 0.7.0@sha256:85f0e052a97326396c753e39de0ef74631c0783999ccca81ebc36262903ec9fa
@@ -13,8 +28,8 @@ omni-tools:
               value: America/Chicago
           resources:
             requests:
-              cpu: 10m
-              memory: 10Mi
+              cpu: 1m
+              memory: 20Mi
           probes:
             liveness:
               enabled: true
@@ -31,6 +46,12 @@ omni-tools:
                   path: /
                   port: 80
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -52,6 +73,10 @@ omni-tools:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
           probes:
             liveness:
               enabled: true
@@ -69,6 +94,7 @@ omni-tools:
                   port: 4180
   service:
     main:
+      forceRename: omni-tools
       ports:
         http:
           port: 80
@@ -78,16 +104,21 @@ omni-tools:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: omni-tools
-          app.kubernetes.io/instance: omni-tools
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: omni-tools
       endpoints:
         - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Tools"
+        gethomepage.dev/description: "OmniTools"
+        gethomepage.dev/group: "Tools"
+        gethomepage.dev/icon: "sh-omnitools.webp"
+        gethomepage.dev/siteMonitor: "http://omni-tools.omni-tools:80"
+        gethomepage.dev/weight: "300"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -101,3 +132,38 @@ omni-tools:
             - path:
                 type: PathPrefix
                 value: /
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+          oauth:
+            - path: /tmp
+    nginx-cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /var/cache/nginx
+    nginx-run:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /run
+
+pocket-id-client:
+  client:
+    displayName: "OmniTools"
+    description: "A collection of handy online tools for developers and everyday users."
+    clientID: 886BDD69-0142-4B08-804C-9F465ADBCCA0
+    allowedUserGroups:
+      - name: user
+        namespace: pocket-id-operator
+
+common-helpers:
+  probe:
+    internal: http://omni-tools.omni-tools:80
+    external: https://omni-tools.alexlebens.dev
