@@ -262,8 +262,6 @@ qbittorrent:
               value: 360
             - name: QBT_CONFIG_DIR
               value: /app/config/
-            - name: QBT_LOGFILE
-              value: /app/var/activity.log
             - name: QBT_LOG_LEVEL
               value: INFO
             - name: QBT_APIKEY
@@ -458,6 +456,16 @@ qbittorrent:
                 type: PathPrefix
                 value: /
   persistence:
+    qbit-manage-config:
+      enabled: true
+      type: configMap
+      name: qbit-manage-config
+      advancedMounts:
+        qbit-manage:
+          init-copy-config:
+            - path: /tmp/config.yml
+              subPath: config.yml
+              readOnly: true
     config-data:
       forceRename: qbittorrent-config-data
       storageClass: ceph-filesystem
@@ -475,32 +483,6 @@ qbittorrent:
         qbit-manage:
           qbit-manage:
             - path: /qbittorrent/qBittorrent
-    qbit-manage-config:
-      enabled: true
-      type: configMap
-      name: qbit-manage-config
-      advancedMounts:
-        qbit-manage:
-          init-copy-config:
-            - path: /tmp/config.yml
-              subPath: config.yml
-              readOnly: true
-    qbit-manage-config-data:
-      type: emptyDir
-      advancedMounts:
-        qbit-manage:
-          init-copy-config:
-            - path: /app/config
-          qbit-manage:
-            - path: /app/config
-    qbit-manage-config-var:
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 500Mi
-      advancedMounts:
-        qbit-manage:
-          qbit-manage:
-            - path: /app/var
     qui-config-data:
       forceRename: qbittorrent-qui-config-data
       storageClass: ceph-block
@@ -530,6 +512,14 @@ qbittorrent:
         qbit-manage:
           qbit-manage:
             - path: /mnt/data
+    qbit-manage-config-data:
+      type: emptyDir
+      advancedMounts:
+        qbit-manage:
+          init-copy-config:
+            - path: /app/config
+          qbit-manage:
+            - path: /app/config
 
 volsync-target-config:
   pvcTarget: qbittorrent-config-data
