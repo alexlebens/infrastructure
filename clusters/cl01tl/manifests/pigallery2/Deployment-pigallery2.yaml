@@ -29,6 +29,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: pigallery2
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -121,11 +129,15 @@ spec:
             periodSeconds: 15
             timeoutSeconds: 10
           resources:
-            limits:
-              memory: 1Gi
             requests:
-              cpu: 50m
-              memory: 256Mi
+              cpu: 10m
+              memory: 150Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           startupProbe:
             failureThreshold: 30
             httpGet:
@@ -141,6 +153,8 @@ spec:
             - mountPath: /app/data/images
               name: pictures
             - mountPath: /app/data/tmp
+              name: tmp
+            - mountPath: /tmp
               name: tmp
       volumes:
         - name: collections
