@@ -14,9 +14,6 @@ postfix:
           image:
             repository: boky/postfix
             tag: 5.2.0-alpine@sha256:8eacd20c18ccb4d01568cd582bdd1137a982dc5b709d446af7460dcd131f971d
-          envFrom:
-            - secretRef:
-                name: postfix-credentials
           env:
             - name: RELAYHOST
               value: "[smtp.gmail.com]:587"
@@ -46,10 +43,13 @@ postfix:
               value: "true"
             - name: POSTFIX_message_size_limit
               value: "26214400"
+          envFrom:
+            - secretRef:
+                name: postfix-credentials
           resources:
             requests:
               cpu: 5m
-              memory: 30Mi
+              memory: 32Mi
           probes:
             liveness:
               enabled: true
@@ -67,6 +67,17 @@ postfix:
                   port: 587
                 initialDelaySeconds: 5
                 periodSeconds: 10
+        exporter:
+          image:
+            repository: boky/postfix-exporter
+            tag: 5.2.0@sha256:85aaeb5ebe61aac78149cc3f69cbb78ba19a3e70cb3e3c7570fe69e9b196fddb
+          args:
+            - --postfix.showq_path=/var/spool/postfix/public/showq
+            - --postfix.logfile_path=/var/log/mail.log
+          resources:
+            requests:
+              cpu: 5m
+              memory: 20Mi
   service:
     main:
       forceRename: postfix
@@ -77,6 +88,14 @@ postfix:
         submission:
           port: 587
           targetPort: 587
+        metrics:
+          port: 9154
+          targetPort: 9154
+  serviceMonitor:
+    main:
+      serviceName: postfix
+      endpoints:
+        - port: metrics
   networkpolicies:
     main:
       forceRename: postfix
@@ -165,3 +184,34 @@ postfix:
                 port: 25
               - protocol: TCP
                 port: 587
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kube-prometheus-stack
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: prometheus
+            ports:
+              - protocol: TCP
+                port: 9154
+  persistence:
+    config:
+      type: configMap
+      name: postfix-config
+      advancedMounts:
+        main:
+          main:
+            - path: /etc/rsyslog.d-metrics/maillog.conf
+              subPath: maillog.conf
+              readOnly: true
+    var-log:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /var/log
+          exporter:
+            - path: /var/log
+
+grafanaDashboard:
+  folder: platform
