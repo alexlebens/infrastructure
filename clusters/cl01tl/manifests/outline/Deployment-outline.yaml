@@ -8,10 +8,12 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: outline
     helm.sh/chart: outline-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
   namespace: outline
 spec:
   revisionHistoryLimit: 3
-  replicas: 2
+  replicas: 1
   strategy:
     type: Recreate
   selector:
@@ -31,6 +33,11 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 1001
+        runAsGroup: 1001
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -166,7 +173,12 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 500Mi
+              memory: 230Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           startupProbe:
             failureThreshold: 30
             httpGet:
