@@ -3,8 +3,23 @@ pigallery2:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: bpatrik/pigallery2
             tag: 3.5.2-debian-trixie@sha256:d7a61b6daa410537064d4f661122545bc4d9b16cd91a3862d654c3555cb63992
@@ -169,6 +184,7 @@ pigallery2:
         main:
           main:
             - path: /app/data/tmp
+            - path: /tmp
 
 pocket-id-client:
   mode: oidc
