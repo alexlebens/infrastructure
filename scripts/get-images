@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+NS_FLAG=()
+if [[ -n "${1:-}" ]]; then
+  NS_FLAG=(-n "$1")
+else
+  NS_FLAG=(-A)
+fi
+
+kubectl get pods "${NS_FLAG[@]}" -o jsonpath='{range .items[*]}{range .spec.initContainers[*]}{.image}{"\n"}{end}{range .spec.containers[*]}{.image}{"\n"}{end}{end}' | sed '/^$/d' | sort -u
