@@ -3,8 +3,19 @@ postiz:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/gitroomhq/postiz-app
             tag: v2.25.3@sha256:1e376ff2cb781022d528f171719cf174cf693a985a30cb40eefb13eae3ddda13
@@ -81,7 +92,7 @@ postiz:
           resources:
             requests:
               cpu: 100m
-              memory: 1000Mi
+              memory: 1500Mi
           probes:
             startup:
               enabled: true
@@ -115,6 +126,7 @@ postiz:
                 failureThreshold: 3
   service:
     main:
+      forceRename: postiz
       ports:
         http:
           port: 80
@@ -122,6 +134,15 @@ postiz:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Postiz"
+        gethomepage.dev/description: "Social media scheduling and management"
+        gethomepage.dev/group: "Background"
+        gethomepage.dev/icon: "sh-postiz.webp"
+        gethomepage.dev/siteMonitor: "http://postiz.postiz:80"
+        gethomepage.dev/weight: "50"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -154,11 +175,22 @@ postiz:
         main:
           main:
             - path: /uploads
+
 temporal:
   server:
+    image:
+      repository: temporalio/server
+      tag: 1.32.0@sha256:c3e752127759616bb1615e0f9ba0e21635aeb5fdeb922de4f371c350955f46ae
     metrics:
       serviceMonitor:
         enabled: true
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
     config:
       persistence:
         datastores:
@@ -195,6 +227,11 @@ temporal:
       metrics:
         serviceMonitor:
           enabled: true
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
       resources:
         requests:
           cpu: 10m
@@ -203,6 +240,11 @@ temporal:
       metrics:
         serviceMonitor:
           enabled: true
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
       resources:
         requests:
           cpu: 10m
@@ -211,6 +253,11 @@ temporal:
       metrics:
         serviceMonitor:
           enabled: true
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
       resources:
         requests:
           cpu: 10m
@@ -219,11 +266,31 @@ temporal:
       metrics:
         serviceMonitor:
           enabled: true
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
       resources:
         requests:
           cpu: 10m
           memory: 50Mi
   admintools:
+    image:
+      repository: temporalio/admin-tools
+      tag: 1.32.0@sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
     resources:
       requests:
         cpu: 10m
@@ -232,6 +299,18 @@ temporal:
     image:
       repository: temporalio/ui
       tag: 2.57.0@sha256:d944f959d0923c35cd991a17a0edbe087770eff843724b181933e0cfdd563ab2
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
     additionalEnv:
       - name: TEMPORAL_AUTH_ENABLED
         value: "true"
@@ -255,6 +334,57 @@ temporal:
       requests:
         cpu: 10m
         memory: 50Mi
+  schema:
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    resources:
+      requests:
+        cpu: 10m
+        memory: 50Mi
+  test:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 10Mi
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Postiz"
+    description: "The open-source social media scheduling tool."
+    launchUrl: https://postiz.alexlebens.dev
+    callbackUrls:
+      - https://postiz.alexlebens.dev/settings
+      - https://postiz.alexlebens.dev/auth
+    pkceEnabled: false
+    clientID: 3DB59245-0224-43DC-AED3-958AC34CAEC4
+
+pocket-id-client-temporal:
+  mode: oidc
+  name: postiz-temporal
+  client:
+    displayName: "Postiz Temporal"
+    description: "Temporal UI for Postiz workflow orchestration"
+    launchUrl: https://postiz-temporal.alexlebens.dev
+    callbackUrls:
+      - https://postiz-temporal.alexlebens.dev/auth/sso/callback
+    pkceEnabled: false
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
+    clientID: F2B91A4D-7E3C-4981-815E-6E3C0F59DA12
+    logo:
+      selfhstLogoName: postiz
 
 cloudflared:
   probe:
@@ -314,3 +444,8 @@ volsync-target-upload:
   d:
     enabled: true
     schedule: 55 9 * * 3
+
+common-helpers:
+  probe:
+    internal: http://postiz.postiz:80
+    external: https://postiz.alexlebens.dev

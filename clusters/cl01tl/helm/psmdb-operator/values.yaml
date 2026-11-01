@@ -1,6 +1,27 @@
 psmdb-operator:
+  image:
+    repository: percona/percona-server-mongodb-operator
+    # renovate: datasource=docker depName=percona/percona-server-mongodb-operator
+    tag: 1.23.1@sha256:78c87b933e184b9af36dbb0078751862c75934c1521c33d3be4d0a38aa58dd0a
   disableTelemetry: true
   watchAllNamespaces: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 150Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 2
+    runAsGroup: 2
+    fsGroup: 2
+    seccompProfile:
+      type: RuntimeDefault
 
 s3-bucket:
   enabled: true
@@ -10,13 +31,21 @@ s3-bucket:
     c:
       enabled: true
       schedule: "35 2 * * 6"
+      mode: copy
       destination:
         bucketName: mongodb-backups
+      prune:
+        enabled: true
+        ageToPrune: "90d"
     d:
       enabled: true
       schedule: "5 2 * * 6"
+      mode: copy
       destination:
-        bucketName: pocket-id-assets-16f257c63afe178e
+        bucketName: mongodb-backups-594e7a2417d49895
+      prune:
+        enabled: true
+        ageToPrune: "90d"
 
 grafanaDashboard:
   folder: platform

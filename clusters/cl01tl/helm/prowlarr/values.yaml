@@ -7,6 +7,10 @@ prowlarr:
         securityContext:
           runAsUser: 568
           runAsGroup: 568
+          fsGroup: 568
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -48,6 +52,12 @@ prowlarr:
                 failureThreshold: 30
                 periodSeconds: 5
         metrics:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/onedr0p/exportarr
             tag: v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
@@ -68,7 +78,17 @@ prowlarr:
               value: false
             - name: PROWLARR__BACKFILL
               value: true
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
@@ -90,6 +110,10 @@ prowlarr:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
           probes:
             liveness:
               enabled: true
@@ -107,6 +131,7 @@ prowlarr:
                   port: 4180
   service:
     main:
+      forceRename: prowlarr
       ports:
         http:
           port: 80
@@ -119,17 +144,22 @@ prowlarr:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: prowlarr
-          app.kubernetes.io/instance: prowlarr
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: prowlarr
       endpoints:
         - port: metrics
         - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Indexer Management"
+        gethomepage.dev/description: "Prowlarr"
+        gethomepage.dev/group: "Content"
+        gethomepage.dev/icon: "sh-prowlarr.webp"
+        gethomepage.dev/siteMonitor: "http://prowlarr.prowlarr:80"
+        gethomepage.dev/weight: "150"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -153,6 +183,21 @@ prowlarr:
         main:
           main:
             - path: /config
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  client:
+    displayName: "Prowlarr"
+    description: "An indexer manager/proxy built to integrate with various Servar apps."
+    clientID: AFB1F9A2-E760-41B8-B6F5-56D38809915A
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
 
 volsync-target-config:
   pvcTarget: prowlarr-config
@@ -170,3 +215,8 @@ volsync-target-config:
   d:
     enabled: true
     schedule: 55 9 * * 4
+
+common-helpers:
+  probe:
+    internal: http://prowlarr.prowlarr:80/ping
+    external: https://prowlarr.alexlebens.dev
