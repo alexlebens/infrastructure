@@ -3,9 +3,10 @@ plex:
     main:
       type: deployment
       strategy: Recreate
-      annotations:
-        prometheus.io/probe-module: http_401
       pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
         affinity:
           podAntiAffinity:
             preferredDuringSchedulingIgnoredDuringExecution:
@@ -31,12 +32,12 @@ plex:
             - name: VERSION
               value: docker
           resources:
-            limits:
-              gpu.intel.com/i915: 1
             requests:
               gpu.intel.com/i915: 1
-              cpu: 10m
-              memory: 100Mi
+              cpu: 100m
+              memory: 700Mi
+            limits:
+              gpu.intel.com/i915: 1
           probes:
             liveness:
               enabled: true
@@ -63,6 +64,7 @@ plex:
                 periodSeconds: 10
   service:
     main:
+      forceRename: plex
       controller: main
       type: LoadBalancer
       annotations:
@@ -97,12 +99,6 @@ plex:
         main:
           main:
             - path: /config
-    transcode:
-      type: emptyDir
-      advancedMounts:
-        main:
-          main:
-            - path: /transcode
     media:
       existingClaim: plex-nfs-storage
       advancedMounts:
@@ -110,3 +106,14 @@ plex:
           main:
             - path: /mnt/store
               readOnly: true
+    transcode:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /transcode
+
+common-helpers:
+  probe:
+    internal: http://plex.plex:32400/identity
+    external: https://plex.alexlebens.dev/identity

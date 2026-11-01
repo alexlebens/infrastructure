@@ -3,8 +3,23 @@ pigallery2:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: bpatrik/pigallery2
             tag: 3.5.2-debian-trixie@sha256:d7a61b6daa410537064d4f661122545bc4d9b16cd91a3862d654c3555cb63992
@@ -80,10 +95,8 @@ pigallery2:
               value: low
           resources:
             requests:
-              cpu: 50m
-              memory: 256Mi
-            limits:
-              memory: 1Gi
+              cpu: 10m
+              memory: 150Mi
           probes:
             startup:
               enabled: true
@@ -132,6 +145,7 @@ pigallery2:
         gethomepage.dev/icon: "sh-pigallery2-light.webp"
         gethomepage.dev/siteMonitor: "http://pigallery2.pigallery2:80"
         gethomepage.dev/weight: "350"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -146,18 +160,6 @@ pigallery2:
                 type: PathPrefix
                 value: /
   persistence:
-    config:
-      type: emptyDir
-      advancedMounts:
-        main:
-          main:
-            - path: /app/data/config
-    tmp:
-      type: emptyDir
-      advancedMounts:
-        main:
-          main:
-            - path: /app/data/tmp
     collections:
       existingClaim: pigallery2-collections-nfs-storage
       advancedMounts:
@@ -170,6 +172,27 @@ pigallery2:
         main:
           main:
             - path: /app/data/images
+    config:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data/config
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data/tmp
+            - path: /tmp
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "PiGallery2"
+    description: "A self-hosted photo gallery that automatically scans and displays your photo library."
+    callbackUrls:
+      - https://gallery.alexlebens.dev/pgapi/auth/oidc/callback
 
 mariadb-cluster:
   mariadb:
@@ -187,7 +210,7 @@ mariadb-cluster:
       s3:
         bucket: mariadb-backups
         prefix: cl01tl/pigallery2
-        endpoint: synology.alexlebens.dev:3900
+        endpoint: a.s3.alexlebens.dev
         region: garage
         accessKeyIdSecretKeyRef:
           name: pigallery2-mariadb-cluster-backup-secret-garage
@@ -230,7 +253,7 @@ mariadb-cluster:
         s3:
           bucket: mariadb-backups
           prefix: cl01tl/pigallery2
-          endpoint: synology.alexlebens.dev:3900
+          endpoint: a.s3.alexlebens.dev
           region: garage
           accessKeyIdSecretKeyRef:
             name: pigallery2-mariadb-cluster-backup-secret-garage
@@ -285,10 +308,7 @@ mariadb-cluster:
           tls:
             enabled: true
 
-pocket-id-client:
-  mode: oidc
-  client:
-    displayName: "PiGallery2"
-    description: "A self-hosted photo gallery that automatically scans and displays your photo library."
-    callbackUrls:
-      - https://gallery.alexlebens.dev/pgapi/auth/oidc/callback
+common-helpers:
+  probe:
+    internal: http://pigallery2.pigallery2:80
+    external: https://gallery.alexlebens.dev

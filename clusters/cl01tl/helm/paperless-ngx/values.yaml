@@ -5,6 +5,10 @@ paperless-ngx:
       strategy: Recreate
       annotations:
         reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -108,7 +112,7 @@ paperless-ngx:
                   key: ai-key
           resources:
             requests:
-              cpu: 10m
+              cpu: 20m
               memory: 600Mi
           probes:
             liveness:
@@ -138,6 +142,10 @@ paperless-ngx:
           image:
             repository: gotenberg/gotenberg
             tag: 8.39.0@sha256:13672f317b443c793e972b1bd2155ec62a3e7b6891b411e8196442cc053ee5f5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
           probes:
             liveness:
               enabled: true
@@ -157,6 +165,10 @@ paperless-ngx:
           image:
             repository: apache/tika
             tag: 3.3.3.0@sha256:326b238b37904c94ff61fed87afe0af72e6a29fa715933b10af97b7d56f1d4cb
+          resources:
+            requests:
+              cpu: 10m
+              memory: 350Mi
           probes:
             liveness:
               enabled: true
@@ -174,6 +186,7 @@ paperless-ngx:
                   port: 9998
   service:
     main:
+      forceRename: paperless-ngx
       ports:
         http:
           port: 80
@@ -181,6 +194,15 @@ paperless-ngx:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Documents"
+        gethomepage.dev/description: "Paperless-ngx"
+        gethomepage.dev/group: "Knowledge"
+        gethomepage.dev/icon: "sh-paperless-ngx-light.webp"
+        gethomepage.dev/siteMonitor: "http://paperless-ngx.paperless-ngx:80"
+        gethomepage.dev/weight: "50"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -231,6 +253,15 @@ paperless-ngx:
         main:
           main:
             - path: /usr/src/paperless/consume
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Paperless-ngx"
+    description: "Document management system that transforms your physical documents into a searchable online archive."
+    clientID: ED83227E-003C-433A-A229-9A41DE1C3854
+    callbackUrls:
+      - https://paperless-ngx.alexlebens.dev/accounts/oidc/pocket-id/login/callback/
 
 postgres-18-cluster:
   mode: recovery
@@ -296,3 +327,8 @@ volsync-target-consume:
   d:
     enabled: true
     schedule: 50 9 * * 4
+
+common-helpers:
+  probe:
+    internal: http://paperless-ngx.paperless-ngx:80
+    external: https://paperless-ngx.alexlebens.dev
