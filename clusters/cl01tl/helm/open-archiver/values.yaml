@@ -3,6 +3,12 @@ open-archiver:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -124,8 +130,8 @@ open-archiver:
                   key: encryption-key
           resources:
             requests:
-              cpu: 10m
-              memory: 500Mi
+              cpu: 300m
+              memory: 1200Mi
           probes:
             liveness:
               enabled: true
@@ -161,7 +167,7 @@ open-archiver:
           resources:
             requests:
               cpu: 10m
-              memory: 250Mi
+              memory: 350Mi
           probes:
             liveness:
               enabled: true
@@ -217,14 +223,15 @@ open-archiver:
           main:
             - path: /data
 
-valkey:
-  valkey:
-    resources:
-      requests:
-        cpu: 15m
-        memory: 64Mi
-
 meilisearch:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
   environment:
     MEILI_NO_ANALYTICS: true
     MEILI_ENV: production
@@ -239,8 +246,8 @@ meilisearch:
     size: 10Gi
   resources:
     requests:
-      cpu: 1m
-      memory: 50Mi
+      cpu: 10m
+      memory: 2500Mi
   serviceMonitor:
     enabled: true
 

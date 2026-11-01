@@ -12,7 +12,7 @@ openbao:
       tag: 2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f
     resources:
       requests:
-        cpu: 50m
+        cpu: 100m
         memory: 100Mi
     gateway:
       httpRoute:
@@ -24,6 +24,16 @@ openbao:
             kind: Gateway
             name: traefik-gateway
             namespace: traefik
+        annotations:
+          gethomepage.dev/enabled: "true"
+          gethomepage.dev/name: "Secrets"
+          gethomepage.dev/description: "OpenBao"
+          gethomepage.dev/group: "Storage"
+          gethomepage.dev/icon: "sh-openbao.webp"
+          gethomepage.dev/href: "https://bao.alexlebens.dev/ui/vault/auth?with=oidc"
+          gethomepage.dev/siteMonitor: "http://openbao.openbao:8200"
+          gethomepage.dev/weight: "250"
+          gethomepage.dev/pod-selector: ""
     authDelegator:
       enabled: true
     livenessProbe:
@@ -76,14 +86,19 @@ openbao:
           }
   csi:
     enabled: true
+    daemonSet:
+      securityContext:
+        pod:
+          seccompProfile:
+            type: RuntimeDefault
     image:
       registry: quay.io
       repository: openbao/openbao-csi-provider
       tag: 2.0.3@sha256:ad30d5f6223f30f62e8df6e444b84af5b05402a70c09712415dd1d7f139c027e
     resources:
       requests:
-        cpu: 10m
-        memory: 30Mi
+        cpu: 5m
+        memory: 20Mi
     pod:
       tolerations:
         - key: node-role.kubernetes.io/control-plane
@@ -96,7 +111,7 @@ openbao:
         tag: 2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f
       resources:
         requests:
-          cpu: 10m
+          cpu: 5m
           memory: 10Mi
   serverTelemetry:
     serviceMonitor:
@@ -160,6 +175,10 @@ openbao:
   snapshotAgent:
     enabled: true
     schedule: 0 4 * * *
+    resources:
+      requests:
+        cpu: 10m
+        memory: 30Mi
     image:
       repository: ghcr.io/openbao/openbao-snapshot-agent
       tag: 0.4.5@sha256:ef2c80770e30bba3fcf4d7911cb829607efcea7e7c1a917210c9fa1ba55a8249
@@ -172,15 +191,31 @@ openbao:
       s3cmdExtraFlag: "-v --no-ssl"
       baoAuthPath: kubernetes
       baoRole: bao-snapshot
+
 unseal:
   global:
     fullnameOverride: openbao-unseal
+  defaultPodOptions:
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+      seccompProfile:
+        type: RuntimeDefault
   controllers:
     unseal-1:
       type: deployment
       strategy: Recreate
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/lrstanley/vault-unseal
             tag: 1.0.2@sha256:4e0b6809bb4d0a3a1473976dc78b906aca974007b24ff69f1fa306d34ca43aeb
@@ -196,6 +231,12 @@ unseal:
       strategy: Recreate
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/lrstanley/vault-unseal
             tag: 1.0.2@sha256:4e0b6809bb4d0a3a1473976dc78b906aca974007b24ff69f1fa306d34ca43aeb
@@ -211,6 +252,12 @@ unseal:
       strategy: Recreate
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/lrstanley/vault-unseal
             tag: 1.0.2@sha256:4e0b6809bb4d0a3a1473976dc78b906aca974007b24ff69f1fa306d34ca43aeb
@@ -221,6 +268,20 @@ unseal:
             requests:
               cpu: 1m
               memory: 10Mi
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "OpenBao"
+    description: "Secrets management, encryption as a service, and privileged access management."
+    launchUrl: https://bao.alexlebens.dev
+    callbackUrls:
+      - https://bao.alexlebens.dev/ui/vault/auth/oidc/oidc/callback
+      - http://localhost:8250/oidc/callback
+    clientID: FB30DF49-299D-40B4-A021-564633DC45A8
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
 
 s3-bucket:
   enabled: true
@@ -237,6 +298,11 @@ s3-bucket:
       schedule: "5 2 * * 3"
       destination:
         bucketName: openbao-backups-038053cd180284dc
+
+common-helpers:
+  probe:
+    internal: http://openbao.openbao:8200
+    external: https://bao.alexlebens.dev
 
 grafanaDashboard:
   folder: platform
