@@ -1,0 +1,34 @@
+#!/bin/bash
+set -euo pipefail
+
+# Dynamically resolve repository root relative to script location
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/.." &>/dev/null && pwd -P))"
+
+CLUSTER="${1:-cl01tl}"
+HELM_DIR="${REPO_ROOT}/clusters/${CLUSTER}/helm"
+
+if [ ! -d "${HELM_DIR}" ]; then
+  echo "Error: Directory not found: ${HELM_DIR}" >&2
+  exit 1
+fi
+
+echo "Updating Helm repositories..."
+helm repo update > /dev/null
+
+for path in "${HELM_DIR}"/*; do
+  if [ -d "${path}" ]; then
+    echo ""
+    pushd "${path}" > /dev/null || continue
+
+    echo ">> $(basename "${path}")"
+    echo ""
+
+    helm dependency update > /dev/null
+    helm lint ./
+
+    popd > /dev/null
+    echo ""
+    echo "-----"
+  fi
+done
