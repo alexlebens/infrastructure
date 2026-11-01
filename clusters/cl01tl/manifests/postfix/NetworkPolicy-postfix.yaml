@@ -2,14 +2,17 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: postfix
-  namespace: postfix
   labels:
-    app.kubernetes.io/name: postfix
     app.kubernetes.io/instance: postfix
-    app.kubernetes.io/part-of: postfix
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: postfix
+    helm.sh/chart: postfix-5.3.0
+  namespace: postfix
 spec:
   podSelector:
     matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/instance: postfix
       app.kubernetes.io/name: postfix
   policyTypes:
     - Ingress
@@ -90,7 +93,17 @@ spec:
             matchLabels:
               app.kubernetes.io/name: reactive-resume
       ports:
-        - protocol: TCP
-          port: 25
-        - protocol: TCP
-          port: 587
+        - port: 25
+          protocol: TCP
+        - port: 587
+          protocol: TCP
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-prometheus-stack
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: 9154
+          protocol: TCP
