@@ -3,6 +3,8 @@ postfix:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         securityContext:
           seccompProfile:
@@ -65,8 +67,29 @@ postfix:
                   port: 587
                 initialDelaySeconds: 5
                 periodSeconds: 10
+        exporter:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: boky/postfix-exporter
+            tag: 5.2.0@sha256:85aaeb5ebe61aac78149cc3f69cbb78ba19a3e70cb3e3c7570fe69e9b196fddb
+          args:
+            - --postfix.showq_path=/var/spool/postfix/public/showq
+            - --postfix.logfile_path=/var/log/mail.log
+          resources:
+            requests:
+              cpu: 5m
+              memory: 20Mi
   service:
     main:
+      forceRename: postfix
       ports:
         smtp:
           port: 25
@@ -74,3 +97,130 @@ postfix:
         submission:
           port: 587
           targetPort: 587
+        metrics:
+          port: 9154
+          targetPort: 9154
+  serviceMonitor:
+    main:
+      serviceName: postfix
+      endpoints:
+        - port: metrics
+  networkpolicies:
+    main:
+      forceRename: postfix
+      controller: main
+      policyTypes:
+        - Ingress
+      rules:
+        ingress:
+          - from:
+              - podSelector: {}
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: audiobookshelf
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: audiobookshelf
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: grimmory
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: grimmory
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: pocket-id-operator
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: pocket-id
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: vaultwarden
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: vaultwarden
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: gitea
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: gitea
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: dawarich
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: dawarich
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: trek
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: trek
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: immich
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: immich
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: outline
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: outline
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: home-assistant
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: home-assistant
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: postiz
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: postiz
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: reactive-resume
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: reactive-resume
+            ports:
+              - protocol: TCP
+                port: 25
+              - protocol: TCP
+                port: 587
+          - from:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kube-prometheus-stack
+                podSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: prometheus
+            ports:
+              - protocol: TCP
+                port: 9154
+  persistence:
+    config:
+      type: configMap
+      name: postfix-config
+      advancedMounts:
+        main:
+          main:
+            - path: /etc/rsyslog.d-metrics/maillog.conf
+              subPath: maillog.conf
+              readOnly: true
+    var-log:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /var/log
+          exporter:
+            - path: /var/log
+
+grafanaDashboard:
+  folder: platform
