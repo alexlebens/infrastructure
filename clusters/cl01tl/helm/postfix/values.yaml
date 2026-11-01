@@ -3,6 +3,8 @@ postfix:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         securityContext:
           seccompProfile:
@@ -12,6 +14,9 @@ postfix:
           image:
             repository: boky/postfix
             tag: 5.2.0-alpine@sha256:8eacd20c18ccb4d01568cd582bdd1137a982dc5b709d446af7460dcd131f971d
+          envFrom:
+            - secretRef:
+                name: postfix-credentials
           env:
             - name: RELAYHOST
               value: "[smtp.gmail.com]:587"
@@ -41,13 +46,10 @@ postfix:
               value: "true"
             - name: POSTFIX_message_size_limit
               value: "26214400"
-          envFrom:
-            - secretRef:
-                name: postfix-credentials
           resources:
             requests:
               cpu: 5m
-              memory: 32Mi
+              memory: 30Mi
           probes:
             liveness:
               enabled: true
@@ -67,10 +69,10 @@ postfix:
                 periodSeconds: 10
   service:
     main:
+      forceRename: postfix
       ports:
         smtp:
           port: 25
           targetPort: 587
         submission:
           port: 587
-          targetPort: 587
