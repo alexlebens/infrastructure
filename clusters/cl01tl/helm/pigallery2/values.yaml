@@ -80,10 +80,8 @@ pigallery2:
               value: low
           resources:
             requests:
-              cpu: 50m
-              memory: 256Mi
-            limits:
-              memory: 1Gi
+              cpu: 10m
+              memory: 150Mi
           probes:
             startup:
               enabled: true
@@ -132,6 +130,7 @@ pigallery2:
         gethomepage.dev/icon: "sh-pigallery2-light.webp"
         gethomepage.dev/siteMonitor: "http://pigallery2.pigallery2:80"
         gethomepage.dev/weight: "350"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -171,6 +170,14 @@ pigallery2:
           main:
             - path: /app/data/images
 
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "PiGallery2"
+    description: "A self-hosted photo gallery that automatically scans and displays your photo library."
+    callbackUrls:
+      - https://gallery.alexlebens.dev/pgapi/auth/oidc/callback
+
 mariadb-cluster:
   mariadb:
     rootPasswordSecretKeyRef:
@@ -187,7 +194,7 @@ mariadb-cluster:
       s3:
         bucket: mariadb-backups
         prefix: cl01tl/pigallery2
-        endpoint: synology.alexlebens.dev:3900
+        endpoint: a.s3.alexlebens.dev
         region: garage
         accessKeyIdSecretKeyRef:
           name: pigallery2-mariadb-cluster-backup-secret-garage
@@ -230,7 +237,7 @@ mariadb-cluster:
         s3:
           bucket: mariadb-backups
           prefix: cl01tl/pigallery2
-          endpoint: synology.alexlebens.dev:3900
+          endpoint: a.s3.alexlebens.dev
           region: garage
           accessKeyIdSecretKeyRef:
             name: pigallery2-mariadb-cluster-backup-secret-garage
@@ -285,10 +292,7 @@ mariadb-cluster:
           tls:
             enabled: true
 
-pocket-id-client:
-  mode: oidc
-  client:
-    displayName: "PiGallery2"
-    description: "A self-hosted photo gallery that automatically scans and displays your photo library."
-    callbackUrls:
-      - https://gallery.alexlebens.dev/pgapi/auth/oidc/callback
+common-helpers:
+  probe:
+    internal: http://pigallery2.pigallery2:80
+    external: https://gallery.alexlebens.dev
