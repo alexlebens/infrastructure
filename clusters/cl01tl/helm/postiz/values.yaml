@@ -3,6 +3,8 @@ postiz:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       containers:
         main:
           image:
@@ -81,7 +83,7 @@ postiz:
           resources:
             requests:
               cpu: 100m
-              memory: 1000Mi
+              memory: 1500Mi
           probes:
             startup:
               enabled: true
@@ -115,6 +117,7 @@ postiz:
                 failureThreshold: 3
   service:
     main:
+      forceRename: postiz
       ports:
         http:
           port: 80
@@ -122,6 +125,15 @@ postiz:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Postiz"
+        gethomepage.dev/description: "Social media scheduling and management"
+        gethomepage.dev/group: "Background"
+        gethomepage.dev/icon: "sh-postiz.webp"
+        gethomepage.dev/siteMonitor: "http://postiz.postiz:80"
+        gethomepage.dev/weight: "50"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -154,6 +166,7 @@ postiz:
         main:
           main:
             - path: /uploads
+
 temporal:
   server:
     metrics:
@@ -314,3 +327,8 @@ volsync-target-upload:
   d:
     enabled: true
     schedule: 55 9 * * 3
+
+common-helpers:
+  probe:
+    internal: http://postiz.postiz:80
+    external: https://postiz.alexlebens.dev
