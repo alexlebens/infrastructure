@@ -216,6 +216,8 @@ qbittorrent:
     qbit-manage:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         automountServiceAccountToken: true
       initContainers:
@@ -246,6 +248,16 @@ qbittorrent:
               value: /app/var/activity.log
             - name: QBT_LOG_LEVEL
               value: INFO
+            - name: QBT_APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: qbit-manage-config
+                  key: apikey
+            - name: APPRISE_NOTIFY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: qbit-manage-config
+                  key: ntfy-url
           resources:
             requests:
               cpu: 10m
@@ -428,20 +440,11 @@ qbittorrent:
             - path: /qbittorrent/qBittorrent
     qbit-manage-config:
       enabled: true
-      type: custom
-      volumeSpec:
-        csi:
-          driver: secrets-store.csi.k8s.io
-          readOnly: true
-          volumeAttributes:
-            secretProviderClass: qbit-manage-config
+      type: configMap
+      name: qbit-manage-config
       advancedMounts:
         qbit-manage:
           init-copy-config:
-            - path: /tmp/config.yml
-              subPath: config.yml
-              readOnly: true
-          qbit-manage:
             - path: /tmp/config.yml
               subPath: config.yml
               readOnly: true
