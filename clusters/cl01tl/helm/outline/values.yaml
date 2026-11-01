@@ -2,13 +2,25 @@ outline:
   controllers:
     main:
       type: deployment
-      replicas: 2
+      replicas: 1
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
           fsGroup: 1001
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: outlinewiki/outline
             tag: 1.12.0@sha256:25d6a2ced2f1f0cf03c09abd776d87ba31941ed96d3a99992aa84b3bd0afc074
@@ -132,7 +144,7 @@ outline:
           resources:
             requests:
               cpu: 10m
-              memory: 500Mi
+              memory: 230Mi
           probes:
             liveness:
               enabled: true
@@ -159,12 +171,22 @@ outline:
                 periodSeconds: 10
   service:
     main:
+      forceRename: outline
       ports:
         http:
           port: 3000
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Knowledge Wiki"
+        gethomepage.dev/description: "Outline"
+        gethomepage.dev/group: "Knowledge"
+        gethomepage.dev/icon: "sh-outline.webp"
+        gethomepage.dev/siteMonitor: "http://outline.outline:3000"
+        gethomepage.dev/weight: "200"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -178,6 +200,15 @@ outline:
             - path:
                 type: PathPrefix
                 value: /
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Outline"
+    description: "Fast, collaborative knowledge base for your team."
+    clientID: "9D01B1F8-CA08-4035-ADD2-DCAEDFB7C451"
+    callbackUrls:
+      - https://outline.alexlebens.dev/auth/oidc.callback
 
 cloudflared:
   probe:
@@ -229,3 +260,8 @@ s3-bucket:
         schedule: "5 2 * * 4"
       destination:
         bucketName: outline-assets-2ac99fb083071f74
+
+common-helpers:
+  probe:
+    internal: http://outline.outline:3000
+    external: https://outline.alexlebens.dev
