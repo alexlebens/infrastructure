@@ -3,6 +3,8 @@ qbittorrent:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         securityContext:
           fsGroup: 1000
@@ -29,11 +31,11 @@ qbittorrent:
             - -c
             - rm -f /config/qBittorrent/lockfile
         init-sysctl:
+          securityContext:
+            privileged: True
           image:
             repository: busybox
             tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
-          securityContext:
-            privileged: True
           command:
             - /bin/sh
           args:
@@ -42,14 +44,20 @@ qbittorrent:
               sysctl -w net.ipv4.ip_forward=1;
               sysctl -w net.ipv6.conf.all.disable_ipv6=1
         gluetun:
+          securityContext:
+            privileged: True
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_MODULE
           restartPolicy: Always
-          image:
-            repository: ghcr.io/qdm12/gluetun
-            tag: latest@sha256:725d3e51091dde4ca43e3e3f26e2e6d3d0ccc66821e92d505c3da04958f7d472
           lifecycle:
             postStart:
               exec:
                 command: ["/bin/sh", "-c", "(ip rule del table 51820; ip -6 rule del table 51820) || true"]
+          image:
+            repository: ghcr.io/qdm12/gluetun
+            tag: latest@sha256:725d3e51091dde4ca43e3e3f26e2e6d3d0ccc66821e92d505c3da04958f7d472
           env:
             - name: VPN_SERVICE_PROVIDER
               value: airvpn
@@ -81,12 +89,10 @@ qbittorrent:
               value: 8080,9022,9999,4180,44180
             - name: BLOCK_MALICIOUS
               value: "off"
-          securityContext:
-            privileged: True
-            capabilities:
-              add:
-                - NET_ADMIN
-                - SYS_MODULE
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
           probes:
             readiness:
               enabled: true
@@ -175,6 +181,10 @@ qbittorrent:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
           probes:
             liveness:
               enabled: true
@@ -205,6 +215,10 @@ qbittorrent:
               value: "9022"
             - name: EXPORTER_LOG_LEVEL
               value: INFO
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
         log-streamer:
           image:
             repository: busybox
@@ -213,6 +227,10 @@ qbittorrent:
             - /bin/sh
             - -c
             - tail -F /config/qBittorrent/logs/qbittorrent.log
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
     qbit-manage:
       type: deployment
       strategy: Recreate
@@ -261,7 +279,7 @@ qbittorrent:
           resources:
             requests:
               cpu: 10m
-              memory: 300Mi
+              memory: 500Mi
         apprise-api:
           image:
             repository: ghcr.io/caronc/apprise
@@ -284,9 +302,15 @@ qbittorrent:
                 secretKeyRef:
                   name: qbit-manage-config
                   key: ntfy-url
+          resources:
+            requests:
+              cpu: 5m
+              memory: 50Mi
     qui:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         securityContext:
           fsGroup: 1000
@@ -324,7 +348,7 @@ qbittorrent:
           resources:
             requests:
               cpu: 10m
-              memory: 70Mi
+              memory: 200Mi
           probes:
             liveness:
               enabled: true
@@ -407,6 +431,19 @@ qbittorrent:
                 value: /
     qui:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Dashboard"
+        gethomepage.dev/description: "qBittorrent"
+        gethomepage.dev/group: "Content"
+        gethomepage.dev/icon: "sh-qui.webp"
+        gethomepage.dev/href: "https://qui.alexlebens.dev/instances/1"
+        gethomepage.dev/siteMonitor: "http://qbittorrent-qui.qbittorrent:80"
+        gethomepage.dev/weight: "50"
+        gethomepage.dev/podSelector: ""
+        gethomepage.dev/widget.type: "qbittorrent"
+        gethomepage.dev/widget.url: "http://qbittorrent.qbittorrent:8080"
+        gethomepage.dev/widget.enableLeechProgress: "false"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -449,10 +486,7 @@ qbittorrent:
               subPath: config.yml
               readOnly: true
     qbit-manage-config-data:
-      forceRename: qbittorrent-qbit-manage-config-data
-      storageClass: ceph-block
-      accessMode: ReadWriteOnce
-      size: 1Gi
+      type: emptyDir
       advancedMounts:
         qbit-manage:
           init-copy-config:
@@ -526,17 +560,6 @@ volsync-target-config:
       storageClassName: ceph-filesystem
       volumeSnapshotClassName: ceph-filesystem-snapshot
 
-volsync-target-qbit-manage-config:
-  pvcTarget: qbittorrent-qbit-manage-config-data
-  a:
-    enabled: true
-    schedule: 50 10 * * *
-  c:
-    enabled: true
-    schedule: 55 10 * * 5
-  d:
-    enabled: true
-    schedule: 55 9 * * 5
 volsync-target-qui-config:
   pvcTarget: qbittorrent-qui-config-data
   a:
@@ -548,6 +571,11 @@ volsync-target-qui-config:
   d:
     enabled: true
     schedule: 55 9 * * 6
+
+common-helpers:
+  probe:
+    internal: http://qbittorrent.qbittorrent:8080
+    external: https://qbittorrent.alexlebens.dev
 
 grafanaDashboard:
   folder: platform
