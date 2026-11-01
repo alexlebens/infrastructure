@@ -29,6 +29,7 @@ data:
       host: qbittorrent.qbittorrent:8080
       user:
       pass:
+      apikey: !ENV QBT_APIKEY
 
     settings:
       force_auto_tmm: true
@@ -59,7 +60,7 @@ data:
       -< COMPLETED: /mnt/store/Torrent/FINISHED/COMPLETED
       -< IMPORT: /mnt/store/Torrent/FINISHED/IMPORT
       -< SAVE: /mnt/store/Torrent/FINISHED/SAVE
-      -< ZIM: /mnt/store/Kiwix
+      Kiwix: /mnt/data/Kiwix
       lidarr: /mnt/store/Torrent/FINISHED/LIDARR
       prowlarr: /mnt/store/Torrent/FINISHED/SAVE
       radarr-4k: /mnt/store/Torrent/FINISHED/RADARR4K
@@ -75,10 +76,12 @@ data:
     tracker:
       alpharatio.cc:
         tag: AlphaRatio
-      avistaz:
+      avistaz.to:
         tag: Avistaz
       cathode-ray.tube:
         tag: CathodeRayTube
+      cinemaz.to:
+        tag: CinemaZ
       mvgroup.org:
         tag: MVGroup
       torrentleech|tleechreload:
@@ -87,49 +90,40 @@ data:
         tag: InternetArchive
       openzim.org:
         tag: Zim
-      coppersurfer.tk|arenabg.com|explodie.org|tfile.co|1337x.org|zer0day.to|i2p.rocks|ccc.de|nwps.ws|opentrackr.org:
-        tag: Other
 
     share_limits:
       private:
         priority: 1
         include_any_tags:
-        - AlphaRatio
-        - TorrentLeech
+          - AlphaRatio
+          - TorrentLeech
         categories:
-        - -< COMPLETED
+          - -< COMPLETED
         max_ratio: 2.0
-        min_seeding_time: 14d
-        max_seeding_time: 30d
+        min_seeding_time: 21d
+        max_seeding_time: 60d
         min_num_seeds: 2
         last_active: 3d
         cleanup: true
-      # save:
-      #   priority: 2
-      #   categories:
-      #   - -< SAVE
-      #   max_ratio: 2.0
-      #   min_seeding_time: 14d
-      #   max_seeding_time: 30d
-      #   min_num_seeds: 2
-      #   last_active: 30d
-      #   cleanup: false
-      # zim:
-      #   priority: 3
-      #   categories:
-      #   - -< ZIM
-      #   max_ratio: 2.0
-      #   min_seeding_time: 14d
-      #   max_seeding_time: 30d
-      #   min_num_seeds: 2
-      #   last_active: 30d
-      #   cleanup: false
+      private-keep:
+        priority: 2
+        include_any_tags:
+          - Avistaz
+          - CinemaZ
+          - CathodeRayTube
+          - MVGroup
+        categories:
+          - -< COMPLETED
+        max_ratio: 10.0
+        min_seeding_time: 60d
+        max_seeding_time: 180d
+        min_num_seeds: 2
+        last_active: 30d
+        cleanup: false
       default:
         priority: 999
-        include_any_tags:
-        - Other
         categories:
-        - -< COMPLETED
+          - -< COMPLETED
         max_seeding_time: 3d
         limit_upload_speed: 100
         cleanup: true
@@ -142,20 +136,21 @@ data:
 
     orphaned:
       empty_after_x_days: 30
+      min_file_age_minutes: 30
       exclude_patterns:
-      - /mnt/store/Torrent/QBITTORRENT/*
-      - /mnt/store/Torrent/TORRENT/*
-      - /mnt/store/Torrent/DOWNLOADING/*
-      - '**/.DS_Store'
-      - '**/Thumbs.db'
-      - '**/@eaDir'
-      - '**/*.!qB'
-      - '**/*_unpackerred'
-      max_orphaned_files_to_delete: 200
+        - /mnt/store/Torrent/QBITTORRENT/*
+        - /mnt/store/Torrent/TORRENT/*
+        - /mnt/store/Torrent/DOWNLOADING/*
+        - "**/.DS_Store"
+        - "**/Thumbs.db"
+        - "**/@eaDir"
+        - "**/*.!qB"
+        - "**/*_unpackerred"
+      max_orphaned_files_to_delete: 50
 
     apprise:
       api_url: http://localhost:8000
-      notify_url: http://apprise:8000
+      notify_url: !ENV APPRISE_NOTIFY_URL
 
     webhooks:
       error: apprise
