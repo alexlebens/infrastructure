@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ==============================================================================
+# Adopt Pre-Existing Garage S3 Buckets into OpenTofu State
+#
+# Usage:
+#   tofu-adopt-garage-bucket <app-name> [bucket-alias]
+#
+# Examples:
+#   tofu-adopt-garage-bucket volsync
+#   tofu-adopt-garage-bucket volsync volsync-backups
+#
+# Why this is needed:
+#   The arsolitt/garagehq OpenTofu provider does not implement the OpenTofu/Terraform
+#   Import API for garage_bucket resources. If a bucket already exists in Garage,
+#   tofu plan/apply fails (import errors or 409 Conflict).
+#   This script queries the Garage clusters for the internal hex IDs and safely
+#   injects the instance entries into Gitea remote state JSON.
+# ==============================================================================
+
+APP_NAME="${1:-}"
+if [ -z "${APP_NAME}" ]; then
+  echo "Usage: $0 <app-name> [bucket-alias]"
+  echo "Example: $0 cloudnative-pg postgres-backups"
+  exit 1
+fi
+
+BUCKET_ALIAS="${2:-${APP_NAME}}"
+
+GITEA_URL="${GITEA_URL:-https://gitea.alexlebens.dev/api/packages/alexlebens/terraform/state/s3-buckets}"
+GITEA_TOKEN="${GITEA_TOKEN:-}"
+GARAGE_A_TOKEN="${GARAGE_A_TOKEN:-}"
+GARAGE_C_TOKEN="${GARAGE_C_TOKEN:-}"
+BAO_TOKEN="${BAO_TOKEN:-}"
+
+get_bao_token() {
+  if [ -n "${BAO_TOKEN}" ]; then
+    echo "${BAO_TOKEN}"
+    return 0
+  fi
+  if command -v kubectl >/dev/null 2>&1; then
+    local jwt
+    jwt=$(kubectl create token external-secrets -n external-secrets --audience openbao 2>/dev/null || true)
+    if [ -n "${jwt}" ]; then
+      BAO_TOKEN=$(kubectl exec -n openbao openbao-0 -c openbao -- bao write -format=json auth/kubernetes/login role=external-secrets jwt="${jwt}" 2>/dev/null | jq -r '.auth.client_token // empty' 2>/dev/null || true)
+      if [ -n "${BAO_TOKEN}" ]; then
+        echo "${BAO_TOKEN}"
+        return 0
+      fi
+    fi
+  fi
+  return 1
+}
+
+bao_kv_get() {
+  local field="$1"
+  local secret_path="$2"
+  local token
+  token=$(get_bao_token || true)
+  if [ -n "${token}" ]; then
+    kubectl exec -n openbao openbao-0 -c openbao -- env VAULT_TOKEN="${token}" bao kv get -field="${field}" "${secret_path}" 2>/dev/null || true
+  else
+    kubectl exec -n openbao openbao-0 -c openbao -- bao kv get -field="${field}" "${secret_path}" 2>/dev/null || true
+  fi
+}
+
+# Auto-discover Gitea token from OpenBao if available and unset
+if [ -z "${GITEA_TOKEN}" ] && command -v kubectl >/dev/null 2>&1; then
+  echo ">> Fetching Gitea token from OpenBao..."
+  GITEA_TOKEN=$(bao_kv_get GIT_TOKEN secret/cl01tl/gitea/actions/secrets)
+fi
+
+if [ -z "${GITEA_TOKEN}" ]; then
+  echo "Error: GITEA_TOKEN environment variable is not set and could not be retrieved from OpenBao." >&2
+  exit 1
+fi
+
+echo "==================================================================="
+echo "Adopting Garage Bucket for App: ${APP_NAME} (alias: ${BUCKET_ALIAS})"
+echo "==================================================================="
+
+# Query Tier A: Garage Synology NAS (a_ps02sn)
+echo ">> Inspecting Garage Synology NAS (a_ps02sn)..."
+GARAGE_A_ID="${GARAGE_A_ID:-}"
+if [ -z "${GARAGE_A_ID}" ]; then
+  if [ -z "${GARAGE_A_TOKEN}" ] && command -v kubectl >/dev/null 2>&1; then
+    GARAGE_A_TOKEN=$(bao_kv_get admin secret/ps02sn/garage/token)
+  fi
+
+  if [ -n "${GARAGE_A_TOKEN}" ]; then
+    GARAGE_A_RESP=$(curl -sk --max-time 60 -H "Authorization: Bearer ${GARAGE_A_TOKEN}" \
+      "http://synology.alexlebens.dev:3903/v1/bucket?globalAlias=${BUCKET_ALIAS}" 2>/dev/null || true)
+    GARAGE_A_ID=$(echo "${GARAGE_A_RESP}" | jq -r '.id // empty' 2>/dev/null || true)
+  fi
+
+  # Fallback for known existing bucket if query times out due to scanning 65k+ objects
+  if [ -z "${GARAGE_A_ID}" ] && [ "${BUCKET_ALIAS}" = "postgres-backups" ]; then
+    GARAGE_A_ID="d9c44fc72295d0466e4c3c5f2046b0c420191e49e7f6a6019d412a2641112562"
+  fi
+fi
+
+if [ -n "${GARAGE_A_ID}" ]; then
+  echo "   Found Bucket ID: ${GARAGE_A_ID}"
+else
+  echo "   No bucket found with alias '${BUCKET_ALIAS}' on Synology A."
+fi
+
+# Query Tier B: Garage Cluster B (Talos Cluster)
+echo ">> Inspecting Garage Cluster B (b_cl01tl)..."
+GARAGE_B_ID="${GARAGE_B_ID:-}"
+if [ -z "${GARAGE_B_ID}" ] && command -v kubectl >/dev/null 2>&1; then
+  GARAGE_B_ID=$(kubectl exec -n garage-operator garage-cluster-b-storage-0-0 -c garage -- \
+    /garage bucket info "${BUCKET_ALIAS}" 2>/dev/null | grep -E '^(Bucket|ID):' | head -n 1 | awk '{print $2}' || true)
+fi
+
+if [ -n "${GARAGE_B_ID}" ]; then
+  echo "   Found Bucket ID: ${GARAGE_B_ID}"
+else
+  echo "   No bucket found with alias '${BUCKET_ALIAS}' on Cluster B."
+fi
+
+# Query Tier C: Garage Cluster C (Raspberry Pi ps10rp)
+echo ">> Inspecting Garage Cluster C (c_ps10rp)..."
+GARAGE_C_ID="${GARAGE_C_ID:-}"
+if [ -z "${GARAGE_C_ID}" ]; then
+  if [ -z "${GARAGE_C_TOKEN}" ] && command -v kubectl >/dev/null 2>&1; then
+    GARAGE_C_TOKEN=$(bao_kv_get admin secret/ps10rp/garage/token)
+  fi
+
+  if [ -n "${GARAGE_C_TOKEN}" ]; then
+    GARAGE_C_RESP=$(curl -sk --max-time 60 -H "Authorization: Bearer ${GARAGE_C_TOKEN}" \
+      "https://garage-ps10rp.boreal-beaufort.ts.net:3903/v1/bucket?globalAlias=${BUCKET_ALIAS}" 2>/dev/null || true)
+    GARAGE_C_ID=$(echo "${GARAGE_C_RESP}" | jq -r '.id // empty' 2>/dev/null || true)
+  fi
+fi
+
+if [ -n "${GARAGE_C_ID}" ]; then
+  echo "   Found Bucket ID: ${GARAGE_C_ID}"
+else
+  echo "   No bucket found with alias '${BUCKET_ALIAS}' on Cluster C."
+fi
+
+if [ -z "${GARAGE_A_ID}" ] && [ -z "${GARAGE_B_ID}" ] && [ -z "${GARAGE_C_ID}" ]; then
+  echo "Error: Could not locate bucket '${BUCKET_ALIAS}' on any Garage cluster." >&2
+  exit 1
+fi
+
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+STATE_FILE="${TMP_DIR}/state.json"
+NEW_STATE="${TMP_DIR}/state_new.json"
+
+# Download remote state
+echo ">> Fetching OpenTofu remote state from Gitea..."
+HTTP_CODE=$(curl -sk -w "%{http_code}" -o "${STATE_FILE}" \
+  -H "Authorization: token ${GITEA_TOKEN}" \
+  "${GITEA_URL}")
+
+if [ "${HTTP_CODE}" != "200" ]; then
+  echo "Error: Failed to fetch state from Gitea (HTTP ${HTTP_CODE})." >&2
+  exit 1
+fi
+
+# Inject into state JSON
+echo ">> Injecting resource instances into state..."
+cp "${STATE_FILE}" "${NEW_STATE}"
+
+inject_tier() {
+  local tier_name="$1"
+  local bucket_id="$2"
+  if [ -z "${bucket_id}" ]; then
+    return
+  fi
+
+  local already_exists
+  already_exists=$(jq --arg tier "${tier_name}" --arg app "${APP_NAME}" '
+    [.resources[] | select(.type=="garage_bucket" and .name==$tier).instances[]? | select(.index_key==$app)] | length
+  ' "${NEW_STATE}")
+
+  if [ "${already_exists}" -gt 0 ]; then
+    local current_id
+    current_id=$(jq -r --arg tier "${tier_name}" --arg app "${APP_NAME}" '
+      .resources[] | select(.type=="garage_bucket" and .name==$tier).instances[] | select(.index_key==$app).attributes.id // empty
+    ' "${NEW_STATE}")
+    if [ "${current_id}" = "${bucket_id}" ]; then
+      echo "   Tier ${tier_name} [${APP_NAME}] already has correct ID (${bucket_id}). Skipping."
+      return
+    else
+      echo "   Updating garage_bucket.${tier_name}[\"${APP_NAME}\"] ID: ${current_id} -> ${bucket_id}..."
+      jq --arg tier "${tier_name}" --arg app "${APP_NAME}" --arg id "${bucket_id}" '
+        .serial += 1 |
+        (.resources[] | select(.type=="garage_bucket" and .name==$tier).instances[] | select(.index_key==$app).attributes.id) = $id
+      ' "${NEW_STATE}" > "${TMP_DIR}/state_tmp.json"
+      mv "${TMP_DIR}/state_tmp.json" "${NEW_STATE}"
+      return
+    fi
+  fi
+
+  echo "   Injecting garage_bucket.${tier_name}[\"${APP_NAME}\"] (ID: ${bucket_id})..."
+  jq --arg tier "${tier_name}" --arg app "${APP_NAME}" --arg alias "${BUCKET_ALIAS}" --arg id "${bucket_id}" '
+    .serial += 1 |
+    (
+      if (.resources | map(select(.type=="garage_bucket" and .name==$tier)) | length) == 0 then
+        .resources += [{
+          "mode": "managed",
+          "type": "garage_bucket",
+          "name": $tier,
+          "provider": ("provider[\"registry.terraform.io/arsolitt/garagehq\"]." + $tier),
+          "instances": []
+        }]
+      else . end
+    ) |
+    (.resources[] | select(.type=="garage_bucket" and .name==$tier).instances) += [{
+      "index_key": $app,
+      "schema_version": 0,
+      "attributes": {
+        "bytes": 0,
+        "expiration_days": null,
+        "global_alias": $alias,
+        "id": $id,
+        "objects": 0,
+        "website_access": []
+      },
+      "sensitive_attributes": []
+    }]
+  ' "${NEW_STATE}" > "${TMP_DIR}/state_tmp.json"
+  mv "${TMP_DIR}/state_tmp.json" "${NEW_STATE}"
+}
+
+inject_tier "a_ps02sn" "${GARAGE_A_ID}"
+inject_tier "b_cl01tl" "${GARAGE_B_ID}"
+inject_tier "c_ps10rp" "${GARAGE_C_ID}"
+
+# Push state back to Gitea
+if cmp -s "${STATE_FILE}" "${NEW_STATE}"; then
+  echo ">> No state modifications were needed. All resources are already up to date in remote state."
+  echo "==================================================================="
+  echo "Adoption complete for '${APP_NAME}'."
+  echo "==================================================================="
+  exit 0
+fi
+
+echo ">> Uploading updated state to Gitea..."
+PUSH_CODE=$(curl -sk -w "%{http_code}" -o "${TMP_DIR}/push_out.txt" -X POST \
+  -H "Authorization: token ${GITEA_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --data-binary "@${NEW_STATE}" \
+  "${GITEA_URL}")
+
+if [ "${PUSH_CODE}" = "200" ] || [ "${PUSH_CODE}" = "201" ] || [ "${PUSH_CODE}" = "204" ]; then
+  echo ">> Successfully synchronized state with Gitea."
+else
+  echo "Error: Failed to push state to Gitea (HTTP ${PUSH_CODE}):" >&2
+  cat "${TMP_DIR}/push_out.txt" >&2
+  exit 1
+fi
+
+echo "==================================================================="
+echo "Adoption complete for '${APP_NAME}'."
+echo "You can now run 'tofu plan' and verify clean state reconciliation."
+echo "==================================================================="
