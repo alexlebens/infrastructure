@@ -30,8 +30,12 @@ spec:
       serviceAccountName: prowlarr
       automountServiceAccountToken: false
       securityContext:
+        fsGroup: 568
+        fsGroupChangePolicy: OnRootMismatch
         runAsGroup: 568
         runAsUser: 568
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -87,6 +91,16 @@ spec:
               value: "true"
           image: ghcr.io/onedr0p/exportarr:v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
           name: metrics
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
         - env:
             - name: OAUTH2_PROXY_HTTP_ADDRESS
               value: 0.0.0.0:4180
@@ -115,7 +129,22 @@ spec:
             httpGet:
               path: /ready
               port: 4180
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: config
           persistentVolumeClaim:
             claimName: prowlarr-config
+        - emptyDir: {}
+          name: tmp

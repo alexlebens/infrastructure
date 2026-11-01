@@ -22,11 +22,22 @@ spec:
         app.kubernetes.io/instance: psmdb-operator
     spec:
       serviceAccountName: psmdb-operator
-      securityContext: {}
+      securityContext:
+        fsGroup: 2
+        runAsGroup: 2
+        runAsNonRoot: true
+        runAsUser: 2
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: psmdb-operator
-          securityContext: {}
-          image: "percona/percona-server-mongodb-operator:1.23.1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          image: "percona/percona-server-mongodb-operator:1.23.1@sha256:78c87b933e184b9af36dbb0078751862c75934c1521c33d3be4d0a38aa58dd0a"
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -37,6 +48,9 @@ spec:
               name: health
           command:
             - percona-server-mongodb-operator
+          volumeMounts:
+            - name: tmpdir
+              mountPath: /tmp
           env:
             - name: LOG_STRUCTURED
               value: "false"
@@ -70,4 +84,10 @@ spec:
               path: /readyz
               port: health
               scheme: HTTP
-          resources: {}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 150Mi
+      volumes:
+        - name: tmpdir
+          emptyDir: {}

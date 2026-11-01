@@ -34,15 +34,40 @@ spec:
       restartPolicy: OnFailure
       initContainers:
         - name: create-default-namespace
-          image: "temporalio/admin-tools:1.32.0"
+          image: "temporalio/admin-tools:1.32.0@sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca"
           imagePullPolicy: IfNotPresent
           command: ['/bin/sh', '-c']
           args: ['temporal operator namespace describe -n default || temporal operator namespace create -n default --retention 30d']
           env:
             - name: TEMPORAL_ADDRESS
               value: postiz-temporal-frontend:7233
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
       containers:
         - name: done
-          image: "temporalio/admin-tools:1.32.0"
+          image: "temporalio/admin-tools:1.32.0@sha256:a9f84fb9a374b2374fe2e67c8efc0468ff3f1c66c8a0b14597ec86e349e62bca"
           imagePullPolicy: IfNotPresent
           command: ['sh', '-c', 'echo "Namespace setup completed"']
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
