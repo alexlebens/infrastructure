@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+#MISE description="Scaffold a new homelab Helm chart from .helm-starters/app-template"
+#MISE usage="<name> [namespace]"
+set -euo pipefail
+
+if [ -z "${1:-}" ]; then
+    echo "Usage: mise run new-chart <name> [namespace]" >&2
+    exit 1
+fi
+
+NAME="$1"
+NS="${2:-$NAME}"
+
+DEST="clusters/cl01tl/helm/$NAME"
+if [ -d "$DEST" ]; then
+    echo "Error: Directory '$DEST' already exists." >&2
+    exit 1
+fi
+
+echo "Scaffolding chart '$NAME' in namespace '$NS' at $DEST..."
+mkdir -p "$DEST"
+cp -r .helm-starters/app-template/* "$DEST/"
+find "$DEST" -type f ! -name "*.gitkeep" -exec sed -i '' "s/<APP_NAME>/$NAME/g" {} +
+find "$DEST" -type f ! -name "*.gitkeep" -exec sed -i '' "s/<NAMESPACE>/$NS/g" {} +
+
+echo "✓ Created chart at $DEST"
+echo "Next steps:"
+echo "  1. Update image and configuration in $DEST/values.yaml"
+echo "  2. Update $DEST/values.schema.json if adding required fields"
+echo "  3. Validate chart with: mise run check-chart $DEST"

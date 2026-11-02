@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#MISE description="Validate a Helm chart using helm lint and server dry run"
+#MISE usage="<path>"
+set -euo pipefail
+
+if [ -z "${1:-}" ]; then
+    echo "Usage: mise run check-chart <chart-path>" >&2
+    exit 1
+fi
+
+CHART_PATH="$1"
+if [ ! -d "$CHART_PATH" ]; then
+    echo "Error: Directory '$CHART_PATH' does not exist." >&2
+    exit 1
+fi
+
+CHART_NAME=$(basename "$CHART_PATH")
+echo "Validating chart '$CHART_NAME' at $CHART_PATH..."
+helm lint "$CHART_PATH"
+
+echo "Running server-side dry run..."
+helm template "$CHART_NAME" "$CHART_PATH" -n "$CHART_NAME" | kubectl apply --dry-run=server -f -
+echo "✓ Chart '$CHART_NAME' passed validation!"

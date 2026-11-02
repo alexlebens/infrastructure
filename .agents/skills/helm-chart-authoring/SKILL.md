@@ -10,7 +10,7 @@ description: Standards and workflows for creating, formatting, and validating ho
 Never scaffold a chart from scratch. Run the standard scaffolder from the `infrastructure` root:
 
 ```bash
-just new-chart <app-name> [namespace]
+mise run new-chart <app-name> [namespace]
 ```
 
 This initializes a standardized chart in `clusters/cl01tl/helm/<app-name>` from `.helm-starters/app-template`.
@@ -56,7 +56,7 @@ images are updated to the latest versions:
 Every chart requires an updated `values.schema.json`. Run the standard validation before finishing:
 
 ```bash
-just check-chart clusters/cl01tl/helm/<app-name>
+mise run check-chart clusters/cl01tl/helm/<app-name>
 ```
 
 _(Executes `helm lint` and `helm template` piped to `kubectl apply --dry-run=server`, never `--validate`)._
