@@ -1,31 +1,105 @@
 #!/usr/bin/env bash
-#MISE description="Update dependencies and lint all Helm charts in a cluster"
+#MISE description="Update repositories, build dependencies, and lint Helm charts"
 set -euo pipefail
 
-CLUSTER="${1:-${CLUSTER:-cl01tl}}"
-HELM_DIR="${MISE_PROJECT_ROOT:-.}/clusters/${CLUSTER}/helm"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../.." &>/dev/null && pwd -P))}"
+
+CLUSTER="${CLUSTER:-cl01tl}"
+CHARTS=()
+SKIP_REPO_UPDATE=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --cluster)
+      CLUSTER="$2"
+      shift 2
+      ;;
+    --skip-repo-update)
+      SKIP_REPO_UPDATE=true
+      shift
+      ;;
+    --chart)
+      CHARTS+=("$2")
+      shift 2
+      ;;
+    --charts)
+      read -ra SPLIT_CHARTS <<< "$2"
+      CHARTS+=("${SPLIT_CHARTS[@]}")
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: mise run helm-build [chart...] [--cluster <cluster>] [--skip-repo-update]"
+      echo "Discovers repos, updates dependencies, and lints charts in a cluster."
+      exit 0
+      ;;
+    *)
+      CHARTS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+HELM_DIR="${REPO_ROOT}/clusters/${CLUSTER}/helm"
 
 if [ ! -d "${HELM_DIR}" ]; then
   echo "Error: Directory not found: ${HELM_DIR}" >&2
   exit 1
 fi
 
-echo "Updating Helm repositories..."
-helm repo update > /dev/null
+# If no charts specified, target all charts
+if [ ${#CHARTS[@]} -eq 0 ]; then
+  for path in "${HELM_DIR}"/*; do
+    if [ -d "${path}" ] && [ -f "${path}/Chart.yaml" ]; then
+      CHARTS+=("$(basename "${path}")")
+    fi
+  done
+fi
 
-for path in "${HELM_DIR}"/*; do
-  if [ -d "${path}" ]; then
-    echo ""
-    pushd "${path}" > /dev/null || continue
+if [ ${#CHARTS[@]} -eq 0 ]; then
+  echo ">> No charts found to build."
+  exit 0
+fi
 
-    echo ">> $(basename "${path}")"
-    echo ""
+# Step 1: Update required Helm repositories unless skipped
+if [ "${SKIP_REPO_UPDATE}" = false ]; then
+  "${REPO_ROOT}/.mise/tasks/helm-repo-update" --cluster "${CLUSTER}" --charts "${CHARTS[*]}"
+fi
 
-    helm dependency update > /dev/null
-    helm lint ./
+# Step 2: Build dependencies and lint charts
+echo ">> Building dependencies and linting charts for cluster ${CLUSTER} ..."
+FAILED_CHARTS=()
 
-    popd > /dev/null
-    echo ""
-    echo "-----"
+for C in "${CHARTS[@]}"; do
+  C_NAME=$(basename "${C}")
+  C_PATH="${HELM_DIR}/${C_NAME}"
+
+  if [ ! -d "${C_PATH}" ]; then
+    echo "Error: Chart directory '${C_PATH}' not found." >&2
+    FAILED_CHARTS+=("${C_NAME}")
+    continue
+  fi
+
+  echo ""
+  echo ">> [${C_NAME}] Building dependencies..."
+  if ! (helm dependency build "${C_PATH}" --skip-refresh 2>/dev/null || helm dependency update "${C_PATH}" --skip-refresh >/dev/null); then
+    echo "Error: Failed to build dependencies for ${C_NAME}" >&2
+    FAILED_CHARTS+=("${C_NAME}")
+    continue
+  fi
+
+  echo ">> [${C_NAME}] Linting chart..."
+  if ! helm lint "${C_PATH}" --namespace "default"; then
+    echo "Error: Lint failed for ${C_NAME}" >&2
+    FAILED_CHARTS+=("${C_NAME}")
   fi
 done
+
+echo ""
+echo "-----"
+if [ ${#FAILED_CHARTS[@]} -gt 0 ]; then
+  echo "✗ Errors encountered in chart(s): ${FAILED_CHARTS[*]}" >&2
+  exit 1
+else
+  echo "✓ All charts built and linted successfully!"
+fi
