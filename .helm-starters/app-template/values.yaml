@@ -1,0 +1,111 @@
+<APP_NAME>:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: example/app
+            tag: 1.0.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          env:
+            - name: TZ
+              value: America/Chicago
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+  service:
+    main:
+      forceRename: <APP_NAME>
+      ports:
+        http:
+          port: 80
+          targetPort: 8080
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "<APP_NAME>"
+        gethomepage.dev/description: "<APP_NAME>"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "sh-<APP_NAME>.webp"
+        gethomepage.dev/siteMonitor: "http://<APP_NAME>.<NAMESPACE>:80"
+        gethomepage.dev/weight: "100"
+        gethomepage.dev/pod-selector: ""
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - <APP_NAME>.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: <APP_NAME>
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      forceRename: <APP_NAME>-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "<APP_NAME>"
+    description: "<APP_NAME> application"
+    callbackUrls:
+      - https://<APP_NAME>.alexlebens.dev/api/oauth/callback
+
+common-helpers:
+  probe:
+    internal: http://<APP_NAME>.<NAMESPACE>:80
+    external: https://<APP_NAME>.alexlebens.dev
+
+grafanaDashboard:
+  folder: applications

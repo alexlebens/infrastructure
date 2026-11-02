@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ -z "${1:-}" ]]; then
+  echo "Usage: $(basename "$0") <namespace>" >&2
+  exit 1
+fi
+
+NAMESPACE="$1"
+
+kubectl resource-capacity --pods --util -n "${NAMESPACE}" -o json | jq -r '
+  ["NODE", "NAMESPACE", "POD", "CPU_REQ", "CPU_UTIL", "MEM_REQ", "MEM_UTIL"],
+  (
+    [
+      .nodes[]?
+      | .name as $node
+      | .pods[]?
+      | select(.namespace == "'"${NAMESPACE}"'")
+      | [
+          $node,
+          .namespace,
+          .name,
+          .cpu.requests,
+          .cpu.utilization,
+          .memory.requests,
+          .memory.utilization
+        ]
+    ]
+    | sort_by(.[2])[]
+  )
+  | @tsv
+' | awk -F'\t' '
+function parse_cpu(val) {
+  if (val ~ /m$/) { sub(/m$/, "", val); return val + 0 }
+  if (val ~ /^[0-9.]+$/) { return (val + 0) * 1000 }
+  return 0
+}
+
+function parse_mem(val) {
+  if (val ~ /Ki$/) { sub(/Ki$/, "", val); return (val + 0) / 1024 }
+  if (val ~ /Mi$/) { sub(/Mi$/, "", val); return val + 0 }
+  if (val ~ /Gi$/) { sub(/Gi$/, "", val); return (val + 0) * 1024 }
+  if (val ~ /Ti$/) { sub(/Ti$/, "", val); return (val + 0) * 1048576 }
+  if (val ~ /K$|k$/) { sub(/K$|k$/, "", val); return (val + 0) / 1000 }
+  if (val ~ /M$/) { sub(/M$/, "", val); return val + 0 }
+  if (val ~ /G$/) { sub(/G$/, "", val); return (val + 0) * 1000 }
+  if (val ~ /^[0-9.]+$/) { return (val + 0) / 1048576 }
+  return 0
+}
+
+function get_color(req, util) {
+  if (req <= 0) return ""
+  if (util > req * 1.10) return "\033[31m" # Red: > 10% above request
+  if (util < req * 0.90) return "\033[34m" # Blue: > 10% below request
+  return "\033[32m"                        # Green: within +/- 10%
+}
+
+{
+  rows[NR] = $0
+  for (i = 1; i <= NF; i++) {
+    if (length($i) > max[i]) max[i] = length($i)
+  }
+}
+
+END {
+  reset = "\033[0m"
+  for (r = 1; r <= NR; r++) {
+    n = split(rows[r], f, "\t")
+    for (i = 1; i <= n; i++) {
+      color = ""
+      if (r > 1) {
+        if (i == 5) color = get_color(parse_cpu(f[4]), parse_cpu(f[5]))
+        if (i == 7) color = get_color(parse_mem(f[6]), parse_mem(f[7]))
+      }
+      pad = max[i] - length(f[i]) + 2
+      if (color != "") {
+        printf "%s%s%s%*s", color, f[i], reset, pad, ""
+      } else {
+        printf "%s%*s", f[i], pad, ""
+      }
+    }
+    print ""
+  }
+}'

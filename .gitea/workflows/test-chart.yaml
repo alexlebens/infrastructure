@@ -78,21 +78,17 @@ jobs:
 
       - name: Add Repositories
         run: |
-          ./.gitea/scripts/helm-add-repos.sh \
-            --cluster "${CLUSTER}" \
-            --chart "${CHART}"
+          ./.mise/tasks/check-chart "${CHART}" --cluster "${CLUSTER}" --step repos
 
       - name: -- Build Helm Dependencies
         run: |
           echo "FAILED_STAGE=Build Helm Dependencies" >> "$GITHUB_ENV"
-          echo ">> Building helm dependencies for ${CHART} ..."
-          helm dependency build "clusters/${CLUSTER}/helm/${CHART}" --skip-refresh
+          ./.mise/tasks/check-chart "${CHART}" --cluster "${CLUSTER}" --step build
 
       - name: -- Lint Helm Chart
         run: |
           echo "FAILED_STAGE=Lint Helm Chart" >> "$GITHUB_ENV"
-          echo ">> Linting helm chart ${CHART} ..."
-          helm lint "clusters/${CLUSTER}/helm/${CHART}" --namespace "default"
+          ./.mise/tasks/check-chart "${CHART}" --cluster "${CLUSTER}" --step lint
 
       - name: Set Up Kubectl
         uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
@@ -137,7 +133,7 @@ jobs:
           API_VERSIONS: ${{ steps.get-api-versions.outputs.api-versions }}
         run: |
           echo "FAILED_STAGE=Render Templates" >> "$GITHUB_ENV"
-          ./.gitea/scripts/helm-render.sh --chart "${CHART}"
+          ./.mise/tasks/check-chart "${CHART}" --cluster "${CLUSTER}" --step render
 
       - name: Set Up Crane
         uses: imjasonh/setup-crane@feee3b6bb0d4c68370f256a4502498c9227e5c6b # v0.7
