@@ -56,10 +56,12 @@ images are updated to the latest versions:
 Every chart requires an updated `values.schema.json`. Run the standard validation before finishing:
 
 ```bash
-mise run check-chart clusters/cl01tl/helm/<app-name>
+mise run check-chart <app-name>
 ```
 
-_(Executes `helm lint` and `helm template` piped to `kubectl apply --dry-run=server`, never `--validate`)._
+_(Executes the same stages as the CI `test-chart` workflow: adds repos, builds dependencies, lints, and renders
+manifests offline without remote cluster connections. Individual steps can also be run via
+`--step <repos|build|lint|render>`)._
 
 ## 5. Documentation Sync (Cross-Repo)
 

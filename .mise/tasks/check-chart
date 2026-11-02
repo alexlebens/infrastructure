@@ -1,22 +1,100 @@
 #!/usr/bin/env bash
-#MISE description="Validate a Helm chart using helm lint and server dry run"
+#MISE description="Validate a Helm chart following test-chart workflow conventions"
 set -euo pipefail
 
-if [ -z "${1:-}" ]; then
-    echo "Usage: mise run check-chart <chart-path>" >&2
-    exit 1
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../.." &>/dev/null && pwd -P))}"
+
+CLUSTER="${CLUSTER:-cl01tl}"
+CHART=""
+STEP="all"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --step)
+      STEP="$2"
+      shift 2
+      ;;
+    --cluster)
+      CLUSTER="$2"
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|all>] [--cluster <cluster>]"
+      exit 0
+      ;;
+    *)
+      if [ -z "${CHART}" ]; then
+        CHART="$1"
+        shift
+      else
+        echo "Unknown argument: $1" >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+if [ -z "${CHART}" ]; then
+  echo "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|all>]" >&2
+  exit 1
 fi
 
-CHART_PATH="$1"
-if [ ! -d "$CHART_PATH" ]; then
-    echo "Error: Directory '$CHART_PATH' does not exist." >&2
-    exit 1
+# Normalize chart name from path if provided (e.g. clusters/cl01tl/helm/actual -> actual)
+CHART_NAME=$(basename "${CHART}")
+CHART_PATH="${REPO_ROOT}/clusters/${CLUSTER}/helm/${CHART_NAME}"
+
+if [ ! -d "${CHART_PATH}" ]; then
+  echo "Error: Chart directory '${CHART_PATH}' does not exist." >&2
+  exit 1
 fi
 
-CHART_NAME=$(basename "$CHART_PATH")
-echo "Validating chart '$CHART_NAME' at $CHART_PATH..."
-helm lint "$CHART_PATH"
+step_repos() {
+  echo ">> Adding Helm repositories for ${CHART_NAME} ..."
+  "${REPO_ROOT}/.gitea/scripts/helm-add-repos.sh" --main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}"
+}
 
-echo "Running server-side dry run..."
-helm template "$CHART_NAME" "$CHART_PATH" -n "$CHART_NAME" | kubectl apply --dry-run=server -f -
-echo "✓ Chart '$CHART_NAME' passed validation!"
+step_build() {
+  echo ">> Building Helm dependencies for ${CHART_NAME} ..."
+  helm dependency build "${CHART_PATH}" --skip-refresh 2>/dev/null || helm dependency update "${CHART_PATH}" --skip-refresh
+}
+
+step_lint() {
+  echo ">> Linting Helm chart ${CHART_NAME} ..."
+  helm lint "${CHART_PATH}" --namespace "default"
+}
+
+step_render() {
+  echo ">> Rendering Helm templates for ${CHART_NAME} ..."
+  local RENDER_ARGS=(--main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}" --skip-repo-add)
+  if [ -n "${API_VERSIONS:-}" ]; then
+    RENDER_ARGS+=(--api-versions "${API_VERSIONS}")
+  fi
+  "${REPO_ROOT}/.gitea/scripts/helm-render.sh" "${RENDER_ARGS[@]}"
+}
+
+case "${STEP}" in
+  repos|add-repos)
+    step_repos
+    ;;
+  build|build-deps)
+    step_build
+    ;;
+  lint)
+    step_lint
+    ;;
+  render)
+    step_render
+    ;;
+  all)
+    step_repos
+    step_build
+    step_lint
+    step_render
+    echo "✓ Chart '${CHART_NAME}' passed all test-chart checks!"
+    ;;
+  *)
+    echo "Error: Unknown step '${STEP}'. Valid steps: repos, build, lint, render, all." >&2
+    exit 1
+    ;;
+esac
