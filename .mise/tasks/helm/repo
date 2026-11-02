@@ -3,58 +3,21 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
-REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../.." &>/dev/null && pwd -P))}"
-# shellcheck source=../lib/log.sh
-source "${REPO_ROOT}/.mise/lib/log.sh"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/helm.sh
+source "${REPO_ROOT}/.mise/lib/helm.sh"
 
-CLUSTER="${CLUSTER:-cl01tl}"
-CHARTS=()
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --main-dir)
-      REPO_ROOT="$2"
-      shift 2
-      ;;
-    --cluster)
-      CLUSTER="$2"
-      shift 2
-      ;;
-    --chart)
-      CHARTS+=("$2")
-      shift 2
-      ;;
-    --charts)
-      read -ra SPLIT_CHARTS <<< "$2"
-      CHARTS+=("${SPLIT_CHARTS[@]}")
-      shift 2
-      ;;
+for arg in "$@"; do
+  case "$arg" in
     -h|--help)
-      echo "Usage: mise run helm-repo [chart...] [--cluster <cluster>] [--charts <charts...>]"
+      echo "Usage: mise run helm:repo [chart...] [--cluster <cluster>] [--charts <charts...>]"
       echo "Discovers and registers Helm repositories required by chart dependencies."
       exit 0
-      ;;
-    *)
-      CHARTS+=("$1")
-      shift
       ;;
   esac
 done
 
-HELM_DIR="${REPO_ROOT}/clusters/${CLUSTER}/helm"
-
-if [ ! -d "${HELM_DIR}" ]; then
-  log_fatal "Directory not found: ${HELM_DIR}"
-fi
-
-# If no charts specified, target all charts in cluster helm directory
-if [ ${#CHARTS[@]} -eq 0 ]; then
-  for path in "${HELM_DIR}"/*; do
-    if [ -d "${path}" ] && [ -f "${path}/Chart.yaml" ]; then
-      CHARTS+=("$(basename "${path}")")
-    fi
-  done
-fi
+helm_init "$@"
 
 if [ ${#CHARTS[@]} -eq 0 ]; then
   log_info "No charts found to discover repositories for."
@@ -66,10 +29,9 @@ log_step "Checking dependencies for chart(s): ${CHARTS[*]}"
 # Extract and deduplicate non-OCI repository dependencies across all targeted charts
 REPO_LIST=$(
   for C in "${CHARTS[@]}"; do
-    C_NAME=$(basename "${C}")
-    CHART_PATH="${HELM_DIR}/${C_NAME}"
-    if [ -f "${CHART_PATH}/Chart.yaml" ]; then
-      helm dependency list --max-col-width 120 "${CHART_PATH}" 2>/dev/null || true
+    local_chart_path="${HELM_DIR}/${C}"
+    if [ -f "${local_chart_path}/Chart.yaml" ]; then
+      helm dependency list --max-col-width 120 "${local_chart_path}" 2>/dev/null || true
     fi
   done | awk '$1 != "NAME" && $3 !~ /^oci:\/\// && NF >= 3 { print $1, $3 }' | sort -u
 )
