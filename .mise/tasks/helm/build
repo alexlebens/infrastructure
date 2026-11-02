@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+#MISE description="Orchestrate repository update, dependency build, and linting for Helm charts"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/helm.sh
+source "${REPO_ROOT}/.mise/lib/helm.sh"
+
+SKIP_REPO_UPDATE=false
+REMAINING_ARGS=()
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      echo "Usage: mise run helm:build [chart...] [--cluster <cluster>] [--charts <charts...>] [--skip-repo-update]"
+      echo "Orchestrates repo registration, dependency building, and chart linting."
+      exit 0
+      ;;
+    --skip-repo-update)
+      SKIP_REPO_UPDATE=true
+      ;;
+    *)
+      REMAINING_ARGS+=("$arg")
+      ;;
+  esac
+done
+
+helm_init "${REMAINING_ARGS[@]}"
+
+TARGET_ARGS=(--cluster "${CLUSTER}" --main-dir "${REPO_ROOT}")
+for C in "${CHARTS[@]}"; do
+  TARGET_ARGS+=(--chart "${C}")
+done
+
+# Step 1: Update required Helm repositories unless skipped
+if [ "${SKIP_REPO_UPDATE}" = false ]; then
+  "${SCRIPT_DIR}/repo" "${TARGET_ARGS[@]}"
+fi
+
+# Step 2: Build dependencies
+"${SCRIPT_DIR}/dep" "${TARGET_ARGS[@]}"
+
+# Step 3: Lint charts
+"${SCRIPT_DIR}/lint" "${TARGET_ARGS[@]}"
+
+log_success "Helm build completed successfully for cluster ${CLUSTER}."

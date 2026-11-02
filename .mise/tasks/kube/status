@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+#MISE description="Inspect namespace status: pod health, running images, and resource allocation"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
+
+NAMESPACE=""
+SHOW_EVENTS=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -e|--events)
+      SHOW_EVENTS=true
+      shift
+      ;;
+    -n|--namespace)
+      NAMESPACE="$2"
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: mise run kube:status <namespace> [--events]"
+      echo "Displays comprehensive status, pod overview, running images, and resource capacity."
+      exit 0
+      ;;
+    *)
+      if [ -z "${NAMESPACE}" ]; then
+        NAMESPACE="$1"
+        shift
+      else
+        log_fatal "Unknown argument: $1"
+      fi
+      ;;
+  esac
+done
+
+if [ -z "${NAMESPACE}" ]; then
+  log_fatal "Usage: mise run kube:status <namespace> [--events]"
+fi
+
+# Ensure namespace exists in the cluster
+if ! kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1; then
+  log_fatal "Namespace '${NAMESPACE}' not found in cluster."
+fi
+
+# 1. Pods Overview
+log_step "Pods overview [${NAMESPACE}]"
+kubectl get pods -n "${NAMESPACE}" -o wide
+
+# 2. Container Images
+log_step "Running container images [${NAMESPACE}]"
+"${SCRIPT_DIR}/get-images" "${NAMESPACE}"
+
+# 3. Resource Capacity & Utilization
+log_step "Resource capacity & utilization [${NAMESPACE}]"
+"${SCRIPT_DIR}/resource-capacity" "${NAMESPACE}"
+
+# 4. Optional Warning Events
+if [ "${SHOW_EVENTS}" = true ]; then
+  log_step "Recent Warning events [${NAMESPACE}]"
+  local_events=$(kubectl get events -n "${NAMESPACE}" --field-selector type=Warning --sort-by='.lastTimestamp' 2>/dev/null | tail -n 10 || true)
+  if [ -n "${local_events}" ]; then
+    echo "${local_events}"
+  else
+    log_info "No recent warning events recorded in '${NAMESPACE}'."
+  fi
+fi
+
+log_divider

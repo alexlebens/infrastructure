@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+#MISE description="Extract cluster CRD definitions and generate JSON schemas for kubeconform"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
+
+SCHEMA_DIR="${SCHEMA_DIR:-${HOME}/.schemas}"
+BIN_DIR="${BIN_DIR:-${HOME}/.local/bin}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --schema-dir)
+      SCHEMA_DIR="$2"
+      shift 2
+      ;;
+    --bin-dir)
+      BIN_DIR="$2"
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: mise run kube:generate-schemas [--schema-dir <dir>]"
+      echo "Extracts CRD schemas from the cluster and converts them to JSON for kubeconform."
+      exit 0
+      ;;
+    *)
+      log_fatal "Unknown argument: $1"
+      ;;
+  esac
+done
+
+if ! command -v kubectl >/dev/null 2>&1; then
+  log_fatal "kubectl is required but not installed."
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  log_fatal "python3 is required but not installed."
+fi
+
+mkdir -p "${SCHEMA_DIR}" "${BIN_DIR}"
+
+# Download openapi2jsonschema.py if not present
+if [ ! -f "${BIN_DIR}/openapi2jsonschema.py" ]; then
+  log_info "Downloading openapi2jsonschema.py ..."
+  if command -v curl >/dev/null 2>&1; then
+    curl -sSfL "https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/openapi2jsonschema.py" -o "${BIN_DIR}/openapi2jsonschema.py"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "${BIN_DIR}/openapi2jsonschema.py" "https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/openapi2jsonschema.py"
+  else
+    log_fatal "Neither curl nor wget is available to download openapi2jsonschema.py"
+  fi
+  chmod +x "${BIN_DIR}/openapi2jsonschema.py"
+fi
+
+log_step "Extracting CRD definitions from cluster"
+TMP_DIR=$(mktemp -d)
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# Get all CRDs from the cluster and split into individual files
+CRD_NAMES=$(kubectl get crds -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+CRD_COUNT=0
+for CRD_NAME in ${CRD_NAMES}; do
+  kubectl get crd "${CRD_NAME}" -o yaml > "${TMP_DIR}/${CRD_NAME}.yaml"
+  CRD_COUNT=$((CRD_COUNT + 1))
+done
+
+if [ "${CRD_COUNT}" -eq 0 ]; then
+  log_warn "No CRDs found in cluster or cluster unreachable. Skipping schema generation."
+  exit 0
+fi
+
+log_info "Extracted ${CRD_COUNT} CRDs from cluster"
+
+log_step "Converting CRD schemas to JSON"
+(
+  cd "${TMP_DIR}"
+  export FILENAME_FORMAT='{kind}_{version}'
+  for crd_file in "${TMP_DIR}"/*.yaml; do
+    [ -f "${crd_file}" ] || continue
+    python3 "${BIN_DIR}/openapi2jsonschema.py" "${crd_file}" 2>/dev/null || true
+  done
+  mv ./*.json "${SCHEMA_DIR}/" 2>/dev/null || true
+)
+
+SCHEMA_COUNT=$(find "${SCHEMA_DIR}" -name '*.json' 2>/dev/null | wc -l | xargs)
+if [ "${SCHEMA_COUNT}" -eq 0 ]; then
+  log_fatal "No JSON schemas were generated in ${SCHEMA_DIR}."
+fi
+
+log_success "Generated ${SCHEMA_COUNT} JSON schemas in ${SCHEMA_DIR}"

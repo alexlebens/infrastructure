@@ -1,0 +1,327 @@
+#!/usr/bin/env bash
+#MISE description="Interactively inspect and reset failing CloudNativePG (CNPG) instance pods and PVCs in a namespace"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
+
+# Dependency checks
+check_dependencies() {
+    local missing=()
+    command -v kubectl &>/dev/null || missing+=("kubectl")
+    command -v jq &>/dev/null || missing+=("jq")
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        log_fatal "Missing required dependencies: ${missing[*]}"
+    fi
+}
+
+usage() {
+    cat <<EOF
+${COLOR_BOLD}Usage:${COLOR_RESET} mise run app:cnpg-reset [OPTIONS] [NAMESPACE]
+
+${COLOR_BOLD}Description:${COLOR_RESET}
+  Interactively inspect and reset failing CloudNativePG (CNPG) instance pods
+  and their associated PVCs / PVs in a given namespace.
+
+${COLOR_BOLD}Arguments:${COLOR_RESET}
+  NAMESPACE                  Kubernetes namespace to target (prompted if omitted)
+
+${COLOR_BOLD}Options:${COLOR_RESET}
+  -n, --namespace <ns>       Target namespace
+  -d, --dry-run              Preview actions without deleting any resources
+  -h, --help                 Show this help message
+EOF
+    exit 0
+}
+
+NAMESPACE=""
+DRY_RUN=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -n|--namespace)
+            NAMESPACE="${2:-}"
+            shift 2
+            ;;
+        -d|--dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            if [ -z "$NAMESPACE" ]; then
+                NAMESPACE="$1"
+                shift
+            else
+                log_fatal "Unknown argument: $1"
+            fi
+            ;;
+    esac
+done
+
+check_dependencies
+
+# Prompt for namespace if not provided
+if [ -z "$NAMESPACE" ]; then
+    echo -n "Enter Kubernetes namespace: "
+    read -r NAMESPACE
+fi
+
+if [ -z "$NAMESPACE" ]; then
+    log_fatal "Namespace cannot be empty."
+fi
+
+# Verify namespace exists
+if ! kubectl get namespace "$NAMESPACE" &>/dev/null; then
+    log_fatal "Namespace '${NAMESPACE}' does not exist."
+fi
+
+log_step "Querying CloudNativePG resources in namespace '${NAMESPACE}'"
+
+RAW_PODS=$(kubectl get pods -n "$NAMESPACE" -l "cnpg.io/cluster" -o json 2>/dev/null || echo '{"items":[]}')
+RAW_PVCS=$(kubectl get pvc -n "$NAMESPACE" -l "cnpg.io/cluster" -o json 2>/dev/null || echo '{"items":[]}')
+
+PARSED_INSTANCES=$(jq -n \
+  --argjson pods "$RAW_PODS" \
+  --argjson pvcs "$RAW_PVCS" '
+[
+  ($pods.items[]? | .metadata.labels["cnpg.io/instanceRole"] // empty) as $role |
+  ($pods.items[]? | .metadata.labels["cnpg.io/instanceName"] // .metadata.name) as $pod_inst |
+  ($pvcs.items[]? | .metadata.labels["cnpg.io/instanceName"] // empty) as $pvc_inst |
+  [$pod_inst, $pvc_inst] | unique[]
+] | unique | sort |
+[
+  .[] as $inst |
+  ($pods.items[]? | select((.metadata.labels["cnpg.io/instanceName"] // .metadata.name) == $inst)) as $pod |
+  [$pvcs.items[]? | select(.metadata.labels["cnpg.io/instanceName"] == $inst)] as $pvcs |
+  (
+    if $pod then
+      if $pod.status.deletionTimestamp then "Terminating"
+      elif ($pod.status.containerStatuses[]? | select(.state.waiting != null) | .state.waiting.reason) then
+        ($pod.status.containerStatuses[]? | select(.state.waiting != null) | .state.waiting.reason)
+      else ($pod.status.phase // "Unknown") end
+    else "MissingPod" end
+  ) as $status |
+  (
+    if $pod then
+      ([$pod.status.containerStatuses[]? | select(.ready == true)] | length)
+    else 0 end
+  ) as $ready_count |
+  (
+    if $pod then
+      ($pod.status.containerStatuses? | length // 0)
+    else 0 end
+  ) as $total_count |
+  (
+    ($pod == null) or
+    ($status != "Running" and $status != "Completed") or
+    ($total_count > 0 and $ready_count < $total_count) or
+    ([$pvcs[] | select(.status.phase != "Bound")] | length > 0)
+  ) as $is_failing |
+  {
+    instance: $inst,
+    pod: ($pod.metadata.name // ""),
+    cluster: ($pod.metadata.labels["cnpg.io/cluster"] // ($pvcs[0].metadata.labels["cnpg.io/cluster"] // "unknown")),
+    status: $status,
+    ready: "\($ready_count)/\($total_count)",
+    restarts: ([$pod.status.containerStatuses[]?.restartCount // 0] | add // 0),
+    is_failing: $is_failing,
+    pvcs: [
+      $pvcs[] | {
+        name: .metadata.name,
+        pv: (.spec.volumeName // "None"),
+        status: (.status.phase // "Unknown"),
+        size: (.spec.resources.requests.storage // "-"),
+        storage_class: (.spec.storageClassName // "-")
+      }
+    ]
+  }
+]
+')
+
+TOTAL_INSTANCES=$(echo "$PARSED_INSTANCES" | jq 'length')
+
+if [ "$TOTAL_INSTANCES" -eq 0 ]; then
+    log_warn "No CNPG instance pairs found in namespace '${NAMESPACE}'."
+    exit 0
+fi
+
+echo ""
+printf "%bFound %s CNPG instance(s) in namespace '%b%s%b':\n\n" "${COLOR_BOLD}" "${TOTAL_INSTANCES}" "${COLOR_BOLD_CYAN}" "${NAMESPACE}" "${COLOR_RESET}"
+
+FAILING_INDICES=()
+
+for ((i=0; i<TOTAL_INSTANCES; i++)); do
+    NUM=$((i+1))
+    ENTRY=$(echo "$PARSED_INSTANCES" | jq -r ".[$i]")
+    INSTANCE=$(echo "$ENTRY" | jq -r '.instance')
+    POD=$(echo "$ENTRY" | jq -r '.pod')
+    CLUSTER=$(echo "$ENTRY" | jq -r '.cluster')
+    STATUS=$(echo "$ENTRY" | jq -r '.status')
+    READY=$(echo "$ENTRY" | jq -r '.ready')
+    RESTARTS=$(echo "$ENTRY" | jq -r '.restarts')
+    IS_FAILING=$(echo "$ENTRY" | jq -r '.is_failing')
+
+    if [ "$IS_FAILING" = "true" ]; then
+        FAILING_INDICES+=("$NUM")
+        BADGE=$(log_badge "FAIL" "red")
+        NUM_PREFIX="${COLOR_BOLD_RED}* [${NUM}]${COLOR_RESET}"
+        NAME_DISPLAY="${COLOR_BOLD_RED}${INSTANCE}${COLOR_RESET}"
+    else
+        BADGE=$(log_badge "OK" "green")
+        NUM_PREFIX="  [${NUM}]"
+        NAME_DISPLAY="${COLOR_BOLD}${INSTANCE}${COLOR_RESET}"
+    fi
+
+    printf "%b %b %b %b(Cluster: %s)%b\n" "${NUM_PREFIX}" "${NAME_DISPLAY}" "${BADGE}" "${COLOR_GRAY}" "${CLUSTER}" "${COLOR_RESET}"
+
+    if [ -n "$POD" ]; then
+        if [ "$IS_FAILING" = "true" ]; then
+            printf "      Pod:  %b%s%b | Status: %b%s%b (%s ready, %s restarts)\n" "${COLOR_BOLD_RED}" "${POD}" "${COLOR_RESET}" "${COLOR_BOLD_RED}" "${STATUS}" "${COLOR_RESET}" "${READY}" "${RESTARTS}"
+        else
+            printf "      Pod:  %s | Status: %b%s%b (%s ready, %s restarts)\n" "${POD}" "${COLOR_BOLD_GREEN}" "${STATUS}" "${COLOR_RESET}" "${READY}" "${RESTARTS}"
+        fi
+    else
+        printf "      Pod:  %b(missing)%b\n" "${COLOR_BOLD_RED}" "${COLOR_RESET}"
+    fi
+
+    PVC_COUNT=$(echo "$ENTRY" | jq '.pvcs | length')
+    if [ "$PVC_COUNT" -gt 0 ]; then
+        for ((p=0; p<PVC_COUNT; p++)); do
+            PVC_NAME=$(echo "$ENTRY" | jq -r ".pvcs[$p].name")
+            PV_NAME=$(echo "$ENTRY" | jq -r ".pvcs[$p].pv")
+            PVC_STATUS=$(echo "$ENTRY" | jq -r ".pvcs[$p].status")
+            PVC_SIZE=$(echo "$ENTRY" | jq -r ".pvcs[$p].size")
+            PVC_SC=$(echo "$ENTRY" | jq -r ".pvcs[$p].storage_class")
+
+            if [ "$PVC_STATUS" != "Bound" ]; then
+                printf "      PVC:  %b%s%b %b[%s]%b (Size: %s, SC: %s, PV: %s)\n" "${COLOR_BOLD_RED}" "${PVC_NAME}" "${COLOR_RESET}" "${COLOR_BOLD_RED}" "${PVC_STATUS}" "${COLOR_RESET}" "${PVC_SIZE}" "${PVC_SC}" "${PV_NAME}"
+            else
+                printf "      PVC:  %b%s%b %b[%s]%b (Size: %s, SC: %s, PV: %s)\n" "${COLOR_YELLOW}" "${PVC_NAME}" "${COLOR_RESET}" "${COLOR_BOLD_GREEN}" "${PVC_STATUS}" "${COLOR_RESET}" "${PVC_SIZE}" "${PVC_SC}" "${PV_NAME}"
+            fi
+        done
+    else
+        printf "      PVC:  %b(none found)%b\n" "${COLOR_GRAY}" "${COLOR_RESET}"
+    fi
+
+    echo ""
+done
+
+# Selection Menu
+printf "%bSelection Options:%b\n" "${COLOR_BOLD}" "${COLOR_RESET}"
+echo "  - Specific instance(s): Enter number(s) separated by space or comma (e.g., '1' or '1, 3')"
+if [ ${#FAILING_INDICES[@]} -gt 0 ]; then
+    printf "  - All failing instances: Enter %b'f'%b or %b'fail'%b (targets: %s)\n" "${COLOR_BOLD_RED}" "${COLOR_RESET}" "${COLOR_BOLD_RED}" "${COLOR_RESET}" "${FAILING_INDICES[*]}"
+fi
+echo "  - All instances: Enter 'all'"
+echo "  - Cancel / Exit: Press Enter or enter 'q'"
+echo ""
+
+read -r -p "Select instance(s) to cleanup: " SELECTION
+
+if [ -z "$SELECTION" ] || [ "$SELECTION" = "q" ] || [ "$SELECTION" = "quit" ]; then
+    echo "No selection made. Exiting."
+    exit 0
+fi
+
+SELECTED_INDICES=()
+
+if [ "$SELECTION" = "all" ]; then
+    for ((i=1; i<=TOTAL_INSTANCES; i++)); do
+        SELECTED_INDICES+=("$i")
+    done
+elif [ "$SELECTION" = "f" ] || [ "$SELECTION" = "fail" ]; then
+    if [ ${#FAILING_INDICES[@]} -eq 0 ]; then
+        log_info "No failing instances detected. Exiting."
+        exit 0
+    fi
+    SELECTED_INDICES=("${FAILING_INDICES[@]}")
+else
+    CLEANED_SELECTION=$(echo "$SELECTION" | tr ',' ' ')
+    for item in $CLEANED_SELECTION; do
+        if [[ "$item" =~ ^[0-9]+$ ]] && [ "$item" -ge 1 ] && [ "$item" -le "$TOTAL_INSTANCES" ]; then
+            SELECTED_INDICES+=("$item")
+        else
+            log_warn "Invalid selection: '${item}'. Ignored."
+        fi
+    done
+fi
+
+if [ ${#SELECTED_INDICES[@]} -eq 0 ]; then
+    log_fatal "No valid instances selected. Exiting."
+fi
+
+# Deduplicate selections
+mapfile -t UNIQUE_INDICES < <(printf "%s\n" "${SELECTED_INDICES[@]}" | sort -nu)
+
+log_step "Plan for deletion in namespace '${NAMESPACE}'"
+PODS_TO_DELETE=()
+PVCS_TO_DELETE=()
+
+for idx in "${UNIQUE_INDICES[@]}"; do
+    array_idx=$((idx-1))
+    ENTRY=$(echo "$PARSED_INSTANCES" | jq -r ".[$array_idx]")
+    INSTANCE=$(echo "$ENTRY" | jq -r '.instance')
+    POD=$(echo "$ENTRY" | jq -r '.pod')
+
+    printf "  • %bInstance:%b %b%s%b\n" "${COLOR_BOLD}" "${COLOR_RESET}" "${COLOR_BOLD_CYAN}" "${INSTANCE}" "${COLOR_RESET}"
+    if [ -n "$POD" ]; then
+        printf "    - Pod:  %b%s%b\n" "${COLOR_BOLD_RED}" "${POD}" "${COLOR_RESET}"
+        PODS_TO_DELETE+=("$POD")
+    fi
+
+    PVC_COUNT=$(echo "$ENTRY" | jq '.pvcs | length')
+    for ((p=0; p<PVC_COUNT; p++)); do
+        PVC_NAME=$(echo "$ENTRY" | jq -r ".pvcs[$p].name")
+        PV_NAME=$(echo "$ENTRY" | jq -r ".pvcs[$p].pv")
+        printf "    - PVC:  %b%s%b %b(PV: %s)%b\n" "${COLOR_YELLOW}" "${PVC_NAME}" "${COLOR_RESET}" "${COLOR_GRAY}" "${PV_NAME}" "${COLOR_RESET}"
+        PVCS_TO_DELETE+=("$PVC_NAME")
+    done
+done
+log_divider
+
+# Single confirmation request
+read -r -p "Are you sure you want to delete these resources? (y/N): " CONFIRMATION
+if [[ ! "$CONFIRMATION" =~ ^[yY](es)?$ ]]; then
+    echo "Deletion cancelled by user. Exiting."
+    exit 0
+fi
+
+if [ "$DRY_RUN" = true ]; then
+    printf "%b[DRY-RUN]%b Skipping actual deletion.\n" "${COLOR_BOLD_YELLOW}" "${COLOR_RESET}"
+    exit 0
+fi
+
+log_step "Executing deletion in namespace '${NAMESPACE}'"
+
+# Delete Pods
+if [ ${#PODS_TO_DELETE[@]} -gt 0 ]; then
+    for pod in "${PODS_TO_DELETE[@]}"; do
+        printf "Deleting Pod: %b%s%b\n" "${COLOR_BOLD}" "${pod}" "${COLOR_RESET}"
+        if kubectl delete pod "$pod" -n "$NAMESPACE" --wait=false; then
+            log_success "Deleted Pod: ${pod}"
+        else
+            log_error "Failed to delete Pod: ${pod}"
+        fi
+    done
+fi
+
+# Delete PVCs
+if [ ${#PVCS_TO_DELETE[@]} -gt 0 ]; then
+    for pvc in "${PVCS_TO_DELETE[@]}"; do
+        printf "Deleting PVC: %b%s%b\n" "${COLOR_BOLD}" "${pvc}" "${COLOR_RESET}"
+        if kubectl delete pvc "$pvc" -n "$NAMESPACE" --wait=false; then
+            log_success "Deleted PVC: ${pvc}"
+        else
+            log_error "Failed to delete PVC: ${pvc}"
+        fi
+    done
+fi
+
+log_success "Cleanup completed successfully."
+printf "%bNote: CloudNativePG operator will automatically recreate the instance and storage.%b\n" "${COLOR_GRAY}" "${COLOR_RESET}"

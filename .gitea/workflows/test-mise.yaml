@@ -1,0 +1,52 @@
+name: test-mise
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - ".mise/**"
+      - "mise.toml"
+      - ".gitea/workflows/test-mise.yaml"
+
+jobs:
+  test-mise:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: Setup BATS
+        uses: bats-core/bats-action@3566550e0f594451ac0f58fcbfdeca93aa29a45e # 4.1.0
+        with:
+          support-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-support
+          assert-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-assert
+          detik-install: false
+          file-install: false
+
+      - name: Install yq
+        run: ./.gitea/scripts/install-yq.sh
+
+      - name: -- Run Mise BATS Tests
+        run: |
+          bats .mise/tests/bash/
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Mise Script Test Failure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "BATS tests failed for .mise tasks and libraries."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'

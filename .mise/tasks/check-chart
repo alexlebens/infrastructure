@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
 REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../.." &>/dev/null && pwd -P))}"
 # shellcheck source=../lib/log.sh
 source "${REPO_ROOT}/.mise/lib/log.sh"
+# shellcheck source=../lib/k8s.sh
+source "${REPO_ROOT}/.mise/lib/k8s.sh"
 
 CLUSTER="${CLUSTER:-cl01tl}"
 CHART=""
@@ -22,7 +24,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|all>] [--cluster <cluster>]"
+      echo "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|trivy|kubeconform|all>] [--cluster <cluster>]"
       exit 0
       ;;
     *)
@@ -37,7 +39,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "${CHART}" ]; then
-  log_fatal "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|all>]"
+  log_fatal "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|trivy|kubeconform|all>]"
 fi
 
 # Normalize chart name from path if provided (e.g. clusters/cl01tl/helm/actual -> actual)
@@ -50,26 +52,48 @@ fi
 
 step_repos() {
   log_step "Adding Helm repositories for ${CHART_NAME} ..."
-  "${REPO_ROOT}/.mise/tasks/helm-build" --main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}" --repos-only
+  "${REPO_ROOT}/.mise/tasks/helm/repo" --main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}"
 }
 
 step_build() {
   log_step "Building Helm dependencies for ${CHART_NAME} ..."
-  helm dependency build "${CHART_PATH}" --skip-refresh 2>/dev/null || helm dependency update "${CHART_PATH}" --skip-refresh
+  "${REPO_ROOT}/.mise/tasks/helm/dep" --main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}"
 }
 
 step_lint() {
   log_step "Linting Helm chart ${CHART_NAME} ..."
-  helm lint "${CHART_PATH}" --namespace "default"
+  "${REPO_ROOT}/.mise/tasks/helm/lint" --main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}"
 }
 
 step_render() {
   log_step "Rendering Helm templates for ${CHART_NAME} ..."
-  local RENDER_ARGS=(--main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}" --skip-repo-add)
-  if [ -n "${API_VERSIONS:-}" ]; then
-    RENDER_ARGS+=(--api-versions "${API_VERSIONS}")
+  local RESOLVED_API_VERSIONS="${API_VERSIONS:-}"
+  if [ -z "${RESOLVED_API_VERSIONS}" ]; then
+    local CACHE_FILE="${HOME}/.cache/k8s-api-versions/api-versions.txt"
+    if RESOLVED_API_VERSIONS="$(k8s_get_api_versions "${CACHE_FILE}" 2>/dev/null)" && [ -n "${RESOLVED_API_VERSIONS}" ]; then
+      log_info "Discovered cluster API versions from ${CLUSTER}"
+    fi
   fi
-  "${REPO_ROOT}/.gitea/scripts/helm-render.sh" "${RENDER_ARGS[@]}"
+
+  local RENDER_ARGS=(--main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}" --skip-repo-add)
+  if [ -n "${RESOLVED_API_VERSIONS}" ]; then
+    RENDER_ARGS+=(--api-versions "${RESOLVED_API_VERSIONS}")
+  fi
+  "${REPO_ROOT}/.mise/tasks/helm/render" "${RENDER_ARGS[@]}"
+}
+
+step_trivy() {
+  log_step "Scanning Helm manifests with Trivy for ${CHART_NAME} ..."
+  "${REPO_ROOT}/.mise/tasks/check/trivy" --main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}"
+}
+
+step_kubeconform() {
+  log_step "Validating Helm manifests with kubeconform for ${CHART_NAME} ..."
+  local KUBECONFORM_ARGS=(--main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}")
+  if [ -n "${KUBERNETES_VERSION:-}" ]; then
+    KUBECONFORM_ARGS+=(--kubernetes-version "${KUBERNETES_VERSION}")
+  fi
+  "${REPO_ROOT}/.mise/tasks/check/kubeconform" "${KUBECONFORM_ARGS[@]}"
 }
 
 case "${STEP}" in
@@ -85,14 +109,22 @@ case "${STEP}" in
   render)
     step_render
     ;;
+  trivy)
+    step_trivy
+    ;;
+  kubeconform)
+    step_kubeconform
+    ;;
   all)
     step_repos
     step_build
     step_lint
     step_render
+    step_trivy
+    step_kubeconform
     log_success "Chart '${CHART_NAME}' passed all test-chart checks!"
     ;;
   *)
-    log_fatal "Unknown step '${STEP}'. Valid steps: repos, build, lint, render, all."
+    log_fatal "Unknown step '${STEP}'. Valid steps: repos, build, lint, render, trivy, kubeconform, all."
     ;;
 esac

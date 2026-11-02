@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+#MISE description="Discover and register Helm repositories from cluster charts"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/helm.sh
+source "${REPO_ROOT}/.mise/lib/helm.sh"
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      echo "Usage: mise run helm:repo [chart...] [--cluster <cluster>] [--charts <charts...>]"
+      echo "Discovers and registers Helm repositories required by chart dependencies."
+      exit 0
+      ;;
+  esac
+done
+
+helm_init "$@"
+
+if [ ${#CHARTS[@]} -eq 0 ]; then
+  log_info "No charts found to discover repositories for."
+  exit 0
+fi
+
+log_step "Checking dependencies for chart(s): ${CHARTS[*]}"
+
+# Extract and deduplicate non-OCI repository dependencies across all targeted charts
+REPO_LIST=$(
+  for C in "${CHARTS[@]}"; do
+    local_chart_path="${HELM_DIR}/${C}"
+    if [ -f "${local_chart_path}/Chart.yaml" ]; then
+      helm dependency list --max-col-width 120 "${local_chart_path}" 2>/dev/null || true
+    fi
+  done | awk '$1 != "NAME" && $3 !~ /^oci:\/\// && NF >= 3 { print $1, $3 }' | sort -u
+)
+
+if [ -n "${REPO_LIST}" ]; then
+  log_step "Registering Helm repositories"
+  while read -r REPO_NAME REPO_URL; do
+    if [ -n "${REPO_NAME}" ] && [ -n "${REPO_URL}" ]; then
+      log_info "Adding repo: ${REPO_NAME} (${REPO_URL})"
+      helm repo add "${REPO_NAME}" "${REPO_URL}" --force-update >/dev/null 2>&1 || true
+    fi
+  done <<< "${REPO_LIST}"
+
+  if [ "$(helm repo list 2>/dev/null | wc -l)" -gt 1 ]; then
+    log_info "Updating repository cache ..."
+    helm repo update >/dev/null 2>&1 || true
+  fi
+
+  log_success "Helm repositories updated successfully."
+else
+  log_info "No external Helm repositories required."
+fi
+
+log_divider

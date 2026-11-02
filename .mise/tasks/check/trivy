@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
+#MISE description="Scan rendered Helm chart manifests with Trivy for security misconfigurations"
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
 
-# Parse optional command-line flags
 CHART="${CHART:-}"
 CLUSTER="${CLUSTER:-cl01tl}"
 MANIFEST_PATH="${MANIFEST_PATH:-}"
 FAIL_ON="${FAIL_ON:-CRITICAL}"
 GITEA_TOKEN="${GITEA_TOKEN:-}"
 PR_NUMBER="${PR_NUMBER:-}"
-
-MAIN_DIR="${MAIN_DIR:-.}"
+MAIN_DIR="${MAIN_DIR:-${REPO_ROOT}}"
 IGNORE_FILE="${IGNORE_FILE:-}"
 
 while [[ $# -gt 0 ]]; do
@@ -49,29 +51,36 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: $0 [--chart <chart>] [--cluster <cluster>] [--main-dir <dir>] [--manifest <file|dir>] [--ignorefile <file>] [--fail-on <CRITICAL|HIGH>] [--gitea-token <token>] [--pr-number <num>]"
+      echo "Usage: mise run check:trivy [--chart <chart>] [--cluster <cluster>] [--main-dir <dir>] [--manifest <file|dir>] [--ignorefile <file>] [--fail-on <CRITICAL|HIGH>] [--gitea-token <token>] [--pr-number <num>]"
       echo "Runs Trivy misconfiguration scan on rendered manifests, publishes advisory summary and PR comments, and enforces severity gate."
       exit 0
       ;;
     *)
-      echo "Unknown argument: $1" >&2
-      exit 1
+      if [ -z "${CHART}" ] && [[ "$1" != -* ]]; then
+        CHART="$1"
+        shift
+      else
+        log_fatal "Unknown argument: $1"
+      fi
       ;;
   esac
 done
 
 if [ -z "${CHART}" ] && [ -z "${MANIFEST_PATH}" ]; then
-  echo "Error: --chart (or CHART env var) or --manifest is required." >&2
-  exit 1
+  log_fatal "Error: --chart (or CHART env var) or --manifest is required."
+fi
+
+# Normalize chart name if full/relative path passed
+if [ -n "${CHART}" ]; then
+  CHART="$(basename "${CHART}")"
 fi
 
 if [ -z "${MANIFEST_PATH}" ]; then
-  MANIFEST_PATH="clusters/${CLUSTER}/manifests/${CHART}"
+  MANIFEST_PATH="${MAIN_DIR}/clusters/${CLUSTER}/manifests/${CHART}"
 fi
 
 if [ ! -e "${MANIFEST_PATH}" ]; then
-  echo "Error: Manifest path '${MANIFEST_PATH}' not found." >&2
-  exit 1
+  log_fatal "Error: Manifest path '${MANIFEST_PATH}' not found."
 fi
 
 REPORT_JSON="$(mktemp)"
@@ -84,7 +93,7 @@ trap cleanup EXIT
 
 # Detect and combine ignore files if not explicitly set
 if [ -z "${IGNORE_FILE}" ]; then
-  CHART_IGNORE="${MAIN_DIR}/clusters/${CLUSTER}/helm/${CHART}/.trivyignore"
+  CHART_IGNORE="${MAIN_DIR}/clusters/${CLUSTER}/helm/${CHART:-}/.trivyignore"
   GLOBAL_IGNORE="${MAIN_DIR}/.trivyignore"
 
   if [ -f "${GLOBAL_IGNORE}" ] && [ -n "${CHART}" ] && [ -f "${CHART_IGNORE}" ]; then
@@ -98,11 +107,11 @@ if [ -z "${IGNORE_FILE}" ]; then
   fi
 fi
 
-echo ">> Running Trivy scan for: ${CHART:-$(basename "${MANIFEST_PATH}")} ..."
+log_step "Running Trivy scan for: ${CHART:-$(basename "${MANIFEST_PATH}")}"
 
 # Generate machine-readable JSON in a single pass
 if [ -n "${IGNORE_FILE}" ] && [ -f "${IGNORE_FILE}" ]; then
-  echo ">> Using ignore file: ${IGNORE_FILE}"
+  log_info "Using ignore file: ${IGNORE_FILE}"
   trivy config --ignorefile "${IGNORE_FILE}" "${MANIFEST_PATH}" --format json > "${REPORT_JSON}" 2>/dev/null || true
 else
   trivy config "${MANIFEST_PATH}" --format json > "${REPORT_JSON}" 2>/dev/null || true
@@ -119,18 +128,17 @@ read -r CRITICAL_COUNT HIGH_COUNT MEDIUM_COUNT LOW_COUNT < <(jq -r '
   ] | @tsv' "${REPORT_JSON}" 2>/dev/null || echo "0 0 0 0")
 TOTAL_FINDINGS=$(( CRITICAL_COUNT + HIGH_COUNT + MEDIUM_COUNT + LOW_COUNT ))
 
-echo ""
-echo ">> Summary for ${CHART}: ${CRITICAL_COUNT} Critical, ${HIGH_COUNT} High, ${MEDIUM_COUNT} Medium, ${LOW_COUNT} Low (${TOTAL_FINDINGS} total)"
+log_info "Summary for ${CHART:-$(basename "${MANIFEST_PATH}")}: ${CRITICAL_COUNT} Critical, ${HIGH_COUNT} High, ${MEDIUM_COUNT} Medium, ${LOW_COUNT} Low (${TOTAL_FINDINGS} total)"
 
 if [ "${TOTAL_FINDINGS}" -gt 0 ]; then
-  echo ">> Misconfigurations detected:"
+  log_warn "Misconfigurations detected:"
   jq -r '.Results[]?.Misconfigurations[]? | "  - [\(.Severity)] \(.ID): \(.Title // .Message)"' "${REPORT_JSON}" 2>/dev/null || true
 fi
 
 # Build Markdown Report
-TAG="<!-- trivy-scan-${CHART} -->"
+TAG="<!-- trivy-scan-${CHART:-$(basename "${MANIFEST_PATH}")} -->"
 MARKDOWN_REPORT="${TAG}
-### Trivy Security Scan: \`${CHART}\`"
+### Trivy Security Scan: \`${CHART:-$(basename "${MANIFEST_PATH}")}\`"
 
 if [ "${TOTAL_FINDINGS}" -eq 0 ]; then
   STATUS_TEXT="**Passed** — No security misconfigurations detected."
@@ -194,22 +202,19 @@ SERVER_URL="${PUBLIC_URL:-${GITHUB_SERVER_URL:-${GITEA_SERVER_URL:-}}}"
 REPO="${GITHUB_REPOSITORY:-${GITEA_REPOSITORY:-}}"
 
 if [ -n "${GITEA_TOKEN}" ] && [ -n "${PR_NUMBER}" ] && [ -n "${SERVER_URL}" ] && [ -n "${REPO}" ]; then
-  echo ">> Publishing Trivy advisory to PR #${PR_NUMBER} ..."
-  source "${SCRIPT_DIR}/helper_pr-comment-upsert.sh"
-  upsert_pr_comment "${TAG}" "${MARKDOWN_REPORT}"
+  log_info "Publishing Trivy advisory to PR #${PR_NUMBER} ..."
+  if [ -f "${REPO_ROOT}/.gitea/scripts/helper_pr-comment-upsert.sh" ]; then
+    # shellcheck source=../../../.gitea/scripts/helper_pr-comment-upsert.sh
+    source "${REPO_ROOT}/.gitea/scripts/helper_pr-comment-upsert.sh"
+    upsert_pr_comment "${TAG}" "${MARKDOWN_REPORT}"
+  fi
 fi
 
 # Severity Gate Check
 if [ "${FAIL_ON}" = "CRITICAL" ] && [ "${CRITICAL_COUNT}" -gt 0 ]; then
-  echo ""
-  echo ">> Security check failed: ${CRITICAL_COUNT} CRITICAL misconfiguration(s) detected in ${CHART}." >&2
-  exit 1
+  log_fatal "Security check failed: ${CRITICAL_COUNT} CRITICAL misconfiguration(s) detected in ${CHART:-$(basename "${MANIFEST_PATH}")}."
 elif [ "${FAIL_ON}" = "HIGH" ] && [ $(( CRITICAL_COUNT + HIGH_COUNT )) -gt 0 ]; then
-  echo ""
-  echo ">> Security check failed: $(( CRITICAL_COUNT + HIGH_COUNT )) HIGH/CRITICAL misconfiguration(s) detected in ${CHART}." >&2
-  exit 1
+  log_fatal "Security check failed: $(( CRITICAL_COUNT + HIGH_COUNT )) HIGH/CRITICAL misconfiguration(s) detected in ${CHART:-$(basename "${MANIFEST_PATH}")}."
 fi
 
-echo ""
-echo ">> Trivy scan passed gate for ${CHART}."
-echo "----"
+log_success "Trivy scan passed gate for ${CHART:-$(basename "${MANIFEST_PATH}")}."

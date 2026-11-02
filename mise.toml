@@ -1,6 +1,11 @@
 [env]
 CLUSTER = "{{ env.CLUSTER | default(value='cl01tl') }}"
 
+[tools]
+trivy = "0.76.1"
+kubeconform = "0.8.0"
+
+# -- Chart management
 [tasks.new-chart]
 description = "Scaffold a new homelab Helm chart from .helm-starters/app-template"
 run = ".mise/tasks/new-chart"
@@ -9,14 +14,99 @@ run = ".mise/tasks/new-chart"
 description = "Validate a Helm chart following test-chart workflow conventions"
 run = ".mise/tasks/check-chart"
 
-[tasks.helm-build]
-description = "Update repositories, build dependencies, and lint Helm charts"
-run = ".mise/tasks/helm-build"
-
-[tasks.helm-repo]
-description = "Discover and register Helm repositories only"
-run = ".mise/tasks/helm-build --repos-only"
-
 [tasks.render]
 description = "Render chart templates only"
 run = ".mise/tasks/check-chart --step render"
+
+# -- Helm
+[tasks."helm:repo"]
+description = "Discover and register Helm repositories required by chart dependencies"
+run = ".mise/tasks/helm/repo"
+
+[tasks."helm:dep"]
+description = "Build or update Helm chart dependencies"
+run = ".mise/tasks/helm/dep"
+
+[tasks."helm:lint"]
+description = "Lint Helm charts in a cluster"
+run = ".mise/tasks/helm/lint"
+
+[tasks."helm:build"]
+description = "Update repositories, build dependencies, and lint Helm charts"
+run = ".mise/tasks/helm/build"
+
+[tasks."helm:render"]
+description = "Render Helm chart templates to individual manifest files"
+run = ".mise/tasks/helm/render"
+
+# -- Kube
+[tasks."kube:status"]
+description = "Inspect namespace status: pod health, running images, and resource allocation"
+run = ".mise/tasks/kube/status"
+
+[tasks."kube:get-images"]
+description = "List unique container images in a namespace (or all namespaces)"
+run = ".mise/tasks/kube/get-images"
+
+[tasks."kube:resource-capacity"]
+description = "Display pod CPU/memory requests and utilization in a namespace"
+run = ".mise/tasks/kube/resource-capacity"
+
+[tasks."kube:api-versions"]
+description = "Fetch cluster API versions, kinds, and fingerprint formatted for Helm"
+run = ".mise/tasks/kube/api-versions"
+
+[tasks."kube:crd-hash"]
+description = "Calculate SHA256 hash of cluster CRD names and generations for cache busting"
+run = ".mise/tasks/kube/crd-hash"
+
+[tasks."kube:generate-schemas"]
+description = "Extract cluster CRD definitions and generate JSON schemas for kubeconform"
+run = ".mise/tasks/kube/generate-schemas"
+
+# -- App
+[tasks."app:cnpg-reset"]
+description = "Interactively inspect and reset failing CloudNativePG (CNPG) instance pods and PVCs in a namespace"
+run = ".mise/tasks/app/cnpg-reset"
+
+[tasks."app:cnpg-remediator"]
+description = "Trigger an on-demand run of the in-cluster CNPG remediator CronJob and stream logs"
+run = """
+JOB_NAME="cnpg-remediator-manual-$(date +%s)"
+cleanup() {
+  kubectl delete "job/$JOB_NAME" -n cloudnative-pg --ignore-not-found >/dev/null 2>&1 || true
+}
+trap cleanup EXIT INT TERM
+echo ">> Triggering job $JOB_NAME from cronjob/cloudnative-pg-remediator ..."
+kubectl create job --from=cronjob/cloudnative-pg-remediator -n cloudnative-pg "$JOB_NAME" >/dev/null
+echo ">> Waiting for job completion ..."
+kubectl wait --for=condition=complete "job/$JOB_NAME" -n cloudnative-pg --timeout=120s >/dev/null
+echo ">> Execution logs:"
+kubectl logs "job/$JOB_NAME" -n cloudnative-pg
+"""
+
+[tasks."app:tofu-adopt-garage-bucket"]
+description = "Adopt pre-existing Garage S3 buckets into OpenTofu remote state"
+run = ".mise/tasks/app/tofu-adopt-garage-bucket"
+
+# -- Check
+[tasks."check:trivy"]
+description = "Scan rendered Helm manifests with Trivy for security misconfigurations"
+run = ".mise/tasks/check/trivy"
+
+[tasks."check:kubeconform"]
+description = "Validate rendered Helm manifests using kubeconform"
+run = ".mise/tasks/check/kubeconform"
+
+# -- Testing
+[tasks.test]
+description = "Run Bats test suite for .mise tasks and libraries"
+run = "bats .mise/tests/bash/"
+
+[tasks."test:all"]
+description = "Run all Bats tests (.mise tasks and .gitea workflow scripts)"
+run = "bats .mise/tests/bash/ .gitea/tests/bash/*.bats"
+
+[tasks."test:watch"]
+description = "Watch and re-run Bats tests on file changes"
+run = "watchexec -w .mise -w .gitea/scripts -w .gitea/tests -- bats .mise/tests/bash/ .gitea/tests/bash/*.bats"
