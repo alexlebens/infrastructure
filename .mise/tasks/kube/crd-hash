@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
+#MISE description="Calculate SHA256 hash of cluster CRD names and generations for cache busting"
 set -euo pipefail
 
-# Parse optional command-line flags
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/k8s.sh
+source "${REPO_ROOT}/.mise/lib/k8s.sh"
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
-      echo "Usage: $0"
+      echo "Usage: mise run kube:crd-hash"
       echo "Calculates a SHA256 hash of cluster CRD names and generations for cache busting."
       exit 0
       ;;
@@ -18,15 +23,7 @@ done
 
 GITHUB_OUTPUT="${GITHUB_OUTPUT:-}"
 
-compute_sha256() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum | awk '{print $1}'
-  else
-    shasum -a 256 | awk '{print $1}'
-  fi
-}
-
-CRD_HASH=$(kubectl get crds -o jsonpath='{range .items[*]}{.metadata.name}:{.metadata.generation}{"\n"}{end}' | compute_sha256)
+CRD_HASH=$(k8s_get_crd_hash)
 
 echo ">> Cluster CRD Hash:"
 echo "${CRD_HASH}"

@@ -32,6 +32,12 @@ _common_setup() {
   git config --global user.email "bats@example.invalid"
   git config --global commit.gpgsign false
 
+  # Every test gets a fresh GITHUB_OUTPUT file.
+  GITHUB_OUTPUT="${BATS_TEST_TMPDIR}/github_output"
+  : > "${GITHUB_OUTPUT}"
+  export GITHUB_OUTPUT
+  unset GITHUB_EVENT_NAME GITHUB_STEP_SUMMARY
+
   # Directory for command stubs, prepended to PATH.
   MOCK_BIN="${BATS_TEST_TMPDIR}/bin"
   mkdir -p "${MOCK_BIN}"
@@ -43,4 +49,11 @@ _common_setup() {
 _stub() {
   printf '#!/usr/bin/env bash\n%s\n' "$2" > "${MOCK_BIN}/$1"
   chmod +x "${MOCK_BIN}/$1"
+}
+
+# Print the value of a single-line key from GITHUB_OUTPUT (last occurrence wins).
+#   _output_value <key>
+_output_value() {
+  local key="$1"
+  grep -E "^${key}=" "${GITHUB_OUTPUT}" | tail -n 1 | cut -d= -f2-
 }

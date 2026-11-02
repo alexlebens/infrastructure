@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
 REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../.." &>/dev/null && pwd -P))}"
 # shellcheck source=../lib/log.sh
 source "${REPO_ROOT}/.mise/lib/log.sh"
+# shellcheck source=../lib/k8s.sh
+source "${REPO_ROOT}/.mise/lib/k8s.sh"
 
 CLUSTER="${CLUSTER:-cl01tl}"
 CHART=""
@@ -65,9 +67,17 @@ step_lint() {
 
 step_render() {
   log_step "Rendering Helm templates for ${CHART_NAME} ..."
+  local RESOLVED_API_VERSIONS="${API_VERSIONS:-}"
+  if [ -z "${RESOLVED_API_VERSIONS}" ]; then
+    local CACHE_FILE="${HOME}/.cache/k8s-api-versions/api-versions.txt"
+    if RESOLVED_API_VERSIONS="$(k8s_get_api_versions "${CACHE_FILE}" 2>/dev/null)" && [ -n "${RESOLVED_API_VERSIONS}" ]; then
+      log_info "Discovered cluster API versions from ${CLUSTER}"
+    fi
+  fi
+
   local RENDER_ARGS=(--main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}" --skip-repo-add)
-  if [ -n "${API_VERSIONS:-}" ]; then
-    RENDER_ARGS+=(--api-versions "${API_VERSIONS}")
+  if [ -n "${RESOLVED_API_VERSIONS}" ]; then
+    RENDER_ARGS+=(--api-versions "${RESOLVED_API_VERSIONS}")
   fi
   "${REPO_ROOT}/.mise/tasks/helm/render" "${RENDER_ARGS[@]}"
 }
