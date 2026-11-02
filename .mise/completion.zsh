@@ -1,20 +1,23 @@
 # ==============================================================================
-# Kubernetes Scripts Tab Completion (Zsh)
+# Mise & Kubernetes Scripts Tab Completion (Zsh)
 #
-# Provides namespace and option tab completion for:
-#   - examine-namespace
-#   - resource-capacity
-#   - get-images
-#   - cleanup-pgsql-local
-#   - cnpg-remediator
+# Provides tab completion for:
+#   - mise run kube:status <namespace>
+#   - mise run kube:resource-capacity <namespace>
+#   - mise run kube:get-images [namespace]
+#   - mise run check-chart <chart>
+#   - mise run helm:* [chart...]
+#   - scripts/cleanup-pgsql-local
+#   - scripts/cnpg-remediator
 #
 # Features:
 #   - 30-second cache in $TMPDIR for instant response without kubectl API lag
-#   - Supports command invocation from PATH, ./<script>, or relative paths
+#   - Dynamic Helm chart discovery from clusters/<cluster>/helm/
+#   - Supports command invocation from PATH, ./<script>, or mise run <task>
 #
 # Usage:
 #   Add to ~/.zshrc:
-#     source /Users/alexlebens/projects/infrastructure/scripts/completion.zsh
+#     source /Users/alexlebens/projects/infrastructure/.mise/completion.zsh
 # ==============================================================================
 
 # Ensure zsh completion engine is initialized
@@ -65,7 +68,24 @@ _k8s_namespaces_tag() {
   fi
 }
 
-# Scripts where 1st argument is a namespace (examine-namespace, resource-capacity, get-images)
+# Fetch Helm charts in the repository
+_k8s_get_charts() {
+  local cluster="${CLUSTER:-cl01tl}"
+  local repo_root="${MISE_PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+  if [[ -n "$repo_root" && -d "$repo_root/clusters/$cluster/helm" ]]; then
+    find "$repo_root/clusters/$cluster/helm" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/Chart.yaml' ';' -exec basename '{}' ';' 2>/dev/null | sort
+  fi
+}
+
+_helm_charts_tag() {
+  local -a charts
+  charts=(${(f)"$(_k8s_get_charts)"})
+  if (( ${#charts[@]} > 0 )); then
+    _describe 'helm chart' charts
+  fi
+}
+
+# Scripts where 1st argument is a namespace
 _k8s_script_ns_arg() {
   _arguments '1:namespace:_k8s_namespaces_tag'
 }
@@ -90,9 +110,32 @@ _cnpg_remediator() {
     '(-h --help)'{-h,--help}'[Show help message]'
 }
 
-# Register completions for commands, relative paths, and script dir paths
-compdef _k8s_script_ns_arg examine-namespace ./examine-namespace scripts/examine-namespace ./scripts/examine-namespace
-compdef _k8s_script_ns_arg resource-capacity ./resource-capacity scripts/resource-capacity ./scripts/resource-capacity
-compdef _k8s_script_ns_arg get-images ./get-images scripts/get-images ./scripts/get-images
+# Direct task completions
+compdef _k8s_script_ns_arg .mise/tasks/kube/status
+compdef _k8s_script_ns_arg .mise/tasks/kube/resource-capacity
+compdef _k8s_script_ns_arg .mise/tasks/kube/get-images
 compdef _cleanup_pgsql_local cleanup-pgsql-local ./cleanup-pgsql-local scripts/cleanup-pgsql-local ./scripts/cleanup-pgsql-local
 compdef _cnpg_remediator cnpg-remediator ./cnpg-remediator scripts/cnpg-remediator ./scripts/cnpg-remediator
+
+# ── Mise Task Arguments Completion ──────────────────────────────────────────
+# Wraps _mise completion to complete task arguments (namespaces, charts)
+if whence _mise >/dev/null 2>&1; then
+  _mise_with_task_args() {
+    # Check if we are completing arguments after 'mise r' or 'mise run'
+    local words=("${(@s/ /)BUFFER}")
+    if [[ "${words[1]}" == "mise" && ("${words[2]}" == "run" || "${words[2]}" == "r") ]]; then
+      local task="${words[3]}"
+      case "$task" in
+        kube:status|kube:resource-capacity|kube:get-images)
+          _k8s_namespaces_tag && return 0
+          ;;
+        check-chart|render|helm:*)
+          _helm_charts_tag && return 0
+          ;;
+      esac
+    fi
+    # Fall back to default mise completion
+    _mise "$@"
+  }
+  compdef _mise_with_task_args mise
+fi
