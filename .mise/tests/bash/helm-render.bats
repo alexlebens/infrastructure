@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Tests for .gitea/scripts/helper_helm-render.sh
+# Tests for render_helm_chart in .mise/lib/helm.sh
 #
 # `helm` is stubbed to emit a fixed multi-document manifest; `yq` (mikefarah v4)
 # is used for real since the split/namespace-injection logic depends on it.
@@ -9,7 +9,7 @@ setup() {
   _common_setup
 
   if ! yq --version 2>/dev/null | grep -q mikefarah; then
-    skip "mikefarah/yq v4 is required (run .gitea/scripts/install-yq.sh)"
+    skip "mikefarah/yq v4 is required"
   fi
 
   export HELM_LOG="${BATS_TEST_TMPDIR}/helm.log"
@@ -59,8 +59,7 @@ exit 0
   echo "replicas: 1" > "${CHART_DIR}/values.yaml"
   OUT_DIR="${BATS_TEST_TMPDIR}/out"
 
-  source "${SCRIPTS_DIR}/helper_helm-namespace.sh"
-  source "${SCRIPTS_DIR}/helper_helm-render.sh"
+  source "${MISE_LIB_DIR}/helm.sh"
 }
 
 @test "render_helm_chart: requires --chart and --chart-path" {

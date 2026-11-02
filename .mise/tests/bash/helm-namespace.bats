@@ -1,12 +1,12 @@
 #!/usr/bin/env bats
-# Tests for .gitea/scripts/helper_helm-namespace.sh
+# Tests for resolve_namespace in .mise/lib/helm.sh
 
 setup() {
   load 'test_helper/common-setup'
   _common_setup
 
   # Source the script under test
-  source "${PROJECT_ROOT}/.gitea/scripts/helper_helm-namespace.sh"
+  source "${MISE_LIB_DIR}/helm.sh"
 }
 
 # ── resolve_namespace ────────────────────────────────────────────────
