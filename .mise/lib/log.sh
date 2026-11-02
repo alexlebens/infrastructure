@@ -2,7 +2,7 @@
 # Sourceable logging library for mise tasks and scripts.
 #
 # Provides consistent, colorized, level-aware logging functions using printf.
-# Respects NO_COLOR and non-interactive terminal streams.
+# Respects NO_COLOR, TERM=dumb, and non-interactive terminal streams.
 #
 # Usage:
 #   source "${REPO_ROOT}/.mise/lib/log.sh"
@@ -12,6 +12,8 @@
 #   log_warn "Outdated dependencies detected"
 #   log_error "Chart validation failed"
 #   log_fatal "Directory not found" [exit_code]
+#   log_badge "OK" "green"
+#   log_badge "FAIL" "red"
 
 # Prevent double-sourcing
 if [[ -n "${_MISE_LIB_LOG_LOADED:-}" ]]; then
@@ -26,17 +28,27 @@ _setup_colors() {
     COLOR_BOLD="\033[1m"
     COLOR_DIM="\033[2m"
     COLOR_RED="\033[31m"
+    COLOR_BOLD_RED="\033[1;31m"
     COLOR_GREEN="\033[32m"
+    COLOR_BOLD_GREEN="\033[1;32m"
     COLOR_YELLOW="\033[33m"
+    COLOR_BOLD_YELLOW="\033[1;33m"
     COLOR_CYAN="\033[36m"
+    COLOR_BOLD_CYAN="\033[1;36m"
+    COLOR_GRAY="\033[90m"
   else
     COLOR_RESET=""
     COLOR_BOLD=""
     COLOR_DIM=""
     COLOR_RED=""
+    COLOR_BOLD_RED=""
     COLOR_GREEN=""
+    COLOR_BOLD_GREEN=""
     COLOR_YELLOW=""
+    COLOR_BOLD_YELLOW=""
     COLOR_CYAN=""
+    COLOR_BOLD_CYAN=""
+    COLOR_GRAY=""
   fi
 }
 _setup_colors
@@ -85,6 +97,19 @@ log_debug() {
   if [[ "${DEBUG:-0}" = "1" ]] || [[ "${LOG_LEVEL:-}" = "debug" ]]; then
     printf "%b[DEBUG] %s%b\n" "${COLOR_DIM}" "$*" "${COLOR_RESET}"
   fi
+}
+
+# Status badge generator, e.g. [OK] (green), [FAIL] (red)
+log_badge() {
+  local text="$1"
+  local color="${2:-green}"
+  case "$color" in
+    red|fail) printf "%b[%s]%b" "${COLOR_BOLD_RED}" "$text" "${COLOR_RESET}" ;;
+    green|ok) printf "%b[%s]%b" "${COLOR_BOLD_GREEN}" "$text" "${COLOR_RESET}" ;;
+    yellow|warn) printf "%b[%s]%b" "${COLOR_BOLD_YELLOW}" "$text" "${COLOR_RESET}" ;;
+    cyan|info) printf "%b[%s]%b" "${COLOR_BOLD_CYAN}" "$text" "${COLOR_RESET}" ;;
+    *) printf "[%s]" "$text" ;;
+  esac
 }
 
 # Section divider: "----"

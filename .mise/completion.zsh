@@ -5,7 +5,7 @@
 #   - mise run kube:status <namespace>
 #   - mise run kube:resource-capacity <namespace>
 #   - mise run kube:get-images [namespace]
-#   - mise run app:cleanup-pgsql-local [namespace]
+#   - mise run app:cnpg-reset [namespace]
 #   - mise run app:cnpg-remediator
 #   - mise run app:tofu-adopt-garage-bucket [app-name]
 #   - mise run check-chart <chart>
@@ -115,7 +115,7 @@ _cnpg_remediator() {
 compdef _k8s_script_ns_arg .mise/tasks/kube/status
 compdef _k8s_script_ns_arg .mise/tasks/kube/resource-capacity
 compdef _k8s_script_ns_arg .mise/tasks/kube/get-images
-compdef _cleanup_pgsql_local .mise/tasks/app/cleanup-pgsql-local
+compdef _cleanup_pgsql_local .mise/tasks/app/cnpg-reset
 compdef _helm_charts_tag .mise/tasks/app/tofu-adopt-garage-bucket
 
 # ── Mise Task Arguments Completion ──────────────────────────────────────────
@@ -127,7 +127,7 @@ if whence _mise >/dev/null 2>&1; then
     if [[ "${words[1]}" == "mise" && ("${words[2]}" == "run" || "${words[2]}" == "r") ]]; then
       local task="${words[3]}"
       case "$task" in
-        kube:status|kube:resource-capacity|kube:get-images|app:cleanup-pgsql-local)
+        kube:status|kube:resource-capacity|kube:get-images|app:cnpg-reset)
           _k8s_namespaces_tag && return 0
           ;;
         check-chart|render|helm:*|app:tofu-adopt-garage-bucket)
