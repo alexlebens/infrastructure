@@ -195,6 +195,7 @@ fi
 
 echo ""
 echo ">> All charts rendered successfully."
+echo ""
 echo "----"
 
 # Detect charts that actually have rendered changes in the manifest directory (if it is a git repo)

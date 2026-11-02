@@ -73,7 +73,7 @@ fi
 
 # Function: Register and update Helm repositories
 update_repos() {
-  log_step "Checking dependencies for chart(s): ${CHARTS[*]} ..."
+  log_step "Checking dependencies for chart(s): ${CHARTS[*]}"
 
   local REPO_LIST
   REPO_LIST=$(
@@ -88,7 +88,7 @@ update_repos() {
   )
 
   if [ -n "${REPO_LIST}" ]; then
-    log_step "Registering Helm repositories ..."
+    log_step "Registering Helm repositories"
     while read -r REPO_NAME REPO_URL; do
       if [ -n "${REPO_NAME}" ] && [ -n "${REPO_URL}" ]; then
         log_info "Adding repo: ${REPO_NAME} (${REPO_URL})"
@@ -100,6 +100,8 @@ update_repos() {
       log_info "Updating repository cache ..."
       helm repo update >/dev/null 2>&1 || true
     fi
+
+    log_success "Helm repositories updated successfully."
   else
     log_info "No external Helm repositories required."
   fi
@@ -113,12 +115,11 @@ if [ "${SKIP_REPO_UPDATE}" = false ]; then
 fi
 
 if [ "${REPOS_ONLY}" = true ]; then
-  log_success "Helm repositories updated successfully."
   exit 0
 fi
 
 # Step 2: Build dependencies and lint charts
-log_step "Building dependencies and linting charts for cluster ${CLUSTER} ..."
+log_step "Building dependencies and linting charts for cluster ${CLUSTER}"
 FAILED_CHARTS=()
 
 for C in "${CHARTS[@]}"; do
@@ -131,14 +132,14 @@ for C in "${CHARTS[@]}"; do
     continue
   fi
 
-  log_step "Building dependencies [${C_NAME}] ..."
+  log_step "Building dependencies [${C_NAME}]"
   if ! (helm dependency build "${C_PATH}" --skip-refresh 2>/dev/null || helm dependency update "${C_PATH}" --skip-refresh >/dev/null); then
     log_error "Failed to build dependencies for ${C_NAME}"
     FAILED_CHARTS+=("${C_NAME}")
     continue
   fi
 
-  log_step "Linting chart [${C_NAME}] ..."
+  log_step "Linting chart [${C_NAME}]"
   if ! helm lint "${C_PATH}" --namespace "default"; then
     log_error "Lint failed for ${C_NAME}"
     FAILED_CHARTS+=("${C_NAME}")
@@ -147,9 +148,7 @@ done
 
 log_divider
 if [ ${#FAILED_CHARTS[@]} -gt 0 ]; then
-  printf "\n"
   log_fatal "Errors encountered in chart(s): ${FAILED_CHARTS[*]}"
 else
-  printf "\n"
   log_success "All charts built and linted successfully!"
 fi
