@@ -126,7 +126,11 @@ fi
 
 # Add required Helm repositories if not skipped
 if [ "${SKIP_REPO_ADD}" = false ]; then
-  if [ -f "${MAIN_DIR}/.mise/tasks/helm-build" ]; then
+  if [ -f "${MAIN_DIR}/.mise/tasks/helm/repo" ]; then
+    "${MAIN_DIR}/.mise/tasks/helm/repo" --main-dir "${MAIN_DIR}" --cluster "${CLUSTER}" --charts "${TARGET_CHARTS}"
+  elif [ -f "${MAIN_DIR}/.mise/tasks/helm-repo" ]; then
+    "${MAIN_DIR}/.mise/tasks/helm-repo" --main-dir "${MAIN_DIR}" --cluster "${CLUSTER}" --charts "${TARGET_CHARTS}"
+  elif [ -f "${MAIN_DIR}/.mise/tasks/helm-build" ]; then
     "${MAIN_DIR}/.mise/tasks/helm-build" --main-dir "${MAIN_DIR}" --cluster "${CLUSTER}" --charts "${TARGET_CHARTS}" --repos-only
   elif [ -f "${SCRIPT_DIR}/helm-add-repos.sh" ]; then
     "${SCRIPT_DIR}/helm-add-repos.sh" --main-dir "${MAIN_DIR}" --cluster "${CLUSTER}" --charts "${TARGET_CHARTS}"

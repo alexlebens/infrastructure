@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+#MISE description="Build or update chart dependencies"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
+
+CLUSTER="${CLUSTER:-cl01tl}"
+CHARTS=()
+SKIP_REFRESH=true
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --main-dir)
+      REPO_ROOT="$2"
+      shift 2
+      ;;
+    --cluster)
+      CLUSTER="$2"
+      shift 2
+      ;;
+    --chart)
+      CHARTS+=("$2")
+      shift 2
+      ;;
+    --charts)
+      read -ra SPLIT_CHARTS <<< "$2"
+      CHARTS+=("${SPLIT_CHARTS[@]}")
+      shift 2
+      ;;
+    --skip-refresh)
+      SKIP_REFRESH=true
+      shift
+      ;;
+    --no-skip-refresh)
+      SKIP_REFRESH=false
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: mise run helm-dep [chart...] [--cluster <cluster>] [--charts <charts...>] [--skip-refresh|--no-skip-refresh]"
+      echo "Builds or updates Helm chart dependencies."
+      exit 0
+      ;;
+    *)
+      CHARTS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+HELM_DIR="${REPO_ROOT}/clusters/${CLUSTER}/helm"
+
+if [ ! -d "${HELM_DIR}" ]; then
+  log_fatal "Directory not found: ${HELM_DIR}"
+fi
+
+# If no charts specified, target all charts
+if [ ${#CHARTS[@]} -eq 0 ]; then
+  for path in "${HELM_DIR}"/*; do
+    if [ -d "${path}" ] && [ -f "${path}/Chart.yaml" ]; then
+      CHARTS+=("$(basename "${path}")")
+    fi
+  done
+fi
+
+if [ ${#CHARTS[@]} -eq 0 ]; then
+  log_info "No charts found to build dependencies for."
+  exit 0
+fi
+
+log_step "Building dependencies for cluster ${CLUSTER}"
+FAILED_CHARTS=()
+
+EXTRA_FLAGS=()
+if [ "${SKIP_REFRESH}" = true ]; then
+  EXTRA_FLAGS+=(--skip-refresh)
+fi
+
+for C in "${CHARTS[@]}"; do
+  C_NAME=$(basename "${C}")
+  C_PATH="${HELM_DIR}/${C_NAME}"
+
+  if [ ! -d "${C_PATH}" ]; then
+    log_error "Chart directory '${C_PATH}' not found."
+    FAILED_CHARTS+=("${C_NAME}")
+    continue
+  fi
+
+  log_step "Building dependencies [${C_NAME}]"
+  if ! (helm dependency build "${C_PATH}" "${EXTRA_FLAGS[@]}" 2>/dev/null || helm dependency update "${C_PATH}" "${EXTRA_FLAGS[@]}" >/dev/null); then
+    log_error "Failed to build dependencies for ${C_NAME}"
+    FAILED_CHARTS+=("${C_NAME}")
+    continue
+  fi
+done
+
+log_divider
+if [ ${#FAILED_CHARTS[@]} -gt 0 ]; then
+  log_error "Dependency build failed for chart(s): ${FAILED_CHARTS[*]}"
+  exit 1
+fi
+
+log_success "All chart dependencies built successfully."

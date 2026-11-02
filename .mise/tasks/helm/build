@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+#MISE description="Orchestrate repository update, dependency build, and linting for Helm charts"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
+
+CLUSTER="${CLUSTER:-cl01tl}"
+CHARTS=()
+SKIP_REPO_UPDATE=false
+
+FORWARD_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --main-dir)
+      REPO_ROOT="$2"
+      FORWARD_ARGS+=(--main-dir "$2")
+      shift 2
+      ;;
+    --cluster)
+      CLUSTER="$2"
+      shift 2
+      ;;
+    --skip-repo-update)
+      SKIP_REPO_UPDATE=true
+      shift
+      ;;
+    --chart)
+      CHARTS+=("$2")
+      shift 2
+      ;;
+    --charts)
+      read -ra SPLIT_CHARTS <<< "$2"
+      CHARTS+=("${SPLIT_CHARTS[@]}")
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: mise run helm-build [chart...] [--cluster <cluster>] [--charts <charts...>] [--skip-repo-update]"
+      echo "Orchestrates repo registration, dependency building, and chart linting."
+      exit 0
+      ;;
+    *)
+      CHARTS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+TARGET_ARGS=(--cluster "${CLUSTER}")
+if [ ${#FORWARD_ARGS[@]} -gt 0 ]; then
+  TARGET_ARGS+=("${FORWARD_ARGS[@]}")
+fi
+for C in "${CHARTS[@]}"; do
+  TARGET_ARGS+=(--chart "${C}")
+done
+
+# Step 1: Update required Helm repositories unless skipped
+if [ "${SKIP_REPO_UPDATE}" = false ]; then
+  "${SCRIPT_DIR}/helm-repo" "${TARGET_ARGS[@]}"
+fi
+
+# Step 2: Build dependencies
+"${SCRIPT_DIR}/helm-dep" "${TARGET_ARGS[@]}"
+
+# Step 3: Lint charts
+"${SCRIPT_DIR}/helm-lint" "${TARGET_ARGS[@]}"
+
+log_success "Helm build completed successfully for cluster ${CLUSTER}."
