@@ -116,7 +116,6 @@ compdef _k8s_script_ns_arg .mise/tasks/kube/status
 compdef _k8s_script_ns_arg .mise/tasks/kube/resource-capacity
 compdef _k8s_script_ns_arg .mise/tasks/kube/get-images
 compdef _cleanup_pgsql_local .mise/tasks/app/cleanup-pgsql-local
-compdef _cnpg_remediator .mise/tasks/app/cnpg-remediator
 compdef _helm_charts_tag .mise/tasks/app/tofu-adopt-garage-bucket
 
 # ── Mise Task Arguments Completion ──────────────────────────────────────────

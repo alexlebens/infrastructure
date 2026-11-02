@@ -54,8 +54,20 @@ description = "Inspect and cleanup failing CloudNativePG (CNPG) instance pods an
 run = ".mise/tasks/app/cleanup-pgsql-local"
 
 [tasks."app:cnpg-remediator"]
-description = "Scan and remediate failing CloudNativePG standby instances"
-run = ".mise/tasks/app/cnpg-remediator"
+description = "Trigger an on-demand run of the in-cluster CNPG remediator CronJob and stream logs"
+run = """
+JOB_NAME="cnpg-remediator-manual-$(date +%s)"
+cleanup() {
+  kubectl delete "job/$JOB_NAME" -n cloudnative-pg --ignore-not-found >/dev/null 2>&1 || true
+}
+trap cleanup EXIT INT TERM
+echo ">> Triggering job $JOB_NAME from cronjob/cloudnative-pg-remediator ..."
+kubectl create job --from=cronjob/cloudnative-pg-remediator -n cloudnative-pg "$JOB_NAME" >/dev/null
+echo ">> Waiting for job completion ..."
+kubectl wait --for=condition=complete "job/$JOB_NAME" -n cloudnative-pg --timeout=120s >/dev/null
+echo ">> Execution logs:"
+kubectl logs "job/$JOB_NAME" -n cloudnative-pg
+"""
 
 [tasks."app:tofu-adopt-garage-bucket"]
 description = "Adopt pre-existing Garage S3 buckets into OpenTofu remote state"
