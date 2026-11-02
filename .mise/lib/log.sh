@@ -35,7 +35,6 @@ _setup_colors() {
     COLOR_BOLD_YELLOW="\033[1;33m"
     COLOR_CYAN="\033[36m"
     COLOR_BOLD_CYAN="\033[1;36m"
-    COLOR_GRAY="\033[90m"
   else
     COLOR_RESET=""
     COLOR_BOLD=""
@@ -48,7 +47,6 @@ _setup_colors() {
     COLOR_BOLD_YELLOW=""
     COLOR_CYAN=""
     COLOR_BOLD_CYAN=""
-    COLOR_GRAY=""
   fi
 }
 _setup_colors
