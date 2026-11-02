@@ -31,4 +31,16 @@ _common_setup() {
   git config --global user.name "bats"
   git config --global user.email "bats@example.invalid"
   git config --global commit.gpgsign false
+
+  # Directory for command stubs, prepended to PATH.
+  MOCK_BIN="${BATS_TEST_TMPDIR}/bin"
+  mkdir -p "${MOCK_BIN}"
+  export PATH="${MOCK_BIN}:${PATH}"
+}
+
+# Create an executable stub in MOCK_BIN.
+#   _stub <command> <script body>
+_stub() {
+  printf '#!/usr/bin/env bash\n%s\n' "$2" > "${MOCK_BIN}/$1"
+  chmod +x "${MOCK_BIN}/$1"
 }
