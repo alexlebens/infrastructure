@@ -4,6 +4,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
 REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
 
 CLUSTER="${CLUSTER:-cl01tl}"
 CHART=""
@@ -28,16 +30,14 @@ while [[ $# -gt 0 ]]; do
         CHART="$1"
         shift
       else
-        echo "Unknown argument: $1" >&2
-        exit 1
+        log_fatal "Unknown argument: $1"
       fi
       ;;
   esac
 done
 
 if [ -z "${CHART}" ]; then
-  echo "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|all>]" >&2
-  exit 1
+  log_fatal "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|all>]"
 fi
 
 # Normalize chart name from path if provided (e.g. clusters/cl01tl/helm/actual -> actual)
@@ -45,27 +45,26 @@ CHART_NAME=$(basename "${CHART}")
 CHART_PATH="${REPO_ROOT}/clusters/${CLUSTER}/helm/${CHART_NAME}"
 
 if [ ! -d "${CHART_PATH}" ]; then
-  echo "Error: Chart directory '${CHART_PATH}' does not exist." >&2
-  exit 1
+  log_fatal "Chart directory '${CHART_PATH}' does not exist."
 fi
 
 step_repos() {
-  echo ">> Adding Helm repositories for ${CHART_NAME} ..."
-  "${REPO_ROOT}/.mise/tasks/helm-repo-update" --main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}"
+  log_step "Adding Helm repositories for ${CHART_NAME} ..."
+  "${REPO_ROOT}/.mise/tasks/helm-build" --main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}" --repos-only
 }
 
 step_build() {
-  echo ">> Building Helm dependencies for ${CHART_NAME} ..."
+  log_step "Building Helm dependencies for ${CHART_NAME} ..."
   helm dependency build "${CHART_PATH}" --skip-refresh 2>/dev/null || helm dependency update "${CHART_PATH}" --skip-refresh
 }
 
 step_lint() {
-  echo ">> Linting Helm chart ${CHART_NAME} ..."
+  log_step "Linting Helm chart ${CHART_NAME} ..."
   helm lint "${CHART_PATH}" --namespace "default"
 }
 
 step_render() {
-  echo ">> Rendering Helm templates for ${CHART_NAME} ..."
+  log_step "Rendering Helm templates for ${CHART_NAME} ..."
   local RENDER_ARGS=(--main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}" --skip-repo-add)
   if [ -n "${API_VERSIONS:-}" ]; then
     RENDER_ARGS+=(--api-versions "${API_VERSIONS}")
@@ -91,10 +90,9 @@ case "${STEP}" in
     step_build
     step_lint
     step_render
-    echo "✓ Chart '${CHART_NAME}' passed all test-chart checks!"
+    log_success "Chart '${CHART_NAME}' passed all test-chart checks!"
     ;;
   *)
-    echo "Error: Unknown step '${STEP}'. Valid steps: repos, build, lint, render, all." >&2
-    exit 1
+    log_fatal "Unknown step '${STEP}'. Valid steps: repos, build, lint, render, all."
     ;;
 esac

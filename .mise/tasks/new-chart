@@ -2,29 +2,32 @@
 #MISE description="Scaffold a new homelab Helm chart from .helm-starters/app-template"
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
+
 if [ -z "${1:-}" ]; then
-    echo "Usage: mise run new-chart <name> [namespace]" >&2
-    exit 1
+  log_fatal "Usage: mise run new-chart <name> [namespace]"
 fi
 
 NAME="$1"
 NS="${2:-$NAME}"
 
 CLUSTER="${CLUSTER:-cl01tl}"
-DEST="clusters/${CLUSTER}/helm/$NAME"
+DEST="${REPO_ROOT}/clusters/${CLUSTER}/helm/$NAME"
 if [ -d "$DEST" ]; then
-    echo "Error: Directory '$DEST' already exists." >&2
-    exit 1
+  log_fatal "Directory '$DEST' already exists."
 fi
 
-echo "Scaffolding chart '$NAME' in namespace '$NS' at $DEST..."
+log_step "Scaffolding chart '$NAME' in namespace '$NS' at $DEST..."
 mkdir -p "$DEST"
-cp -r .helm-starters/app-template/* "$DEST/"
+cp -r "${REPO_ROOT}/.helm-starters/app-template/"* "$DEST/"
 find "$DEST" -type f ! -name "*.gitkeep" -exec sed -i '' "s/<APP_NAME>/$NAME/g" {} +
 find "$DEST" -type f ! -name "*.gitkeep" -exec sed -i '' "s/<NAMESPACE>/$NS/g" {} +
 
-echo "✓ Created chart at $DEST"
-echo "Next steps:"
-echo "  1. Update image and configuration in $DEST/values.yaml"
-echo "  2. Update $DEST/values.schema.json if adding required fields"
-echo "  3. Validate chart with: mise run check-chart $DEST"
+log_success "Created chart at $DEST"
+log_info "Next steps:"
+log_info "  1. Update image and configuration in $DEST/values.yaml"
+log_info "  2. Update $DEST/values.schema.json if adding required fields"
+log_info "  3. Validate chart with: mise run check-chart $NAME"
