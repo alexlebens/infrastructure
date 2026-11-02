@@ -65,7 +65,7 @@ metadata:
   namespace: grafana-operator
   labels:
     app.kubernetes.io/name: {{ $name }}
-    {{- include "common-helpers.labels" $ | default (include "homelab-app.labels" $) | nindent 4 }}
+    {{- include "custom.labels" $ | nindent 4 }}
 spec:
   instanceSelector:
     matchLabels:
