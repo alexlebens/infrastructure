@@ -43,6 +43,7 @@ _setup_colors
 
 # Major step / phase header: ">> Building dependencies..."
 log_step() {
+  printf "\n"
   printf "%b%b>> %s%b\n" "${COLOR_BOLD}" "${COLOR_CYAN}" "$*" "${COLOR_RESET}"
 }
 

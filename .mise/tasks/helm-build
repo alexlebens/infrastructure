@@ -131,15 +131,14 @@ for C in "${CHARTS[@]}"; do
     continue
   fi
 
-  printf "\n"
-  log_step "[${C_NAME}] Building dependencies..."
+  log_step "Building dependencies [${C_NAME}] ..."
   if ! (helm dependency build "${C_PATH}" --skip-refresh 2>/dev/null || helm dependency update "${C_PATH}" --skip-refresh >/dev/null); then
     log_error "Failed to build dependencies for ${C_NAME}"
     FAILED_CHARTS+=("${C_NAME}")
     continue
   fi
 
-  log_step "[${C_NAME}] Linting chart..."
+  log_step "Linting chart [${C_NAME}] ..."
   if ! helm lint "${C_PATH}" --namespace "default"; then
     log_error "Lint failed for ${C_NAME}"
     FAILED_CHARTS+=("${C_NAME}")
@@ -148,7 +147,9 @@ done
 
 log_divider
 if [ ${#FAILED_CHARTS[@]} -gt 0 ]; then
+  printf "\n"
   log_fatal "Errors encountered in chart(s): ${FAILED_CHARTS[*]}"
 else
+  printf "\n"
   log_success "All charts built and linted successfully!"
 fi
