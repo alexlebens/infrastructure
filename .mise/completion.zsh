@@ -5,10 +5,11 @@
 #   - mise run kube:status <namespace>
 #   - mise run kube:resource-capacity <namespace>
 #   - mise run kube:get-images [namespace]
+#   - mise run app:cleanup-pgsql-local [namespace]
+#   - mise run app:cnpg-remediator
+#   - mise run app:tofu-adopt-garage-bucket [app-name]
 #   - mise run check-chart <chart>
 #   - mise run helm:* [chart...]
-#   - scripts/cleanup-pgsql-local
-#   - scripts/cnpg-remediator
 #
 # Features:
 #   - 30-second cache in $TMPDIR for instant response without kubectl API lag
@@ -114,8 +115,9 @@ _cnpg_remediator() {
 compdef _k8s_script_ns_arg .mise/tasks/kube/status
 compdef _k8s_script_ns_arg .mise/tasks/kube/resource-capacity
 compdef _k8s_script_ns_arg .mise/tasks/kube/get-images
-compdef _cleanup_pgsql_local cleanup-pgsql-local ./cleanup-pgsql-local scripts/cleanup-pgsql-local ./scripts/cleanup-pgsql-local
-compdef _cnpg_remediator cnpg-remediator ./cnpg-remediator scripts/cnpg-remediator ./scripts/cnpg-remediator
+compdef _cleanup_pgsql_local .mise/tasks/app/cleanup-pgsql-local
+compdef _cnpg_remediator .mise/tasks/app/cnpg-remediator
+compdef _helm_charts_tag .mise/tasks/app/tofu-adopt-garage-bucket
 
 # ── Mise Task Arguments Completion ──────────────────────────────────────────
 # Wraps _mise completion to complete task arguments (namespaces, charts)
@@ -126,10 +128,10 @@ if whence _mise >/dev/null 2>&1; then
     if [[ "${words[1]}" == "mise" && ("${words[2]}" == "run" || "${words[2]}" == "r") ]]; then
       local task="${words[3]}"
       case "$task" in
-        kube:status|kube:resource-capacity|kube:get-images)
+        kube:status|kube:resource-capacity|kube:get-images|app:cleanup-pgsql-local)
           _k8s_namespaces_tag && return 0
           ;;
-        check-chart|render|helm:*)
+        check-chart|render|helm:*|app:tofu-adopt-garage-bucket)
           _helm_charts_tag && return 0
           ;;
       esac
