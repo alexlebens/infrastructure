@@ -44,7 +44,7 @@ _setup_colors
 # Major step / phase header: ">> Building dependencies..."
 log_step() {
   printf "\n"
-  printf "%b%b>> %s%b\n" "${COLOR_BOLD}" "${COLOR_CYAN}" "$*" "${COLOR_RESET}"
+  printf "%b%b>> %s%b\n" "${COLOR_BOLD}" "${COLOR_CYAN}" "$*" "${COLOR_RESET} ..."
 }
 
 # Sub-step or detail under a step: "   Added repo..."
@@ -54,6 +54,7 @@ log_info() {
 
 # Success indicator: "✓ All charts built successfully"
 log_success() {
+  printf "\n"
   printf "%b%b✓ %s%b\n" "${COLOR_BOLD}" "${COLOR_GREEN}" "$*" "${COLOR_RESET}"
 }
 
@@ -74,6 +75,7 @@ log_fatal() {
     code="${!#}"
     set -- "${@:1:$#-1}"
   fi
+  printf "\n"
   printf "%b%b✗ Fatal: %s%b\n" "${COLOR_BOLD}" "${COLOR_RED}" "$*" "${COLOR_RESET}" >&2
   exit "${code}"
 }
