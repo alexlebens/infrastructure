@@ -21,7 +21,7 @@ FROM harbor.alexlebens.dev/proxy-gcr.io/go-containerregistry/crane:v0.22.1@sha25
 FROM harbor.alexlebens.dev/proxy-hub.docker/alpine/helm:4.3.1@sha256:e3f8d5c462d75470fbb1fce79ad5c20063657096d1f98c0fcea869e2600e2e5e AS helm-source
 
 # renovate: datasource=docker depName=registry.k8s.io/kubectl versioning=semver
-FROM harbor.alexlebens.dev/proxy-gcr.io/kubectl:v1.37.2@sha256:fe049faa65ae483ac200009a949a68fa4c9985daea12c9cb1195c9c7965301fc AS kubectl-source
+FROM harbor.alexlebens.dev/proxy-registry.k8s/kubectl:v1.37.2@sha256:fe049faa65ae483ac200009a949a68fa4c9985daea12c9cb1195c9c7965301fc AS kubectl-source
 
 # renovate: datasource=docker depName=ghcr.io/opentofu/opentofu versioning=semver
 FROM harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:1.13.5@sha256:5e6046cd8d1e2db82ce71fb56fe0a535b489b5493cfa0d5889ad5cffd2625ab6 AS tofu-source
