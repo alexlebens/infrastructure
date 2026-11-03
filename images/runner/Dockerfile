@@ -39,7 +39,8 @@ FROM harbor.alexlebens.dev/proxy-quay.io/argoproj/argocd:v3.5.7@sha256:16df57da6
 # Gitea Runner Image
 # =========================================================================
 
-FROM harbor.alexlebens.dev/proxy-ghcr.io/catthehacker/ubuntu:act-26.04
+# renovate: datasource=docker depName=gitea/runner-images versioning=docker
+FROM harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-26.04@sha256:a71bcbfef0157f767c84efc3dcbc9dc56c249db320b627ed2b802dc867337458
 
 ENV DEBIAN_FRONTEND=noninteractive \
   # Ensure repo-level .mise.toml files work seamlessly inside Gitea Actions steps
