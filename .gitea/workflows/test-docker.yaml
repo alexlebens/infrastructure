@@ -13,12 +13,11 @@ on:
 
 env:
   BASE_BRANCH: "origin/${{ github.base_ref }}"
-  TRIVY_VERSION: "v0.76.1"
   DCLINT_VERSION: "3.1.0"
 
 jobs:
   detect-changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-runner
     outputs:
       matrix: ${{ steps.check-dir-changes.outputs.matrix }}
       changes-detected: ${{ steps.check-dir-changes.outputs.changes-detected }}
@@ -43,7 +42,7 @@ jobs:
 
   test-compose:
     needs: detect-changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-runner
     if: |
       needs.detect-changes.result == 'success' &&
       needs.detect-changes.outputs.changes-detected == 'true'
@@ -62,16 +61,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: -- Validate Docker Compose Config
+      - name: Validate Docker Compose Config
         run: |
           echo "FAILED_STAGE=Docker Compose Config" >> "$GITHUB_ENV"
           echo ">> Validating docker compose config for ${{ matrix.compose }} ..."
           docker compose --project-directory "${{ matrix.compose }}" config --quiet
-
-      - name: Set Up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: "24"
 
       - name: Cache npm & dclint
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
@@ -79,22 +73,13 @@ jobs:
           path: ~/.npm
           key: ${{ runner.os }}-npm-dclint-${{ env.DCLINT_VERSION }}
 
-      - name: -- Lint Docker Compose (dclint)
+      - name: Lint Docker Compose (dclint)
         run: |
           echo "FAILED_STAGE=DCLint" >> "$GITHUB_ENV"
           echo ">> Linting with dclint for ${{ matrix.compose }} ..."
           npx -y dclint@${{ env.DCLINT_VERSION }} "${{ matrix.compose }}" --max-warnings=0
 
-      - name: Cache Trivy
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
-        with:
-          path: ~/.local/bin/trivy
-          key: ${{ runner.os }}-trivy-${{ env.TRIVY_VERSION }}
-
-      - name: Set Up Trivy
-        run: ./.gitea/scripts/install-trivy.sh
-
-      - name: -- Trivy Security Scan
+      - name: Trivy Security Scan
         run: |
           echo "FAILED_STAGE=Trivy Security Scan" >> "$GITHUB_ENV"
           echo ">> Scanning ${{ matrix.compose }} with Trivy ..."

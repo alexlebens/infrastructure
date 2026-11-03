@@ -38,7 +38,6 @@ on:
       - "clusters/cl01tl/helm/web-assets/**"
 
 env:
-  TOFU_VERSION: "1.13.2"
   TF_PLUGIN_CACHE_DIR: "~/.cache/.opentofu-plugin-cache"
   TF_HTTP_USERNAME: "${{ vars.TF_HTTP_USERNAME || github.repository_owner }}"
   TF_HTTP_PASSWORD: "${{ secrets.TOFU_TOKEN }}"
@@ -46,7 +45,7 @@ env:
 
 jobs:
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-runner
     steps:
       - name: Checkout
         uses: builtin:checkout
@@ -56,17 +55,6 @@ jobs:
       - name: Retrieve Cluster Secrets
         id: cluster-secrets
         run: ./.gitea/scripts/tofu-fetch-secrets.sh
-
-      - name: Cache OpenTofu
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
-        with:
-          path: ~/.local/bin/tofu
-          key: ${{ runner.os }}-tofu-${{ env.TOFU_VERSION }}
-
-      - name: Setup OpenTofu
-        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2
-        with:
-          tofu_version: ${{ env.TOFU_VERSION }}
 
       - name: Cache OpenTofu Plugins
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
