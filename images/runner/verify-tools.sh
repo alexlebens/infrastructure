@@ -24,6 +24,10 @@ CMDS = {
     "bats": ["bats", "--version"],
 }
 
+# Tools whose binary does not report a semver (crane's official image prints a git commit).
+# For these we only check the binary runs; the version is pinned by the source image tag.
+PRESENCE_ONLY = {"crane"}
+
 with open(sys.argv[1], "rb") as f:
     tools = tomllib.load(f).get("tools", {})
 
@@ -38,7 +42,9 @@ for name, spec in tools.items():
         print(f"MISSING  {name}@{version}: {exc}")
         failed = True
         continue
-    if version in text:
+    if name in PRESENCE_ONLY:
+        print(f"OK       {name}@{version} (presence only)")
+    elif version in text:
         print(f"OK       {name}@{version}")
     else:
         print(f"MISMATCH {name}@{version}: {text.strip().splitlines()[0] if text.strip() else ''}")
