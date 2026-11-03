@@ -55,7 +55,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Use COPY --link so updating one tool doesn't invalidate the layer cache of the others
-COPY --link --from=yq-source /usr/bin/yq /usr/local/bin/yq
 COPY --link --from=uv-source /uv /uvx /usr/local/bin/
 COPY --link --from=helm-source /usr/bin/helm /usr/local/bin/helm
 COPY --link --from=kubectl-source /bin/kubectl /usr/local/bin/kubectl
