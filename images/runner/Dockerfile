@@ -33,7 +33,7 @@ FROM harbor.alexlebens.dev/proxy-ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf4
 FROM harbor.alexlebens.dev/proxy-hub.docker/aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c AS trivy-source
 
 # renovate: datasource=docker depName=quay.io/argoproj/argocd versioning=semver
-FROM harbor.alexlebens.dev/proxy-quay.io/argoproj/argocd:v3.5.6@sha256:8e5cc5bb008df8a09dba439462e58c94c55b7735888d3ebde0c25fc05e4e5335 AS argocd-source
+FROM harbor.alexlebens.dev/proxy-quay.io/argoproj/argocd:v3.5.7@sha256:16df57da6f223808d204cd94c67c929b931fa01670b91b0b3a2298c4647de0db AS argocd-source
 
 # =========================================================================
 # Gitea Runner Image
