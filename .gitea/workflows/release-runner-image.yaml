@@ -5,12 +5,21 @@ concurrency:
   cancel-in-progress: false
 
 on:
+  schedule:
+    # Rebuild weekly to refresh Trivy DB & apt
+    - cron: "0 8 * * 1"
+
   push:
     branches:
       - "main"
     paths:
       - "images/runner/**"
       - ".gitea/workflows/release-runner-image.yaml"
+
+  workflow_dispatch:
+
+env:
+  KUBECTL_VERSION: "v1.37.2"
 
 jobs:
   build-and-push:
@@ -26,10 +35,16 @@ jobs:
           username: ${{ vars.HARBOR_USER }}
           password: ${{ secrets.HARBOR_USER_SECRET }}
 
-      - name: Create Kubeconfig
-        run: |
-          mkdir -p "$HOME/.kube"
-          echo "${{ secrets.KUBECONFIG_BUILDX }}" > "$HOME/.kube/config"
+      - name: Set Up Kubectl
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
+        with:
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Configure Kubeconfig
+        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG_BUILDX }}
 
       - name: Set up Docker Buildx
         id: buildx
@@ -38,10 +53,10 @@ jobs:
           driver: kubernetes
           driver-opts: |
             namespace=gitea
-            qemu.install=true
+            nodeselector="kubernetes.io/arch=amd64"
           buildkitd-config-inline: |
             [registry."docker.io"]
-              mirrors = ["harbor.alexlebens.dev/proxy-hub.docker/"]
+              mirrors = ["harbor.alexlebens.dev/proxy-hub.docker"]
 
       - name: Extract Metadata
         id: meta
@@ -63,6 +78,8 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            CACHE_BUST=${{ github.run_id }}
           cache-from: type=registry,ref=${{ vars.HARBOR_HOST }}/images/runner:buildcache
           cache-to:
             ${{ github.ref == 'refs/heads/main' && format('type=registry,ref={0}/images/runner:buildcache,mode=max',
