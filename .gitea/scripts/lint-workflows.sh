@@ -26,6 +26,7 @@ if [ ${#workflows[@]} -eq 0 ]; then
 fi
 
 actionlint \
+  -config-file .github/actionlint.yaml \
   -ignore 'specifying action "builtin:checkout" in invalid format' \
   -ignore 'undefined variable "gitea"' \
   "${workflows[@]}"
