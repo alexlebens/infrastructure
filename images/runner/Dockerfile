@@ -1,3 +1,4 @@
+# check=skip=InvalidDefaultArgInFrom
 # =========================================================================
 # Tool versions: single source of truth is the repo-root mise.toml.
 # CI generates these with `images/runner/build-args.sh mise.toml`.
@@ -34,35 +35,47 @@ FROM harbor.alexlebens.dev/proxy-ghcr.io/yannh/kubeconform:v${KUBECONFORM_VERSIO
 FROM harbor.alexlebens.dev/proxy-hub.docker/aquasec/trivy:${TRIVY_VERSION} AS trivy-source
 FROM harbor.alexlebens.dev/proxy-quay.io/argoproj/argocd:v${ARGOCD_VERSION} AS argocd-source
 
+# Shell-capable base shared by the mise install stages and the final image
+# (the mise image itself is distroless: it has no /bin/sh to RUN with)
+# renovate: datasource=docker depName=gitea/runner-images versioning=docker
+FROM harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-26.04@sha256:a71bcbfef0157f767c84efc3dcbc9dc56c249db320b627ed2b802dc867337458 AS runner-base
+
 # =========================================================================
 # Tools with no official image: installed by mise, one stage each for caching
 # =========================================================================
-FROM mise-source AS jq-source
+FROM runner-base AS jq-source
+COPY --from=mise-source /usr/local/bin/mise /usr/local/bin/mise
 ARG JQ_VERSION
 ENV MISE_DATA_DIR=/mise MISE_YES=1
-RUN mise install "jq@${JQ_VERSION}"
+RUN --mount=type=secret,id=github_token \
+  GITHUB_TOKEN="$(cat /run/secrets/github_token)" mise install "jq@${JQ_VERSION}"
 
-FROM mise-source AS yq-source
+FROM runner-base AS yq-source
+COPY --from=mise-source /usr/local/bin/mise /usr/local/bin/mise
 ARG YQ_VERSION
 ENV MISE_DATA_DIR=/mise MISE_YES=1
-RUN mise install "yq@${YQ_VERSION}"
+RUN --mount=type=secret,id=github_token \
+  GITHUB_TOKEN="$(cat /run/secrets/github_token)" mise install "yq@${YQ_VERSION}"
 
-FROM mise-source AS shellcheck-source
+FROM runner-base AS shellcheck-source
+COPY --from=mise-source /usr/local/bin/mise /usr/local/bin/mise
 ARG SHELLCHECK_VERSION
 ENV MISE_DATA_DIR=/mise MISE_YES=1
-RUN mise install "shellcheck@${SHELLCHECK_VERSION}"
+RUN --mount=type=secret,id=github_token \
+  GITHUB_TOKEN="$(cat /run/secrets/github_token)" mise install "shellcheck@${SHELLCHECK_VERSION}"
 
-FROM mise-source AS bats-source
+FROM runner-base AS bats-source
+COPY --from=mise-source /usr/local/bin/mise /usr/local/bin/mise
 ARG BATS_VERSION
 ENV MISE_DATA_DIR=/mise MISE_YES=1
-RUN mise install "bats@${BATS_VERSION}"
+RUN --mount=type=secret,id=github_token \
+  GITHUB_TOKEN="$(cat /run/secrets/github_token)" mise install "bats@${BATS_VERSION}"
 
 # =========================================================================
 # Gitea Runner Image
 # =========================================================================
 
-# renovate: datasource=docker depName=gitea/runner-images versioning=docker
-FROM harbor.alexlebens.dev/proxy-hub.docker/gitea/runner-images:ubuntu-26.04@sha256:a71bcbfef0157f767c84efc3dcbc9dc56c249db320b627ed2b802dc867337458
+FROM runner-base
 
 ENV DEBIAN_FRONTEND=noninteractive \
   # Ensure repo-level .mise.toml files work seamlessly inside Gitea Actions steps
