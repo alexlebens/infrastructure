@@ -22,7 +22,7 @@ FROM harbor.alexlebens.dev/proxy-hub.docker/alpine/helm:4.3.1@sha256:e3f8d5c462d
 FROM harbor.alexlebens.dev/proxy-registry.k8s/kubectl:v1.37.2@sha256:fe049faa65ae483ac200009a949a68fa4c9985daea12c9cb1195c9c7965301fc AS kubectl-source
 
 # renovate: datasource=docker depName=ghcr.io/opentofu/opentofu versioning=semver
-FROM harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:1.13.5@sha256:5e6046cd8d1e2db82ce71fb56fe0a535b489b5493cfa0d5889ad5cffd2625ab6 AS tofu-source
+FROM harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:1.13.5-minimal@sha256:ca43a94b18b8d962299d110822af56a03192fd8ea74d3d7358aaee3f93ed3d90 AS tofu-source
 
 # renovate: datasource=docker depName=ghcr.io/yannh/kubeconform versioning=semver
 FROM harbor.alexlebens.dev/proxy-ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e AS kubeconform-source
@@ -65,10 +65,6 @@ COPY --link --from=crane-source /ko-app/crane /usr/local/bin/crane
 COPY --link --from=argocd-source /usr/local/bin/argocd /usr/local/bin/argocd
 COPY --link --from=mise-source /usr/local/bin/mise /usr/local/bin/mise
 COPY --link --from=ruff-source /usr/local/bin/ruff /usr/local/bin/ruff
-
-# Copy tofu directly from iamge
-# renovate: datasource=docker depName=ghcr.io/opentofu/opentofu versioning=semver
-COPY --link --from=harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:1.13.5@sha256:5e6046cd8d1e2db82ce71fb56fe0a535b489b5493cfa0d5889ad5cffd2625ab6 /usr/local/bin/tofu /usr/local/bin/tofu
 
 # Install pytest + pyyaml cleanly via uv instead of outdated apt packages
 RUN uv tool install pytest --with pyyaml && rm -rf /root/.cache/uv
