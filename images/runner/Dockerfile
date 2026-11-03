@@ -19,11 +19,18 @@ ARG UV_VERSION
 ARG YQ_VERSION
 
 # =========================================================================
-# Tool sources using passed args
+# Tool sources updated with Renovate
 # =========================================================================
 
 # renovate: datasource=docker depName=jdxcode/mise versioning=docker
 FROM harbor.alexlebens.dev/proxy-hub.docker/jdxcode/mise:2026.10.25@sha256:91417f41840316b7c5da6854bef393eccea4546ae70f8baf0803e0e94287b68d AS mise-source
+
+# renovate: datasource=docker depName=oven/bun versioning=docker
+FROM harbor.alexlebens.dev/proxy-hub.docker/oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d AS bun-source
+
+# =========================================================================
+# Tool sources using passed args
+# =========================================================================
 
 FROM harbor.alexlebens.dev/proxy-ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-source
 FROM harbor.alexlebens.dev/proxy-ghcr.io/astral-sh/ruff:${RUFF_VERSION}-debian AS ruff-source
@@ -90,6 +97,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
   PATH="/mise/shims:${PATH}"
 
 # Use COPY --link so updating one tool doesn't invalidate the layer cache of the others
+COPY --link --from=bun-source /usr/local/bin/bun /usr/local/bin/bunx /usr/local/bin/
 COPY --link --from=uv-source /uv /uvx /usr/local/bin/
 COPY --link --from=helm-source /usr/bin/helm /usr/local/bin/helm
 COPY --link --from=kubectl-source /bin/kubectl /usr/local/bin/kubectl
@@ -110,9 +118,9 @@ COPY --link --from=bats-source /mise/installs/bats /mise/installs/bats
 # outside a directory whose mise config lists the tool, and would shadow any base-image copy.
 RUN set -eu; \
   for t in jq yq shellcheck bats; do \
-    bin="$(find "/mise/installs/$t" -type f -perm -u+x -name "$t" | head -n1)"; \
-    [ -n "$bin" ] || { echo "no $t binary found in /mise/installs/$t" >&2; exit 1; }; \
-    ln -sf "$bin" "/usr/local/bin/$t"; \
+  bin="$(find "/mise/installs/$t" -type f -perm -u+x -name "$t" | head -n1)"; \
+  [ -n "$bin" ] || { echo "no $t binary found in /mise/installs/$t" >&2; exit 1; }; \
+  ln -sf "$bin" "/usr/local/bin/$t"; \
   done
 
 # -------------------------------------------------------------------------
