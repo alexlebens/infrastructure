@@ -165,11 +165,11 @@ gitea:
         MINIO_INSECURE_SKIP_VERIFY: false
         MINIO_BASE_PATH: /
     additionalConfigFromEnvs:
-      - name: GITEA__DATABASE__CONNSTR
+      - name: GITEA__DATABASE__HOST
         valueFrom:
           secretKeyRef:
-            name: gitea-database-connection
-            key: GITEA__DATABASE__CONNSTR
+            name: gitea-postgresql-18-cluster-app
+            key: host
       - name: GITEA__DATABASE__NAME
         valueFrom:
           secretKeyRef:
@@ -193,13 +193,13 @@ gitea:
       - name: GITEA__STORAGE__MINIO_ACCESS_KEY_ID
         valueFrom:
           secretKeyRef:
-            name: gitea-s3-secret
-            key: GITEA__STORAGE__MINIO_ACCESS_KEY_ID
+            name: gitea-assets-secret
+            key: AWS_ACCESS_KEY_ID
       - name: GITEA__STORAGE__MINIO_SECRET_ACCESS_KEY
         valueFrom:
           secretKeyRef:
-            name: gitea-s3-secret
-            key: GITEA__STORAGE__MINIO_SECRET_ACCESS_KEY
+            name: gitea-assets-secret
+            key: AWS_SECRET_ACCESS_KEY
   valkey:
     enabled: false
   valkey-cluster:
@@ -278,11 +278,11 @@ gitea-actions:
                 path: token
       - name: runner-s3-cache
         secret:
-          secretName: gitea-runner-secret
+          secretName: gitea-assets-secret
           items:
-            - key: cache-s3-access-key
+            - key: AWS_ACCESS_KEY_ID
               path: cache-s3-access-key
-            - key: cache-s3-secret-key
+            - key: AWS_SECRET_ACCESS_KEY
               path: cache-s3-secret-key
     securityContext:
       fsGroup: 1000
@@ -527,7 +527,6 @@ pocket-id-client:
   client:
     displayName: "Gitea"
     description: "Git with a cup of tea!"
-    clientID: D7ED367E-759B-4316-83A8-C7F17F240E53
     callbackUrls:
       - https://gitea.alexlebens.dev/user/oauth2/AlexAuth/callback
     pkceEnabled: false
@@ -536,6 +535,13 @@ pocket-id-client:
         namespace: pocket-id-operator
       - name: user
         namespace: pocket-id-operator
+    clientID: D7ED367E-759B-4316-83A8-C7F17F240E53
+    clientSecretRefKey: secret
+  externalSecret:
+    enabled: true
+    secretName: gitea-oidc-secrets
+    clientIdKey: key
+    clientSecretKey: secret
 
 cloudflared:
   probe:
@@ -617,19 +623,6 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 0 0 * * *"
-  poolers:
-    - name: rw
-      type: rw
-      poolMode: session
-      instances: 3
-      parameters:
-        max_client_conn: "1000"
-        default_pool_size: "10"
-        max_prepared_statements: "100"
-      monitoring:
-        enabled: true
-        podMonitor:
-          enabled: true
 
 # backup-rebalancer: unmanaged
 s3-bucket:
