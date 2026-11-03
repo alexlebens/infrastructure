@@ -22,14 +22,19 @@ on:
 env:
   IMAGE_REPO: ci-images/runner
   CACHE_REPO: ci-images/runner-buildcache
-  KUBECTL_VERSION: "v1.37.2"
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-runner
     steps:
       - name: Checkout
         uses: builtin:checkout
+
+      - name: Configure Kubeconfig
+        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG_BUILDX }}
 
       - name: Login to Harbor Registry
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
@@ -37,17 +42,6 @@ jobs:
           registry: ${{ vars.HARBOR_HOST }}
           username: ${{ vars.HARBOR_USER }}
           password: ${{ secrets.HARBOR_USER_SECRET }}
-
-      - name: Set Up Kubectl
-        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5
-        with:
-          version: ${{ env.KUBECTL_VERSION }}
-
-      - name: Configure Kubeconfig
-        uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.KUBECONFIG_BUILDX }}
 
       - name: Set up Docker Buildx
         id: buildx
