@@ -1,0 +1,101 @@
+name: release-runner-image
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "images/runner/**"
+      - ".gitea/workflows/release-runner-image.yaml"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+
+      - name: Login to Harbor Registry
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ${{ vars.HARBOR_HOST }}
+          username: ${{ vars.HARBOR_USER }}
+          password: ${{ secrets.HARBOR_USER_SECRET }}
+
+      - name: Create Kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBECONFIG_BUILDX }}" > "$HOME/.kube/config"
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver: kubernetes
+          driver-opts: |
+            namespace=gitea
+            qemu.install=true
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["harbor.alexlebens.dev/proxy-hub.docker/"]
+
+      - name: Extract Metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: |
+            ${{ vars.HARBOR_HOST }}/images/runner
+          tags: |
+            type=ref,event=branch
+            type=sha,format=long
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and Push Runner Image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: images/runner
+          file: images/runner/Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ vars.HARBOR_HOST }}/images/runner:buildcache
+          cache-to:
+            ${{ github.ref == 'refs/heads/main' && format('type=registry,ref={0}/images/runner:buildcache,mode=max',
+            vars.HARBOR_HOST) || '' }}
+
+      - name: ntfy Success
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: success() && github.ref == 'refs/heads/main'
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "✅ Runner Image Released"
+          priority: 3
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,successfully,completed
+          details: "Gitea runner base image built and pushed to Harbor (${{ vars.HARBOR_HOST }}/images/runner:latest)."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 Runner Image Build Failure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "Failed to build or push runner image in ${{ github.repository }}."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
