@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODELS_FILE="${MODELS_FILE:-models/models.yaml}"
+MODELS_FILE="${MODELS_FILE:-images/models/models.yaml}"
 HARBOR_HOST="${HARBOR_HOST:-harbor.alexlebens.dev}"
 HARBOR_PROJECT="${HARBOR_PROJECT:-models}"
 HARBOR_USER="${HARBOR_USER:-}"
@@ -29,7 +29,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     -h|--help)
       echo "Usage: $0 [--models-file <path>] [--harbor-host <fqdn>] [--harbor-project <project>] [--force]"
-      echo "Packages Hugging Face GGUF models declared in models/models.yaml as OCI images and pushes them to Harbor."
+      echo "Packages Hugging Face GGUF models declared in images/models/models.yaml as OCI images and pushes them to Harbor."
       exit 0
       ;;
     *)
