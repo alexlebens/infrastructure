@@ -339,8 +339,12 @@ for IMG in "${IMAGES[@]}"; do
     for PLATFORM in "linux/amd64" "linux/arm64"; do
       if crane manifest --platform "${PLATFORM}" "${WARM_TARGET}" >/dev/null 2>&1; then
         SUPPORTED_PLATFORMS+=("${PLATFORM}")
-        echo ">> Warming ${PLATFORM} layers for ${WARM_TARGET} ..."
-        crane export --platform "${PLATFORM}" "${WARM_TARGET}" - >/dev/null 2>&1 || true
+        # Only pull layers (slow) when Harbor does not already have the image;
+        # a manifest lookup is enough to validate platform support for cached images.
+        if [ "${ALREADY_CACHED}" != true ]; then
+          echo ">> Warming ${PLATFORM} layers for ${WARM_TARGET} ..."
+          crane export --platform "${PLATFORM}" "${WARM_TARGET}" - >/dev/null 2>&1 || true
+        fi
       fi
     done
 
@@ -348,8 +352,10 @@ for IMG in "${IMAGES[@]}"; do
     if [ ${#SUPPORTED_PLATFORMS[@]} -eq 0 ]; then
       if crane manifest "${WARM_TARGET}" >/dev/null 2>&1; then
         SUPPORTED_PLATFORMS+=("default")
-        echo ">> Warming default layers for ${WARM_TARGET} ..."
-        crane export "${WARM_TARGET}" - >/dev/null 2>&1 || true
+        if [ "${ALREADY_CACHED}" != true ]; then
+          echo ">> Warming default layers for ${WARM_TARGET} ..."
+          crane export "${WARM_TARGET}" - >/dev/null 2>&1 || true
+        fi
       else
         WARM_FAILED=true
       fi
