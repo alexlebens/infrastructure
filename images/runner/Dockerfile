@@ -24,7 +24,7 @@ FROM harbor.alexlebens.dev/proxy-hub.docker/alpine/helm:4.3.1@sha256:e3f8d5c462d
 FROM harbor.alexlebens.dev/proxy-gcr.io/kubectl:v1.37.2@sha256:fe049faa65ae483ac200009a949a68fa4c9985daea12c9cb1195c9c7965301fc AS kubectl-source
 
 # renovate: datasource=docker depName=ghcr.io/opentofu/opentofu versioning=semver
-FROM harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:1.13.2@sha256:25bdfbe87000b8a88d44c7ef0cca53381da95f6203f7aed1e8cf5b81ecbe18eb AS tofu-source
+FROM harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:1.13.5@sha256:5e6046cd8d1e2db82ce71fb56fe0a535b489b5493cfa0d5889ad5cffd2625ab6 AS tofu-source
 
 # renovate: datasource=docker depName=ghcr.io/yannh/kubeconform versioning=semver
 FROM harbor.alexlebens.dev/proxy-ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e AS kubeconform-source
