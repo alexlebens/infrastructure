@@ -131,8 +131,8 @@ RUN set -eu; \
   [ -n "$bin" ] || { echo "no $t binary found in /mise/installs/$t" >&2; exit 1; }; \
   ln -sf "$bin" "/usr/local/bin/$t"; \
   done; \
-  pybin="$(find "/mise/installs/python" -type f -perm -u+x -name "python3" | head -n1)"; \
-  [ -n "$pybin" ] || { echo "no python3 binary found in /mise/installs/python" >&2; exit 1; }; \
+  pybin="$(find "/mise/installs/python" -name "python3" | head -n1)"; \
+  [ -n "$pybin" ] && [ -x "$pybin" ] || { echo "no executable python3 found in /mise/installs/python" >&2; exit 1; }; \
   ln -sf "$pybin" "/usr/local/bin/python3"; \
   ln -sf "$pybin" "/usr/local/bin/python"
 
