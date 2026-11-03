@@ -12,6 +12,7 @@ ARG JQ_VERSION
 ARG KUBECONFORM_VERSION
 ARG KUBECTL_VERSION
 ARG OPENTOFU_VERSION
+ARG PYTHON_VERSION
 ARG RUFF_VERSION
 ARG SHELLCHECK_VERSION
 ARG TRIVY_VERSION
@@ -78,6 +79,13 @@ ENV MISE_DATA_DIR=/mise MISE_YES=1
 RUN --mount=type=secret,id=github_token \
   GITHUB_TOKEN="$(cat /run/secrets/github_token)" mise install "bats@${BATS_VERSION}"
 
+FROM runner-base AS python-source
+COPY --from=mise-source /usr/local/bin/mise /usr/local/bin/mise
+ARG PYTHON_VERSION
+ENV MISE_DATA_DIR=/mise MISE_YES=1
+RUN --mount=type=secret,id=github_token \
+  GITHUB_TOKEN="$(cat /run/secrets/github_token)" mise install "python@${PYTHON_VERSION}"
+
 # =========================================================================
 # Gitea Runner Image
 # =========================================================================
@@ -109,11 +117,12 @@ COPY --link --from=argocd-source /usr/local/bin/argocd /usr/local/bin/argocd
 COPY --link --from=mise-source /usr/local/bin/mise /usr/local/bin/mise
 COPY --link --from=ruff-source /usr/local/bin/ruff /usr/local/bin/ruff
 
-# mise-installed tools (jq, yq, shellcheck, bats) keep mise's install layout
+# mise-installed tools (jq, yq, shellcheck, bats, python) keep mise's install layout
 COPY --link --from=jq-source /mise/installs/jq /mise/installs/jq
 COPY --link --from=yq-source /mise/installs/yq /mise/installs/yq
 COPY --link --from=shellcheck-source /mise/installs/shellcheck /mise/installs/shellcheck
 COPY --link --from=bats-source /mise/installs/bats /mise/installs/bats
+COPY --link --from=python-source /mise/installs/python /mise/installs/python
 # Link into /usr/local/bin instead of using mise shims: shims fail with "No version is set"
 # outside a directory whose mise config lists the tool, and would shadow any base-image copy.
 RUN set -eu; \
@@ -121,7 +130,11 @@ RUN set -eu; \
   bin="$(find "/mise/installs/$t" -type f -perm -u+x -name "$t" | head -n1)"; \
   [ -n "$bin" ] || { echo "no $t binary found in /mise/installs/$t" >&2; exit 1; }; \
   ln -sf "$bin" "/usr/local/bin/$t"; \
-  done
+  done; \
+  pybin="$(find "/mise/installs/python" -type f -perm -u+x -name "python3" | head -n1)"; \
+  [ -n "$pybin" ] || { echo "no python3 binary found in /mise/installs/python" >&2; exit 1; }; \
+  ln -sf "$pybin" "/usr/local/bin/python3"; \
+  ln -sf "$pybin" "/usr/local/bin/python"
 
 # -------------------------------------------------------------------------
 # Runner-only tooling (used by Gitea scripts, not part of mise.toml)
@@ -131,8 +144,9 @@ RUN set -eu; \
 ENV UV_TOOL_DIR=/opt/uv-tools \
   UV_PYTHON_DOWNLOADS=never \
   UV_NO_CACHE=1
-RUN uv tool install --python /usr/bin/python3 pytest --with pyyaml \
-  && uv pip install --system --break-system-packages pyyaml
+RUN uv tool install --python /usr/local/bin/python3 pytest --with pyyaml \
+  && uv pip install --python /usr/local/bin/python3 --break-system-packages pyyaml \
+  && uv pip install --python /usr/bin/python3 --break-system-packages pyyaml
 
 # Enforce strict 1:1 with mise.toml (tiny layer; re-runs only when mise.toml or the script changes)
 COPY --from=repo mise.toml /tmp/mise.toml

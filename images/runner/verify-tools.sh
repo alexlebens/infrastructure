@@ -13,6 +13,7 @@ import tomllib
 # tool -> version command (tools not listed use "<tool> --version")
 CMDS = {
     "opentofu": ["tofu", "version"],
+    "python": ["python3", "--version"],
     "kubectl": ["kubectl", "version", "--client"],
     "kubeconform": ["kubeconform", "-v"],
     "helm": ["helm", "version", "--short"],
