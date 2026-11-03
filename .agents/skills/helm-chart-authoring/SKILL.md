@@ -53,15 +53,15 @@ images are updated to the latest versions:
 
 ## 4. Validation Sequence
 
-Every chart requires an updated `values.schema.json`. Run the standard validation before finishing:
+Every chart requires an updated `values.schema.json`. Run the standard validation suite before finishing:
 
 ```bash
 mise run check-chart <app-name>
 ```
 
-_(Executes the same stages as the CI `test-chart` workflow: adds repos, builds dependencies, lints, and renders
-manifests offline without remote cluster connections. Individual steps can also be run via
-`--step <repos|build|lint|render>`)._
+_(Executes the same stages as the CI `test-chart` workflow: adds repos, builds dependencies, lints, renders manifests,
+scans security misconfigurations with Trivy, and validates against schemas with kubeconform. Individual stages can be
+executed with `--step <repos|build|lint|render|trivy|kubeconform|all>`)._
 
 ## 5. Documentation Sync (Cross-Repo)
 
