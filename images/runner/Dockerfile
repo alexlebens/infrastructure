@@ -119,8 +119,10 @@ RUN set -eu; \
 # Runner-only tooling (used by Gitea scripts, not part of mise.toml)
 # -------------------------------------------------------------------------
 
-# Install pytest + pyyaml cleanly via uv instead of outdated apt packages
-RUN uv tool install pytest --with pyyaml && rm -rf /root/.cache/uv
+# Install pytest via uv tool, and install pyyaml globally for system python (e.g. openapi2jsonschema)
+RUN uv tool install pytest --with pyyaml \
+  && uv pip install --system pyyaml \
+  && rm -rf /root/.cache/uv
 
 # Enforce strict 1:1 with mise.toml (tiny layer; re-runs only when mise.toml or the script changes)
 COPY --from=repo mise.toml /tmp/mise.toml
