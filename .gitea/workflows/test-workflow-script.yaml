@@ -14,19 +14,16 @@ on:
       - ".gitea/workflows/test-workflow-script.yaml"
       - ".pre-commit-config.yaml"
 
-env:
-  RUFF_VERSION: "0.17.3"
-
 jobs:
   test-bash:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-runner
     steps:
       - name: Checkout
         uses: builtin:checkout
         with:
           fetch-depth: 1
 
-      - name: -- Lint Scripts (shellcheck)
+      - name: Lint Scripts (shellcheck)
         run: .gitea/scripts/lint-bash-scripts.sh
 
       - name: Setup BATS
@@ -37,7 +34,7 @@ jobs:
           detik-install: false
           file-install: false
 
-      - name: -- Run BATS Tests
+      - name: Run BATS Tests
         run: |
           bats .gitea/tests/bash/
 
@@ -58,29 +55,14 @@ jobs:
             }}/actions/runs/${{ github.run_id }}", "clear": true}]'
 
   test-python:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-runner
     steps:
       - name: Checkout
         uses: builtin:checkout
         with:
           fetch-depth: 1
 
-      - name: Set Up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.12"
-
-      - name: Cache Pip & Ruff
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-ruff-${{ env.RUFF_VERSION }}
-
-      - name: Install Ruff
-        run: |
-          pip install "ruff==${{ env.RUFF_VERSION }}"
-
-      - name: -- Ruff Check Python Scripts
+      - name: Ruff Check Python Scripts
         run: |
           echo ">> Running Ruff check on Python scripts in .gitea/scripts/ and .gitea/tests/python/ ..."
           shopt -s nullglob
@@ -89,7 +71,7 @@ jobs:
             ruff check "${files[@]}"
           fi
 
-      - name: -- Ruff Format Check Python Scripts
+      - name: Ruff Format Check Python Scripts
         run: |
           echo ">> Running Ruff format check on Python scripts in .gitea/scripts/ and .gitea/tests/python/ ..."
           shopt -s nullglob
@@ -98,10 +80,9 @@ jobs:
             ruff format --check "${files[@]}"
           fi
 
-      - name: -- Run Python Tests (pytest)
+      - name: Run Python Tests (pytest)
         run: |
           if [ -d ".gitea/tests/python" ] && ls .gitea/tests/python/*test*.py >/dev/null 2>&1; then
-            pip install pytest
             echo ">> Running pytest for workflow scripts in .gitea/tests/python/ ..."
             pytest .gitea/tests/python/
           fi
