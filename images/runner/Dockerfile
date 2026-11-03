@@ -128,9 +128,11 @@ RUN set -eu; \
 # -------------------------------------------------------------------------
 
 # Install pytest via uv tool, and install pyyaml globally for system python (e.g. openapi2jsonschema)
-RUN uv tool install pytest --with pyyaml \
-  && uv pip install --system pyyaml \
-  && rm -rf /root/.cache/uv
+ENV UV_TOOL_DIR=/opt/uv-tools \
+  UV_PYTHON_DOWNLOADS=never \
+  UV_NO_CACHE=1
+RUN uv tool install --python /usr/bin/python3 pytest --with pyyaml \
+  && uv pip install --system --break-system-packages pyyaml
 
 # Enforce strict 1:1 with mise.toml (tiny layer; re-runs only when mise.toml or the script changes)
 COPY --from=repo mise.toml /tmp/mise.toml
