@@ -66,6 +66,10 @@ COPY --link --from=argocd-source /usr/local/bin/argocd /usr/local/bin/argocd
 COPY --link --from=mise-source /usr/local/bin/mise /usr/local/bin/mise
 COPY --link --from=ruff-source /usr/local/bin/ruff /usr/local/bin/ruff
 
+# Copy tofu directly from iamge
+# renovate: datasource=docker depName=ghcr.io/opentofu/opentofu versioning=semver
+COPY --link --from=harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:1.13.5@sha256:5e6046cd8d1e2db82ce71fb56fe0a535b489b5493cfa0d5889ad5cffd2625ab6 /usr/local/bin/tofu /usr/local/bin/tofu
+
 # Install pytest + pyyaml cleanly via uv instead of outdated apt packages
 RUN uv tool install pytest --with pyyaml && rm -rf /root/.cache/uv
 
