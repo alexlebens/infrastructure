@@ -13,12 +13,15 @@ on:
     branches:
       - "main"
     paths:
-      - "images/runner/**"
       - ".gitea/workflows/release-runner-image.yaml"
+      - "images/runner/**"
+      - "mise.toml"
 
   workflow_dispatch:
 
 env:
+  IMAGE_REPO: ci-images/runner
+  CACHE_REPO: ci-images/runner-buildcache
   KUBECTL_VERSION: "v1.37.2"
 
 jobs:
@@ -67,11 +70,20 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: |
-            ${{ vars.HARBOR_HOST }}/images/runner
+            ${{ vars.HARBOR_HOST }}/${{ env.IMAGE_REPO }}
           tags: |
             type=ref,event=branch
             type=sha,format=long
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Generate Tool Version Build Args
+        id: tools
+        run: |
+          {
+            echo "args<<EOF"
+            ./images/runner/build-args.sh mise.toml
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build and Push Runner Image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -82,12 +94,16 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-contexts: |
+            repo=.
           build-args: |
+            ${{ steps.tools.outputs.args }}
             CACHE_BUST=${{ github.run_id }}
-          cache-from: type=registry,ref=${{ vars.HARBOR_HOST }}/images/runner:buildcache
+          cache-from: type=registry,ref=${{ vars.HARBOR_HOST }}/${{ env.CACHE_REPO }}:buildcache
           cache-to:
-            ${{ github.ref == 'refs/heads/main' && format('type=registry,ref={0}/images/runner:buildcache,mode=max',
-            vars.HARBOR_HOST) || '' }}
+            ${{ github.ref == 'refs/heads/main' &&
+            format('type=registry,ref={0}/{1}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true',
+            vars.HARBOR_HOST, env.CACHE_REPO) || '' }}
 
       - name: ntfy Success
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -99,7 +115,8 @@ jobs:
           priority: 3
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,successfully,completed
-          details: "Gitea runner base image built and pushed to Harbor (${{ vars.HARBOR_HOST }}/images/runner:latest)."
+          details:
+            "Gitea runner base image built and pushed to Harbor (${{ vars.HARBOR_HOST }}/${{ env.IMAGE_REPO }}:latest)."
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository

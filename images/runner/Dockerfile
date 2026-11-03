@@ -1,37 +1,61 @@
 # =========================================================================
-# Official Upstream Tool Sources
-# Standalone CLI tools used across Gitea workflows
+# Tool versions: single source of truth is the repo-root mise.toml.
+# CI generates these with `images/runner/build-args.sh mise.toml`.
+# Deliberately no defaults: a missing build-arg yields an invalid FROM and fails fast.
+# =========================================================================
+ARG ARGOCD_VERSION
+ARG BATS_VERSION
+ARG CRANE_VERSION
+ARG HELM_VERSION
+ARG JQ_VERSION
+ARG KUBECONFORM_VERSION
+ARG KUBECTL_VERSION
+ARG OPENTOFU_VERSION
+ARG RUFF_VERSION
+ARG SHELLCHECK_VERSION
+ARG TRIVY_VERSION
+ARG UV_VERSION
+ARG YQ_VERSION
+
+# =========================================================================
+# Tool sources using passed args
 # =========================================================================
 
 # renovate: datasource=docker depName=jdxcode/mise versioning=docker
 FROM harbor.alexlebens.dev/proxy-hub.docker/jdxcode/mise:2026.10.25@sha256:91417f41840316b7c5da6854bef393eccea4546ae70f8baf0803e0e94287b68d AS mise-source
 
-# renovate: datasource=docker depName=ghcr.io/astral-sh/uv versioning=semver
-FROM harbor.alexlebens.dev/proxy-ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490 AS uv-source
+FROM harbor.alexlebens.dev/proxy-ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-source
+FROM harbor.alexlebens.dev/proxy-ghcr.io/astral-sh/ruff:${RUFF_VERSION}-debian AS ruff-source
+FROM harbor.alexlebens.dev/proxy-gcr.io/go-containerregistry/crane:v${CRANE_VERSION} AS crane-source
+FROM harbor.alexlebens.dev/proxy-hub.docker/alpine/helm:${HELM_VERSION} AS helm-source
+FROM harbor.alexlebens.dev/proxy-registry.k8s/kubectl:v${KUBECTL_VERSION} AS kubectl-source
+FROM harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:${OPENTOFU_VERSION}-minimal AS tofu-source
+FROM harbor.alexlebens.dev/proxy-ghcr.io/yannh/kubeconform:v${KUBECONFORM_VERSION} AS kubeconform-source
+FROM harbor.alexlebens.dev/proxy-hub.docker/aquasec/trivy:${TRIVY_VERSION} AS trivy-source
+FROM harbor.alexlebens.dev/proxy-quay.io/argoproj/argocd:v${ARGOCD_VERSION} AS argocd-source
 
-# renovate: datasource=docker depName=ghcr.io/astral-sh/ruff versioning=semver
-FROM harbor.alexlebens.dev/proxy-ghcr.io/astral-sh/ruff:0.17.3-debian@sha256:e7311317f3583bd199ee6eace2a3ab08797271c9c1c26912e5fdeb3bb94305eb AS ruff-source
+# =========================================================================
+# Tools with no official image: installed by mise, one stage each for caching
+# =========================================================================
+FROM mise-source AS jq-source
+ARG JQ_VERSION
+ENV MISE_DATA_DIR=/mise MISE_YES=1
+RUN mise install "jq@${JQ_VERSION}"
 
-# renovate: datasource=docker depName=gcr.io/go-containerregistry/crane versioning=semver
-FROM harbor.alexlebens.dev/proxy-gcr.io/go-containerregistry/crane:v0.22.1@sha256:1f968817b95790bed063f71175aa6b8ff879fa17064020415f3e18bb6e6a36e1 AS crane-source
+FROM mise-source AS yq-source
+ARG YQ_VERSION
+ENV MISE_DATA_DIR=/mise MISE_YES=1
+RUN mise install "yq@${YQ_VERSION}"
 
-# renovate: datasource=docker depName=alpine/helm versioning=semver
-FROM harbor.alexlebens.dev/proxy-hub.docker/alpine/helm:4.3.1@sha256:e3f8d5c462d75470fbb1fce79ad5c20063657096d1f98c0fcea869e2600e2e5e AS helm-source
+FROM mise-source AS shellcheck-source
+ARG SHELLCHECK_VERSION
+ENV MISE_DATA_DIR=/mise MISE_YES=1
+RUN mise install "shellcheck@${SHELLCHECK_VERSION}"
 
-# renovate: datasource=docker depName=registry.k8s.io/kubectl versioning=semver
-FROM harbor.alexlebens.dev/proxy-registry.k8s/kubectl:v1.37.2@sha256:fe049faa65ae483ac200009a949a68fa4c9985daea12c9cb1195c9c7965301fc AS kubectl-source
-
-# renovate: datasource=docker depName=ghcr.io/opentofu/opentofu versioning=semver
-FROM harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:1.13.5-minimal@sha256:ca43a94b18b8d962299d110822af56a03192fd8ea74d3d7358aaee3f93ed3d90 AS tofu-source
-
-# renovate: datasource=docker depName=ghcr.io/yannh/kubeconform versioning=semver
-FROM harbor.alexlebens.dev/proxy-ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e AS kubeconform-source
-
-# renovate: datasource=docker depName=aquasec/trivy versioning=semver
-FROM harbor.alexlebens.dev/proxy-hub.docker/aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c AS trivy-source
-
-# renovate: datasource=docker depName=quay.io/argoproj/argocd versioning=semver
-FROM harbor.alexlebens.dev/proxy-quay.io/argoproj/argocd:v3.5.7@sha256:16df57da6f223808d204cd94c67c929b931fa01670b91b0b3a2298c4647de0db AS argocd-source
+FROM mise-source AS bats-source
+ARG BATS_VERSION
+ENV MISE_DATA_DIR=/mise MISE_YES=1
+RUN mise install "bats@${BATS_VERSION}"
 
 # =========================================================================
 # Gitea Runner Image
@@ -46,13 +70,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
   MISE_CONFIG_DIR="/mise" \
   MISE_YES="1" \
   MISE_TRUSTED_CONFIG_PATHS="/workspace" \
+  # Tools are baked in; never let repo mise.toml trigger a second download at CI time
+  MISE_TASK_RUN_AUTO_INSTALL="false" \
+  MISE_EXEC_AUTO_INSTALL="false" \
   UV_TOOL_BIN_DIR="/usr/local/bin" \
   PATH="/mise/shims:${PATH}"
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-  bats \
-  shellcheck \
-  && rm -rf /var/lib/apt/lists/*
 
 # Use COPY --link so updating one tool doesn't invalidate the layer cache of the others
 COPY --link --from=uv-source /uv /uvx /usr/local/bin/
@@ -66,8 +88,31 @@ COPY --link --from=argocd-source /usr/local/bin/argocd /usr/local/bin/argocd
 COPY --link --from=mise-source /usr/local/bin/mise /usr/local/bin/mise
 COPY --link --from=ruff-source /usr/local/bin/ruff /usr/local/bin/ruff
 
+# mise-installed tools (jq, yq, shellcheck, bats) keep mise's install layout
+COPY --link --from=jq-source /mise/installs/jq /mise/installs/jq
+COPY --link --from=yq-source /mise/installs/yq /mise/installs/yq
+COPY --link --from=shellcheck-source /mise/installs/shellcheck /mise/installs/shellcheck
+COPY --link --from=bats-source /mise/installs/bats /mise/installs/bats
+# Link into /usr/local/bin instead of using mise shims: shims fail with "No version is set"
+# outside a directory whose mise config lists the tool, and would shadow any base-image copy.
+RUN set -eu; \
+  for t in jq yq shellcheck bats; do \
+    bin="$(find "/mise/installs/$t" -type f -perm -u+x -name "$t" | head -n1)"; \
+    [ -n "$bin" ] || { echo "no $t binary found in /mise/installs/$t" >&2; exit 1; }; \
+    ln -sf "$bin" "/usr/local/bin/$t"; \
+  done
+
+# -------------------------------------------------------------------------
+# Runner-only tooling (used by Gitea scripts, not part of mise.toml)
+# -------------------------------------------------------------------------
+
 # Install pytest + pyyaml cleanly via uv instead of outdated apt packages
 RUN uv tool install pytest --with pyyaml && rm -rf /root/.cache/uv
+
+# Enforce strict 1:1 with mise.toml (tiny layer; re-runs only when mise.toml or the script changes)
+COPY --from=repo mise.toml /tmp/mise.toml
+COPY verify-tools.sh /tmp/verify-tools.sh
+RUN bash /tmp/verify-tools.sh /tmp/mise.toml && rm -f /tmp/mise.toml /tmp/verify-tools.sh
 
 # Set a global, user-agnostic cache directory for Trivy
 ENV TRIVY_CACHE_DIR="/opt/trivy-cache" \
