@@ -130,6 +130,18 @@ locals {
             try(cfg.bucketName, null),
             app
           )
+          lifecycle = {
+            disable_versioning = coalesce(
+              try(cfg.backups.d.lifecycle.disableVersioning, null),
+              try(cfg.lifecycle.disableVersioning, null),
+              false
+            )
+            days_from_hiding_to_deleting = coalesce(
+              try(cfg.backups.d.lifecycle.daysFromHidingToDeleting, null),
+              try(cfg.lifecycle.daysFromHidingToDeleting, null),
+              1
+            )
+          }
           prune = {
             enabled = coalesce(
               try(cfg.backups.d.prune.enabled, null),
