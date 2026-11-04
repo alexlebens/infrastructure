@@ -136,10 +136,26 @@ locals {
               try(cfg.lifecycle.disableVersioning, null),
               false
             )
-            days_from_hiding_to_deleting = coalesce(
-              try(cfg.backups.d.lifecycle.daysFromHidingToDeleting, null),
-              try(cfg.lifecycle.daysFromHidingToDeleting, null),
-              1
+            days_from_hiding_to_deleting = try(
+              tonumber(cfg.backups.d.lifecycle.daysFromHidingToDeleting),
+              try(tonumber(cfg.lifecycle.daysFromHidingToDeleting), 1)
+            )
+            days_from_uploading_to_hiding = (
+              try(cfg.backups.d.lifecycle.expireAfterDays, try(cfg.lifecycle.expireAfterDays, null)) != null ?
+              tonumber(replace(tostring(try(cfg.backups.d.lifecycle.expireAfterDays, cfg.lifecycle.expireAfterDays)), "d", "")) :
+              (
+                coalesce(
+                  try(cfg.backups.d.prune.enabled, null),
+                  try(cfg.backups.d_cs01bb.prune.enabled, null),
+                  try(cfg.backups.backblaze.prune.enabled, null),
+                  false
+                  ) ? tonumber(replace(coalesce(
+                    try(cfg.backups.d.prune.ageToPrune, null),
+                    try(cfg.backups.d_cs01bb.prune.ageToPrune, null),
+                    try(cfg.backups.backblaze.prune.ageToPrune, null),
+                    "90d"
+                ), "d", "")) : null
+              )
             )
           }
           prune = {
