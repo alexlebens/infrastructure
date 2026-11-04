@@ -93,15 +93,21 @@ RUN --mount=type=secret,id=github_token \
 FROM runner-base
 
 ENV DEBIAN_FRONTEND=noninteractive \
-  # Ensure repo-level .mise.toml files work seamlessly inside Gitea Actions steps
+  # Baked-in mise data dir
   MISE_DATA_DIR="/mise" \
   MISE_CONFIG_DIR="/mise" \
   MISE_YES="1" \
-  MISE_TRUSTED_CONFIG_PATHS="/workspace" \
+  MISE_TRUSTED_CONFIG_PATHS="/workspace:/github/workspace" \
   # Tools are baked in; never let repo mise.toml trigger a second download at CI time
   MISE_TASK_RUN_AUTO_INSTALL="false" \
   MISE_EXEC_AUTO_INSTALL="false" \
+  # Runtime cache & cross-mount settings for uv and bun (backed by local-path volumes)
+  UV_CACHE_DIR="/root/.cache/uv" \
+  UV_LINK_MODE="copy" \
   UV_TOOL_BIN_DIR="/usr/local/bin" \
+  UV_TOOL_DIR="/opt/uv-tools" \
+  UV_PYTHON_DOWNLOADS="never" \
+  BUN_INSTALL_CACHE_DIR="/root/.bun/install/cache" \
   PATH="/mise/shims:${PATH}"
 
 # Use COPY --link so updating one tool doesn't invalidate the layer cache of the others
@@ -123,18 +129,13 @@ COPY --link --from=yq-source /mise/installs/yq /mise/installs/yq
 COPY --link --from=shellcheck-source /mise/installs/shellcheck /mise/installs/shellcheck
 COPY --link --from=bats-source /mise/installs/bats /mise/installs/bats
 COPY --link --from=python-source /mise/installs/python /mise/installs/python
-# Link into /usr/local/bin instead of using mise shims: shims fail with "No version is set"
-# outside a directory whose mise config lists the tool, and would shadow any base-image copy.
+
 RUN set -eu; \
   for t in jq yq shellcheck bats; do \
   bin="$(find "/mise/installs/$t" -type f -perm -u+x -name "$t" | head -n1)"; \
-  [ -n "$bin" ] || { echo "no $t binary found in /mise/installs/$t" >&2; exit 1; }; \
+  [ -n "$bin" ] \vert{}\vert{} { echo "no $t binary found in /mise/installs/$t" >&2; exit 1; }; \
   ln -sf "$bin" "/usr/local/bin/$t"; \
-  done; \
-  pybin="$(find "/mise/installs/python" -name "python3" | head -n1)"; \
-  [ -n "$pybin" ] && [ -x "$pybin" ] || { echo "no executable python3 found in /mise/installs/python" >&2; exit 1; }; \
-  ln -sf "$pybin" "/usr/local/bin/python3"; \
-  ln -sf "$pybin" "/usr/local/bin/python"
+  done;
 
 # -------------------------------------------------------------------------
 # Runner-only tooling (used by Gitea scripts, not part of mise.toml)
