@@ -15,7 +15,6 @@ on:
     paths:
       - ".gitea/workflows/release-runner-image.yaml"
       - "images/runner/**"
-      - "mise.toml"
 
   workflow_dispatch:
 
@@ -70,15 +69,6 @@ jobs:
             type=sha,format=long
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-      - name: Generate Tool Version Build Args
-        id: tools
-        run: |
-          {
-            echo "args<<EOF"
-            ./images/runner/build-args.sh mise.toml
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
       - name: Build and Push Runner Image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -88,12 +78,7 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-contexts: |
-            repo=.
-          secrets: |
-            github_token=${{ secrets.GIT_HUB_TOKEN }}
           build-args: |
-            ${{ steps.tools.outputs.args }}
             CACHE_BUST=${{ github.run_id }}
           cache-from: type=registry,ref=${{ vars.HARBOR_HOST }}/${{ env.CACHE_REPO }}:buildcache
           cache-to:
