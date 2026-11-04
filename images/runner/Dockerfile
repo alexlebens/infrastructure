@@ -40,7 +40,7 @@ FROM harbor.alexlebens.dev/proxy-ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf4
 # renovate: datasource=docker depName=registry.k8s.io/kubectl versioning=docker
 FROM harbor.alexlebens.dev/proxy-registry.k8s/kubectl:v1.37.2@sha256:fe049faa65ae483ac200009a949a68fa4c9985daea12c9cb1195c9c7965301fc AS kubectl-source
 # renovate: datasource=docker depName=ghcr.io/opentofu/opentofu versioning=docker
-FROM harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:1.13.2-minimal@sha256:622dc6bb98b105c18f53cf419ab64a4f3b88bd9f8c16cc978cf89e4202f4613f AS tofu-source
+FROM harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:1.13.8-minimal@sha256:f4ef496a61579469a1afe5bd355d15fe1c01dbbe9c4e91a7ee1695c973393ead AS tofu-source
 # renovate: datasource=docker depName=aquasec/trivy versioning=docker
 FROM harbor.alexlebens.dev/proxy-hub.docker/aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c AS trivy-source
 
