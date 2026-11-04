@@ -28,7 +28,7 @@ FROM harbor.alexlebens.dev/proxy-hub.docker/mikefarah/yq:4.54.1@sha256:4b3d9475d
 
 # --- GitOps, Kubernetes & Cloud-Native Tooling ---
 # renovate: datasource=docker depName=quay.io/argoproj/argocd versioning=docker
-FROM harbor.alexlebens.dev/proxy-quay.io/argoproj/argocd:v3.5.7@sha256:16df57da6f223808d204cd94c67c929b931fa01670b91b0b3a2298c4647de0db AS argocd-source
+FROM harbor.alexlebens.dev/proxy-quay.io/argoproj/argocd:v3.6.1@sha256:296e3d74f449b2ce45265613fcb68c18ed7366488360c8ea32f5f2a93d2e5c54 AS argocd-source
 # renovate: datasource=docker depName=gcr.io/go-containerregistry/crane versioning=docker
 FROM harbor.alexlebens.dev/proxy-gcr.io/go-containerregistry/crane:v0.22.1@sha256:1f968817b95790bed063f71175aa6b8ff879fa17064020415f3e18bb6e6a36e1 AS crane-source
 # renovate: datasource=docker depName=quay.io/helmpack/chart-testing versioning=docker
