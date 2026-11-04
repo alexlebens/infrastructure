@@ -22,7 +22,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: fe5a251848b1f3aca7b0c77c2a1016907a7fa85fc904ac5579d9a270ebe7bce9
+        checksum/config: 95801f7264cfb6fa9e9feac9c944f203a5ae82591ab7b7d9a243f807c46ea2f5
       labels:
         helm.sh/chart: gitea-actions-0.1.3
         app: gitea-actions-runner
@@ -78,8 +78,24 @@ spec:
           volumeMounts:
             - mountPath: /var/run/
               name: docker-socket
+            - mountPath: /cache/mise
+              name: runner-scratch
+              subPath: cache-mise
+            - mountPath: /cache/uv
+              name: runner-scratch
+              subPath: cache-uv
+            - mountPath: /cache/bun
+              name: runner-scratch
+              subPath: cache-bun
+            - mountPath: /workspace
+              name: runner-scratch
+              subPath: workspace
+            - mountPath: /tmp
+              name: runner-scratch
+              subPath: tmp
             - mountPath: /var/lib/docker
-              name: docker-vol
+              name: runner-scratch
+              subPath: docker
             - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
               name: openbao-sa-token
               readOnly: true
@@ -102,10 +118,9 @@ spec:
               value: America/Chicago
           resources:
             limits:
-              ephemeral-storage: 15Gi
+              memory: 4Gi
             requests:
               cpu: 50m
-              ephemeral-storage: 2Gi
               memory: 100Mi
           volumeMounts:
             - mountPath: /runner/config.yaml
@@ -116,10 +131,21 @@ spec:
               subPath: docker.sock
             - mountPath: /data
               name: data-runner
+            - mountPath: /cache/mise
+              name: runner-scratch
+              subPath: cache-mise
+            - mountPath: /cache/uv
+              name: runner-scratch
+              subPath: cache-uv
+            - mountPath: /cache/bun
+              name: runner-scratch
+              subPath: cache-bun
             - mountPath: /workspace
-              name: workspace-vol
+              name: runner-scratch
+              subPath: workspace
             - mountPath: /tmp
-              name: runner-tmp
+              name: runner-scratch
+              subPath: tmp
             - mountPath: /run/secrets/s3
               name: runner-s3-cache
               readOnly: true
@@ -148,29 +174,9 @@ spec:
                   - ReadWriteOnce
                 resources:
                   requests:
-                    storage: 20Gi
-                storageClassName: ceph-block
-          name: workspace-vol
-        - ephemeral:
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                resources:
-                  requests:
-                    storage: 50Gi
-                storageClassName: ceph-block
-          name: docker-vol
-        - ephemeral:
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                resources:
-                  requests:
-                    storage: 20Gi
-                storageClassName: ceph-block
-          name: runner-tmp
+                    storage: 10Gi
+                storageClassName: local-path
+          name: runner-scratch
         - name: openbao-sa-token
           projected:
             sources:
