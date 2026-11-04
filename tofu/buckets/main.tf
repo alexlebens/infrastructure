@@ -240,11 +240,14 @@ resource "b2_bucket" "d_cs01bb" {
   bucket_type = "allPrivate"
 
   dynamic "lifecycle_rules" {
-    for_each = each.value.backups.d_cs01bb.prune.enabled ? [1] : []
+    for_each = (
+      each.value.backups.d_cs01bb.lifecycle.disable_versioning ||
+      each.value.backups.d_cs01bb.lifecycle.days_from_uploading_to_hiding != null
+    ) ? [1] : []
     content {
       file_name_prefix              = ""
-      days_from_uploading_to_hiding = tonumber(replace(each.value.backups.d_cs01bb.prune.age_to_prune, "d", ""))
-      days_from_hiding_to_deleting  = 1
+      days_from_uploading_to_hiding = each.value.backups.d_cs01bb.lifecycle.days_from_uploading_to_hiding
+      days_from_hiding_to_deleting  = each.value.backups.d_cs01bb.lifecycle.days_from_hiding_to_deleting
     }
   }
 

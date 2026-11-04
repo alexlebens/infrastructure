@@ -8,16 +8,11 @@ REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel
 source "${REPO_ROOT}/.mise/lib/log.sh"
 
 SCHEMA_DIR="${SCHEMA_DIR:-${HOME}/.schemas}"
-BIN_DIR="${BIN_DIR:-${HOME}/.local/bin}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --schema-dir)
       SCHEMA_DIR="$2"
-      shift 2
-      ;;
-    --bin-dir)
-      BIN_DIR="$2"
       shift 2
       ;;
     -h|--help)
@@ -39,20 +34,11 @@ if ! command -v python3 >/dev/null 2>&1; then
   log_fatal "python3 is required but not installed."
 fi
 
-mkdir -p "${SCHEMA_DIR}" "${BIN_DIR}"
-
-# Download openapi2jsonschema.py if not present
-if [ ! -f "${BIN_DIR}/openapi2jsonschema.py" ]; then
-  log_info "Downloading openapi2jsonschema.py ..."
-  if command -v curl >/dev/null 2>&1; then
-    curl -sSfL "https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/openapi2jsonschema.py" -o "${BIN_DIR}/openapi2jsonschema.py"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -qO "${BIN_DIR}/openapi2jsonschema.py" "https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/openapi2jsonschema.py"
-  else
-    log_fatal "Neither curl nor wget is available to download openapi2jsonschema.py"
-  fi
-  chmod +x "${BIN_DIR}/openapi2jsonschema.py"
+if ! command -v openapi2jsonschema.py >/dev/null 2>&1; then
+  log_fatal "openapi2jsonschema.py is required on PATH."
 fi
+
+mkdir -p "${SCHEMA_DIR}"
 
 log_step "Extracting CRD definitions from cluster"
 TMP_DIR=$(mktemp -d)
@@ -79,7 +65,7 @@ log_step "Converting CRD schemas to JSON"
   export FILENAME_FORMAT='{kind}_{version}'
   for crd_file in "${TMP_DIR}"/*.yaml; do
     [ -f "${crd_file}" ] || continue
-    python3 "${BIN_DIR}/openapi2jsonschema.py" "${crd_file}" 2>/dev/null || true
+    openapi2jsonschema.py "${crd_file}" 2>/dev/null || true
   done
   mv ./*.json "${SCHEMA_DIR}/" 2>/dev/null || true
 )
