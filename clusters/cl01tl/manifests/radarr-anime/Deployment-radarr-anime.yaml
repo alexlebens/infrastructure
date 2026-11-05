@@ -34,6 +34,8 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
         runAsGroup: 1000
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -63,7 +65,7 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 220Mi
+              memory: 200Mi
           startupProbe:
             failureThreshold: 30
             httpGet:
@@ -90,6 +92,16 @@ spec:
               value: "false"
           image: ghcr.io/onedr0p/exportarr:v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
           name: metrics
+          resources:
+            requests:
+              cpu: 1m
+              memory: 30Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /config
               name: config
@@ -116,14 +128,33 @@ spec:
                 name: radarr-anime-oauth-proxy
           image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
           livenessProbe:
+            failureThreshold: 3
             httpGet:
               path: /ping
               port: 4180
+            periodSeconds: 10
+            timeoutSeconds: 5
           name: oauth
           readinessProbe:
+            failureThreshold: 3
             httpGet:
               path: /ready
               port: 4180
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: config
           persistentVolumeClaim:
@@ -131,3 +162,5 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: radarr-anime-nfs-storage
+        - emptyDir: {}
+          name: tmp
