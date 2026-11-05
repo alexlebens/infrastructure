@@ -21,7 +21,7 @@ FROM harbor.alexlebens.dev/proxy-ghcr.io/jqlang/jq:1.8.2@sha256:b9c68867e5766576
 # renovate: datasource=docker depName=lycheeverse/lychee versioning=docker
 FROM harbor.alexlebens.dev/proxy-hub.docker/lycheeverse/lychee:0.24.2@sha256:e2d19e57cf6ab037026f20b8e449a1f30d9d7f81eef4194763aab2eab20bd28d AS lychee-source
 # renovate: datasource=docker depName=ghcr.io/astral-sh/ruff versioning=docker
-FROM harbor.alexlebens.dev/proxy-ghcr.io/astral-sh/ruff:0.17.3-debian@sha256:e7311317f3583bd199ee6eace2a3ab08797271c9c1c26912e5fdeb3bb94305eb AS ruff-source
+FROM harbor.alexlebens.dev/proxy-ghcr.io/astral-sh/ruff:0.17.4-debian@sha256:b34341892c9be8d0017c0ce85160c64145db9d521762dba72278b2d07d703ae7 AS ruff-source
 # renovate: datasource=docker depName=koalaman/shellcheck versioning=docker
 FROM harbor.alexlebens.dev/proxy-hub.docker/koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d AS shellcheck-source
 # renovate: datasource=docker depName=mikefarah/yq versioning=docker
