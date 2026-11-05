@@ -54,9 +54,11 @@ jobs:
             nodeselector=kubernetes.io/arch=amd64
             requests.cpu=1
             requests.memory=1Gi
+            limits.cpu=4
+            limits.memory=8Gi
           buildkitd-config-inline: |
             [worker.oci]
-              max-parallelism = 8
+              max-parallelism = 4
             [registry."docker.io"]
               mirrors = ["harbor.alexlebens.dev/proxy-hub.docker/"]
           cache-binary: true
@@ -79,20 +81,18 @@ jobs:
         with:
           context: images/runner
           file: images/runner/Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           sbom: false
-          outputs:
-            type=image,push=${{ github.ref == 'refs/heads/main'
-            }},compression=zstd,compression-level=3,force-compression=true
           build-args: |
             CACHE_BUST=${{ github.run_id }}
           cache-from: type=registry,ref=${{ vars.HARBOR_HOST }}/${{ env.CACHE_REPO }}:buildcache
           cache-to: >-
             ${{ github.ref == 'refs/heads/main' &&
-            format('type=registry,ref={0}/{1}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true,compression=zstd,compression-level=3',
+            format('type=registry,ref={0}/{1}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true',
             vars.HARBOR_HOST, env.CACHE_REPO) || '' }}
 
       - name: ntfy Success
