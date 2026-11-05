@@ -123,6 +123,20 @@ if [ "${IS_NEW_APP}" = "false" ]; then
     --server-side-generate \
     --local "$PWD" > "${DIFF_FILE}" 2> "${ERR_FILE}"
   DIFF_EXIT=$?
+
+  # Workaround for ArgoCD v3.6+ Server-Side Diff partial cache state (comparison-level=1 or dry-run errors)
+  # where ManagedResources returns "{}" for normalizedLiveState and crashes with "Object 'Kind' is missing in '{}'".
+  if [ ${DIFF_EXIT} -ne 0 ] && [ ! -s "${DIFF_FILE}" ] && grep -q "Object 'Kind' is missing in '{}'" "${ERR_FILE}"; then
+    echo ">> Detected incomplete live state cache in ArgoCD for ${ARGOCD_APP_NAME}; retrying diff with --refresh ..."
+    argocd app diff "${ARGOCD_APP_NAME}" \
+      --server "${ARGOCD_SERVER_INTERNAL}" \
+      --plaintext \
+      --auth-token "${ARGOCD_AUTH_TOKEN}" \
+      --refresh \
+      --server-side-generate \
+      --local "$PWD" > "${DIFF_FILE}" 2> "${ERR_FILE}"
+    DIFF_EXIT=$?
+  fi
   set -e
 
   # Restore git repository and gitignore immediately after diff completes
