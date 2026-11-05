@@ -11,3 +11,6 @@
   ad-hoc or embed MinIO subcharts.
 - **Conventions**: Consult `helm-chart-authoring` skill for ordering and modular refs (`databases-*`, `secrets-openbao`,
   `storage-s3`, `auth-sso`).
+- **Documentation Sync**: Any addition, removal, or modification to applications, charts, hosts, schedules, or
+  infrastructure configuration MUST be reflected in the sibling `docs/` repository (following
+  `docs/.agents/rules/docs-core.md`).
