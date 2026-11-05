@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # =========================================================================
 # Tool sources updated by Renovate (via Harbor registry proxy caches)
 # =========================================================================
@@ -75,12 +76,30 @@ ENV DEBIAN_FRONTEND=noninteractive \
   TRIVY_CACHE_DIR="/opt/trivy-cache" \
   TRIVY_DB_REPOSITORY="harbor.alexlebens.dev/proxy-ghcr.io/aquasecurity/trivy-db:2" \
   TRIVY_JAVA_DB_REPOSITORY="harbor.alexlebens.dev/proxy-ghcr.io/aquasecurity/trivy-java-db:1" \
-  PATH="/root/.local/share/mise/shims:/root/.local/bin:${PATH}"
+  # Include /opt/bats/bin directly in PATH to avoid needing a post-COPY symlink RUN step
+  PATH="/root/.local/share/mise/shims:/root/.local/bin:/opt/bats/bin:${PATH}"
 
-# Use COPY --link so updating any single tool never invalidates layer cache of the others
+# 1. Copy uv first and execute Python layer BEFORE all other COPY --link layers.
+# Updating any other CLI tool below will no longer invalidate this Python build step.
+COPY --link --from=uv-source /uv /uvx /usr/local/bin/
+
+# renovate: datasource=github-releases depName=python/cpython versioning=semver
+ENV PYTHON_VERSION="3.15.2"
+RUN --mount=type=cache,target=/root/.cache/uv \
+  set -eu; \
+  uv python install "${PYTHON_VERSION}" --default --preview-features python-install-default --force; \
+  uv tool install --python /usr/local/bin/python3 pytest --with pyyaml; \
+  uv tool install --python /usr/local/bin/python3 yamllint; \
+  uv tool install --python /usr/local/bin/python3 yamale; \
+  uv pip install --python /usr/local/bin/python3 --break-system-packages pyyaml; \
+  uv pip install --python /usr/bin/python3 --break-system-packages pyyaml; \
+  curl -sSfL "https://raw.githubusercontent.com/yannh/kubeconform/v0.8.0/scripts/openapi2jsonschema.py" \
+  -o /usr/local/bin/openapi2jsonschema.py; \
+  chmod +x /usr/local/bin/openapi2jsonschema.py
+
+# 2. Independent COPY --link layers (updating any single tool never invalidates the others)
 COPY --link --from=mise-source /usr/local/bin/mise /usr/local/bin/mise
 COPY --link --from=bun-source /usr/local/bin/bun /usr/local/bin/bunx /usr/local/bin/
-COPY --link --from=uv-source /uv /uvx /usr/local/bin/
 
 COPY --link --from=actionlint-source /usr/local/bin/actionlint /usr/local/bin/actionlint
 COPY --link --from=bats-source /opt/bats /opt/bats
@@ -100,27 +119,12 @@ COPY --link --from=kubectl-source /bin/kubectl /usr/local/bin/kubectl
 COPY --link --from=tofu-source /usr/local/bin/tofu /usr/local/bin/tofu
 COPY --link --from=trivy-source /usr/local/bin/trivy /usr/local/bin/trivy
 
-# Link bats into /usr/local/bin and bake in Python + shared Python CLI tools via uv
-# renovate: datasource=github-releases depName=python/cpython versioning=semver
-ENV PYTHON_VERSION="3.15.2"
-RUN set -eu; \
-  ln -sf /opt/bats/bin/bats /usr/local/bin/bats; \
-  UV_NO_CACHE=1 uv python install "${PYTHON_VERSION}" --default --preview-features python-install-default --force; \
-  UV_NO_CACHE=1 uv tool install --python /usr/local/bin/python3 pytest --with pyyaml; \
-  UV_NO_CACHE=1 uv tool install --python /usr/local/bin/python3 yamllint; \
-  UV_NO_CACHE=1 uv tool install --python /usr/local/bin/python3 yamale; \
-  UV_NO_CACHE=1 uv pip install --python /usr/local/bin/python3 --break-system-packages pyyaml; \
-  UV_NO_CACHE=1 uv pip install --python /usr/bin/python3 --break-system-packages pyyaml; \
-  curl -sSfL "https://raw.githubusercontent.com/yannh/kubeconform/master/scripts/openapi2jsonschema.py" \
-    -o /usr/local/bin/openapi2jsonschema.py; \
-  chmod +x /usr/local/bin/openapi2jsonschema.py
+# 3. Verify all baked-in tools using a bind mount (zero extra image layers created)
+RUN --mount=type=bind,source=verify-tools.sh,target=/tmp/verify-tools.sh \
+  bash /tmp/verify-tools.sh
 
-# Verify all baked-in tools execute cleanly
-COPY verify-tools.sh /tmp/verify-tools.sh
-RUN bash /tmp/verify-tools.sh && rm -f /tmp/verify-tools.sh
-
-# Changing CACHE_BUST invalidates only this final layer so the Trivy DB refreshes on every build
+# 4. Refresh Trivy Vulnerability & Java DBs on every build without recursive chmod overhead
 ARG CACHE_BUST=1
 RUN mkdir -p "${TRIVY_CACHE_DIR}" \
   && trivy image --download-db-only \
-  && chmod -R 777 "${TRIVY_CACHE_DIR}"
+  && trivy image --download-java-db-only
