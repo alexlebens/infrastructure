@@ -83,38 +83,56 @@ fi
 
 log_step "Querying CloudNativePG resources in namespace '${NAMESPACE}'"
 
+RAW_CLUSTERS=$(kubectl get cluster.postgresql.cnpg.io -n "$NAMESPACE" -o json 2>/dev/null || echo '{"items":[]}')
 RAW_PODS=$(kubectl get pods -n "$NAMESPACE" -l "cnpg.io/cluster" -o json 2>/dev/null || echo '{"items":[]}')
 RAW_PVCS=$(kubectl get pvc -n "$NAMESPACE" -l "cnpg.io/cluster" -o json 2>/dev/null || echo '{"items":[]}')
 
 PARSED_INSTANCES=$(jq -n \
+  --argjson clusters "$RAW_CLUSTERS" \
   --argjson pods "$RAW_PODS" \
   --argjson pvcs "$RAW_PVCS" '
 [
-  ($pods.items[]? | .metadata.labels["cnpg.io/instanceRole"] // empty) as $role |
-  ($pods.items[]? | .metadata.labels["cnpg.io/instanceName"] // .metadata.name) as $pod_inst |
-  ($pvcs.items[]? | .metadata.labels["cnpg.io/instanceName"] // empty) as $pvc_inst |
-  [$pod_inst, $pvc_inst] | unique[]
+  ($pods.items[]? | (.metadata.labels["cnpg.io/instanceName"] // .metadata.name // empty)),
+  ($pvcs.items[]? | (.metadata.labels["cnpg.io/instanceName"] // empty))
 ] | unique | sort |
 [
   .[] as $inst |
-  ($pods.items[]? | select((.metadata.labels["cnpg.io/instanceName"] // .metadata.name) == $inst)) as $pod |
+  ([$pods.items[]? | select((.metadata.labels["cnpg.io/instanceName"] // .metadata.name) == $inst)][0]) as $pod |
   [$pvcs.items[]? | select(.metadata.labels["cnpg.io/instanceName"] == $inst)] as $pvcs |
+  ($pod.metadata.labels["cnpg.io/cluster"] // ($pvcs[0].metadata.labels["cnpg.io/cluster"] // "unknown")) as $cluster_name |
+  ([$clusters.items[]? | select(.metadata.name == $cluster_name)][0]) as $cluster_obj |
+  (
+    if ($cluster_obj.status.currentPrimary == $inst or $cluster_obj.status.targetPrimary == $inst) then "primary"
+    elif ($pod.metadata.labels["cnpg.io/instanceRole"] == "primary" or $pod.metadata.labels["role"] == "primary") then "primary"
+    elif ([$pvcs[] | select(.metadata.labels["cnpg.io/instanceRole"] == "primary")] | length > 0) then "primary"
+    elif ($pod.metadata.labels["cnpg.io/instanceRole"] == "replica" or $pod.metadata.labels["role"] == "replica") then "replica"
+    elif ([$pvcs[] | select(.metadata.labels["cnpg.io/instanceRole"] == "replica")] | length > 0) then "replica"
+    else "unknown" end
+  ) as $role |
   (
     if $pod then
-      if $pod.status.deletionTimestamp then "Terminating"
-      elif ($pod.status.containerStatuses[]? | select(.state.waiting != null) | .state.waiting.reason) then
-        ($pod.status.containerStatuses[]? | select(.state.waiting != null) | .state.waiting.reason)
+      ([$pod.status.containerStatuses[]?, $pod.status.initContainerStatuses[]?] | map(select(.state.waiting != null) | .state.waiting.reason) | first // null) as $waiting_reason |
+      ([$pod.status.containerStatuses[]?, $pod.status.initContainerStatuses[]?] | map(select(.state.terminated != null and .state.terminated.exitCode != 0) | (.state.terminated.reason // "Error")) | first // null) as $terminated_reason |
+      if $pod.metadata.deletionTimestamp then "Terminating"
+      elif $waiting_reason then $waiting_reason
+      elif $terminated_reason then $terminated_reason
       else ($pod.status.phase // "Unknown") end
     else "MissingPod" end
   ) as $status |
   (
     if $pod then
-      ([$pod.status.containerStatuses[]? | select(.ready == true)] | length)
+      ([
+        ($pod.status.containerStatuses[]? | select(.ready == true)),
+        ($pod.status.initContainerStatuses[]? | select(.started == true and .ready == true))
+      ] | length)
     else 0 end
   ) as $ready_count |
   (
     if $pod then
-      ($pod.status.containerStatuses? | length // 0)
+      ([
+        ($pod.status.containerStatuses[]?),
+        ($pod.status.initContainerStatuses[]? | select(.started == true))
+      ] | length)
     else 0 end
   ) as $total_count |
   (
@@ -125,11 +143,12 @@ PARSED_INSTANCES=$(jq -n \
   ) as $is_failing |
   {
     instance: $inst,
+    role: $role,
     pod: ($pod.metadata.name // ""),
-    cluster: ($pod.metadata.labels["cnpg.io/cluster"] // ($pvcs[0].metadata.labels["cnpg.io/cluster"] // "unknown")),
+    cluster: $cluster_name,
     status: $status,
     ready: "\($ready_count)/\($total_count)",
-    restarts: ([$pod.status.containerStatuses[]?.restartCount // 0] | add // 0),
+    restarts: ([$pod.status.initContainerStatuses[]?.restartCount, $pod.status.containerStatuses[]?.restartCount] | map(. // 0) | add // 0),
     is_failing: $is_failing,
     pvcs: [
       $pvcs[] | {
@@ -160,12 +179,21 @@ for ((i=0; i<TOTAL_INSTANCES; i++)); do
     NUM=$((i+1))
     ENTRY=$(echo "$PARSED_INSTANCES" | jq -r ".[$i]")
     INSTANCE=$(echo "$ENTRY" | jq -r '.instance')
+    ROLE=$(echo "$ENTRY" | jq -r '.role')
     POD=$(echo "$ENTRY" | jq -r '.pod')
     CLUSTER=$(echo "$ENTRY" | jq -r '.cluster')
     STATUS=$(echo "$ENTRY" | jq -r '.status')
     READY=$(echo "$ENTRY" | jq -r '.ready')
     RESTARTS=$(echo "$ENTRY" | jq -r '.restarts')
     IS_FAILING=$(echo "$ENTRY" | jq -r '.is_failing')
+
+    if [ "$ROLE" = "primary" ]; then
+        ROLE_BADGE=" $(log_badge "PRIMARY" "yellow")"
+    elif [ "$ROLE" = "replica" ]; then
+        ROLE_BADGE=" $(log_badge "REPLICA" "cyan")"
+    else
+        ROLE_BADGE=""
+    fi
 
     if [ "$IS_FAILING" = "true" ]; then
         FAILING_INDICES+=("$NUM")
@@ -178,7 +206,7 @@ for ((i=0; i<TOTAL_INSTANCES; i++)); do
         NAME_DISPLAY="${COLOR_BOLD}${INSTANCE}${COLOR_RESET}"
     fi
 
-    printf "%b %b %b %b(Cluster: %s)%b\n" "${NUM_PREFIX}" "${NAME_DISPLAY}" "${BADGE}" "${COLOR_GRAY}" "${CLUSTER}" "${COLOR_RESET}"
+    printf "%b %b %b%b %b(Cluster: %s)%b\n" "${NUM_PREFIX}" "${NAME_DISPLAY}" "${BADGE}" "${ROLE_BADGE}" "${COLOR_DIM}" "${CLUSTER}" "${COLOR_RESET}"
 
     if [ -n "$POD" ]; then
         if [ "$IS_FAILING" = "true" ]; then
@@ -206,7 +234,7 @@ for ((i=0; i<TOTAL_INSTANCES; i++)); do
             fi
         done
     else
-        printf "      PVC:  %b(none found)%b\n" "${COLOR_GRAY}" "${COLOR_RESET}"
+        printf "      PVC:  %b(none found)%b\n" "${COLOR_DIM}" "${COLOR_RESET}"
     fi
 
     echo ""
@@ -262,14 +290,25 @@ mapfile -t UNIQUE_INDICES < <(printf "%s\n" "${SELECTED_INDICES[@]}" | sort -nu)
 log_step "Plan for deletion in namespace '${NAMESPACE}'"
 PODS_TO_DELETE=()
 PVCS_TO_DELETE=()
+HAS_PRIMARY=false
 
 for idx in "${UNIQUE_INDICES[@]}"; do
     array_idx=$((idx-1))
     ENTRY=$(echo "$PARSED_INSTANCES" | jq -r ".[$array_idx]")
     INSTANCE=$(echo "$ENTRY" | jq -r '.instance')
+    ROLE=$(echo "$ENTRY" | jq -r '.role')
     POD=$(echo "$ENTRY" | jq -r '.pod')
 
-    printf "  • %bInstance:%b %b%s%b\n" "${COLOR_BOLD}" "${COLOR_RESET}" "${COLOR_BOLD_CYAN}" "${INSTANCE}" "${COLOR_RESET}"
+    if [ "$ROLE" = "primary" ]; then
+        HAS_PRIMARY=true
+        ROLE_LABEL=" ${COLOR_BOLD_YELLOW}[PRIMARY]${COLOR_RESET}"
+    elif [ "$ROLE" = "replica" ]; then
+        ROLE_LABEL=" ${COLOR_DIM}[REPLICA]${COLOR_RESET}"
+    else
+        ROLE_LABEL=""
+    fi
+
+    printf "  • %bInstance:%b %b%s%b%b\n" "${COLOR_BOLD}" "${COLOR_RESET}" "${COLOR_BOLD_CYAN}" "${INSTANCE}" "${COLOR_RESET}" "${ROLE_LABEL}"
     if [ -n "$POD" ]; then
         printf "    - Pod:  %b%s%b\n" "${COLOR_BOLD_RED}" "${POD}" "${COLOR_RESET}"
         PODS_TO_DELETE+=("$POD")
@@ -279,10 +318,16 @@ for idx in "${UNIQUE_INDICES[@]}"; do
     for ((p=0; p<PVC_COUNT; p++)); do
         PVC_NAME=$(echo "$ENTRY" | jq -r ".pvcs[$p].name")
         PV_NAME=$(echo "$ENTRY" | jq -r ".pvcs[$p].pv")
-        printf "    - PVC:  %b%s%b %b(PV: %s)%b\n" "${COLOR_YELLOW}" "${PVC_NAME}" "${COLOR_RESET}" "${COLOR_GRAY}" "${PV_NAME}" "${COLOR_RESET}"
+        printf "    - PVC:  %b%s%b %b(PV: %s)%b\n" "${COLOR_YELLOW}" "${PVC_NAME}" "${COLOR_RESET}" "${COLOR_DIM}" "${PV_NAME}" "${COLOR_RESET}"
         PVCS_TO_DELETE+=("$PVC_NAME")
     done
 done
+
+if [ "$HAS_PRIMARY" = "true" ]; then
+    printf "\n%b⚠️  WARNING: You have selected the PRIMARY instance for deletion!%b\n" "${COLOR_BOLD_YELLOW}" "${COLOR_RESET}"
+    printf "%b   Deleting the primary instance and storage triggers an ungraceful failover.%b\n" "${COLOR_YELLOW}" "${COLOR_RESET}"
+fi
+
 log_divider
 
 # Single confirmation request
@@ -324,4 +369,4 @@ if [ ${#PVCS_TO_DELETE[@]} -gt 0 ]; then
 fi
 
 log_success "Cleanup completed successfully."
-printf "%bNote: CloudNativePG operator will automatically recreate the instance and storage.%b\n" "${COLOR_GRAY}" "${COLOR_RESET}"
+printf "%bNote: CloudNativePG operator will automatically recreate the instance and storage.%b\n" "${COLOR_DIM}" "${COLOR_RESET}"
