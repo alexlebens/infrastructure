@@ -5,8 +5,12 @@ sonarr-4k:
       strategy: Recreate
       pod:
         securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -26,7 +30,7 @@ sonarr-4k:
           resources:
             requests:
               cpu: 10m
-              memory: 200Mi
+              memory: 150Mi
           probes:
             liveness:
               enabled: true
@@ -52,6 +56,12 @@ sonarr-4k:
                 failureThreshold: 30
                 periodSeconds: 5
         metrics:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/onedr0p/exportarr
             tag: v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
@@ -67,7 +77,17 @@ sonarr-4k:
               value: false
             - name: ENABLE_UNKNOWN_QUEUE_ITEMS
               value: false
+          resources:
+            requests:
+              cpu: 1m
+              memory: 30Mi
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
@@ -91,6 +111,10 @@ sonarr-4k:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
           probes:
             liveness:
               enabled: true
@@ -99,6 +123,9 @@ sonarr-4k:
                 httpGet:
                   path: /ping
                   port: 4180
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
             readiness:
               enabled: true
               custom: true
@@ -106,8 +133,12 @@ sonarr-4k:
                 httpGet:
                   path: /ready
                   port: 4180
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
   service:
     main:
+      forceRename: sonarr-4k
       ports:
         http:
           port: 80
@@ -120,11 +151,7 @@ sonarr-4k:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: sonarr-4k
-          app.kubernetes.io/instance: sonarr-4k
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: sonarr-4k
       endpoints:
         - port: metrics
           interval: 3m
@@ -133,6 +160,20 @@ sonarr-4k:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "TV Shows 4K"
+        gethomepage.dev/description: "Sonarr"
+        gethomepage.dev/group: "TV Shows"
+        gethomepage.dev/icon: "sh-sonarr.webp"
+        gethomepage.dev/siteMonitor: "http://sonarr-4k.sonarr-4k:80"
+        gethomepage.dev/weight: "100"
+        gethomepage.dev/pod-selector: ""
+        gethomepage.dev/widget.type: "sonarr"
+        gethomepage.dev/widget.url: "http://sonarr-4k.sonarr-4k:80"
+        gethomepage.dev/widget.key: "{{`{{HOMEPAGE_VAR_SONARR4K_KEY}}`}}"
+        gethomepage.dev/widget.fields: '["wanted", "queued", "series"]'
+        gethomepage.dev/widget.enableQueue: "false"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -165,14 +206,24 @@ sonarr-4k:
         main:
           main:
             - path: /mnt/store
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  client:
+    displayName: "Sonarr 4K"
+    description: "A 4K PVR for Usenet and BitTorrent users."
+    clientID: F7A23B91-8D4C-4E15-92A3-71E9284D60B5
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
 
 postgres-18-cluster:
   mode: recovery
-  cluster:
-    initdb:
-      postInitSQL:
-        - CREATE DATABASE IF NOT EXISTS "sonarr-main" OWNER "app";
-        - CREATE DATABASE IF NOT EXISTS "sonarr-log" OWNER "app";
   recovery:
     objectStore:
       index: 1
@@ -182,6 +233,13 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 15 7 * * *"
+  databases:
+    - name: sonarr-main
+      ensure: present
+      owner: app
+    - name: sonarr-log
+      ensure: present
+      owner: app
 
 volsync-target-config:
   pvcTarget: sonarr-4k-config
@@ -199,3 +257,8 @@ volsync-target-config:
   d:
     enabled: true
     schedule: 5 10 * * 2
+
+common-helpers:
+  probe:
+    internal: http://sonarr-4k.sonarr-4k:80
+    external: https://sonarr-4k.alexlebens.dev
