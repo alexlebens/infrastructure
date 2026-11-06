@@ -43,7 +43,7 @@ FROM harbor.alexlebens.dev/proxy-registry.k8s/kubectl:v1.37.2@sha256:fe049faa65a
 # renovate: datasource=docker depName=ghcr.io/opentofu/opentofu versioning=docker
 FROM harbor.alexlebens.dev/proxy-ghcr.io/opentofu/opentofu:1.13.9-minimal@sha256:84af0049634b7a7c455ab79c485818a8ef7f775cad3b2d42ce1c98ade720b5d1 AS tofu-source
 # renovate: datasource=docker depName=aquasec/trivy versioning=docker
-FROM harbor.alexlebens.dev/proxy-hub.docker/aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c AS trivy-source
+FROM harbor.alexlebens.dev/proxy-hub.docker/aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb AS trivy-source
 
 # =========================================================================
 # Gitea Runner Image
