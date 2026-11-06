@@ -19,11 +19,24 @@ This initializes a standardized chart in `clusters/cl01tl/helm/<app-name>` from 
 
 - **Ordering in values.yaml**: In general order the values by the order the upstream chart's values.yaml file. When
   defining spec of resources follow the official ordering in Kubernetes.
-- **Security Context**: Prefer when compatible: `runAsNonRoot: true`, `readOnlyRootFilesystem: true`, and
-  `capabilities: drop: ["ALL"]`. Provide an `emptyDir` mount for writeable paths like `/tmp` when read-only root is
-  enabled.
 - **Template Separation**: Strictly 1 resource kind per file in kebab-case (e.g. `external-secret.yaml`,
-  `config-map.yaml`, `service-monitor.yaml`, `grafana-dashboard.yaml`).
+  `config-map.yaml`, `service-monitor.yaml`, `grafana-dashboard.yaml`). Never use generic or non-standard names (e.g.
+  `config.yaml`).
+- **Security Context & Resources**:
+  - Prefer when compatible: `runAsNonRoot: true`, `readOnlyRootFilesystem: true`, and `capabilities: drop: ["ALL"]`.
+    Provide an `emptyDir` mount for writeable paths like `/tmp` when read-only root is enabled.
+  - Set pod-level `securityContext.seccompProfile: {type: RuntimeDefault}`.
+  - Always configure explicit resource requests (`resources.requests.cpu` and `resources.requests.memory`) across all
+    containers.
+- **Trivy Ignores (.trivyignore)**:
+  - **Never** add a blanket `.trivyignore` to bypass Trivy warnings (e.g. `KSV-0001`, `KSV-0015`, `KSV-0016`,
+    `KSV-0030`, `KSV-0104`, `KSV-0118`).
+  - Always attempt to resolve the finding in `values.yaml` first by adding the appropriate `securityContext` or
+    `resources.requests`.
+  - Only ignore findings when strictly required by workload constraints (e.g., containers requiring root privilege to
+    dynamically execute package manager commands like `apk add` or access specific host/kernel APIs).
+  - Every `.trivyignore` entry MUST include a written justification directly above the ID explaining why the container
+    cannot conform.
 - **Spacing**: In (`values.yaml`) separate dependant chart values sections with an empty line.
 - **forceRename**: When using app-template charts use forceRename for persistance and services for consistency.
 - **Renovate Docker Tags**: In `Chart.yaml`, always use `# renovate: datasource=docker depName=<image-repository>`
