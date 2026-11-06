@@ -1,6 +1,10 @@
 traefik:
   deployment:
     kind: DaemonSet
+  resources:
+    requests:
+      cpu: 50m
+      memory: 150Mi
   ingressClass:
     enabled: false
   gateway:
@@ -66,6 +70,18 @@ traefik:
       enabled: true
       matchRule: (Host(`traefik-cl01tl.alexlebens.dev`) && (PathPrefix(`/api/`) || PathPrefix(`/dashboard/`)))
       entryPoints: ["websecure"]
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Reverse Proxy"
+        gethomepage.dev/description: "Traefik"
+        gethomepage.dev/group: "Services"
+        gethomepage.dev/icon: "sh-traefik.webp"
+        gethomepage.dev/href: "https://traefik-cl01tl.alexlebens.dev/dashboard/#/"
+        gethomepage.dev/siteMonitor: "https://traefik-cl01tl.alexlebens.dev/dashboard/#/"
+        gethomepage.dev/weight: "200"
+        gethomepage.dev/pod-selector: ""
+        gethomepage.dev/widget.type: "traefik"
+        gethomepage.dev/widget.url: "https://traefik-cl01tl.alexlebens.dev"
   providers:
     kubernetesCRD:
       allowCrossNamespace: true
@@ -144,6 +160,7 @@ traefik:
       external-dns.kubernetes.io/hostname: traefik-cl01tl.alexlebens.dev
     spec:
       type: LoadBalancer
+
 traefik-crds:
   enabled: true
   traefik: true
@@ -151,6 +168,10 @@ traefik-crds:
   gatewayAPIExperimental: false
   hub: false
   deleteOnUninstall: false
+
+common-helpers:
+  probe:
+    external: https://traefik-cl01tl.alexlebens.dev/dashboard/#/
 
 grafanaDashboard:
   folder: networking
