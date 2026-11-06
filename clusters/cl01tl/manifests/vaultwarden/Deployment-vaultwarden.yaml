@@ -30,6 +30,13 @@ spec:
       enableServiceLinks: false
       serviceAccountName: vaultwarden
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -92,7 +99,13 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 30Mi
+              memory: 100Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           startupProbe:
             failureThreshold: 30
             httpGet:
@@ -102,7 +115,11 @@ spec:
           volumeMounts:
             - mountPath: /data
               name: config
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: config
           persistentVolumeClaim:
             claimName: vaultwarden-data
+        - emptyDir: {}
+          name: tmp

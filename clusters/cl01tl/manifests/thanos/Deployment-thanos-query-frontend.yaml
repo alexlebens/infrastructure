@@ -1,0 +1,87 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thanos-query-frontend
+  labels:
+    app.kubernetes.io/controller: query-frontend
+    app.kubernetes.io/instance: thanos
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: thanos
+    helm.sh/chart: thanos-5.3.0
+  namespace: thanos
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: query-frontend
+      app.kubernetes.io/instance: thanos
+      app.kubernetes.io/name: thanos
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: query-frontend
+        app.kubernetes.io/instance: thanos
+        app.kubernetes.io/name: thanos
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: thanos
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1001
+        runAsGroup: 1001
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - args:
+            - query-frontend
+            - --http-address=0.0.0.0:9090
+            - --query-frontend.downstream-url=http://thanos-query.thanos.svc.cluster.local:9090
+            - --query-range.split-interval=24h
+            - --query-range.max-retries-per-request=5
+            - --query-range.response-cache-max-freshness=1m
+            - --cache-compression-type=snappy
+            - |
+              --query-range.response-cache-config=type: in-memory
+              config:
+                max_size: 500MB
+                max_size_items: 2048
+                validity: 4h
+          image: thanosio/thanos:v0.42.5@sha256:0a546b98a8dd47735456ab389983675ee363d68127e334937a9fceeea10da5e7
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+          name: main
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+            requests:
+              cpu: 10m
+              memory: 50Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - emptyDir: {}
+          name: tmp

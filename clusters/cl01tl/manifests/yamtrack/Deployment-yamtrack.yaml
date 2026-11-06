@@ -30,6 +30,13 @@ spec:
       enableServiceLinks: false
       serviceAccountName: yamtrack
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -101,8 +108,14 @@ spec:
             timeoutSeconds: 5
           resources:
             requests:
-              cpu: 10m
+              cpu: 20m
               memory: 380Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           startupProbe:
             failureThreshold: 30
             httpGet:
@@ -111,3 +124,9 @@ spec:
             initialDelaySeconds: 20
             periodSeconds: 5
             timeoutSeconds: 5
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - emptyDir: {}
+          name: tmp
