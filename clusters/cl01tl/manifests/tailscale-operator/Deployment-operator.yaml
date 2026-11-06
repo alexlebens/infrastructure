@@ -17,12 +17,26 @@ spec:
         app: operator
     spec:
       serviceAccountName: operator
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
         - name: oauth
           secret:
             secretName: operator-oauth
       containers:
         - name: operator
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 5m
+              memory: 50Mi
           image: tailscale/k8s-operator:v1.104.4
           imagePullPolicy: Always
           env:

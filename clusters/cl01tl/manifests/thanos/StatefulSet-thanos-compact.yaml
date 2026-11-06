@@ -36,7 +36,10 @@ spec:
         fsGroup: 1001
         fsGroupChangePolicy: OnRootMismatch
         runAsGroup: 1001
+        runAsNonRoot: true
         runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -65,11 +68,17 @@ spec:
               port: 9090
           resources:
             limits:
-              cpu: 2000m
+              cpu: 1000m
               memory: 4Gi
             requests:
-              cpu: 200m
-              memory: 1Gi
+              cpu: 10m
+              memory: 50Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /var/thanos/compact
               name: compact-data
@@ -77,6 +86,8 @@ spec:
               name: objstore-config
               readOnly: true
               subPath: thanos.yaml
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: compact-data
           persistentVolumeClaim:
@@ -84,3 +95,5 @@ spec:
         - name: objstore-config
           secret:
             secretName: thanos-objstore
+        - emptyDir: {}
+          name: tmp

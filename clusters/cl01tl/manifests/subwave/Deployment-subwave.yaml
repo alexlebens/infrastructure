@@ -30,6 +30,13 @@ spec:
       enableServiceLinks: false
       serviceAccountName: subwave
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -62,11 +69,21 @@ spec:
           resources:
             requests:
               cpu: 50m
-              memory: 300Mi
+              memory: 400Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /var/sub-wave
               name: data
+            - mountPath: /tmp
+              name: tmp
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: subwave-data
+        - emptyDir: {}
+          name: tmp
