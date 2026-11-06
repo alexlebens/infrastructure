@@ -1,5 +1,63 @@
 thanos:
   controllers:
+    query-frontend:
+      type: deployment
+      strategy: RollingUpdate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          fsGroup: 1001
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: thanosio/thanos
+            tag: v0.42.5@sha256:0a546b98a8dd47735456ab389983675ee363d68127e334937a9fceeea10da5e7
+          args:
+            - query-frontend
+            - --http-address=0.0.0.0:9090
+            - --query-frontend.downstream-url=http://thanos-query.thanos.svc.cluster.local:9090
+            - --query-range.split-interval=24h
+            - --query-range.max-retries-per-request=5
+            - --query-range.response-cache-max-freshness=1m
+            - --cache-compression-type=snappy
+            - |
+              --query-range.response-cache-config=type: in-memory
+              config:
+                max_size: 500MB
+                max_size_items: 2048
+                validity: 4h
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/healthy
+                  port: 9090
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/ready
+                  port: 9090
     query:
       type: deployment
       strategy: RollingUpdate
@@ -161,6 +219,12 @@ thanos:
                   path: /-/ready
                   port: 9090
   service:
+    query-frontend:
+      forceRename: thanos-query-frontend
+      controller: query-frontend
+      ports:
+        http:
+          port: 9090
     query:
       forceRename: thanos-query
       controller: query
@@ -184,6 +248,11 @@ thanos:
         http:
           port: 9090
   serviceMonitor:
+    query-frontend:
+      serviceName: thanos-query-frontend
+      endpoints:
+        - port: http
+          interval: 30s
     query:
       serviceName: thanos-query
       endpoints:
@@ -232,6 +301,9 @@ thanos:
     tmp:
       type: emptyDir
       advancedMounts:
+        query-frontend:
+          main:
+            - path: /tmp
         query:
           main:
             - path: /tmp
