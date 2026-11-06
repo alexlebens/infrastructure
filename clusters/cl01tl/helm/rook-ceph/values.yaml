@@ -13,6 +13,16 @@ ceph-csi-drivers:
     rbd:
       name: rook-ceph.rbd.csi.ceph.com
       snapshotPolicy: volumeSnapshot
+      nodePlugin:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 100Mi
+      controllerPlugin:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 200Mi
     nvmeof:
       enabled: false
       name: rook-ceph.nvmeof.csi.ceph.com
@@ -21,22 +31,42 @@ ceph-csi-drivers:
       snapshotPolicy: volumeSnapshot
       kernelMountOptions:
         ms_mode: crc
+      nodePlugin:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 70Mi
+      controllerPlugin:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 150Mi
     nfs:
       enabled: false
       name: rook-ceph.nfs.csi.ceph.com
+
 rook-ceph:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 130Mi
   ceph-csi-operator:
     controllerManager:
       manager:
-        env:
-          csiServiceAccountPrefix: "ceph-csi-operator-"
+        resources:
+          requests:
+            cpu: 5m
+            memory: 30Mi
   csi:
     cephcsi:
       repository: quay.io/cephcsi/cephcsi
       tag: v3.17.1
+    serviceMonitor:
+      enabled: true
   enableDiscoveryDaemon: true
   monitoring:
     enabled: true
+
 rook-ceph-cluster:
   toolbox:
     enabled: true
@@ -45,7 +75,7 @@ rook-ceph-cluster:
       limits:
         memory: 1000Mi
       requests:
-        cpu: 1m
+        cpu: 5m
         memory: 10Mi
   monitoring:
     enabled: true
@@ -85,8 +115,6 @@ rook-ceph-cluster:
       modules:
         - name: pg_autoscaler
           enabled: true
-        - name: rook
-          enabled: false
         - name: volumes
           enabled: true
     dashboard:
@@ -129,7 +157,7 @@ rook-ceph-cluster:
         limits:
           memory: 2000Mi
         requests:
-          cpu: 100m
+          cpu: 150m
           memory: 400Mi
       osd:
         limits:
@@ -141,13 +169,13 @@ rook-ceph-cluster:
         limits:
           memory: 1000Mi
         requests:
-          cpu: 1m
+          cpu: 5m
           memory: 10Mi
       logcollector:
         limits:
           memory: 1000Mi
         requests:
-          cpu: 1m
+          cpu: 5m
           memory: 10Mi
       exporter:
         limits:
@@ -230,14 +258,32 @@ rook-ceph-cluster:
     name: ceph-blockpool-snapshot
     isDefault: true
   cephObjectStores: []
+
 ceph-dashboard-oauth-proxy:
   fullnameOverride: ceph-dashboard-oauth-proxy
   controllers:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          fsGroup: 65532
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
@@ -257,8 +303,14 @@ ceph-dashboard-oauth-proxy:
               value: "S256"
             - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
               value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
           probes:
             liveness:
               enabled: true
@@ -290,6 +342,15 @@ ceph-dashboard-oauth-proxy:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Cluster Storage"
+        gethomepage.dev/description: "Ceph"
+        gethomepage.dev/group: "Storage"
+        gethomepage.dev/icon: "sh-ceph.webp"
+        gethomepage.dev/siteMonitor: "http://rook-ceph-mgr-dashboard.rook-ceph:7000"
+        gethomepage.dev/weight: "50"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -303,6 +364,28 @@ ceph-dashboard-oauth-proxy:
             - path:
                 type: PathPrefix
                 value: /
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  mode: oauth
+  client:
+    displayName: "Ceph Dashboard"
+    description: "Rook Ceph Storage Management Dashboard."
+    clientID: 32EC4274-15CF-4B76-9CB2-313FB40CB12C
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
+
+common-helpers:
+  probe:
+    internal: http://rook-ceph-mgr-dashboard.rook-ceph:7000
+    external: https://ceph.alexlebens.dev
 
 grafanaDashboard:
   folder: storage
