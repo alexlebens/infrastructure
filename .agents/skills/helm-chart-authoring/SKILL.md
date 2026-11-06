@@ -26,6 +26,11 @@ This initializes a standardized chart in `clusters/cl01tl/helm/<app-name>` from 
   `config-map.yaml`, `service-monitor.yaml`, `grafana-dashboard.yaml`).
 - **Spacing**: In (`values.yaml`) separate dependant chart values sections with an empty line.
 - **forceRename**: When using app-template charts use forceRename for persistance and services for consistency.
+- **Renovate Docker Tags**: In `Chart.yaml`, always use `# renovate: datasource=docker depName=<image-repository>`
+  immediately above `appVersion` matching the primary container image repository deployed in `values.yaml` (e.g.
+  `ghcr.io/org/app` or `library/image`). Only fallback to `datasource=github-releases` when no container image is
+  directly managed in `values.yaml` (e.g. wrapped third-party upstream charts). See
+  [references/renovate.md](references/renovate.md).
 
 ## 3. Conditional Patterns (Read Only When Applicable)
 
