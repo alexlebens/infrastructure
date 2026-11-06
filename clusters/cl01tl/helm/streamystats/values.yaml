@@ -3,8 +3,22 @@ streamystats:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          fsGroup: 1001
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         job-server:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/fredrikburmester/streamystats-job-server
             tag: v2.20.0@sha256:b9e6fc640b02ede44f379970cf3f8e81a20bb82bb846e2f738c5db650784137c
@@ -61,6 +75,12 @@ streamystats:
                 failureThreshold: 30
                 periodSeconds: 5
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/fredrikburmester/streamystats-nextjs
             tag: v2.20.0@sha256:45f93e6233eac3802d056c237293482704ae5dd9502a2566f6df5aa8a4fa214c
@@ -99,8 +119,8 @@ streamystats:
                   key: session-secret
           resources:
             requests:
-              cpu: 20m
-              memory: 250Mi
+              cpu: 10m
+              memory: 150Mi
           probes:
             liveness:
               enabled: true
@@ -137,6 +157,7 @@ streamystats:
                 periodSeconds: 5
   service:
     main:
+      forceRename: streamystats
       ports:
         http:
           port: 80
@@ -144,6 +165,15 @@ streamystats:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Media Statistics"
+        gethomepage.dev/description: "Streamystats"
+        gethomepage.dev/group: "Analysis"
+        gethomepage.dev/icon: "sh-streamystats.webp"
+        gethomepage.dev/siteMonitor: "http://streamystats.streamystats:80"
+        gethomepage.dev/weight: "300"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -157,6 +187,15 @@ streamystats:
             - path:
                 type: PathPrefix
                 value: /
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          job-server:
+            - path: /tmp
+          main:
+            - path: /tmp
 
 postgres-pgvector-cluster:
   nameOverride: streamystats-postgres-pgvector
@@ -192,3 +231,8 @@ postgres-pgvector-cluster:
           ensure: present
         - name: vchord
           ensure: present
+
+common-helpers:
+  probe:
+    internal: http://streamystats.streamystats:80
+    external: https://streamystats.alexlebens.dev
