@@ -5,10 +5,20 @@ shelfmark:
       strategy: Recreate
       pod:
         securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/calibrain/shelfmark
             tag: v1.6.1@sha256:0e5c9ff5f858a9695dc18bc355d8aa29dfee5c0d9c634919484c2bab9955ad5a
@@ -107,7 +117,7 @@ shelfmark:
           resources:
             requests:
               cpu: 10m
-              memory: 140Mi
+              memory: 180Mi
           probes:
             liveness:
               enabled: true
@@ -118,6 +128,7 @@ shelfmark:
                   port: 8084
   service:
     main:
+      forceRename: shelfmark
       ports:
         http:
           port: 80
@@ -125,6 +136,15 @@ shelfmark:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Books"
+        gethomepage.dev/description: "Shelfmark"
+        gethomepage.dev/group: "Books"
+        gethomepage.dev/icon: "sh-shelfmark.webp"
+        gethomepage.dev/siteMonitor: "http://shelfmark.shelfmark:80"
+        gethomepage.dev/weight: "50"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -167,6 +187,15 @@ shelfmark:
           main:
             - path: /mnt/store/Torrent
 
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Shelfmark"
+    description: "A web application for searching, requesting, and downloading ebooks and audiobooks."
+    callbackUrls:
+      - https://shelfmark.alexlebens.dev/api/auth/oidc/callback
+    clientID: 98E7B231-5D24-4F9A-B805-4C3D9A1E7F26
+
 volsync-target-config:
   pvcTarget: shelfmark
   moverSecurityContext:
@@ -183,3 +212,8 @@ volsync-target-config:
   d:
     enabled: true
     schedule: 5 10 * * 0
+
+common-helpers:
+  probe:
+    internal: http://shelfmark.shelfmark:80
+    external: https://shelfmark.alexlebens.dev
