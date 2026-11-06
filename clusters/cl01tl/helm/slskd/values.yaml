@@ -8,6 +8,8 @@ slskd:
         securityContext:
           fsGroup: 1000
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
         affinity:
           podAntiAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
@@ -34,6 +36,10 @@ slskd:
             - |
               sysctl -w net.ipv4.ip_forward=1;
               sysctl -w net.ipv6.conf.all.disable_ipv6=1
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
         gluetun:
           restartPolicy: Always
           image:
@@ -80,6 +86,10 @@ slskd:
               add:
                 - NET_ADMIN
                 - SYS_MODULE
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
           probes:
             readiness:
               enabled: true
@@ -113,7 +123,7 @@ slskd:
           resources:
             requests:
               cpu: 100m
-              memory: 400Mi
+              memory: 200Mi
           probes:
             liveness:
               enabled: true
@@ -139,6 +149,12 @@ slskd:
                 failureThreshold: 30
                 periodSeconds: 10
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
@@ -174,6 +190,9 @@ slskd:
                 httpGet:
                   path: /ping
                   port: 4180
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
             readiness:
               enabled: true
               custom: true
@@ -181,8 +200,12 @@ slskd:
                 httpGet:
                   path: /ready
                   port: 4180
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
   service:
     main:
+      forceRename: slskd
       ports:
         http:
           port: 5030
@@ -192,11 +215,7 @@ slskd:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: slskd
-          app.kubernetes.io/instance: slskd
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: slskd
       endpoints:
         - port: http
           interval: 3m
@@ -205,6 +224,18 @@ slskd:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Content"
+        gethomepage.dev/description: "slskd"
+        gethomepage.dev/group: "Music"
+        gethomepage.dev/icon: "sh-slskd.webp"
+        gethomepage.dev/siteMonitor: "http://slskd.slskd:5030"
+        gethomepage.dev/weight: "150"
+        gethomepage.dev/pod-selector: ""
+        gethomepage.dev/widget.type: "slskd"
+        gethomepage.dev/widget.url: "http://slskd.slskd:5030"
+        gethomepage.dev/widget.key: "{{`{{HOMEPAGE_VAR_SLSKD_KEY}}`}}"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -219,14 +250,9 @@ slskd:
                 type: PathPrefix
                 value: /
   persistence:
-    slskd-config:
-      type: custom
-      volumeSpec:
-        csi:
-          driver: secrets-store.csi.k8s.io
-          readOnly: true
-          volumeAttributes:
-            secretProviderClass: slskd-config-secret
+    config:
+      type: secret
+      name: slskd-config
       advancedMounts:
         main:
           main:
@@ -239,3 +265,23 @@ slskd:
         main:
           main:
             - path: /mnt/store
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  client:
+    displayName: "slskd"
+    description: "A modern client-server application for the Soulseek network."
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
+    clientID: 4C7D8B12-9A34-4E56-8F12-3D5A7B9C1E48
+
+common-helpers:
+  probe:
+    internal: http://slskd.slskd:5030
+    external: https://slskd.alexlebens.dev
