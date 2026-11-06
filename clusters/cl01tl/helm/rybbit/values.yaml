@@ -3,6 +3,12 @@ rybbit:
     backend:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -68,8 +74,8 @@ rybbit:
                   key: mapbox-token
           resources:
             requests:
-              cpu: 10m
-              memory: 200Mi
+              cpu: 5m
+              memory: 220Mi
           probes:
             liveness:
               enabled: true
@@ -86,6 +92,10 @@ rybbit:
     client:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -113,6 +123,12 @@ rybbit:
     clickhouse:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -134,7 +150,7 @@ rybbit:
           resources:
             requests:
               cpu: 40m
-              memory: 300Mi
+              memory: 250Mi
           probes:
             liveness:
               enabled: true
@@ -148,62 +164,6 @@ rybbit:
                 periodSeconds: 30
                 successThreshold: 1
                 timeoutSeconds: 5
-  configMaps:
-    config:
-      enabled: true
-      forceRename: clickhouse-config
-      data:
-        network.xml: |
-          <clickhouse>
-            <listen_host>0.0.0.0</listen_host>
-            <http_port>8123</http_port>
-          </clickhouse>
-        enable_json.xml: |
-          <clickhouse>
-            <profiles>
-              <default>
-                <enable_json_type>1</enable_json_type>
-              </default>
-            </profiles>
-          </clickhouse>
-        logging_rules.xml: |
-          <clickhouse>
-            <logger>
-              <level>warning</level>
-              <console>true</console>
-            </logger>
-            <query_thread_log remove="remove"/>
-            <query_log remove="remove"/>
-            <text_log remove="remove"/>
-            <trace_log remove="remove"/>
-            <metric_log remove="remove"/>
-            <asynchronous_metric_log remove="remove"/>
-            <session_log remove="remove"/>
-            <part_log remove="remove"/>
-            <latency_log remove="remove"/>
-            <processors_profile_log remove="remove"/>
-          </clickhouse>
-        user_logging.xml: |
-          <clickhouse>
-            <profiles>
-              <default>
-                <log_queries>0</log_queries>
-                <log_query_threads>0</log_query_threads>
-                <log_processors_profiles>0</log_processors_profiles>
-              </default>
-            </profiles>
-          </clickhouse>
-        metrics.xml: |
-          <clickhouse>
-            <prometheus>
-              <endpoint>/metrics</endpoint>
-              <port>9363</port>
-              <metrics>true</metrics>
-              <events>true</events>
-              <asynchronous_metrics>true</asynchronous_metrics>
-              <errors>true</errors>
-            </prometheus>
-          </clickhouse>
   service:
     backend:
       forceRename: rybbit-backend
@@ -233,6 +193,15 @@ rybbit:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Web Analytics"
+        gethomepage.dev/description: "Rybbit"
+        gethomepage.dev/group: "Services"
+        gethomepage.dev/icon: "sh-rybbit-light.webp"
+        gethomepage.dev/siteMonitor: "http://rybbit-client.rybbit:3002"
+        gethomepage.dev/weight: "250"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -315,3 +284,8 @@ volsync-target-clickhouse-data:
   d:
     enabled: true
     schedule: 0 10 * * 4
+
+common-helpers:
+  probe:
+    internal: http://rybbit-client.rybbit:3002
+    external: https://rybbit.alexlebens.dev

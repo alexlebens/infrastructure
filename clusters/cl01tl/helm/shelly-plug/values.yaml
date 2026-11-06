@@ -3,6 +3,10 @@ shelly-plug:
     it05sp:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       initContainers:
         init-fetch-repo:
           securityContext:
@@ -11,20 +15,11 @@ shelly-plug:
             repository: alpine/git
             tag: v2.54.0@sha256:113d99116e236f93f0b1f53cd46dbda662cf1136d20dc9ae2834962226654d9f
           command:
-            - /bin/sh
-            - -ec
-            - |
-              cd /var/www/html
-              if [ -d ".git" ]; then
-                echo "Git repository found. Pulling latest changes..."
-                git pull
-              else
-                echo "Not a git repository. Initializing ..."
-                git init
-                git remote add origin https://github.com/geerlingguy/shelly-plug-prometheus.git
-                git fetch origin
-                git checkout origin/master -ft
-              fi
+            - /scripts/fetch-repo.sh
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
       containers:
         main:
           image:
@@ -58,6 +53,10 @@ shelly-plug:
     it07sp:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       initContainers:
         init-fetch-repo:
           securityContext:
@@ -66,20 +65,11 @@ shelly-plug:
             repository: alpine/git
             tag: v2.54.0@sha256:113d99116e236f93f0b1f53cd46dbda662cf1136d20dc9ae2834962226654d9f
           command:
-            - /bin/sh
-            - -ec
-            - |
-              cd /var/www/html
-              if [ -d ".git" ]; then
-                echo "Git repository found. Pulling latest changes..."
-                git pull
-              else
-                echo "Not a git repository. Initializing ..."
-                git init
-                git remote add origin https://github.com/geerlingguy/shelly-plug-prometheus.git
-                git fetch origin
-                git checkout origin/master -ft
-              fi
+            - /scripts/fetch-repo.sh
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
       containers:
         main:
           image:
@@ -112,32 +102,45 @@ shelly-plug:
                   port: 80
   service:
     it05sp:
-      controller: it05sp
       forceRename: shelly-plug-it05sp
+      controller: it05sp
       ports:
         metrics:
           port: 80
     it07sp:
-      controller: it07sp
       forceRename: shelly-plug-it07sp
+      controller: it07sp
       ports:
         metrics:
           port: 80
   serviceMonitor:
     it05sp:
-      service:
-        identifier: it05sp
+      serviceName: shelly-plug-it05sp
       endpoints:
         - port: metrics
           interval: 5m
     it07sp:
-      service:
-        identifier: it07sp
+      serviceName: shelly-plug-it07sp
       endpoints:
         - port: metrics
           interval: 5m
   persistence:
-    script:
+    scripts:
+      type: configMap
+      name: shelly-plug-scripts
+      defaultMode: 0755
+      advancedMounts:
+        it05sp:
+          init-fetch-repo:
+            - path: /scripts/fetch-repo.sh
+              subPath: fetch-repo.sh
+              readOnly: true
+        it07sp:
+          init-fetch-repo:
+            - path: /scripts/fetch-repo.sh
+              subPath: fetch-repo.sh
+              readOnly: true
+    html:
       type: emptyDir
       advancedMounts:
         it05sp:
