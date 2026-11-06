@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: rook-ceph
     helm.sh/chart: ceph-dashboard-oauth-proxy-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
   namespace: rook-ceph
 spec:
   revisionHistoryLimit: 3
@@ -29,6 +31,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: ceph-dashboard-oauth-proxy
       automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -47,6 +57,8 @@ spec:
               value: S256
             - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
               value: "true"
+            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
+              value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: '*'
           envFrom:
@@ -62,3 +74,19 @@ spec:
             httpGet:
               path: /ready
               port: 4180
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - emptyDir: {}
+          name: tmp

@@ -31,26 +31,14 @@ spec:
       enableServiceLinks: false
       serviceAccountName: searxng
       automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
       containers:
-        - command:
-            - sleep
-            - infinity
-          image: ubuntu:resolute@sha256:678c6550cc43645e08669028bc177f50be4e7c5b8cca677067b1914d4afc7a03
-          name: debug
-          resources:
-            requests:
-              cpu: 10m
-              memory: 20Mi
-          volumeMounts:
-            - mountPath: /etc/searxng
-              name: browser-data
-            - mountPath: /etc/searxng/
-              name: config-browser
-              readOnly: true
         - env:
             - name: SEARXNG_BASE_URL
               value: https://searxng.alexlebens.dev/
@@ -77,13 +65,14 @@ spec:
           resources:
             requests:
               cpu: 10m
-              memory: 200Mi
+              memory: 80Mi
           volumeMounts:
             - mountPath: /etc/searxng
               name: browser-data
-            - mountPath: /etc/searxng/
-              name: config-browser
+            - mountPath: /etc/searxng/settings.yml
+              name: settings-browser
               readOnly: true
+              subPath: settings.yml
         - env:
             - name: OAUTH2_PROXY_HTTP_ADDRESS
               value: 0.0.0.0:4180
@@ -106,18 +95,33 @@ spec:
                 name: searxng-oauth-proxy
           image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
           livenessProbe:
+            failureThreshold: 3
             httpGet:
               path: /ping
               port: 4180
+            periodSeconds: 10
+            timeoutSeconds: 5
           name: oauth
           readinessProbe:
+            failureThreshold: 3
             httpGet:
               path: /ready
               port: 4180
+            periodSeconds: 10
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 1m
               memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
         - image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
           livenessProbe:
             tcpSocket:
@@ -126,6 +130,10 @@ spec:
           readinessProbe:
             tcpSocket:
               port: 6379
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
           volumeMounts:
             - mountPath: /data
               name: valkey-data
@@ -133,12 +141,11 @@ spec:
         - name: browser-data
           persistentVolumeClaim:
             claimName: searxng-browser-data
-        - csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: searxng-browser-config
-          name: config-browser
+        - name: settings-browser
+          secret:
+            secretName: searxng-browser-settings
+        - emptyDir: {}
+          name: tmp
         - name: valkey-data
           persistentVolumeClaim:
             claimName: searxng-valkey-data

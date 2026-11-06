@@ -29,33 +29,31 @@ spec:
       enableServiceLinks: false
       serviceAccountName: shelly-plug
       automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
       initContainers:
         - command:
-            - /bin/sh
-            - -ec
-            - |
-              cd /var/www/html
-              if [ -d ".git" ]; then
-                echo "Git repository found. Pulling latest changes..."
-                git pull
-              else
-                echo "Not a git repository. Initializing ..."
-                git init
-                git remote add origin https://github.com/geerlingguy/shelly-plug-prometheus.git
-                git fetch origin
-                git checkout origin/master -ft
-              fi
+            - /scripts/fetch-repo.sh
           image: alpine/git:v2.54.0@sha256:113d99116e236f93f0b1f53cd46dbda662cf1136d20dc9ae2834962226654d9f
           name: init-fetch-repo
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
           securityContext:
             runAsUser: 0
           volumeMounts:
             - mountPath: /var/www/html
-              name: script
+              name: html
+            - mountPath: /scripts/fetch-repo.sh
+              name: scripts
+              readOnly: true
+              subPath: fetch-repo.sh
       containers:
         - env:
             - name: SHELLY_HOSTNAME
@@ -79,7 +77,11 @@ spec:
               memory: 20Mi
           volumeMounts:
             - mountPath: /var/www/html
-              name: script
+              name: html
       volumes:
         - emptyDir: {}
-          name: script
+          name: html
+        - configMap:
+            defaultMode: 493
+            name: shelly-plug-scripts
+          name: scripts
