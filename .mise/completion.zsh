@@ -73,6 +73,9 @@ _k8s_namespaces_tag() {
 _k8s_get_charts() {
   local cluster="${CLUSTER:-cl01tl}"
   local repo_root="${MISE_PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+  if [[ ! -d "$repo_root/clusters/$cluster/helm" ]] && [[ -d "$HOME/projects/infrastructure/clusters/$cluster/helm" ]]; then
+    repo_root="$HOME/projects/infrastructure"
+  fi
   if [[ -n "$repo_root" && -d "$repo_root/clusters/$cluster/helm" ]]; then
     find "$repo_root/clusters/$cluster/helm" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/Chart.yaml' ';' -exec basename '{}' ';' 2>/dev/null | sort
   fi
@@ -111,21 +114,51 @@ _cnpg_remediator() {
     '(-h --help)'{-h,--help}'[Show help message]'
 }
 
-# Direct task completions
-compdef _k8s_script_ns_arg .mise/tasks/kube/status
-compdef _k8s_script_ns_arg .mise/tasks/kube/resource-capacity
-compdef _k8s_script_ns_arg .mise/tasks/kube/get-images
+# Direct task and alias completions
+compdef _k8s_script_ns_arg .mise/tasks/kube/status kst
+compdef _k8s_script_ns_arg .mise/tasks/kube/resource-capacity krc
+compdef _k8s_script_ns_arg .mise/tasks/kube/get-images kgi
 compdef _cleanup_pgsql_local .mise/tasks/app/cnpg-reset
-compdef _helm_charts_tag .mise/tasks/app/tofu-adopt-garage-bucket
+compdef _helm_charts_tag .mise/tasks/app/tofu-adopt-garage-bucket kcheck
 
 # ── Mise Task Arguments Completion ──────────────────────────────────────────
 # Wraps _mise completion to complete task arguments (namespaces, charts)
 if whence _mise >/dev/null 2>&1; then
   _mise_with_task_args() {
-    # Check if we are completing arguments after 'mise r' or 'mise run'
-    local words=("${(@s/ /)BUFFER}")
-    if [[ "${words[1]}" == "mise" && ("${words[2]}" == "run" || "${words[2]}" == "r") ]]; then
-      local task="${words[3]}"
+    # Check if we are completing arguments after 'mise r' or 'mise run' (including -C/--cd flags)
+    if [[ "${words[1]}" == "mise" ]]; then
+      local i=2
+      local subcmd=""
+      local task=""
+      while (( i < CURRENT )); do
+        case "${words[i]}" in
+          -C|--cd)
+            (( i += 2 ))
+            continue
+            ;;
+          -C=*|--cd=*)
+            (( i++ ))
+            continue
+            ;;
+          -*)
+            (( i++ ))
+            continue
+            ;;
+          run|r)
+            if [[ -z "$subcmd" ]]; then
+              subcmd="${words[i]}"
+              (( i++ ))
+              continue
+            fi
+            ;;
+        esac
+        if [[ -n "$subcmd" && -z "$task" ]]; then
+          task="${words[i]}"
+          break
+        fi
+        (( i++ ))
+      done
+
       case "$task" in
         kube:status|kube:resource-capacity|kube:get-images|app:cnpg-reset)
           _k8s_namespaces_tag && return 0
