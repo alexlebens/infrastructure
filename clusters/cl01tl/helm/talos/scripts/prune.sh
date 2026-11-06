@@ -1,0 +1,129 @@
+#!/bin/sh
+set -eu
+
+DATE_RANGE=$(date -d @"$(( $(date +%s) - DATE_RANGE_SECONDS ))" +%Y-%m-%dT%H:%M:%SZ)
+FILE_MATCH="${BUCKET}/cl01tl/etcd/cl01tl-${DATE_RANGE}.snap.age"
+ERROR=false
+MESSAGE=""
+PRUNED_COUNT=0
+
+echo ""
+echo ">> Running S3 prune for Talos backup repository ${TARGET} ..."
+
+echo ""
+echo ">> Configured Date Range is $(date -u -d @"${DATE_RANGE_SECONDS}" +"%j days, %H hours, %M minutes")"
+echo ">> Backups prior to '${DATE_RANGE}' will be removed"
+echo ""
+
+if ! FILES=$(s3cmd ls --no-check-certificate "${BUCKET}/cl01tl/etcd/" | \
+    awk -v file_match="$FILE_MATCH" '$4 < file_match && $4 !~ /\/$/ {print $4}'); then
+    echo ""
+    echo ">> Detected error, will send message to ntfy"
+
+    ERROR=true
+    MESSAGE="Error collecting files to delete from '${TARGET}'"
+
+elif [ -n "${FILES}" ]; then
+    echo ""
+    echo ">> Backups to be removed:"
+    echo ""
+    echo "${FILES}"
+    echo ""
+    echo ">> Deleting ..."
+
+    for file in $FILES; do
+        if ! s3cmd del --no-check-certificate -v "${file}"; then
+            echo ">> Detected error, will send message to ntfy"
+            ERROR=true
+            MESSAGE="Error deleting file from '${TARGET}'"
+        else
+            PRUNED_COUNT=$((PRUNED_COUNT + 1))
+        fi
+    done
+
+else
+    echo ""
+    echo ">> No backups to remove"
+
+fi
+
+echo ""
+echo ">> Calculating total objects in repository ..."
+TOTAL_OBJECTS=$(s3cmd ls --no-check-certificate "${BUCKET}/cl01tl/etcd/" | \
+    awk '$4 !~ /\/$/ {count++} END {print count+0}')
+
+echo ">> Total objects in ${BUCKET}/cl01tl/etcd/: ${TOTAL_OBJECTS}"
+
+MAX_RETRIES=5
+SUCCESS=false
+
+echo ""
+echo ">> Sending message to ntfy using curl ..."
+
+echo ""
+echo ">> Verifying required commands ..."
+
+for i in $(seq 1 "$MAX_RETRIES"); do
+    if apk update >/dev/null 2>&1; then
+        echo ">> Attempt $i: Repositories are reachable"
+        SUCCESS=true
+        break
+
+    else
+        echo ">> Attempt $i: Connection failed, retrying in 5 seconds ..."
+        sleep 5
+
+    fi
+done
+
+if [ "$SUCCESS" = false ]; then
+    echo ">> ERROR: Could not connect to apk repositories after $MAX_RETRIES attempts, exiting ..."
+    exit 1
+
+fi
+
+if ! command -v curl >/dev/null 2>&1; then
+    echo ">> Command curl could not be found, installing"
+    if apk add --no-cache -q curl; then
+        echo ">> Installation successful"
+    else
+        echo ">> Installation failed with exit code $?"
+        exit 1
+    fi
+fi
+
+echo ""
+echo ">> Sending to NTFY ..."
+
+if [ "$ERROR" = "true" ]; then
+    HTTP_STATUS=$(curl \
+        --silent \
+        --write-out '%{http_code}' \
+        -H "Authorization: Bearer ${NTFY_TOKEN}" \
+        -H "X-Priority: 5" \
+        -H "X-Tags: warning" \
+        -H "X-Title: 🚨 Talos Backup Prune Failed for ${TARGET}" \
+        -d "$MESSAGE" \
+        "${NTFY_ENDPOINT}/${NTFY_TOPIC}" \
+    )
+    echo ">> HTTP Status Code: $HTTP_STATUS"
+    exit 1
+
+else
+    MESSAGE="Pruned ${PRUNED_COUNT} files, now ${TOTAL_OBJECTS} objects in bucket"
+    HTTP_STATUS=$(curl \
+        --silent \
+        --write-out '%{http_code}' \
+        -H "Authorization: Bearer ${NTFY_TOKEN}" \
+        -H "X-Priority: 3" \
+        -H "X-Tags: completed" \
+        -H "X-Title: ✅ Talos Backup Prune Success for ${TARGET}" \
+        -d "$MESSAGE" \
+        "${NTFY_ENDPOINT}/${NTFY_TOPIC}" \
+    )
+    echo ">> HTTP Status Code: $HTTP_STATUS"
+
+fi
+
+echo ""
+echo ">> Completed S3 prune for Talos backup repository ${TARGET}"

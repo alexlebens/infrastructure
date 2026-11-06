@@ -3,8 +3,22 @@ yamtrack:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/fuzzygrim/yamtrack
             tag: 0.26.3@sha256:78497b454b2b52d3b1062f6fd238351d714cff0895db4369e49ace36f4622e75
@@ -56,7 +70,7 @@ yamtrack:
                   key: port
           resources:
             requests:
-              cpu: 10m
+              cpu: 20m
               memory: 380Mi
           probes:
             liveness:
@@ -108,8 +122,9 @@ yamtrack:
         gethomepage.dev/description: "Yamtrack"
         gethomepage.dev/group: "Background"
         gethomepage.dev/icon: "sh-yamtrack.webp"
-        gethomepage.dev/siteMonitor: "http://yamtrack.yamtrack:80"
-        gethomepage.dev/weight: "360"
+        gethomepage.dev/siteMonitor: "http://yamtrack.yamtrack:80/health"
+        gethomepage.dev/weight: "350"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -123,13 +138,27 @@ yamtrack:
             - path:
                 type: PathPrefix
                 value: /
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
 
-valkey:
-  valkey:
-    resources:
-      requests:
-        cpu: 15m
-        memory: 64Mi
+pocket-id-client:
+  mode: oidc
+  externalSecret:
+    enabled: false
+  client:
+    displayName: "Yamtrack"
+    description: "A self hosted media tracker for movies, tv, books, and more."
+    clientID: E4C7A19D-528B-4B6A-9F01-72D8E3B6A5C4
+    callbackUrls:
+      - https://yamtrack.alexlebens.dev/accounts/oidc/pocket-id/login/callback/
+    logo:
+      selfhstLogoName: yamtrack
+      selfhstDarkLogo: true
 
 postgres-18-cluster:
   mode: recovery
@@ -142,3 +171,8 @@ postgres-18-cluster:
     scheduledBackups:
       suspend: false
       schedule: "0 40 7 * * *"
+
+common-helpers:
+  probe:
+    internal: http://yamtrack.yamtrack:80
+    external: https://yamtrack.alexlebens.dev

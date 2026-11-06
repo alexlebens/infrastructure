@@ -3,11 +3,28 @@ subwave:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/perminder-klair/subwave-aio
             tag: 1.30.0@sha256:739bb064b446272cb38d04cce01d853dbd7444ccd44927090d6c9a561d865c4c
+          envFrom:
+            - secretRef:
+                name: subwave-secret
           env:
             - name: TZ
               value: America/Chicago
@@ -19,13 +36,10 @@ subwave:
               value: /var/sub-wave
             - name: NAVIDROME_URL
               value: http://navidrome-main.navidrome.svc.cluster.local:80
-          envFrom:
-            - secretRef:
-                name: subwave-secret
           resources:
             requests:
               cpu: 50m
-              memory: 300Mi
+              memory: 400Mi
           probes:
             liveness:
               enabled: true
@@ -43,14 +57,23 @@ subwave:
                   port: 80
   service:
     main:
-      controller: main
       forceRename: subwave
+      controller: main
       ports:
         http:
           port: 80
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Radio"
+        gethomepage.dev/description: "Subwave"
+        gethomepage.dev/group: "Media"
+        gethomepage.dev/icon: "sh-sub-wave.webp"
+        gethomepage.dev/siteMonitor: "http://subwave.subwave:80/api/health"
+        gethomepage.dev/weight: "200"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -74,6 +97,12 @@ subwave:
         main:
           main:
             - path: /var/sub-wave
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
 
 volsync-target-data:
   pvcTarget: subwave-data
@@ -91,3 +120,8 @@ volsync-target-data:
   d:
     enabled: true
     schedule: 5 10 * * 5
+
+common-helpers:
+  probe:
+    internal: http://subwave.subwave:80/api/health
+    external: https://subwave.alexlebens.dev

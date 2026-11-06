@@ -7,6 +7,8 @@ tdarr:
         securityContext:
           fsGroup: 1001
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -35,10 +37,17 @@ tdarr:
               value: "8266"
             - name: webUIPort
               value: "8265"
+            - name: auth
+              value: "true"
+            - name: seededApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: tdarr-api-key
+                  key: apiKey
           resources:
             requests:
-              cpu: 500m
-              memory: 2000Mi
+              cpu: 100m
+              memory: 550Mi
           probes:
             liveness:
               enabled: true
@@ -63,43 +72,6 @@ tdarr:
                   port: 8266
                 failureThreshold: 30
                 periodSeconds: 5
-        oauth:
-          image:
-            repository: quay.io/oauth2-proxy/oauth2-proxy
-            tag: v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
-          envFrom:
-            - secretRef:
-                name: tdarr-oauth-proxy
-          env:
-            - name: OAUTH2_PROXY_HTTP_ADDRESS
-              value: 0.0.0.0:4180
-            - name: OAUTH2_PROXY_METRICS_ADDRESS
-              value: 0.0.0.0:44180
-            - name: OAUTH2_PROXY_UPSTREAMS
-              value: http://localhost:8265
-            - name: OAUTH2_PROXY_PROVIDER
-              value: oidc
-            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
-              value: "S256"
-            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
-              value: "true"
-            - name: OAUTH2_PROXY_EMAIL_DOMAINS
-              value: "*"
-          probes:
-            liveness:
-              enabled: true
-              custom: true
-              spec:
-                httpGet:
-                  path: /ping
-                  port: 4180
-            readiness:
-              enabled: true
-              custom: true
-              spec:
-                httpGet:
-                  path: /ready
-                  port: 4180
     node:
       replicas: 3
       type: deployment
@@ -108,6 +80,8 @@ tdarr:
         securityContext:
           fsGroup: 1001
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
         affinity:
           podAntiAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
@@ -150,6 +124,11 @@ tdarr:
               value: tdarr-api
             - name: serverPort
               value: "8266"
+            - name: apiKey
+              valueFrom:
+                secretKeyRef:
+                  name: tdarr-api-key
+                  key: apiKey
           resources:
             limits:
               gpu.intel.com/i915: 1
@@ -160,31 +139,32 @@ tdarr:
               memory: 100Mi
   service:
     api:
+      forceRename: tdarr-api
       controller: server
       ports:
         http:
           port: 8266
     web:
+      forceRename: tdarr-web
       controller: server
       ports:
         http:
-          port: 8265
-        oauth:
-          port: 4180
-        oauth-metrics:
-          port: 44180
-  serviceMonitor:
-    main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: tdarr
-          app.kubernetes.io/instance: tdarr
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}-web'
-      endpoints:
-        - port: oauth-metrics
+          port: 80
+          targetPort: 8265
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Media Health Checking"
+        gethomepage.dev/description: "Tdarr"
+        gethomepage.dev/group: "Analysis"
+        gethomepage.dev/icon: "sh-tdarr.webp"
+        gethomepage.dev/siteMonitor: "http://tdarr-web.tdarr:80"
+        gethomepage.dev/weight: "200"
+        gethomepage.dev/pod-selector: ""
+        gethomepage.dev/widget.type: "tdarr"
+        gethomepage.dev/widget.url: "http://tdarr-web.tdarr:80"
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -193,7 +173,7 @@ tdarr:
       rules:
         - backendRefs:
             - name: tdarr-web
-              port: 4180
+              port: 80
           matches:
             - path:
                 type: PathPrefix
@@ -244,17 +224,34 @@ tdarr-exporter:
     name: homeylab/tdarr-exporter
     # renovate: datasource=docker depName=homeylab/tdarr-exporter
     tag: 3.1.0@sha256:c72fd0ecf4aa5207d4f609d09fbb6470bac9e4dc5d9524303cd7169f5751bf62
+  tests:
+    enabled: false
   metrics:
     serviceMonitor:
       enabled: true
   settings:
     config:
-      url: http://tdarr-web.tdarr:8265
+      url: http://tdarr-web.tdarr:80
       verify_ssl: false
+      existingSecret:
+        name: tdarr-api-key
+        secretKey: apiKey
   resources:
     requests:
       cpu: 1m
-      memory: 10Mi
+      memory: 20Mi
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Tdarr"
+    description: "Audio/Video library analytics & transcode automation."
+    clientID: 3F32A979-CB0D-40EB-A4BF-5CDA4FB846B4
+    callbackUrls:
+      - https://tdarr.alexlebens.dev/api/v2/public/auth/sso/oidc/callback
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
 
 volsync-target-config:
   pvcTarget: tdarr-config
@@ -284,6 +281,11 @@ volsync-target-server:
   d:
     enabled: true
     schedule: 10 10 * * 0
+
+common-helpers:
+  probe:
+    internal: http://tdarr-web.tdarr:80
+    external: https://tdarr.alexlebens.dev
 
 grafanaDashboard:
   folder: applications

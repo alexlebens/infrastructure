@@ -4,8 +4,22 @@ whodb:
       type: deployment
       annotations:
         reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: clidey/whodb
             tag: 0.138.0@sha256:9195aef28c8d0c02267748f3a09a94757d5440fd44ab9602681ae21137d7920d
@@ -21,8 +35,8 @@ whodb:
               value: AI Gateway
           resources:
             requests:
-              cpu: 1m
-              memory: 20Mi
+              cpu: 5m
+              memory: 100Mi
           probes:
             liveness:
               enabled: true
@@ -46,6 +60,12 @@ whodb:
                   path: /health
                   port: 8080
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
@@ -67,6 +87,10 @@ whodb:
               value: "true"
             - name: OAUTH2_PROXY_EMAIL_DOMAINS
               value: "*"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
           probes:
             liveness:
               enabled: true
@@ -75,6 +99,9 @@ whodb:
                 httpGet:
                   path: /ping
                   port: 4180
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
             readiness:
               enabled: true
               custom: true
@@ -82,8 +109,12 @@ whodb:
                 httpGet:
                   path: /ready
                   port: 4180
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
   service:
     main:
+      forceRename: whodb
       ports:
         http:
           port: 80
@@ -94,16 +125,21 @@ whodb:
           port: 44180
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: whodb
-          app.kubernetes.io/instance: whodb
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: whodb
       endpoints:
         - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Database Viewer"
+        gethomepage.dev/description: "WhoDB"
+        gethomepage.dev/group: "Analysis"
+        gethomepage.dev/icon: "sh-whodb.webp"
+        gethomepage.dev/siteMonitor: "http://whodb.whodb:80"
+        gethomepage.dev/weight: "50"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -117,3 +153,26 @@ whodb:
             - path:
                 type: PathPrefix
                 value: /
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  client:
+    displayName: "WhoDB"
+    description: "A lightweight, powerful, and user-friendly database management tool."
+    clientID: B7E58C3A-1F92-4D68-A34E-582CD61E9A0F
+    allowedUserGroups:
+      - name: platform-admin
+        namespace: pocket-id-operator
+
+common-helpers:
+  probe:
+    internal: http://whodb.whodb:80
+    external: https://whodb.alexlebens.dev

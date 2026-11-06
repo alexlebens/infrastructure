@@ -51,3 +51,19 @@ exit 0
   assert_output --partial "config"
   assert_output --partial "--format json"
 }
+
+@test "check:trivy: fails when findings exist under default FAIL_ON=ANY" {
+  local dir="${BATS_TEST_TMPDIR}/manifests-findings"
+  mkdir -p "${dir}"
+  echo "kind: Deployment" > "${dir}/deployment.yaml"
+
+  _stub jq '
+cat <<EOF
+0	0	1	0
+EOF
+'
+
+  run "${MISE_TASKS_DIR}/check/trivy" --manifest "${dir}"
+  assert_failure
+  assert_output --partial "Security check failed: 1 misconfiguration(s) detected"
+}

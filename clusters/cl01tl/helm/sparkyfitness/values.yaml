@@ -3,6 +3,15 @@ sparkyfitness:
     timezone: America/Chicago
     allowPrivateNetworkCors: true
     extraTrustedOrigins: https://sparkyfitness.alexlebens.dev,sparkyfitnessmobile://,sparkyfitnessmobile://oauth-callback
+    email:
+      enabled: true
+      host: postfix.postfix.svc.cluster.local
+      port: 587
+      secure: false
+      from: SparkyFitness <sparkyfitness@alexlebens.dev>
+      secrets:
+        username: sparkyfitness@alexlebens.dev
+        password: none
     oidc:
       enabled: true
       providerSlug: sparky-fitness
@@ -47,6 +56,22 @@ sparkyfitness:
     auth:
       existingSecret: sparkyfitness-postgresql-18-cluster-superuser
 
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "SparkyFitness"
+    description: "An open source and self-hostable fitness tracker."
+    callbackUrls:
+      - https://sparkyfitness.alexlebens.dev/api/auth/sso/callback/sparky-fitness
+      - https://sparkyfitness.alexlebens.dev/api/auth/callback/sparky-fitness
+      - sparkyfitnessmobile://oauth-callback
+    clientID: D13CBE77-AF9A-4FC7-8814-496A2F4ECF40
+    clientSecretRefKey: client_secret
+  externalSecret:
+    secretName: sparkyfitness-oidc-secret
+    clientIdKey: client_id
+    clientSecretKey: client_secret
+
 postgres-18-cluster:
   mode: recovery
   cluster:
@@ -78,3 +103,8 @@ volsync-target-backup:
   d:
     enabled: true
     schedule: 5 10 * * 4
+
+common-helpers:
+  probe:
+    internal: http://sparkyfitness-frontend.sparkyfitness:80
+    external: https://sparkyfitness.alexlebens.dev

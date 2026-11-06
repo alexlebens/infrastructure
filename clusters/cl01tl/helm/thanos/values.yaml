@@ -1,15 +1,82 @@
 thanos:
   controllers:
+    query-frontend:
+      type: deployment
+      strategy: RollingUpdate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          fsGroup: 1001
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: thanosio/thanos
+            tag: v0.42.5@sha256:0a546b98a8dd47735456ab389983675ee363d68127e334937a9fceeea10da5e7
+          args:
+            - query-frontend
+            - --http-address=0.0.0.0:9090
+            - --query-frontend.downstream-url=http://thanos-query.thanos.svc.cluster.local:9090
+            - --query-range.split-interval=24h
+            - --query-range.max-retries-per-request=5
+            - --query-range.response-cache-max-freshness=1m
+            - --cache-compression-type=snappy
+            - |
+              --query-range.response-cache-config=type: in-memory
+              config:
+                max_size: 500MB
+                max_size_items: 2048
+                validity: 4h
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/healthy
+                  port: 9090
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/ready
+                  port: 9090
     query:
       type: deployment
       strategy: RollingUpdate
       pod:
         securityContext:
+          runAsNonRoot: true
           runAsUser: 1001
           runAsGroup: 1001
           fsGroup: 1001
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: thanosio/thanos
             tag: v0.42.5@sha256:0a546b98a8dd47735456ab389983675ee363d68127e334937a9fceeea10da5e7
@@ -23,10 +90,10 @@ thanos:
             - --query.auto-downsampling
           resources:
             requests:
-              cpu: 200m
-              memory: 256Mi
+              cpu: 20m
+              memory: 20Mi
             limits:
-              cpu: 2000m
+              cpu: 1000m
               memory: 2Gi
           probes:
             liveness:
@@ -47,12 +114,21 @@ thanos:
       type: statefulset
       pod:
         securityContext:
+          runAsNonRoot: true
           runAsUser: 1001
           runAsGroup: 1001
           fsGroup: 1001
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: thanosio/thanos
             tag: v0.42.5@sha256:0a546b98a8dd47735456ab389983675ee363d68127e334937a9fceeea10da5e7
@@ -67,10 +143,10 @@ thanos:
             - --store.grpc.series-max-concurrency=40
           resources:
             requests:
-              cpu: 250m
-              memory: 1Gi
+              cpu: 10m
+              memory: 40Mi
             limits:
-              cpu: 2000m
+              cpu: 1000m
               memory: 4Gi
           probes:
             liveness:
@@ -91,12 +167,21 @@ thanos:
       type: statefulset
       pod:
         securityContext:
+          runAsNonRoot: true
           runAsUser: 1001
           runAsGroup: 1001
           fsGroup: 1001
           fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: thanosio/thanos
             tag: v0.42.5@sha256:0a546b98a8dd47735456ab389983675ee363d68127e334937a9fceeea10da5e7
@@ -113,10 +198,10 @@ thanos:
             - --wait
           resources:
             requests:
-              cpu: 200m
-              memory: 1Gi
+              cpu: 10m
+              memory: 50Mi
             limits:
-              cpu: 2000m
+              cpu: 1000m
               memory: 4Gi
           probes:
             liveness:
@@ -134,29 +219,40 @@ thanos:
                   path: /-/ready
                   port: 9090
   service:
+    query-frontend:
+      forceRename: thanos-query-frontend
+      controller: query-frontend
+      ports:
+        http:
+          port: 9090
     query:
-      controller: query
       forceRename: thanos-query
+      controller: query
       ports:
         http:
           port: 9090
         grpc:
           port: 10901
     store:
-      controller: store
       forceRename: thanos-store
+      controller: store
       ports:
         http:
           port: 9090
         grpc:
           port: 10901
     compact:
-      controller: compact
       forceRename: thanos-compact
+      controller: compact
       ports:
         http:
           port: 9090
   serviceMonitor:
+    query-frontend:
+      serviceName: thanos-query-frontend
+      endpoints:
+        - port: http
+          interval: 30s
     query:
       serviceName: thanos-query
       endpoints:
@@ -187,12 +283,6 @@ thanos:
             - path: /etc/thanos/thanos.yaml
               subPath: thanos.yaml
               readOnly: true
-    store-cache:
-      type: emptyDir
-      advancedMounts:
-        store:
-          main:
-            - path: /var/thanos/store
     compact-data:
       forceRename: thanos-compact-data
       storageClass: ceph-block
@@ -202,6 +292,27 @@ thanos:
         compact:
           main:
             - path: /var/thanos/compact
+    store-cache:
+      type: emptyDir
+      advancedMounts:
+        store:
+          main:
+            - path: /var/thanos/store
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        query-frontend:
+          main:
+            - path: /tmp
+        query:
+          main:
+            - path: /tmp
+        store:
+          main:
+            - path: /tmp
+        compact:
+          main:
+            - path: /tmp
 
 s3-bucket:
   enabled: true

@@ -3,11 +3,28 @@ unpoller:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/unpoller/unpoller
             tag: v5.9.4@sha256:bf2ef9706159c60f81a631030fb792e5ab809d872791ee5d0029a023212b48a7
+          envFrom:
+            - secretRef:
+                name: unpoller-unifi-credentials
           env:
             - name: UP_UNIFI_CONTROLLER_0_SAVE_ALARMS
               value: "true"
@@ -35,13 +52,10 @@ unpoller:
               value: "false"
             - name: UP_POLLER_QUIET
               value: "false"
-          envFrom:
-            - secretRef:
-                name: unpoller-unifi-credentials
           resources:
             requests:
               cpu: 10m
-              memory: 50Mi
+              memory: 30Mi
           probes:
             liveness:
               enabled: true
@@ -74,14 +88,17 @@ unpoller:
           port: 9130
   serviceMonitor:
     main:
-      selector:
-        matchLabels:
-          app.kubernetes.io/name: unpoller
-          app.kubernetes.io/instance: unpoller
-      serviceName: '{{ include "bjw-s.common.lib.chart.names.fullname" $ }}'
+      serviceName: unpoller
       endpoints:
         - port: metrics
           interval: 5m
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
 
 grafanaDashboard:
   folder: networking

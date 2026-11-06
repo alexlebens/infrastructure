@@ -7,6 +7,9 @@ etcd-backup:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
   controllers:
     a-ps02sn:
       type: cronjob
@@ -17,12 +20,6 @@ etcd-backup:
         backoffLimit: 3
       containers:
         backup:
-          image:
-            repository: ghcr.io/siderolabs/talos-backup
-            tag: v0.1.0-beta.3-10-gb9fd478@sha256:7fc186ff37a3137f470082cb609bf1dc3bcece13dd9a6421ec09cfdf4f33ae6c
-          command:
-            - /talos-backup
-          workingDir: /tmp
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
@@ -33,6 +30,12 @@ etcd-backup:
                 - ALL
             seccompProfile:
               type: RuntimeDefault
+          image:
+            repository: ghcr.io/siderolabs/talos-backup
+            tag: v0.1.0-beta.3-10-gb9fd478@sha256:7fc186ff37a3137f470082cb609bf1dc3bcece13dd9a6421ec09cfdf4f33ae6c
+          command:
+            - /talos-backup
+          workingDir: /tmp
           env:
             - name: CUSTOM_S3_ENDPOINT
               valueFrom:
@@ -70,7 +73,18 @@ etcd-backup:
               value: "cl01tl"
             - name: USE_PATH_STYLE
               value: "false"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
         s3-prune:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           image:
             repository: d3fk/s3cmd
             tag: latest@sha256:04757666dffdb68311bc62eb9bdf13bb7f5aeb4a386a0c074cb39bd8f35cf5df
@@ -89,6 +103,10 @@ etcd-backup:
               value: a-ps02sn
             - name: DATE_RANGE_SECONDS
               value: "2419200"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
     c-ps10rp:
       type: cronjob
       cronjob:
@@ -98,12 +116,6 @@ etcd-backup:
         backoffLimit: 3
       containers:
         backup:
-          image:
-            repository: ghcr.io/siderolabs/talos-backup
-            tag: v0.1.0-beta.3-10-gb9fd478@sha256:7fc186ff37a3137f470082cb609bf1dc3bcece13dd9a6421ec09cfdf4f33ae6c
-          command:
-            - /talos-backup
-          workingDir: /tmp
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
@@ -114,6 +126,12 @@ etcd-backup:
                 - ALL
             seccompProfile:
               type: RuntimeDefault
+          image:
+            repository: ghcr.io/siderolabs/talos-backup
+            tag: v0.1.0-beta.3-10-gb9fd478@sha256:7fc186ff37a3137f470082cb609bf1dc3bcece13dd9a6421ec09cfdf4f33ae6c
+          command:
+            - /talos-backup
+          workingDir: /tmp
           env:
             - name: CUSTOM_S3_ENDPOINT
               valueFrom:
@@ -151,7 +169,18 @@ etcd-backup:
               value: "cl01tl"
             - name: USE_PATH_STYLE
               value: "false"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
         s3-prune:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           image:
             repository: d3fk/s3cmd
             tag: latest@sha256:04757666dffdb68311bc62eb9bdf13bb7f5aeb4a386a0c074cb39bd8f35cf5df
@@ -170,6 +199,10 @@ etcd-backup:
               value: c-ps10rp
             - name: DATE_RANGE_SECONDS
               value: "2419200"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
     d-cs01bb:
       type: cronjob
       cronjob:
@@ -232,7 +265,18 @@ etcd-backup:
               value: "cl01tl"
             - name: USE_PATH_STYLE
               value: "false"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
         s3-prune:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           image:
             repository: d3fk/s3cmd
             tag: latest@sha256:04757666dffdb68311bc62eb9bdf13bb7f5aeb4a386a0c074cb39bd8f35cf5df
@@ -251,6 +295,10 @@ etcd-backup:
               value: d-cs01bb
             - name: DATE_RANGE_SECONDS
               value: "1209600"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
   persistence:
     secret:
       enabled: true
@@ -288,13 +336,8 @@ etcd-backup:
             - path: /scripts/prune.sh
               subPath: prune.sh
     etcd-backup-a-config:
-      type: custom
-      volumeSpec:
-        csi:
-          driver: secrets-store.csi.k8s.io
-          readOnly: true
-          volumeAttributes:
-            secretProviderClass: talos-etcd-backup-a
+      type: secret
+      name: talos-etcd-backup-a
       advancedMounts:
         a-ps02sn:
           s3-prune:
@@ -302,13 +345,8 @@ etcd-backup:
               subPath: .s3cfg
               readOnly: true
     etcd-backup-c-config:
-      type: custom
-      volumeSpec:
-        csi:
-          driver: secrets-store.csi.k8s.io
-          readOnly: true
-          volumeAttributes:
-            secretProviderClass: talos-etcd-backup-c
+      type: secret
+      name: talos-etcd-backup-c
       advancedMounts:
         c-ps10rp:
           s3-prune:
@@ -316,13 +354,8 @@ etcd-backup:
               subPath: .s3cfg
               readOnly: true
     etcd-backup-d-config:
-      type: custom
-      volumeSpec:
-        csi:
-          driver: secrets-store.csi.k8s.io
-          readOnly: true
-          volumeAttributes:
-            secretProviderClass: talos-etcd-backup-d
+      type: secret
+      name: talos-etcd-backup-d
       advancedMounts:
         d-cs01bb:
           s3-prune:
@@ -355,6 +388,7 @@ etcd-backup:
         d-cs01bb:
           backup:
             - path: /.talos
+
 etcd-defrag:
   global:
     fullnameOverride: etcd-defrag
@@ -366,6 +400,12 @@ etcd-defrag:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
   controllers:
     defrag-1:
       type: cronjob
@@ -376,6 +416,17 @@ etcd-defrag:
         backoffLimit: 3
       containers:
         main:
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           image:
             repository: ghcr.io/siderolabs/talosctl
             tag: v1.14.5@sha256:0b852e35c1f513ee5eacc22183d6193486012420569fde39fcd5260c51938443
@@ -387,6 +438,10 @@ etcd-defrag:
           env:
             - name: TALOSCONFIG
               value: /tmp/.talos/config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
     defrag-2:
       type: cronjob
       cronjob:
@@ -396,6 +451,17 @@ etcd-defrag:
         backoffLimit: 3
       containers:
         main:
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           image:
             repository: ghcr.io/siderolabs/talosctl
             tag: v1.14.5@sha256:0b852e35c1f513ee5eacc22183d6193486012420569fde39fcd5260c51938443
@@ -407,6 +473,10 @@ etcd-defrag:
           env:
             - name: TALOSCONFIG
               value: /tmp/.talos/config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
     defrag-3:
       type: cronjob
       cronjob:
@@ -416,6 +486,17 @@ etcd-defrag:
         backoffLimit: 3
       containers:
         main:
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           image:
             repository: ghcr.io/siderolabs/talosctl
             tag: v1.14.5@sha256:0b852e35c1f513ee5eacc22183d6193486012420569fde39fcd5260c51938443
@@ -427,6 +508,10 @@ etcd-defrag:
           env:
             - name: TALOSCONFIG
               value: /tmp/.talos/config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 20Mi
   persistence:
     config:
       type: custom

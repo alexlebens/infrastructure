@@ -3,8 +3,22 @@ vaultwarden:
     main:
       type: deployment
       strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: ghcr.io/dani-garcia/vaultwarden
             tag: 1.37.5@sha256:4fe17f415f90087377d37c755e0ea3cf189dcc6794e49cdd2a9adbb4937d9e1f
@@ -55,7 +69,7 @@ vaultwarden:
           resources:
             requests:
               cpu: 10m
-              memory: 30Mi
+              memory: 100Mi
           probes:
             liveness:
               enabled: true
@@ -95,8 +109,9 @@ vaultwarden:
         gethomepage.dev/description: "Vaultwarden"
         gethomepage.dev/group: "Background"
         gethomepage.dev/icon: "sh-vaultwarden-light.webp"
-        gethomepage.dev/siteMonitor: "https://passwords.alexlebens.dev"
-        gethomepage.dev/weight: "370"
+        gethomepage.dev/siteMonitor: "http://vaultwarden.vaultwarden:80/alive"
+        gethomepage.dev/weight: "350"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -120,6 +135,25 @@ vaultwarden:
         main:
           main:
             - path: /data
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Vaultwarden"
+    description: "Alternative Bitwarden server implementation written in Rust."
+    launchUrl: https://passwords.alexlebens.dev
+    callbackUrls:
+      - https://passwords.alexlebens.dev/identity/connect/oidc-signin
+    clientID: 6F93B4CB-3042-4A84-8EBB-E1E8CB393F09
+    logo:
+      selfhstLogoName: vaultwarden
+      selfhstDarkLogo: true
 
 cloudflared:
   probe:
@@ -149,3 +183,8 @@ volsync-target-data:
   d:
     enabled: true
     schedule: 10 10 * * 4
+
+common-helpers:
+  probe:
+    internal: http://vaultwarden.vaultwarden:80/alive
+    external: https://passwords.alexlebens.dev/alive
