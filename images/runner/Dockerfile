@@ -25,7 +25,7 @@ FROM harbor.alexlebens.dev/proxy-ghcr.io/astral-sh/ruff:0.17.4-debian@sha256:b34
 # renovate: datasource=docker depName=koalaman/shellcheck versioning=docker
 FROM harbor.alexlebens.dev/proxy-hub.docker/koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d AS shellcheck-source
 # renovate: datasource=docker depName=mikefarah/yq versioning=docker
-FROM harbor.alexlebens.dev/proxy-hub.docker/mikefarah/yq:4.54.1@sha256:4b3d9475d65571d28cbb19544d3820ec2945e4c8b2f18279394282b8dc3a592e AS yq-source
+FROM harbor.alexlebens.dev/proxy-hub.docker/mikefarah/yq:4.54.2@sha256:5d56494617dce8311106e905aac5c080a2087c905a7f7de2984db2e2cc60ab2e AS yq-source
 
 # --- GitOps, Kubernetes & Cloud-Native Tooling ---
 # renovate: datasource=docker depName=quay.io/argoproj/argocd versioning=docker
