@@ -5,6 +5,9 @@ searxng:
       strategy: Recreate
       pod:
         automountServiceAccountToken: true
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -26,7 +29,7 @@ searxng:
           resources:
             requests:
               cpu: 10m
-              memory: 200Mi
+              memory: 80Mi
           probes:
             liveness:
               enabled: true
@@ -42,21 +45,14 @@ searxng:
                 httpGet:
                   path: /healthz
                   port: 8080
-        debug:
-          image:
-            repository: ubuntu
-            tag: resolute@sha256:678c6550cc43645e08669028bc177f50be4e7c5b8cca677067b1914d4afc7a03
-          command:
-            - "sleep"
-            - "infinity"
-          resources:
-            requests:
-              cpu: 10m
-              memory: 20Mi
         valkey:
           image:
             repository: valkey/valkey
             tag: 9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
           probes:
             liveness:
               enabled: true
@@ -71,6 +67,12 @@ searxng:
                 tcpSocket:
                   port: 6379
         oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image:
             repository: quay.io/oauth2-proxy/oauth2-proxy
             tag: v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
@@ -106,6 +108,9 @@ searxng:
                 httpGet:
                   path: /ping
                   port: 4180
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
             readiness:
               enabled: true
               custom: true
@@ -113,11 +118,17 @@ searxng:
                 httpGet:
                   path: /ready
                   port: 4180
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
     api:
       type: deployment
       strategy: Recreate
       pod:
         automountServiceAccountToken: true
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
           image:
@@ -140,8 +151,8 @@ searxng:
               value: 10
           resources:
             requests:
-              cpu: 1m
-              memory: 120Mi
+              cpu: 5m
+              memory: 100Mi
           probes:
             liveness:
               enabled: true
@@ -205,6 +216,15 @@ searxng:
   route:
     main:
       kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Search"
+        gethomepage.dev/description: "Searxng"
+        gethomepage.dev/group: "Analysis"
+        gethomepage.dev/icon: "sh-searxng.webp"
+        gethomepage.dev/siteMonitor: "http://searxng-browser.searxng:8080"
+        gethomepage.dev/weight: "300"
+        gethomepage.dev/pod-selector: ""
       parentRefs:
         - name: traefik-gateway
           namespace: traefik
@@ -220,33 +240,35 @@ searxng:
                 value: /
   persistence:
     config-api:
-      type: custom
-      volumeSpec:
-        csi:
-          driver: secrets-store.csi.k8s.io
-          readOnly: true
-          volumeAttributes:
-            secretProviderClass: searxng-api-config
+      type: configMap
+      name: searxng-api-config
       advancedMounts:
         api:
           main:
-            - path: /etc/searxng/
+            - path: /etc/searxng/limiter.toml
+              subPath: limiter.toml
               readOnly: true
-    config-browser:
-      type: custom
-      volumeSpec:
-        csi:
-          driver: secrets-store.csi.k8s.io
-          readOnly: true
-          volumeAttributes:
-            secretProviderClass: searxng-browser-config
+    settings-api:
+      type: secret
+      name: searxng-api-settings
+      advancedMounts:
+        api:
+          main:
+            - path: /etc/searxng/settings.yml
+              subPath: settings.yml
+              readOnly: true
+    settings-browser:
+      type: secret
+      name: searxng-browser-settings
       advancedMounts:
         browser:
           main:
-            - path: /etc/searxng/
+            - path: /etc/searxng/settings.yml
+              subPath: settings.yml
               readOnly: true
           debug:
-            - path: /etc/searxng/
+            - path: /etc/searxng/settings.yml
+              subPath: settings.yml
               readOnly: true
     api-data:
       forceRename: searxng-api-data
@@ -276,6 +298,18 @@ searxng:
         browser:
           valkey:
             - path: /data
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        browser:
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  client:
+    displayName: "SearXNG"
+    description: "Privacy-respecting, hackable metasearch engine."
+    clientID: B4F3A591-8C16-4E2E-9D35-1D0A5C8E9972
 
 volsync-target-data:
   pvcTarget: searxng-browser-data
@@ -288,3 +322,8 @@ volsync-target-data:
   d:
     enabled: true
     schedule: 0 10 * * 5
+
+common-helpers:
+  probe:
+    internal: http://searxng-browser.searxng:8080
+    external: https://searxng.alexlebens.dev
