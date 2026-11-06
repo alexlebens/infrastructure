@@ -31,6 +31,9 @@ spec:
       enableServiceLinks: false
       serviceAccountName: searxng
       automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       hostIPC: false
       hostNetwork: false
       hostPID: false
@@ -63,21 +66,26 @@ spec:
               port: 8080
           resources:
             requests:
-              cpu: 1m
-              memory: 120Mi
+              cpu: 5m
+              memory: 100Mi
           volumeMounts:
             - mountPath: /etc/searxng
               name: api-data
-            - mountPath: /etc/searxng/
+            - mountPath: /etc/searxng/limiter.toml
               name: config-api
               readOnly: true
+              subPath: limiter.toml
+            - mountPath: /etc/searxng/settings.yml
+              name: settings-api
+              readOnly: true
+              subPath: settings.yml
       volumes:
         - name: api-data
           persistentVolumeClaim:
             claimName: searxng-api-data
-        - csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: searxng-api-config
+        - configMap:
+            name: searxng-api-config
           name: config-api
+        - name: settings-api
+          secret:
+            secretName: searxng-api-settings
