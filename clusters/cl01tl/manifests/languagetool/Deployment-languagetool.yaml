@@ -9,6 +9,8 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: languagetool
     helm.sh/chart: languagetool-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
   namespace: languagetool
 spec:
   revisionHistoryLimit: 3
@@ -42,6 +44,31 @@ spec:
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
+      initContainers:
+        - command:
+            - /bin/sh
+            - /scripts/init-ngrams.sh
+          image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+          name: init-ngrams
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /ngrams
+              name: data
+            - mountPath: /scripts/init-ngrams.sh
+              name: scripts
+              readOnly: true
+              subPath: init-ngrams.sh
+            - mountPath: /tmp
+              name: tmp
       containers:
         - env:
             - name: langtool_languageModel
@@ -49,7 +76,7 @@ spec:
             - name: Java_Xms
               value: 512m
             - name: Java_Xmx
-              value: 1g
+              value: 1.5g
           image: erikvl87/languagetool:6.8@sha256:ef8fa12cbd485166c9ceeb7139d76d56d07707a624da6bb1fc1fbb5411750527
           livenessProbe:
             httpGet:
@@ -61,9 +88,11 @@ spec:
               path: /v2/healthcheck
               port: 8010
           resources:
+            limits:
+              memory: 2Gi
             requests:
               cpu: 10m
-              memory: 850Mi
+              memory: 1200Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -83,3 +112,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: languagetool-data
+        - configMap:
+            defaultMode: 493
+            name: languagetool-scripts
+          name: scripts
+        - emptyDir: {}
+          name: tmp
