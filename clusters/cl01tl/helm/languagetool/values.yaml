@@ -3,6 +3,8 @@ languagetool:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         securityContext:
           runAsNonRoot: true
@@ -12,6 +14,24 @@ languagetool:
           fsGroupChangePolicy: OnRootMismatch
           seccompProfile:
             type: RuntimeDefault
+      initContainers:
+        init-ngrams:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: busybox
+            tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+          command:
+            - /bin/sh
+            - /scripts/init-ngrams.sh
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
       containers:
         main:
           securityContext:
@@ -31,11 +51,13 @@ languagetool:
             - name: Java_Xms
               value: 512m
             - name: Java_Xmx
-              value: 1g
+              value: 1.5g
           resources:
             requests:
               cpu: 10m
-              memory: 850Mi
+              memory: 1200Mi
+            limits:
+              memory: 2Gi
           probes:
             liveness:
               enabled: true
@@ -82,27 +104,33 @@ languagetool:
                 type: PathPrefix
                 value: /
   persistence:
+    scripts:
+      type: configMap
+      name: languagetool-scripts
+      defaultMode: 0755
+      advancedMounts:
+        main:
+          init-ngrams:
+            - path: /scripts/init-ngrams.sh
+              subPath: init-ngrams.sh
+              readOnly: true
     data:
       forceRename: languagetool-data
       storageClass: ceph-block
       accessMode: ReadWriteOnce
-      size: 1Gi
+      size: 20Gi
       advancedMounts:
         main:
+          init-ngrams:
+            - path: /ngrams
           main:
             - path: /ngrams
-
-volsync-target-data:
-  pvcTarget: languagetool-data
-  a:
-    enabled: true
-    schedule: 15 9 * * *
-  c:
-    enabled: true
-    schedule: 45 10 * * 0
-  d:
-    enabled: true
-    schedule: 45 9 * * 0
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          init-ngrams:
+            - path: /tmp
 
 common-helpers:
   probe:
