@@ -16,7 +16,7 @@ URL="https://languagetool.org/download/ngram-data/${ARCHIVE}"
 
 echo ">> Downloading English N-grams archive from ${URL}..."
 rm -f "${ARCHIVE}"
-wget -q --show-progress -O "${ARCHIVE}" "${URL}"
+wget -O "${ARCHIVE}" "${URL}"
 
 echo ">> Extracting archive (this will take a while)..."
 unzip -q -o "${ARCHIVE}"
