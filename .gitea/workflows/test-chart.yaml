@@ -130,18 +130,12 @@ jobs:
           echo "FAILED_STAGE=Trivy Security Scan" >> "$GITHUB_ENV"
           ./.mise/tasks/check-chart "${CHART}" --cluster "${CLUSTER}" --step trivy
 
-      - name: Get Cluster CRDs Hash
-        id: crd-hash
-        # Step Outputs:
-        #   - hash: SHA256 hash of cluster CRD names and generations
-        run: ./.mise/tasks/kube/crd-hash
-
       - name: Cache CRD Schemas
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
         id: cache-schemas
         with:
           path: ~/.schemas
-          key: ${{ runner.os }}-crd-schemas-v1-${{ steps.crd-hash.outputs.hash }}
+          key: ${{ runner.os }}-crd-schemas-v1-${{ steps.cluster-fingerprint.outputs.fingerprint }}
 
       - name: Generate CRD Schemas
         if: steps.cache-schemas.outputs.cache-hit != 'true'
