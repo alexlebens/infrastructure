@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+BUCKET="s3://${BUCKET:-${BUCKET_NAME}}"
+BUCKET="s3://${BUCKET#s3://}"
+
 DATE_RANGE=$(date -d @"$(( $(date +%s) - DATE_RANGE_SECONDS ))" +%Y-%m-%dT%H:%M:%SZ)
 FILE_MATCH="${BUCKET}/cl01tl/etcd/cl01tl-${DATE_RANGE}.snap.age"
 ERROR=false
