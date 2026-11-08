@@ -7,23 +7,16 @@ setup() {
 
   export KUBECTL_LOG="${BATS_TEST_TMPDIR}/kubectl.log"
 
-  # Stub kubectl: simulates version, crd, and api-versions endpoints
+  # Stub kubectl: simulates openapi/v3, version, crd, and api-versions endpoints
   _stub kubectl '
 echo "$*" >> "${KUBECTL_LOG}"
-if [[ "$1" == "get" && "$2" == "--raw" && "$3" == "/version" ]]; then
-  printf "{\"gitVersion\": \"v1.31.0\"}\n"
+if [[ "$1" == "get" && "$2" == "--raw" && "$3" == "/openapi/v3" ]]; then
+  printf "{\"paths\":{\"api/v1\":{\"serverRelativeURL\":\"/openapi/v3/api/v1?hash=abc\"}}}\n"
 elif [[ "$1" == "version" ]]; then
   exit 0
 elif [[ "$1" == "get" && "$2" == "crd" ]]; then
-  if [[ "$*" == *"range .spec.versions"* ]]; then
-    # Full API versions query
-    printf "monitoring.coreos.com/v1/Prometheus\n"
-    printf "monitoring.coreos.com/v1/ServiceMonitor\n"
-  else
-    # Fingerprint query
-    printf "prometheuses.monitoring.coreos.com:1\n"
-    printf "servicemonitors.monitoring.coreos.com:2\n"
-  fi
+  printf "monitoring.coreos.com/v1/Prometheus\n"
+  printf "monitoring.coreos.com/v1/ServiceMonitor\n"
 elif [[ "$1" == "api-versions" ]]; then
   printf "v1\napps/v1\nbatch/v1\n"
 fi

@@ -11,10 +11,7 @@ setup() {
   _stub kubectl '
 echo "$*" >> "${KUBECTL_LOG}"
 if [[ "$1" == "get" && "$2" == "crds" ]]; then
-  echo "testcrds.test.io"
-elif [[ "$1" == "get" && "$2" == "crd" ]]; then
-  echo "apiVersion: apiextensions.k8s.io/v1"
-  echo "kind: CustomResourceDefinition"
+  echo "{\"items\":[{\"apiVersion\":\"apiextensions.k8s.io/v1\",\"kind\":\"CustomResourceDefinition\"}]}"
 fi
 exit 0
 '

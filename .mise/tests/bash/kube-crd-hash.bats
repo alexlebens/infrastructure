@@ -9,9 +9,8 @@ setup() {
 
   _stub kubectl '
 echo "$*" >> "${KUBECTL_LOG}"
-if [[ "$1" == "get" && "$2" == "crds" ]]; then
-  printf "certificates.cert-manager.io:1\n"
-  printf "issuers.cert-manager.io:1\n"
+if [[ "$1" == "get" && "$2" == "--raw" && "$3" == "/openapi/v3" ]]; then
+  printf "{\"paths\":{\"apis/cert-manager.io/v1\":{\"serverRelativeURL\":\"/openapi/v3/apis/cert-manager.io/v1?hash=def\"}}}\n"
 fi
 exit 0
 '

@@ -44,13 +44,17 @@ log_step "Extracting CRD definitions from cluster"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-# Get all CRDs from the cluster and split into individual files
-CRD_NAMES=$(kubectl get crds -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
-CRD_COUNT=0
-for CRD_NAME in ${CRD_NAMES}; do
-  kubectl get crd "${CRD_NAME}" -o yaml > "${TMP_DIR}/${CRD_NAME}.yaml"
-  CRD_COUNT=$((CRD_COUNT + 1))
-done
+# Fetch all CRDs from the cluster in a single API call
+CRD_LIST_FILE="${TMP_DIR}/crds.yaml"
+if ! kubectl get crds -o json > "${CRD_LIST_FILE}" 2>/dev/null || [ ! -s "${CRD_LIST_FILE}" ]; then
+  log_warn "No CRDs found in cluster or cluster unreachable. Skipping schema generation."
+  exit 0
+fi
+
+CRD_COUNT=1
+if command -v jq >/dev/null 2>&1; then
+  CRD_COUNT=$(jq '.items | length // 1' "${CRD_LIST_FILE}" 2>/dev/null || echo 1)
+fi
 
 if [ "${CRD_COUNT}" -eq 0 ]; then
   log_warn "No CRDs found in cluster or cluster unreachable. Skipping schema generation."
@@ -63,10 +67,7 @@ log_step "Converting CRD schemas to JSON"
 (
   cd "${TMP_DIR}"
   export FILENAME_FORMAT='{kind}_{version}'
-  for crd_file in "${TMP_DIR}"/*.yaml; do
-    [ -f "${crd_file}" ] || continue
-    openapi2jsonschema.py "${crd_file}" 2>/dev/null || true
-  done
+  openapi2jsonschema.py "${CRD_LIST_FILE}" 2>/dev/null || true
   mv ./*.json "${SCHEMA_DIR}/" 2>/dev/null || true
 )
 

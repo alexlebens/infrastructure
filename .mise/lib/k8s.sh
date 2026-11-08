@@ -2,9 +2,9 @@
 # Sourceable helper library for Kubernetes cluster discovery and API version resolution.
 #
 # Provides:
-#   k8s_get_fingerprint - Compute SHA256 of cluster version and CRDs
+#   k8s_get_fingerprint - Compute SHA256 of cluster OpenAPI v3 discovery index (/openapi/v3)
 #   k8s_get_api_versions [cache_file] - Resolve comma-separated API versions/kinds for Helm
-#   k8s_get_crd_hash - Compute SHA256 of cluster CRD names and generations
+#   k8s_get_crd_hash - Compute SHA256 of cluster OpenAPI v3 discovery index (/openapi/v3)
 #
 # Usage:
 #   source "${REPO_ROOT}/.mise/lib/k8s.sh"
@@ -32,17 +32,13 @@ k8s_get_fingerprint() {
   if ! command -v kubectl >/dev/null 2>&1; then
     return 1
   fi
-  local VERSION_INFO CRD_INFO
-  VERSION_INFO=$(kubectl get --raw /version 2>/dev/null || kubectl version -o json 2>/dev/null || true)
-  CRD_INFO=$(kubectl get crd -o go-template='{{if .items}}{{range .items}}{{.metadata.name}}:{{.metadata.generation}}{{"\n"}}{{end}}{{else}}{{.metadata.name}}:{{.metadata.generation}}{{"\n"}}{{end}}' 2>/dev/null | sort || true)
-  printf "%s\n%s" "${VERSION_INFO}" "${CRD_INFO}" | _k8s_sha256
+  local OPENAPI_V3
+  OPENAPI_V3=$(kubectl get --raw /openapi/v3 2>/dev/null | jq -r '.paths | to_entries[] | select(.key | startswith("api/") or startswith("apis/")) | .value.serverRelativeURL' 2>/dev/null | sort || true)
+  printf "%s\n" "${OPENAPI_V3}" | _k8s_sha256
 }
 
 k8s_get_crd_hash() {
-  if ! command -v kubectl >/dev/null 2>&1; then
-    return 1
-  fi
-  kubectl get crds -o jsonpath='{range .items[*]}{.metadata.name}:{.metadata.generation}{"\n"}{end}' 2>/dev/null | _k8s_sha256
+  k8s_get_fingerprint
 }
 
 k8s_get_api_versions() {
