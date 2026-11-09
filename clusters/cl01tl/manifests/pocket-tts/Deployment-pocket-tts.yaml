@@ -1,0 +1,144 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pocket-tts
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: pocket-tts
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: pocket-tts
+    helm.sh/chart: pocket-tts-5.3.0
+  namespace: pocket-tts
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/instance: pocket-tts
+      app.kubernetes.io/name: pocket-tts
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: pocket-tts
+        app.kubernetes.io/name: pocket-tts
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: pocket-tts
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: TTS_HOST
+              value: 127.0.0.1
+            - name: TTS_PORT
+              value: "10200"
+            - name: PORT
+              value: "8555"
+            - name: PREFIX
+              value: /v1
+          image: ghcr.io/archmonger/wyoming-openai-gateway:v0.2.1@sha256:a97476ae6eff2535542b8cc3c89726e4433df09a2abe9f8dd8e0eea149d7c6f7
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 8555
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+          name: openai-gateway
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 8555
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: LANGUAGE
+              value: en
+            - name: VOICES
+              value: ""
+            - name: VOICES_DIR
+              value: /data/voices
+            - name: HF_HOME
+              value: /models/huggingface
+          image: ghcr.io/araa47/wyoming_pocket_tts:1.4.11@sha256:6d2bc03c9674193cc9971d4b33097e74ca6c885a78c72609d6421a5fc7c12edd
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            tcpSocket:
+              port: 10200
+            timeoutSeconds: 5
+          name: pocket-tts
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            tcpSocket:
+              port: 10200
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 4Gi
+            requests:
+              cpu: 100m
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /data
+              name: data
+            - mountPath: /models
+              name: model
+              readOnly: true
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pocket-tts-data
+        - image:
+            reference: harbor.alexlebens.dev/models/pocket-tts:latest
+          name: model
+        - emptyDir: {}
+          name: tmp
