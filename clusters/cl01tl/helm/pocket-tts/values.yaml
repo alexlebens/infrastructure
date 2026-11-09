@@ -1,0 +1,164 @@
+pocket-tts:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        pocket-tts:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: ghcr.io/araa47/wyoming_pocket_tts
+            tag: 1.4.11@sha256:6d2bc03c9674193cc9971d4b33097e74ca6c885a78c72609d6421a5fc7c12edd
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: LANGUAGE
+              value: en
+            - name: VOICES
+              value: ""
+            - name: VOICES_DIR
+              value: /data/voices
+            - name: HF_HOME
+              value: /models/huggingface
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 4Gi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 10200
+                initialDelaySeconds: 30
+                periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 10200
+                initialDelaySeconds: 15
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+        openai-gateway:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: ghcr.io/archmonger/wyoming-openai-gateway
+            tag: v0.2.1@sha256:a97476ae6eff2535542b8cc3c89726e4433df09a2abe9f8dd8e0eea149d7c6f7
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: TTS_HOST
+              value: 127.0.0.1
+            - name: TTS_PORT
+              value: "10200"
+            - name: PORT
+              value: "8555"
+            - name: PREFIX
+              value: /v1
+          resources:
+            requests:
+              cpu: 10m
+              memory: 100Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz
+                  port: 8555
+                initialDelaySeconds: 10
+                periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz
+                  port: 8555
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+  service:
+    main:
+      forceRename: pocket-tts
+      ports:
+        http:
+          port: 80
+          targetPort: 8555
+        wyoming:
+          port: 10200
+  route:
+    main:
+      kind: HTTPRoute
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - pocket-tts.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: pocket-tts
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    model:
+      type: image
+      image: harbor.alexlebens.dev/models/pocket-tts:latest
+      advancedMounts:
+        main:
+          pocket-tts:
+            - path: /models
+              readOnly: true
+    data:
+      forceRename: pocket-tts-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
+      advancedMounts:
+        main:
+          pocket-tts:
+            - path: /data
+    tmp:
+      type: emptyDir
+      globalMounts:
+        - path: /tmp
+
+common-helpers:
+  probe:
+    internal: http://pocket-tts.pocket-tts:80/healthz
+    external: https://pocket-tts.alexlebens.dev/healthz
