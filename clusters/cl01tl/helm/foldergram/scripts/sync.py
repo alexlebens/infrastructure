@@ -6,15 +6,11 @@ import urllib.parse
 import urllib.request
 from datetime import UTC, datetime
 
-IMMICH_URL = os.environ.get("IMMICH_URL", "http://immich-main.immich:80/api").rstrip(
-    "/"
-)
+IMMICH_URL = os.environ.get("IMMICH_URL", "http://immich-main.immich:80/api").rstrip("/")
 API_KEY = os.environ.get("IMMICH_API_KEY", "")
 GALLERY_PATH = os.environ.get("GALLERY_PATH", "/gallery/Favorites")
 PRUNE_DELETED = os.environ.get("PRUNE_DELETED", "true").lower() in ("true", "1", "yes")
-FOLDERGRAM_URL = os.environ.get(
-    "FOLDERGRAM_URL", "http://foldergram.foldergram:80"
-).rstrip("/")
+FOLDERGRAM_URL = os.environ.get("FOLDERGRAM_URL", "http://foldergram.foldergram:80").rstrip("/")
 CSRF_ORIGIN = os.environ.get("CSRF_ORIGIN", "https://photos.alexlebens.dev").rstrip("/")
 
 # Persistent index file: maps asset_id -> filename on disk

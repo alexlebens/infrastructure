@@ -126,7 +126,15 @@ for (( i=0; i<MODEL_COUNT; i++ )); do
     mkdir -p "${TARGET_DIR}"
 
     echo ">> Downloading repository snapshot from ${HF_REPO} ..."
-    python3 -c "
+    PYTHON_EXEC="python3"
+    if command -v uv >/dev/null 2>&1; then
+      PYTHON_EXEC="uv run python3"
+    elif ! python3 -c "import huggingface_hub" >/dev/null 2>&1; then
+      python3 -m pip install --quiet --no-cache-dir --break-system-packages huggingface_hub || \
+      python3 -m pip install --quiet --no-cache-dir huggingface_hub
+    fi
+
+    ${PYTHON_EXEC} -c "
 import os, sys
 from huggingface_hub import snapshot_download
 

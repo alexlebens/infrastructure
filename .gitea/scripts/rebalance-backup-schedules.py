@@ -37,7 +37,7 @@ def parse_yaml_backup_targets(
 
     # Skip charts or files marked as unmanaged (e.g. gitea)
     if file_path.parent.name == "gitea" or any(
-        "# backup-rebalancer: unmanaged" in l for l in lines
+        "# backup-rebalancer: unmanaged" in line for line in lines
     ):
         return [], [], []
 
@@ -95,14 +95,10 @@ def parse_yaml_backup_targets(
         if sec_type == "postgres":
             if re.match(r"^\s*backup:\s*(?:#.*)?$", line):
                 sub_section = "backup"
-            elif sub_section == "backup" and re.match(
-                r"^\s*scheduledBackups:\s*(?:#.*)?$", line
-            ):
+            elif sub_section == "backup" and re.match(r"^\s*scheduledBackups:\s*(?:#.*)?$", line):
                 sub_section = "scheduledBackups"
             elif sub_section == "scheduledBackups":
-                m_sched = re.match(
-                    r"^(\s*schedule:\s*)([\"']?)([^\"'\n]+)([\"']?)(.*)$", line
-                )
+                m_sched = re.match(r"^(\s*schedule:\s*)([\"']?)([^\"'\n]+)([\"']?)(.*)$", line)
                 if m_sched:
                     postgres_targets.append(
                         {
@@ -125,9 +121,7 @@ def parse_yaml_backup_targets(
                 continue
 
             if volsync_type and indent > volsync_type_indent:
-                m_sched = re.match(
-                    r"^(\s*schedule:\s*)([\"']?)([^\"'\n]+)([\"']?)(.*)$", line
-                )
+                m_sched = re.match(r"^(\s*schedule:\s*)([\"']?)([^\"'\n]+)([\"']?)(.*)$", line)
                 if m_sched:
                     volsync_targets.append(
                         {
@@ -163,9 +157,7 @@ def parse_yaml_backup_targets(
                     continue
 
                 if s3_target and indent > s3_target_indent:
-                    m_sched = re.match(
-                        r"^(\s*schedule:\s*)([\"']?)([^\"'\n]+)([\"']?)(.*)$", line
-                    )
+                    m_sched = re.match(r"^(\s*schedule:\s*)([\"']?)([^\"'\n]+)([\"']?)(.*)$", line)
                     if m_sched:
                         s3_targets.append(
                             {
@@ -333,9 +325,7 @@ def rebalance_schedules(
 
         if "d" in targets:
             vs = targets["d"]
-            total_m = (
-                ext_start_hour * 60 + ext_start_min
-            ) + slot_idx * interval_minutes
+            total_m = (ext_start_hour * 60 + ext_start_min) + slot_idx * interval_minutes
             h = (total_m // 60) % 24
             m = total_m % 60
             new_sched = f"{m} {h} * * {dow}"
@@ -365,9 +355,7 @@ def rebalance_schedules(
         # Tier C: Weekly (same day, 1 hour after Tier D)
         if "c" in targets:
             vs = targets["c"]
-            total_m = (
-                rem_start_hour * 60 + rem_start_min
-            ) + slot_idx * interval_minutes
+            total_m = (rem_start_hour * 60 + rem_start_min) + slot_idx * interval_minutes
             h = (total_m // 60) % 24
             m = total_m % 60
             new_sched = f"{m} {h} * * {dow}"
@@ -435,9 +423,7 @@ def rebalance_schedules(
         # Tier D: Weekly Cloud DR (02:00 UTC, staggered by day of week)
         if "d" in targets:
             s3 = targets["d"]
-            total_m = (
-                s3_cloud_start_hour * 60 + s3_cloud_start_min
-            ) + slot_idx * interval_minutes
+            total_m = (s3_cloud_start_hour * 60 + s3_cloud_start_min) + slot_idx * interval_minutes
             h = (total_m // 60) % 24
             m = total_m % 60
             new_sched = f"{m} {h} * * {dow}"
