@@ -64,16 +64,130 @@ fi
 log_info "Extracted ${CRD_COUNT} CRDs from cluster"
 
 log_step "Converting CRD schemas to JSON"
-(
-  cd "${TMP_DIR}"
-  export FILENAME_FORMAT='{kind}_{version}'
-  openapi2jsonschema.py "${CRD_LIST_FILE}" 2>/dev/null || true
-  mv ./*.json "${SCHEMA_DIR}/" 2>/dev/null || true
+MANIFEST_FILE="${SCHEMA_DIR}/.crd-manifest.json"
+CHANGED_CRD_FILE="${TMP_DIR}/changed_crds.yaml"
+NEW_MANIFEST_FILE="${TMP_DIR}/new_manifest.json"
+
+DIFF_STATS=$(python3 - "${CRD_LIST_FILE}" "${SCHEMA_DIR}" "${MANIFEST_FILE}" "${CHANGED_CRD_FILE}" "${NEW_MANIFEST_FILE}" << 'PYEOF'
+import hashlib
+import json
+import os
+import sys
+
+crd_list_path, schema_dir, manifest_path, changed_crd_path, new_manifest_path = sys.argv[1:6]
+
+try:
+    with open(crd_list_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    data = {}
+
+items = data.get("items") or []
+
+old_manifest = {}
+if os.path.isfile(manifest_path):
+    try:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+            if isinstance(loaded, dict):
+                old_manifest = loaded
+    except Exception:
+        old_manifest = {}
+
+new_manifest = {}
+changed_items = []
+unchanged_count = 0
+
+for idx, item in enumerate(items):
+    if not isinstance(item, dict):
+        continue
+    meta = item.get("metadata") or {}
+    spec = item.get("spec") or {}
+    name = meta.get("name") or f"crd-{idx}"
+
+    kind = (spec.get("names") or {}).get("kind") or ""
+    versions = spec.get("versions") or []
+    files = []
+    if kind and isinstance(versions, list):
+        for v in versions:
+            if isinstance(v, dict) and v.get("name"):
+                v_name = v["name"]
+                files.append(f"{kind}_{v_name}.json".lower())
+
+    spec_bytes = json.dumps(spec, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    spec_hash = hashlib.sha256(spec_bytes).hexdigest()
+
+    old_entry = old_manifest.get(name)
+    cache_valid = False
+    if (
+        isinstance(old_entry, dict)
+        and old_entry.get("hash") == spec_hash
+        and old_entry.get("files") == files
+        and len(files) > 0
+    ):
+        if all(os.path.isfile(os.path.join(schema_dir, fn)) for fn in files):
+            cache_valid = True
+
+    if cache_valid:
+        unchanged_count += 1
+    else:
+        changed_items.append(item)
+        if isinstance(old_entry, dict):
+            old_files = set(old_entry.get("files") or [])
+            for stale_fn in old_files - set(files):
+                stale_path = os.path.join(schema_dir, stale_fn)
+                if os.path.isfile(stale_path):
+                    try:
+                        os.remove(stale_path)
+                    except OSError:
+                        pass
+
+    new_manifest[name] = {"hash": spec_hash, "files": files}
+
+removed_count = 0
+for old_name, old_entry in old_manifest.items():
+    if old_name not in new_manifest:
+        removed_count += 1
+        if isinstance(old_entry, dict):
+            for stale_fn in old_entry.get("files") or []:
+                stale_path = os.path.join(schema_dir, stale_fn)
+                if os.path.isfile(stale_path):
+                    try:
+                        os.remove(stale_path)
+                    except OSError:
+                        pass
+
+if changed_items:
+    out_doc = {"apiVersion": data.get("apiVersion", "v1"), "kind": data.get("kind", "List"), "items": changed_items}
+    with open(changed_crd_path, "w", encoding="utf-8") as f:
+        json.dump(out_doc, f)
+
+with open(new_manifest_path, "w", encoding="utf-8") as f:
+    json.dump(new_manifest, f, indent=2, sort_keys=True)
+
+print(f"{len(changed_items)} {unchanged_count} {removed_count}")
+PYEOF
 )
 
-SCHEMA_COUNT=$(find "${SCHEMA_DIR}" -name '*.json' 2>/dev/null | wc -l | xargs)
+read -r CHANGED_COUNT UNCHANGED_COUNT REMOVED_COUNT <<< "${DIFF_STATS}"
+log_info "CRD schema cache diff: ${CHANGED_COUNT} changed/new, ${UNCHANGED_COUNT} cached, ${REMOVED_COUNT} removed"
+
+if [ -f "${NEW_MANIFEST_FILE}" ]; then
+  mv "${NEW_MANIFEST_FILE}" "${MANIFEST_FILE}"
+fi
+
+if [ "${CHANGED_COUNT}" -gt 0 ] && [ -f "${CHANGED_CRD_FILE}" ]; then
+  (
+    cd "${TMP_DIR}"
+    export FILENAME_FORMAT='{kind}_{version}'
+    openapi2jsonschema.py "${CHANGED_CRD_FILE}" 2>/dev/null || true
+    mv ./*.json "${SCHEMA_DIR}/" 2>/dev/null || true
+  )
+fi
+
+SCHEMA_COUNT=$(find "${SCHEMA_DIR}" -maxdepth 1 -name '*.json' ! -name '.*' 2>/dev/null | wc -l | xargs)
 if [ "${SCHEMA_COUNT}" -eq 0 ]; then
   log_fatal "No JSON schemas were generated in ${SCHEMA_DIR}."
 fi
 
-log_success "Generated ${SCHEMA_COUNT} JSON schemas in ${SCHEMA_DIR}"
+log_success "Generated ${SCHEMA_COUNT} JSON schemas in ${SCHEMA_DIR} (${CHANGED_COUNT} updated, ${UNCHANGED_COUNT} cached)"
