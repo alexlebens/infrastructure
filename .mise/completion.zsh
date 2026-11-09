@@ -124,6 +124,20 @@ compdef _helm_charts_tag .mise/tasks/app/tofu-adopt-garage-bucket kcheck
 # ── Mise Task Arguments Completion ──────────────────────────────────────────
 # Wraps _mise completion to complete task arguments (namespaces, charts)
 if whence _mise >/dev/null 2>&1; then
+  typeset -ga _mise_task_arg_completers
+  _infra_mise_task_args() {
+    case "$1" in
+      kube:status|kube:resource-capacity|kube:get-images|app:cnpg-reset)
+        _k8s_namespaces_tag && return 0
+        ;;
+      check-chart|render|helm:*|app:tofu-adopt-garage-bucket)
+        _helm_charts_tag && return 0
+        ;;
+    esac
+    return 1
+  }
+  (( ${_mise_task_arg_completers[(Ie)_infra_mise_task_args]} == 0 )) && _mise_task_arg_completers+=(_infra_mise_task_args)
+
   _mise_with_task_args() {
     # Check if we are completing arguments after 'mise r' or 'mise run' (including -C/--cd flags)
     if [[ "${words[1]}" == "mise" ]]; then
@@ -159,14 +173,12 @@ if whence _mise >/dev/null 2>&1; then
         (( i++ ))
       done
 
-      case "$task" in
-        kube:status|kube:resource-capacity|kube:get-images|app:cnpg-reset)
-          _k8s_namespaces_tag && return 0
-          ;;
-        check-chart|render|helm:*|app:tofu-adopt-garage-bucket)
-          _helm_charts_tag && return 0
-          ;;
-      esac
+      if [[ -n "$task" ]]; then
+        local hook
+        for hook in "${_mise_task_arg_completers[@]}"; do
+          "$hook" "$task" && return 0
+        done
+      fi
     fi
     # Fall back to default mise completion
     _mise "$@"

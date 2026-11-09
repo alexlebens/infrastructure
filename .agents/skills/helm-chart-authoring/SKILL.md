@@ -88,4 +88,5 @@ repository:
 
 - **Location**: `../docs/docs/Applications/cl01tl/<app-name>.md` (or `docs/docs/...` if opened from parent workspace
   root).
-- **Rule**: Follow `docs-core.md` in the `docs` repository.
+- **Rule & Skill**: Follow `docs/.agents/rules/docs-core.md` and the `docs-authoring` skill (run
+  `mise run -C ../docs sync:docs <app-name>` or `mrd sync:docs <app-name>`).
