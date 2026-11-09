@@ -9,6 +9,7 @@ source "${REPO_ROOT}/.mise/lib/k8s.sh"
 
 FINGERPRINT_ONLY=false
 CACHE_FILE=""
+INDEX_FILE="${K8S_OPENAPI_INDEX_FILE:-/tmp/k8s-openapi-v3-index.txt}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -20,12 +21,17 @@ while [[ $# -gt 0 ]]; do
       CACHE_FILE="$2"
       shift 2
       ;;
+    --index-file)
+      INDEX_FILE="$2"
+      shift 2
+      ;;
     -h|--help)
-      echo "Usage: mise run kube:api-versions [--fingerprint] [--cache-file <path>]"
+      echo "Usage: mise run kube:api-versions [--fingerprint] [--cache-file <path>] [--index-file <path>]"
       echo "Fetches Kubernetes cluster API versions and CRD kinds, outputting them formatted for Helm."
       echo "Options:"
       echo "  --fingerprint        Compute and output the cluster version and CRD fingerprint hash"
       echo "  --cache-file <path>  Read from cache file if present and non-empty, otherwise fetch and save to cache"
+      echo "  --index-file <path>  Save or reuse the cluster OpenAPI v3 index file (default: /tmp/k8s-openapi-v3-index.txt)"
       exit 0
       ;;
     *)
@@ -39,7 +45,8 @@ GITHUB_OUTPUT="${GITHUB_OUTPUT:-}"
 
 if [ "${FINGERPRINT_ONLY}" = true ]; then
   echo ">> Computing cluster API and CRD fingerprint ..."
-  FINGERPRINT=$(k8s_get_fingerprint)
+  rm -f "${INDEX_FILE}"
+  FINGERPRINT=$(k8s_get_fingerprint "${INDEX_FILE}")
   echo ">> Cluster Fingerprint: ${FINGERPRINT}"
   if [ -n "${GITHUB_OUTPUT}" ]; then
     echo "fingerprint=${FINGERPRINT}" >> "${GITHUB_OUTPUT}"

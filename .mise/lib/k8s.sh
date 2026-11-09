@@ -2,7 +2,8 @@
 # Sourceable helper library for Kubernetes cluster discovery and API version resolution.
 #
 # Provides:
-#   k8s_get_fingerprint - Compute SHA256 of cluster OpenAPI v3 discovery index (/openapi/v3)
+#   k8s_get_openapi_index [index_file] - Fetch and optionally persist sorted OpenAPI v3 serverRelativeURLs
+#   k8s_get_fingerprint [index_file] - Compute SHA256 of cluster OpenAPI v3 discovery index (/openapi/v3)
 #   k8s_get_api_versions [cache_file] - Resolve comma-separated API versions/kinds for Helm
 #   k8s_get_crd_hash - Compute SHA256 of cluster OpenAPI v3 discovery index (/openapi/v3)
 #
@@ -28,17 +29,40 @@ _k8s_sha256() {
   fi
 }
 
-k8s_get_fingerprint() {
+k8s_get_openapi_index() {
+  local INDEX_FILE="${1:-${K8S_OPENAPI_INDEX_FILE:-}}"
+
+  if [ -n "${INDEX_FILE}" ] && [ -f "${INDEX_FILE}" ] && [ -s "${INDEX_FILE}" ]; then
+    cat "${INDEX_FILE}"
+    return 0
+  fi
+
   if ! command -v kubectl >/dev/null 2>&1; then
     return 1
   fi
+
   local OPENAPI_V3
   OPENAPI_V3=$(kubectl get --raw /openapi/v3 2>/dev/null | jq -r '.paths | to_entries[] | select(.key | startswith("api/") or startswith("apis/")) | .value.serverRelativeURL' 2>/dev/null | sort || true)
+
+  if [ -n "${INDEX_FILE}" ] && [ -n "${OPENAPI_V3}" ]; then
+    mkdir -p "$(dirname "${INDEX_FILE}")"
+    printf "%s\n" "${OPENAPI_V3}" > "${INDEX_FILE}"
+  fi
+
+  printf "%s\n" "${OPENAPI_V3}"
+}
+
+k8s_get_fingerprint() {
+  local INDEX_FILE="${1:-${K8S_OPENAPI_INDEX_FILE:-}}"
+  local OPENAPI_V3
+  if ! OPENAPI_V3=$(k8s_get_openapi_index "${INDEX_FILE}"); then
+    return 1
+  fi
   printf "%s\n" "${OPENAPI_V3}" | _k8s_sha256
 }
 
 k8s_get_crd_hash() {
-  k8s_get_fingerprint
+  k8s_get_fingerprint "$@"
 }
 
 k8s_get_api_versions() {

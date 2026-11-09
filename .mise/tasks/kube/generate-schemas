@@ -6,8 +6,12 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
 REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
 # shellcheck source=../../lib/log.sh
 source "${REPO_ROOT}/.mise/lib/log.sh"
+# shellcheck source=../../lib/k8s.sh
+source "${REPO_ROOT}/.mise/lib/k8s.sh"
 
 SCHEMA_DIR="${SCHEMA_DIR:-${HOME}/.schemas}"
+INDEX_FILE="${K8S_OPENAPI_INDEX_FILE:-/tmp/k8s-openapi-v3-index.txt}"
+CRD_CACHE_HELPER="${REPO_ROOT}/.mise/lib/crd_schema_cache.py"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -15,8 +19,12 @@ while [[ $# -gt 0 ]]; do
       SCHEMA_DIR="$2"
       shift 2
       ;;
+    --index-file)
+      INDEX_FILE="$2"
+      shift 2
+      ;;
     -h|--help)
-      echo "Usage: mise run kube:generate-schemas [--schema-dir <dir>]"
+      echo "Usage: mise run kube:generate-schemas [--schema-dir <dir>] [--index-file <path>]"
       echo "Extracts CRD schemas from the cluster and converts them to JSON for kubeconform."
       exit 0
       ;;
@@ -44,36 +52,107 @@ log_step "Extracting CRD definitions from cluster"
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-# Fetch all CRDs from the cluster in a single API call
+MANIFEST_FILE="${SCHEMA_DIR}/.crd-manifest.json"
+OPENAPI_INDEX_TMP="${TMP_DIR}/openapi_index.txt"
+k8s_get_openapi_index "${INDEX_FILE}" > "${OPENAPI_INDEX_TMP}" 2>/dev/null || true
+
+CRD_META_FILE="${TMP_DIR}/crd_meta.txt"
+kubectl get crd -o go-template='{{if .items}}{{range .items}}{{.metadata.name}}{{"\t"}}{{.spec.group}}{{"\t"}}{{.spec.names.kind}}{{"\t"}}{{range .spec.versions}}{{.name}},{{end}}{{"\t"}}{{.metadata.resourceVersion}}{{"\n"}}{{end}}{{end}}' > "${CRD_META_FILE}" 2>/dev/null || true
+
+PLAN_FILE="${TMP_DIR}/plan.json"
+NEEDS_FULL_LIST=false
+
+if [ -s "${CRD_META_FILE}" ]; then
+  PLAN_STATUS=$(python3 "${CRD_CACHE_HELPER}" plan \
+    --meta-file "${CRD_META_FILE}" \
+    --index-file "${OPENAPI_INDEX_TMP}" \
+    --schema-dir "${SCHEMA_DIR}" \
+    --manifest-file "${MANIFEST_FILE}" \
+    --plan-file "${PLAN_FILE}")
+else
+  PLAN_STATUS="FALLBACK"
+fi
+
 CRD_LIST_FILE="${TMP_DIR}/crds.yaml"
-if ! kubectl get crds -o json > "${CRD_LIST_FILE}" 2>/dev/null || [ ! -s "${CRD_LIST_FILE}" ]; then
-  log_warn "No CRDs found in cluster or cluster unreachable. Skipping schema generation."
-  exit 0
-fi
 
-CRD_COUNT=1
-if command -v jq >/dev/null 2>&1; then
-  CRD_COUNT=$(jq '.items | length // 1' "${CRD_LIST_FILE}" 2>/dev/null || echo 1)
-fi
+if [[ "${PLAN_STATUS}" == OK* ]]; then
+  read -r _ TOTAL_CRDS FETCH_COUNT _ _ <<< "${PLAN_STATUS}"
+  log_info "Discovered ${TOTAL_CRDS} CRDs via cluster metadata (${FETCH_COUNT} need fetching)"
 
-if [ "${CRD_COUNT}" -eq 0 ]; then
-  log_warn "No CRDs found in cluster or cluster unreachable. Skipping schema generation."
-  exit 0
-fi
+  if [ "${FETCH_COUNT}" -gt 0 ]; then
+    FETCH_NAMES=()
+    while IFS= read -r crd_name; do
+      [ -n "${crd_name}" ] && FETCH_NAMES+=("${crd_name}")
+    done < <(python3 "${CRD_CACHE_HELPER}" fetch-names --plan-file "${PLAN_FILE}")
 
-log_info "Extracted ${CRD_COUNT} CRDs from cluster"
+    if [ "${#FETCH_NAMES[@]}" -eq "${TOTAL_CRDS}" ] || [ "${#FETCH_NAMES[@]}" -gt 50 ]; then
+      kubectl get crds -o json > "${CRD_LIST_FILE}" 2>/dev/null || true
+    elif [ "${#FETCH_NAMES[@]}" -eq 1 ]; then
+      SINGLE_CRD_FILE="${TMP_DIR}/single_crd.json"
+      if kubectl get crds "${FETCH_NAMES[0]}" -o json > "${SINGLE_CRD_FILE}" 2>/dev/null && [ -s "${SINGLE_CRD_FILE}" ]; then
+        python3 "${CRD_CACHE_HELPER}" normalize-list \
+          --input-file "${SINGLE_CRD_FILE}" \
+          --output-file "${CRD_LIST_FILE}"
+      fi
+    else
+      kubectl get crds "${FETCH_NAMES[@]}" -o json > "${CRD_LIST_FILE}" 2>/dev/null || true
+    fi
+  else
+    echo '{"apiVersion":"v1","kind":"List","items":[]}' > "${CRD_LIST_FILE}"
+  fi
+else
+  NEEDS_FULL_LIST=true
+  if ! kubectl get crds -o json > "${CRD_LIST_FILE}" 2>/dev/null || [ ! -s "${CRD_LIST_FILE}" ]; then
+    log_warn "No CRDs found in cluster or cluster unreachable. Skipping schema generation."
+    exit 0
+  fi
+
+  CRD_COUNT=1
+  if command -v jq >/dev/null 2>&1; then
+    CRD_COUNT=$(jq '.items | length // 1' "${CRD_LIST_FILE}" 2>/dev/null || echo 1)
+  fi
+
+  if [ "${CRD_COUNT}" -eq 0 ]; then
+    log_warn "No CRDs found in cluster or cluster unreachable. Skipping schema generation."
+    exit 0
+  fi
+
+  log_info "Extracted ${CRD_COUNT} CRDs from cluster"
+fi
 
 log_step "Converting CRD schemas to JSON"
-(
-  cd "${TMP_DIR}"
-  export FILENAME_FORMAT='{kind}_{version}'
-  openapi2jsonschema.py "${CRD_LIST_FILE}" 2>/dev/null || true
-  mv ./*.json "${SCHEMA_DIR}/" 2>/dev/null || true
-)
+CHANGED_CRD_FILE="${TMP_DIR}/changed_crds.yaml"
+NEW_MANIFEST_FILE="${TMP_DIR}/new_manifest.json"
 
-SCHEMA_COUNT=$(find "${SCHEMA_DIR}" -name '*.json' 2>/dev/null | wc -l | xargs)
+DIFF_STATS=$(python3 "${CRD_CACHE_HELPER}" diff \
+  --crd-list-file "${CRD_LIST_FILE}" \
+  --index-file "${OPENAPI_INDEX_TMP}" \
+  --schema-dir "${SCHEMA_DIR}" \
+  --manifest-file "${MANIFEST_FILE}" \
+  --changed-crd-file "${CHANGED_CRD_FILE}" \
+  --new-manifest-file "${NEW_MANIFEST_FILE}" \
+  --plan-file "${PLAN_FILE}" \
+  --needs-full-list "${NEEDS_FULL_LIST}")
+
+read -r CHANGED_COUNT UNCHANGED_COUNT REMOVED_COUNT <<< "${DIFF_STATS}"
+log_info "CRD schema cache diff: ${CHANGED_COUNT} changed/new, ${UNCHANGED_COUNT} cached, ${REMOVED_COUNT} removed"
+
+if [ -f "${NEW_MANIFEST_FILE}" ]; then
+  mv "${NEW_MANIFEST_FILE}" "${MANIFEST_FILE}"
+fi
+
+if [ "${CHANGED_COUNT}" -gt 0 ] && [ -f "${CHANGED_CRD_FILE}" ]; then
+  (
+    cd "${TMP_DIR}"
+    export FILENAME_FORMAT='{kind}_{version}'
+    openapi2jsonschema.py "${CHANGED_CRD_FILE}" 2>/dev/null || true
+    mv ./*.json "${SCHEMA_DIR}/" 2>/dev/null || true
+  )
+fi
+
+SCHEMA_COUNT=$(find "${SCHEMA_DIR}" -maxdepth 1 -name '*.json' ! -name '.*' 2>/dev/null | wc -l | xargs)
 if [ "${SCHEMA_COUNT}" -eq 0 ]; then
   log_fatal "No JSON schemas were generated in ${SCHEMA_DIR}."
 fi
 
-log_success "Generated ${SCHEMA_COUNT} JSON schemas in ${SCHEMA_DIR}"
+log_success "Generated ${SCHEMA_COUNT} JSON schemas in ${SCHEMA_DIR} (${CHANGED_COUNT} updated, ${UNCHANGED_COUNT} cached)"

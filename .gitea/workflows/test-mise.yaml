@@ -32,6 +32,21 @@ jobs:
         run: |
           bats .mise/tests/bash/
 
+      - name: Ruff Check & Format (.mise Python)
+        run: |
+          shopt -s nullglob
+          files=(.mise/lib/*.py .mise/tests/python/*.py)
+          if [ ${#files[@]} -gt 0 ]; then
+            ruff check "${files[@]}"
+            ruff format --check "${files[@]}"
+          fi
+
+      - name: Run Mise Python Tests (pytest)
+        run: |
+          if [ -d ".mise/tests/python" ] && ls .mise/tests/python/*test*.py >/dev/null 2>&1; then
+            uv run pytest .mise/tests/python/
+          fi
+
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
         if: failure()
