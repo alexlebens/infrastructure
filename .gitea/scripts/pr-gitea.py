@@ -66,9 +66,7 @@ def build_auth_repo_url(gitea_url: str, repo: str, token: str) -> str:
     return f"{parsed_url.scheme}://{auth_netloc}/{repo_path}"
 
 
-def find_open_pr(
-    gitea_url: str, repo: str, token: str, head_branch: str
-) -> dict | None:
+def find_open_pr(gitea_url: str, repo: str, token: str, head_branch: str) -> dict | None:
     """Return the first open PR whose head ref matches head_branch, if any."""
     list_url = f"{gitea_url}/api/v1/repos/{repo}/pulls?state=open&page=1"
     status_code, pulls_data = gitea_api_request(list_url, token, method="GET")
@@ -185,9 +183,7 @@ def main():
     )
     parser.add_argument(
         "--body",
-        default=os.getenv(
-            "BODY", os.getenv("PR_BODY", "Automated changes pushed by CI workflow.")
-        ),
+        default=os.getenv("BODY", os.getenv("PR_BODY", "Automated changes pushed by CI workflow.")),
         help="Pull request body markdown.",
     )
     parser.add_argument(
@@ -285,13 +281,9 @@ def main():
     user_name_check = run_cmd(["git", "config", "user.name"], cwd=work_dir, check=False)
     if not user_name_check.stdout.strip():
         run_cmd(["git", "config", "user.name", "gitea-bot"], cwd=work_dir)
-    user_email_check = run_cmd(
-        ["git", "config", "user.email"], cwd=work_dir, check=False
-    )
+    user_email_check = run_cmd(["git", "config", "user.email"], cwd=work_dir, check=False)
     if not user_email_check.stdout.strip():
-        run_cmd(
-            ["git", "config", "user.email", "gitea-bot@alexlebens.dev"], cwd=work_dir
-        )
+        run_cmd(["git", "config", "user.email", "gitea-bot@alexlebens.dev"], cwd=work_dir)
 
     print(f">> Committing changes to {head_branch} ...")
     run_cmd(["git", "add", args.add_path], cwd=work_dir)
@@ -337,17 +329,12 @@ def main():
 
     # If not an automerge PR, check if an open PR from head_branch into base_branch already exists
     if not is_automerge:
-        print(
-            f">> Checking for existing open PR from {head_branch} into"
-            f" {base_branch} ..."
-        )
+        print(f">> Checking for existing open PR from {head_branch} into {base_branch} ...")
         existing_pr = find_open_pr(gitea_url, repo, token, head_branch)
 
         if existing_pr:
             existing_pr_number = existing_pr["number"]
-            pr_url = existing_pr.get(
-                "html_url", f"{gitea_url}/{repo}/pulls/{existing_pr_number}"
-            )
+            pr_url = existing_pr.get("html_url", f"{gitea_url}/{repo}/pulls/{existing_pr_number}")
             print(f">> Found open PR #{existing_pr_number}. Updating PR ...")
 
             patch_url = f"{gitea_url}/api/v1/repos/{repo}/pulls/{existing_pr_number}"
@@ -362,9 +349,7 @@ def main():
                     patch_url, token, method="PATCH", data=patch_payload
                 )
                 if patch_status in (200, 201):
-                    print(
-                        f">> Pull Request #{existing_pr_number} updated successfully!"
-                    )
+                    print(f">> Pull Request #{existing_pr_number} updated successfully!")
                     pr_operation = "updated"
                     pr_number = str(existing_pr_number)
                 else:
@@ -378,14 +363,14 @@ def main():
 
             if update_comment:
                 print(f">> Posting update comment to PR #{existing_pr_number} ...")
-                comment_url = f"{gitea_url}/api/v1/repos/{repo}/issues/{existing_pr_number}/comments"
+                comment_url = (
+                    f"{gitea_url}/api/v1/repos/{repo}/issues/{existing_pr_number}/comments"
+                )
                 comment_status, _ = gitea_api_request(
                     comment_url, token, method="POST", data={"body": update_comment}
                 )
                 if comment_status in (200, 201):
-                    print(
-                        f">> Update comment posted to PR #{existing_pr_number} successfully!"
-                    )
+                    print(f">> Update comment posted to PR #{existing_pr_number} successfully!")
                 else:
                     print(
                         f">> Warning: Failed to post comment to PR #{existing_pr_number} (HTTP"
@@ -411,9 +396,7 @@ def main():
 
         if create_status == 201 and isinstance(create_data, dict):
             pr_number = str(create_data.get("number", ""))
-            pr_url = create_data.get(
-                "html_url", f"{gitea_url}/{repo}/pulls/{pr_number}"
-            )
+            pr_url = create_data.get("html_url", f"{gitea_url}/{repo}/pulls/{pr_number}")
             pr_operation = "created"
             print(f">> Pull Request #{pr_number} created successfully!")
         elif create_status in (409, 422):
@@ -422,9 +405,7 @@ def main():
             existing = find_open_pr(gitea_url, repo, token, head_branch)
             if existing:
                 pr_number = str(existing.get("number", ""))
-                pr_url = existing.get(
-                    "html_url", f"{gitea_url}/{repo}/pulls/{pr_number}"
-                )
+                pr_url = existing.get("html_url", f"{gitea_url}/{repo}/pulls/{pr_number}")
                 print(f">> Found existing open PR #{pr_number}.")
         else:
             print(
@@ -490,10 +471,10 @@ def main():
 
                 # On subsequent retries, try requesting Gitea to merge base into head if branch is out-of-date
                 if attempt >= 2 and merge_status in (409, 422):
-                    update_url = f"{gitea_url}/api/v1/repos/{repo}/pulls/{pr_number}/update?style=merge"
-                    update_status, update_data = gitea_api_request(
-                        update_url, token, method="POST"
+                    update_url = (
+                        f"{gitea_url}/api/v1/repos/{repo}/pulls/{pr_number}/update?style=merge"
                     )
+                    update_status, update_data = gitea_api_request(update_url, token, method="POST")
                     if update_status == 200:
                         print(
                             f">> Updated PR #{pr_number} branch with latest changes from {base_branch}.",
@@ -508,8 +489,7 @@ def main():
                 time.sleep(delay)
             else:
                 print(
-                    f">> Failed to automerge PR #{pr_number}, HTTP {merge_status}:"
-                    f" {merge_data}",
+                    f">> Failed to automerge PR #{pr_number}, HTTP {merge_status}: {merge_data}",
                     flush=True,
                 )
                 break

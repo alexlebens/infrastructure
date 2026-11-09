@@ -357,10 +357,7 @@ def test_build_markdown_summary():
     md = rbs.build_markdown_summary(rows, 1)
     assert "- **Total Managed Targets**: 2" in md
     assert "- **Files Modified**: 1" in md
-    assert (
-        "| `a` | `t` | Postgres | Daily | `0 0 5 * * *` | `11:00 PM CST` | Updated |"
-        in md
-    )
+    assert "| `a` | `t` | Postgres | Daily | `0 0 5 * * *` | `11:00 PM CST` | Updated |" in md
     assert md.splitlines()[-1].endswith("| Aligned |")
 
 
@@ -395,17 +392,13 @@ def test_main_writes_outputs_and_summary(tmp_path: Path, monkeypatch, github_out
 def test_main_no_changes(tmp_path: Path, monkeypatch, github_output):
     write_values(tmp_path, "app", PG_VALUES)
     rbs.rebalance_schedules(tmp_path, "c1")
-    monkeypatch.setattr(
-        "sys.argv", ["rebalance", "--main-dir", str(tmp_path), "--cluster", "c1"]
-    )
+    monkeypatch.setattr("sys.argv", ["rebalance", "--main-dir", str(tmp_path), "--cluster", "c1"])
     rbs.main()
     assert parse_github_output(github_output)["changes-detected"] == "false"
 
 
 def test_main_missing_helm_dir_exits_non_zero(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr(
-        "sys.argv", ["rebalance", "--main-dir", str(tmp_path), "--cluster", "nope"]
-    )
+    monkeypatch.setattr("sys.argv", ["rebalance", "--main-dir", str(tmp_path), "--cluster", "nope"])
     with pytest.raises(SystemExit) as exc:
         rbs.main()
     assert exc.value.code == 1

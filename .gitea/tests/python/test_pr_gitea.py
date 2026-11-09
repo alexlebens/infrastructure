@@ -167,9 +167,7 @@ def test_build_auth_repo_url(repo_name: str, expected: str):
 
 
 def test_redact():
-    assert (
-        pr.redact("https://oauth2:abc@host abc", "abc") == "https://oauth2:***@host ***"
-    )
+    assert pr.redact("https://oauth2:abc@host abc", "abc") == "https://oauth2:***@host ***"
     assert pr.redact("unchanged", "") == "unchanged"
 
 
@@ -228,9 +226,7 @@ def test_gitea_api_request_network_error(monkeypatch):
 
 
 def test_missing_head_branch_fails(monkeypatch, repo: Path, clean_env, capsys):
-    monkeypatch.setattr(
-        sys, "argv", ["pr-gitea.py", "--work-dir", str(repo), "--token", TOKEN]
-    )
+    monkeypatch.setattr(sys, "argv", ["pr-gitea.py", "--work-dir", str(repo), "--token", TOKEN])
     with pytest.raises(SystemExit) as exc:
         pr.main()
     assert exc.value.code == 1
@@ -238,18 +234,14 @@ def test_missing_head_branch_fails(monkeypatch, repo: Path, clean_env, capsys):
 
 
 def test_missing_token_fails(monkeypatch, repo: Path, clean_env):
-    monkeypatch.setattr(
-        sys, "argv", ["pr-gitea.py", "--work-dir", str(repo), "--head-branch", "x"]
-    )
+    monkeypatch.setattr(sys, "argv", ["pr-gitea.py", "--work-dir", str(repo), "--head-branch", "x"])
     with pytest.raises(SystemExit) as exc:
         pr.main()
     assert exc.value.code == 1
 
 
 def test_missing_work_dir_fails(monkeypatch, tmp_path: Path, clean_env):
-    monkeypatch.setattr(
-        sys, "argv", ["pr-gitea.py", "--work-dir", str(tmp_path / "nope")]
-    )
+    monkeypatch.setattr(sys, "argv", ["pr-gitea.py", "--work-dir", str(tmp_path / "nope")])
     with pytest.raises(SystemExit) as exc:
         pr.main()
     assert exc.value.code == 1
@@ -327,10 +319,7 @@ def test_body_file_takes_precedence(
     body_file.write_text("\nfrom file\n")
     api.on("GET", "/pulls", (200, []))
     api.on("POST", "/pulls", (201, {"number": 1}))
-    assert (
-        run_main(monkeypatch, repo, "--body", "ignored", "--body-file", str(body_file))
-        == 0
-    )
+    assert run_main(monkeypatch, repo, "--body", "ignored", "--body-file", str(body_file)) == 0
     assert api.called("POST", "/pulls")[0]["body"] == "from file"
 
 
@@ -358,9 +347,7 @@ def test_update_body_flag_patches_body(
     api.on("GET", "/pulls", (200, [{"number": 5, "head": {"ref": "auto/update"}}]))
     api.on("PATCH", "/pulls/5", (200, {}))
     assert run_main(monkeypatch, repo, "--update-body", "--body", "fresh") == 0
-    assert api.called("PATCH", "/pulls/5") == [
-        {"body": "fresh", "title": "Automated Update"}
-    ]
+    assert api.called("PATCH", "/pulls/5") == [{"body": "fresh", "title": "Automated Update"}]
 
 
 def test_create_conflict_resolves_existing_pr(
@@ -388,9 +375,7 @@ def test_create_failure_exits_non_zero(
     assert run_main(monkeypatch, repo) == 1
 
 
-def test_push_failure_does_not_leak_token(
-    monkeypatch, repo: Path, api, clean_env, capsys
-):
+def test_push_failure_does_not_leak_token(monkeypatch, repo: Path, api, clean_env, capsys):
     real_run_cmd = pr.run_cmd
 
     def failing_push(cmd, cwd=None, check=True):
