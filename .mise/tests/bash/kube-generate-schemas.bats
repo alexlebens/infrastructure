@@ -8,10 +8,21 @@ setup() {
   export KUBECTL_LOG="${BATS_TEST_TMPDIR}/kubectl.log"
   export OPENAPI_LOG="${BATS_TEST_TMPDIR}/openapi.log"
   export OPENAPI_INPUT="${BATS_TEST_TMPDIR}/openapi_input.json"
+  export K8S_OPENAPI_INDEX_FILE="${BATS_TEST_TMPDIR}/openapi_index.txt"
 
   _stub kubectl '
 echo "$*" >> "${KUBECTL_LOG}"
-if [[ "$1" == "get" && "$2" == "crds" ]]; then
+if [[ "$1" == "get" && "$2" == "--raw" && "$3" == "/openapi/v3" ]]; then
+  if [ -n "${MOCK_OPENAPI_V3_JSON:-}" ]; then
+    echo "${MOCK_OPENAPI_V3_JSON}"
+  else
+    printf "{\"paths\":{\"apis/example.com/v1\":{\"serverRelativeURL\":\"/openapi/v3/apis/example.com/v1?hash=h1\"}}}\n"
+  fi
+elif [[ "$1" == "get" && "$2" == "crd" && "$3" == "-o" ]]; then
+  if [ -n "${MOCK_CRD_META:-}" ]; then
+    printf "%b" "${MOCK_CRD_META}"
+  fi
+elif [[ "$1" == "get" && "$2" == "crds" ]]; then
   if [ -n "${MOCK_CRD_JSON:-}" ]; then
     echo "${MOCK_CRD_JSON}"
   else
@@ -23,8 +34,9 @@ if [[ "$1" == "get" && "$2" == "crds" ]]; then
     {
       "apiVersion": "apiextensions.k8s.io/v1",
       "kind": "CustomResourceDefinition",
-      "metadata": {"name": "testcrds.example.com"},
+      "metadata": {"name": "testcrds.example.com", "resourceVersion": "100"},
       "spec": {
+        "group": "example.com",
         "names": {"kind": "TestCRD"},
         "versions": [
           {
@@ -102,6 +114,72 @@ exit 0
   assert_success
   assert_output --partial "0 changed/new, 1 cached, 0 removed"
   assert [ ! -f "${OPENAPI_LOG}" ]
+}
+
+@test "kube:generate-schemas: uses OpenAPI v3 index and metadata to fetch only changed CRDs" {
+  local schema_dir="${BATS_TEST_TMPDIR}/schemas"
+  mkdir -p "${schema_dir}"
+
+  # Pre-populate OpenAPI v3 index file as `kube:api-versions --fingerprint` would
+  cat > "${K8S_OPENAPI_INDEX_FILE}" <<EOF
+/openapi/v3/apis/alpha.io/v1?hash=alpha_h1
+/openapi/v3/apis/beta.io/v1?hash=beta_h1
+EOF
+
+  export MOCK_CRD_META="alphas.alpha.io\talpha.io\tAlpha\tv1,\t10\nbetas.beta.io\tbeta.io\tBeta\tv1,\t20\n"
+  export MOCK_CRD_JSON='{
+    "apiVersion": "v1",
+    "kind": "List",
+    "items": [
+      {
+        "metadata": {"name": "alphas.alpha.io", "resourceVersion": "10"},
+        "spec": {
+          "group": "alpha.io",
+          "names": {"kind": "Alpha"},
+          "versions": [{"name": "v1", "schema": {"openAPIV3Schema": {"type": "object"}}}]
+        }
+      },
+      {
+        "metadata": {"name": "betas.beta.io", "resourceVersion": "20"},
+        "spec": {
+          "group": "beta.io",
+          "names": {"kind": "Beta"},
+          "versions": [{"name": "v1", "schema": {"openAPIV3Schema": {"type": "object"}}}]
+        }
+      }
+    ]
+  }'
+
+  run "${MISE_TASKS_DIR}/kube/generate-schemas" --schema-dir "${schema_dir}"
+  assert_success
+  assert_output --partial "2 changed/new, 0 cached, 0 removed"
+
+  # Now simulate Beta's OpenAPI hash changing while Alpha stays the same
+  cat > "${K8S_OPENAPI_INDEX_FILE}" <<EOF
+/openapi/v3/apis/alpha.io/v1?hash=alpha_h1
+/openapi/v3/apis/beta.io/v1?hash=beta_h2_changed
+EOF
+  export MOCK_CRD_META="alphas.alpha.io\talpha.io\tAlpha\tv1,\t10\nbetas.beta.io\tbeta.io\tBeta\tv1,\t21\n"
+  export MOCK_CRD_JSON='{
+    "apiVersion": "apiextensions.k8s.io/v1",
+    "kind": "CustomResourceDefinition",
+    "metadata": {"name": "betas.beta.io", "resourceVersion": "21"},
+    "spec": {
+      "group": "beta.io",
+      "names": {"kind": "Beta"},
+      "versions": [{"name": "v1", "schema": {"openAPIV3Schema": {"type": "object", "description": "updated"}}}]
+    }
+  }'
+
+  : > "${KUBECTL_LOG}"
+  run "${MISE_TASKS_DIR}/kube/generate-schemas" --schema-dir "${schema_dir}"
+  assert_success
+  assert_output --partial "Discovered 2 CRDs via cluster metadata (1 need fetching)"
+  assert_output --partial "1 changed/new, 1 cached, 0 removed"
+
+  # Verify kubectl only fetched betas.beta.io and NOT all crds
+  run cat "${KUBECTL_LOG}"
+  assert_output --partial "get crds betas.beta.io -o json"
 }
 
 @test "kube:generate-schemas: updates only changed CRDs and removes deleted CRDs" {

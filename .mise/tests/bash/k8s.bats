@@ -32,6 +32,21 @@ exit 0
   assert_output --regexp '^[a-f0-9]{64}$'
 }
 
+@test "k8s_get_fingerprint: persists and reuses OpenAPI v3 index file" {
+  local index_file="${BATS_TEST_TMPDIR}/openapi_index.txt"
+  run k8s_get_fingerprint "${index_file}"
+  assert_success
+  local fp1="${output}"
+  assert [ -f "${index_file}" ]
+
+  rm -f "${KUBECTL_LOG}"
+  run k8s_get_fingerprint "${index_file}"
+  assert_success
+  assert_output "${fp1}"
+  # Should not invoke kubectl when index file already exists
+  assert [ ! -f "${KUBECTL_LOG}" ]
+}
+
 @test "k8s_get_api_versions: reads from cache file when present" {
   local cache="${BATS_TEST_TMPDIR}/cache.txt"
   echo "v1,apps/v1,cached/v1/MyKind" > "${cache}"
