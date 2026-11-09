@@ -18,22 +18,6 @@ repos:
     rev: v3.0.1
     hooks:
       - id: docker-compose-check
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.11.0.1-1
-    hooks:
-      - id: shellcheck
-        language_version: /opt/homebrew/opt/python@3.13/bin/python3.13
-        files: ^(\.gitea/scripts/|clusters/.*scripts/).*\.sh$
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.0
-    hooks:
-      - id: ruff
-        language_version: /opt/homebrew/opt/python@3.13/bin/python3.13
-        files: ^(\.gitea/scripts/|clusters/.*scripts/).*\.py$
-        args: [--fix]
-      - id: ruff-format
-        language_version: /opt/homebrew/opt/python@3.13/bin/python3.13
-        files: ^(\.gitea/scripts/|clusters/.*scripts/).*\.py$
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
     hooks:
@@ -48,9 +32,24 @@ repos:
           - 'undefined variable "gitea"'
   - repo: local
     hooks:
+      - id: shellcheck
+        name: shellcheck
+        entry: mise exec -- shellcheck
+        language: system
+        files: ^(\.gitea/scripts/|clusters/.*scripts/).*\.sh$
+      - id: ruff
+        name: ruff
+        entry: mise exec -- ruff check --force-exclude --fix
+        language: system
+        files: ^(\.gitea/scripts/|clusters/.*scripts/).*\.py$
+      - id: ruff-format
+        name: ruff-format
+        entry: mise exec -- ruff format --force-exclude
+        language: system
+        files: ^(\.gitea/scripts/|clusters/.*scripts/).*\.py$
       - id: tofu-fmt
         name: tofu fmt
-        entry: tofu fmt
+        entry: mise exec -- tofu fmt
         language: system
         files: \.tf$
       - id: prettier
