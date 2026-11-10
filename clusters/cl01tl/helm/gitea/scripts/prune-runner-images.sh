@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+echo "Discovering active Gitea runner pods in namespace ${NAMESPACE:-gitea}..."
+RUNNERS=$(kubectl get pods -n "${NAMESPACE:-gitea}" -l app.kubernetes.io/name=gitea-actions-runner -o jsonpath='{.items[*].metadata.name}')
+
+if [ -z "$RUNNERS" ]; then
+  echo "No Gitea runner pods found."
+  exit 0
+fi
+
+for POD in $RUNNERS; do
+  echo "Pruning dangling docker images on $POD (dind)..."
+  kubectl exec -n "${NAMESPACE:-gitea}" "$POD" -c dind -- docker image prune -f || {
+    echo "Warning: Failed to prune dangling images on $POD, continuing..."
+  }
+done
+
+echo "Runner image prune sweep completed successfully."
