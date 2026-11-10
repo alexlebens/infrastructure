@@ -12,26 +12,6 @@ pocket-tts:
           fsGroupChangePolicy: OnRootMismatch
           seccompProfile:
             type: RuntimeDefault
-      initContainers:
-        init-models:
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop:
-                - ALL
-          image:
-            repository: busybox
-            tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
-          command:
-            - /scripts/init-models.sh
-          resources:
-            requests:
-              cpu: 10m
-              memory: 50Mi
-            limits:
-              cpu: 100m
-              memory: 500Mi
       containers:
         pocket-tts:
           securityContext:
@@ -43,21 +23,26 @@ pocket-tts:
           image:
             repository: ghcr.io/araa47/wyoming_pocket_tts
             tag: 1.4.11@sha256:6d2bc03c9674193cc9971d4b33097e74ca6c885a78c72609d6421a5fc7c12edd
+          envFrom:
+            - secretRef:
+                name: pocket-tts-secret
           env:
             - name: TZ
               value: America/Chicago
             - name: LANGUAGE
               value: en
             - name: VOICES
-              value: ""
+              value:
+                "alba anna azelma bill_boerst caro_davy charles cosette eponine eve fantine george jane jean javert
+                marius mary michael paul peter_yearsley stuart_bell vera"
             - name: VOICES_DIR
               value: /data/voices
             - name: HF_HOME
               value: /data/huggingface
           resources:
             requests:
-              cpu: 100m
-              memory: 1Gi
+              cpu: 50m
+              memory: 800Mi
             limits:
               cpu: 1000m
               memory: 4Gi
@@ -68,20 +53,20 @@ pocket-tts:
               spec:
                 tcpSocket:
                   port: 10200
-                initialDelaySeconds: 30
+                initialDelaySeconds: 60
                 periodSeconds: 15
                 timeoutSeconds: 5
-                failureThreshold: 3
+                failureThreshold: 5
             readiness:
               enabled: true
               custom: true
               spec:
                 tcpSocket:
                   port: 10200
-                initialDelaySeconds: 15
+                initialDelaySeconds: 30
                 periodSeconds: 10
                 timeoutSeconds: 5
-                failureThreshold: 3
+                failureThreshold: 5
         openai-gateway:
           securityContext:
             allowPrivilegeEscalation: false
@@ -106,7 +91,7 @@ pocket-tts:
           resources:
             requests:
               cpu: 10m
-              memory: 100Mi
+              memory: 50Mi
           probes:
             liveness:
               enabled: true
@@ -156,14 +141,6 @@ pocket-tts:
                 type: PathPrefix
                 value: /
   persistence:
-    model:
-      type: image
-      image: harbor.alexlebens.dev/models/pocket-tts:latest
-      advancedMounts:
-        main:
-          init-models:
-            - path: /models
-              readOnly: true
     data:
       forceRename: pocket-tts-data
       storageClass: ceph-block
@@ -171,19 +148,8 @@ pocket-tts:
       size: 10Gi
       advancedMounts:
         main:
-          init-models:
-            - path: /data
           pocket-tts:
             - path: /data
-    scripts:
-      type: configMap
-      name: pocket-tts-scripts
-      defaultMode: 0755
-      advancedMounts:
-        main:
-          init-models:
-            - path: /scripts
-              readOnly: true
     tmp:
       type: emptyDir
       globalMounts:
