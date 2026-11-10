@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+#MISE description="List or import pre-existing Harbor projects into OpenTofu remote state"
+set -euo pipefail
+
+# ==============================================================================
+# Import Pre-Existing Harbor Projects into OpenTofu State (tofu/harbor)
+#
+# Usage:
+#   tofu-import-harbor-project            # list Harbor projects not yet in locals.tf
+#   tofu-import-harbor-project <name>...  # tofu import for projects already in locals.tf
+#
+# Workflow for a project created in the Harbor UI:
+#   1. Run with no args to find it and its project_id.
+#   2. Add an entry to `local.projects` in tofu/harbor/locals.tf (project_id optional).
+#   3. Run with <name> to import it, then `tofu plan` to confirm no drift.
+#   (Alternatively set `project_id` in locals.tf and let import.tf adopt it on apply.)
+#
+# Env: HARBOR_URL (default https://harbor.alexlebens.dev), HARBOR_PASSWORD
+#      (auto-fetched from the harbor-secret Kubernetes secret if unset),
+#      TF_HTTP_USERNAME / TF_HTTP_PASSWORD for the Gitea state backend.
+# ==============================================================================
+
+HARBOR_URL="${HARBOR_URL:-https://harbor.alexlebens.dev}"
+TOFU_DIR="$(git rev-parse --show-toplevel)/tofu/harbor"
+
+if [ -z "${HARBOR_PASSWORD:-}" ]; then
+  HARBOR_PASSWORD=$(kubectl -n harbor get secret harbor-secret -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d)
+fi
+export TF_VAR_harbor_password="${HARBOR_PASSWORD}"
+
+projects_json=$(curl -fsS -u "admin:${HARBOR_PASSWORD}" "${HARBOR_URL}/api/v2.0/projects?page_size=100")
+
+if [ "$#" -eq 0 ]; then
+  echo ">> Harbor projects not present in tofu/harbor/locals.tf:"
+  while read -r id name; do
+    if ! grep -q "^    \"${name}\" = {" "${TOFU_DIR}/locals.tf"; then
+      echo "   ${name} (project_id=${id})"
+    fi
+  done < <(jq -r '.[] | "\(.project_id) \(.name)"' <<<"${projects_json}")
+  exit 0
+fi
+
+cd "${TOFU_DIR}"
+tofu init -input=false >/dev/null
+
+for name in "$@"; do
+  id=$(jq -r --arg n "${name}" '.[] | select(.name == $n) | .project_id' <<<"${projects_json}")
+  if [ -z "${id}" ]; then
+    echo "Error: project '${name}' not found in Harbor" >&2
+    exit 1
+  fi
+  if tofu state list 2>/dev/null | grep -qF "harbor_project.this[\"${name}\"]"; then
+    echo ">> ${name} already in state, skipping"
+    continue
+  fi
+  echo ">> Importing ${name} (project_id=${id})"
+  tofu import "harbor_project.this[\"${name}\"]" "/projects/${id}"
+done
