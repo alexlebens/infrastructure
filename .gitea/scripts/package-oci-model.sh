@@ -125,6 +125,8 @@ for (( i=0; i<MODEL_COUNT; i++ )); do
     TARGET_DIR="${MODEL_TMP_DIR}/huggingface"
     mkdir -p "${TARGET_DIR}"
 
+    IGNORE_PATTERNS_JSON=$(echo "${MODEL_ITEM}" | jq -c '.ignore_patterns // []')
+
     echo ">> Downloading repository snapshot from ${HF_REPO} ..."
     PYTHON_EXEC="python3"
     if command -v uv >/dev/null 2>&1; then
@@ -135,14 +137,15 @@ for (( i=0; i<MODEL_COUNT; i++ )); do
     fi
 
     ${PYTHON_EXEC} -c "
-import os, sys
+import json, os, sys
 from huggingface_hub import snapshot_download
 
 token = os.environ.get('HF_TOKEN') or None
 repo = sys.argv[1]
 target = sys.argv[2]
-snapshot_download(repo_id=repo, local_dir=target, token=token, max_workers=8)
-" "${HF_REPO}" "${TARGET_DIR}"
+ignore_patterns = json.loads(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] else None
+snapshot_download(repo_id=repo, local_dir=target, token=token, max_workers=8, ignore_patterns=ignore_patterns)
+" "${HF_REPO}" "${TARGET_DIR}" "${IGNORE_PATTERNS_JSON}"
 
     DIR_SIZE=$(du -sh "${TARGET_DIR}" | awk '{print $1}')
     echo ">> Downloaded snapshot for ${HF_REPO} (${DIR_SIZE})"
