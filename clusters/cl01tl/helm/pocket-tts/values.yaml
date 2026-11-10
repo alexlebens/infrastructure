@@ -12,6 +12,26 @@ pocket-tts:
           fsGroupChangePolicy: OnRootMismatch
           seccompProfile:
             type: RuntimeDefault
+      initContainers:
+        init-models:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: busybox
+            tag: 1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+          command:
+            - /scripts/init-models.sh
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+            limits:
+              cpu: 100m
+              memory: 500Mi
       containers:
         pocket-tts:
           securityContext:
@@ -33,7 +53,7 @@ pocket-tts:
             - name: VOICES_DIR
               value: /data/voices
             - name: HF_HOME
-              value: /models/huggingface
+              value: /data/huggingface
           resources:
             requests:
               cpu: 100m
@@ -141,18 +161,29 @@ pocket-tts:
       image: harbor.alexlebens.dev/models/pocket-tts:latest
       advancedMounts:
         main:
-          pocket-tts:
+          init-models:
             - path: /models
               readOnly: true
     data:
       forceRename: pocket-tts-data
       storageClass: ceph-block
       accessMode: ReadWriteOnce
-      size: 1Gi
+      size: 10Gi
       advancedMounts:
         main:
+          init-models:
+            - path: /data
           pocket-tts:
             - path: /data
+    scripts:
+      type: configMap
+      name: pocket-tts-scripts
+      defaultMode: 0755
+      advancedMounts:
+        main:
+          init-models:
+            - path: /scripts
+              readOnly: true
     tmp:
       type: emptyDir
       globalMounts:
