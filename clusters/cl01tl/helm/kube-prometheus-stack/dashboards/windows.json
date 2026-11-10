@@ -17,8 +17,9 @@
   },
   "editable": false,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
       "collapsed": false,
@@ -370,7 +371,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "max(windows_gpu_temperature_celsius{instance=~\"$instance\"} * on(device_id) group_left(name) (windows_gpu_info{name=~\"NVIDIA.*\"} > 0)) or max(windows_gpu_temperature_celsius{instance=~\"$instance\"})",
+          "expr": "max(windows_gpu_temperature_celsius{instance=~\"$instance\"} * on(instance, device_id) group_left(name) (windows_gpu_info{name=~\"NVIDIA.*\"} > 0)) or max(windows_gpu_temperature_celsius{instance=~\"$instance\"})",
           "instant": true,
           "legendFormat": "GPU Temp",
           "range": false,
@@ -468,7 +469,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "windows_gpu_temperature_celsius{instance=~\"$instance\"} * on(device_id) group_left(name) (windows_gpu_info > 0)",
+          "expr": "windows_gpu_temperature_celsius{instance=~\"$instance\"} * on(instance, device_id) group_left(name) (windows_gpu_info > 0)",
           "legendFormat": "{{name}} Temp",
           "range": true,
           "refId": "A"
@@ -479,7 +480,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "windows_gpu_temperature_warning_celsius{instance=~\"$instance\"} * on(device_id) group_left(name) (windows_gpu_info > 0)",
+          "expr": "windows_gpu_temperature_warning_celsius{instance=~\"$instance\"} * on(instance, device_id) group_left(name) (windows_gpu_info > 0)",
           "legendFormat": "{{name}} Throttling Threshold",
           "range": true,
           "refId": "B"
@@ -553,7 +554,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "windows_gpu_fan_speed_rpm{instance=~\"$instance\"} * on(device_id) group_left(name) (windows_gpu_info > 0)",
+          "expr": "windows_gpu_fan_speed_rpm{instance=~\"$instance\"} * on(instance, device_id) group_left(name) (windows_gpu_info > 0)",
           "legendFormat": "{{name}} Fan RPM",
           "range": true,
           "refId": "A"
@@ -627,7 +628,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "windows_gpu_adapter_memory_dedicated_bytes{instance=~\"$instance\"} * on(device_id) group_left(name) (windows_gpu_info > 0)",
+          "expr": "windows_gpu_adapter_memory_dedicated_bytes{instance=~\"$instance\"} * on(instance, device_id) group_left(name) (windows_gpu_info > 0)",
           "legendFormat": "{{name}} Dedicated VRAM Used",
           "range": true,
           "refId": "A"
@@ -638,7 +639,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "windows_gpu_dedicated_video_memory_size_bytes{instance=~\"$instance\"} * on(device_id) group_left(name) (windows_gpu_info > 0)",
+          "expr": "windows_gpu_dedicated_video_memory_size_bytes{instance=~\"$instance\"} * on(instance, device_id) group_left(name) (windows_gpu_info > 0)",
           "legendFormat": "{{name}} Total VRAM",
           "range": true,
           "refId": "B"
@@ -713,7 +714,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "windows_gpu_power_usage_ratio{instance=~\"$instance\"} * on(device_id) group_left(name) (windows_gpu_info > 0) * 100",
+          "expr": "windows_gpu_power_usage_ratio{instance=~\"$instance\"} * on(instance, device_id) group_left(name) (windows_gpu_info > 0) * 100",
           "legendFormat": "{{name}} Power Usage (% TDP)",
           "range": true,
           "refId": "A"
@@ -800,7 +801,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(1 - sum(irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"idle\"}[1m])) / count(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
+          "expr": "(1 - sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"idle\"}[1m])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
           "legendFormat": "Total CPU Busy",
           "range": true,
           "refId": "A"
@@ -811,7 +812,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(sum(irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"user\"}[1m])) / count(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
+          "expr": "(sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"user\"}[1m])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
           "legendFormat": "User Mode",
           "range": true,
           "refId": "B"
@@ -822,7 +823,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(sum(irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"privileged\"}[1m])) / count(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
+          "expr": "(sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"privileged\"}[1m])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
           "legendFormat": "Privileged (Kernel)",
           "range": true,
           "refId": "C"
@@ -833,7 +834,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(sum(irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=~\"dpc|interrupt\"}[1m])) / count(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
+          "expr": "(sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=~\"dpc|interrupt\"}[1m])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
           "legendFormat": "DPC & Interrupts",
           "range": true,
           "refId": "D"
@@ -1208,7 +1209,7 @@
     }
   ],
   "preload": true,
-  "refresh": "",
+  "refresh": "30s",
   "schemaVersion": 42,
   "tags": ["hardware", "windows", "gpu"],
   "templating": {
@@ -1261,13 +1262,12 @@
     ]
   },
   "time": {
-    "from": "now-7d",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
-  "weekStart": "",
-  "title": "Host PD05WD",
+  "title": "Windows Host",
   "uid": "c62bdf87c3bc4e73",
-  "id": 1874532
+  "version": 2
 }
