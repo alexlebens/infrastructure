@@ -42,6 +42,35 @@ spec:
       hostNetwork: false
       hostPID: false
       dnsPolicy: ClusterFirst
+      initContainers:
+        - command:
+            - /scripts/init-models.sh
+          image: busybox:1.38.0@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d
+          name: init-models
+          resources:
+            limits:
+              cpu: 100m
+              memory: 500Mi
+            requests:
+              cpu: 10m
+              memory: 50Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /data
+              name: data
+            - mountPath: /models
+              name: model
+              readOnly: true
+            - mountPath: /scripts
+              name: scripts
+              readOnly: true
+            - mountPath: /tmp
+              name: tmp
       containers:
         - env:
             - name: TZ
@@ -95,7 +124,7 @@ spec:
             - name: VOICES_DIR
               value: /data/voices
             - name: HF_HOME
-              value: /models/huggingface
+              value: /data/huggingface
           image: ghcr.io/araa47/wyoming_pocket_tts:1.4.11@sha256:6d2bc03c9674193cc9971d4b33097e74ca6c885a78c72609d6421a5fc7c12edd
           livenessProbe:
             failureThreshold: 3
@@ -128,9 +157,6 @@ spec:
           volumeMounts:
             - mountPath: /data
               name: data
-            - mountPath: /models
-              name: model
-              readOnly: true
             - mountPath: /tmp
               name: tmp
       volumes:
@@ -140,5 +166,9 @@ spec:
         - image:
             reference: harbor.alexlebens.dev/models/pocket-tts:latest
           name: model
+        - configMap:
+            defaultMode: 493
+            name: pocket-tts-scripts
+          name: scripts
         - emptyDir: {}
           name: tmp
