@@ -9,6 +9,9 @@
 - **Images**: Pin tag and digest (`<tag>@sha256:<hash>`); prefer Docker Hub; never `latest`.
 - **Storage**: S3 buckets are managed via OpenTofu in `tofu/buckets/` (`s3-bucket:` in `values.yaml`). Never create
   ad-hoc or embed MinIO subcharts.
+- **Harbor**: Projects, quotas, proxy-cache bindings, and retention policies (`ci-images`, `images`, `models`) are
+  managed via OpenTofu in `tofu/harbor/locals.tf`. Never change them in the Harbor UI. Plan/apply run via
+  `tofu-harbor-plan` and `tofu-harbor-apply` workflows. Registries and proxy-project retention rules are not managed.
 - **Conventions**: Consult `helm-chart-authoring` skill for ordering and modular refs (`databases-*`, `secrets-openbao`,
   `storage-s3`, `auth-sso`).
 - **Documentation Sync**: Any addition, removal, or modification to applications, charts, hosts, schedules, or
