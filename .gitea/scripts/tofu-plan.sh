@@ -44,6 +44,13 @@ if [ -n "${TF_PLUGIN_CACHE_DIR:-}" ]; then
   mkdir -p "${TF_PLUGIN_CACHE_DIR}"
 fi
 
+STACK="$(basename "${TOFU_DIR}")"
+case "${STACK}" in
+  buckets) PLAN_TITLE="S3 Buckets & Credentials" ;;
+  harbor) PLAN_TITLE="Harbor Projects" ;;
+  *) PLAN_TITLE="${STACK}" ;;
+esac
+
 PLAN_OUT="$(mktemp)"
 PLAN_ERR="$(mktemp)"
 
@@ -78,9 +85,9 @@ else
   if [ -n "${GITEA_TOKEN}" ] && [ -n "${PR_NUMBER}" ]; then
     SERVER_URL="${PUBLIC_URL:-${GITHUB_SERVER_URL:-${GITEA_SERVER_URL:-}}}"
     REPO="${GITHUB_REPOSITORY:-${GITEA_REPOSITORY:-}}"
-    TAG="<!-- tofu-plan-buckets -->"
+    TAG="<!-- tofu-plan-${STACK} -->"
     COMMENT_BODY="${TAG}
-### OpenTofu Plan: S3 Buckets & Credentials
+### OpenTofu Plan: ${PLAN_TITLE}
 **Status**: **Plan Failed** (exit code ${PLAN_EXIT})
 
 \`\`\`
@@ -121,10 +128,10 @@ if [ "${LINE_COUNT}" -gt "${MAX_LINES}" ]; then
 fi
 
 # Build Markdown Comment
-TAG="<!-- tofu-plan-buckets -->"
+TAG="<!-- tofu-plan-${STACK} -->"
 if [ "${DIFF_FOUND}" = "true" ]; then
   COMMENT_BODY="${TAG}
-### OpenTofu Plan: S3 Buckets & Credentials
+### OpenTofu Plan: ${PLAN_TITLE}
 **Status**: Changes detected
 > **${SUMMARY_LINE}**
 
@@ -138,7 +145,7 @@ ${PLAN_DETAILS}
 </details>"
 else
   COMMENT_BODY="${TAG}
-### OpenTofu Plan: S3 Buckets & Credentials
+### OpenTofu Plan: ${PLAN_TITLE}
 **Status**: Up to date
 > **${SUMMARY_LINE}**"
 fi

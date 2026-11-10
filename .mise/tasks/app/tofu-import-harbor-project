@@ -15,20 +15,22 @@ set -euo pipefail
 #   3. Run with <name> to import it, then `tofu plan` to confirm no drift.
 #   (Alternatively set `project_id` in locals.tf and let import.tf adopt it on apply.)
 #
-# Env: HARBOR_URL (default https://harbor.alexlebens.dev), HARBOR_PASSWORD
-#      (auto-fetched from the harbor-secret Kubernetes secret if unset),
+# Env: HARBOR_URL (default https://harbor.alexlebens.dev), HARBOR_USERNAME (default admin),
+#      HARBOR_PASSWORD (auto-fetched from the harbor-secret Kubernetes secret if unset),
 #      TF_HTTP_USERNAME / TF_HTTP_PASSWORD for the Gitea state backend.
 # ==============================================================================
 
 HARBOR_URL="${HARBOR_URL:-https://harbor.alexlebens.dev}"
+HARBOR_USERNAME="${HARBOR_USERNAME:-admin}"
 TOFU_DIR="$(git rev-parse --show-toplevel)/tofu/harbor"
 
 if [ -z "${HARBOR_PASSWORD:-}" ]; then
   HARBOR_PASSWORD=$(kubectl -n harbor get secret harbor-secret -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d)
 fi
+export TF_VAR_harbor_username="${HARBOR_USERNAME}"
 export TF_VAR_harbor_password="${HARBOR_PASSWORD}"
 
-projects_json=$(curl -fsS -u "admin:${HARBOR_PASSWORD}" "${HARBOR_URL}/api/v2.0/projects?page_size=100")
+projects_json=$(curl -fsS -u "${HARBOR_USERNAME}:${HARBOR_PASSWORD}" "${HARBOR_URL}/api/v2.0/projects?page_size=100")
 
 if [ "$#" -eq 0 ]; then
   echo ">> Harbor projects not present in tofu/harbor/locals.tf:"
