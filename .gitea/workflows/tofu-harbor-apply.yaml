@@ -1,4 +1,4 @@
-name: tofu-apply
+name: tofu-harbor-apply
 
 concurrency:
   group: ${{ github.workflow }}
@@ -9,33 +9,9 @@ on:
     branches:
       - "main"
     paths:
-      - "tofu/buckets/**"
-      - ".gitea/workflows/tofu-*.yaml"
-      - ".gitea/scripts/tofu-*.sh"
-      - "clusters/cl01tl/helm/affine/**"
-      - "clusters/cl01tl/helm/backrest/**"
-      - "clusters/cl01tl/helm/cloudnative-pg/**"
-      - "clusters/cl01tl/helm/donetick/**"
-      - "clusters/cl01tl/helm/gitea/**"
-      - "clusters/cl01tl/helm/harbor/**"
-      - "clusters/cl01tl/helm/homebox/**"
-      - "clusters/cl01tl/helm/kaneo/**"
-      - "clusters/cl01tl/helm/karakeep/**"
-      - "clusters/cl01tl/helm/librechat/**"
-      - "clusters/cl01tl/helm/loki/**"
-      - "clusters/cl01tl/helm/mariadb-operator/**"
-      - "clusters/cl01tl/helm/memos/**"
-      - "clusters/cl01tl/helm/ntfy/**"
-      - "clusters/cl01tl/helm/open-archiver/**"
-      - "clusters/cl01tl/helm/openbao/**"
-      - "clusters/cl01tl/helm/outline/**"
-      - "clusters/cl01tl/helm/pocket-id-operator/**"
-      - "clusters/cl01tl/helm/psmdb-operator/**"
-      - "clusters/cl01tl/helm/reactive-resume/**"
-      - "clusters/cl01tl/helm/talos/**"
-      - "clusters/cl01tl/helm/thanos/**"
-      - "clusters/cl01tl/helm/volsync/**"
-      - "clusters/cl01tl/helm/web-assets/**"
+      - "tofu/harbor/**"
+      - ".gitea/workflows/tofu-harbor-*.yaml"
+      - ".gitea/scripts/tofu-fetch-secrets.sh"
 
   workflow_dispatch:
     inputs:
@@ -52,7 +28,6 @@ env:
   TF_PLUGIN_CACHE_DIR: "~/.cache/.opentofu-plugin-cache"
   TF_HTTP_USERNAME: "${{ vars.TF_HTTP_USERNAME || github.repository_owner }}"
   TF_HTTP_PASSWORD: "${{ secrets.TOFU_TOKEN }}"
-  TF_VAR_gitea_token: "${{ secrets.TOFU_TOKEN }}"
 
 jobs:
   apply:
@@ -65,18 +40,18 @@ jobs:
 
       - name: Retrieve Cluster Secrets
         id: cluster-secrets
-        run: ./.gitea/scripts/tofu-fetch-secrets.sh
+        run: ./.gitea/scripts/tofu-fetch-secrets.sh harbor
 
       - name: Cache OpenTofu Plugins
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ${{ env.TF_PLUGIN_CACHE_DIR }}
-          key: opentofu-${{ runner.os }}-${{ hashFiles('tofu/buckets/.terraform.lock.hcl') }}
+          key: opentofu-${{ runner.os }}-${{ hashFiles('tofu/harbor/.terraform.lock.hcl') }}
           restore-keys: |
             opentofu-${{ runner.os }}-
 
       - name: Initialize OpenTofu
-        working-directory: tofu/buckets
+        working-directory: tofu/harbor
         run: |
           mkdir -p "${TF_PLUGIN_CACHE_DIR}"
           tofu init -reconfigure \
@@ -85,7 +60,7 @@ jobs:
 
       - name: OpenTofu Plan
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan'
-        working-directory: tofu/buckets
+        working-directory: tofu/harbor
         run: |
           tofu plan -no-color -lock=false
 
@@ -93,7 +68,7 @@ jobs:
         if:
           github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action ==
           'apply')
-        working-directory: tofu/buckets
+        working-directory: tofu/harbor
         run: |
           tofu apply -auto-approve -no-color -lock=false
 
@@ -103,11 +78,11 @@ jobs:
         with:
           url: "${{ secrets.NTFY_URL }}"
           topic: "${{ vars.NTFY_TOPIC }}"
-          title: "🚨 OpenTofu Buckets Failure"
+          title: "🚨 OpenTofu Harbor Failure"
           priority: 4
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
-          details: "OpenTofu bucket management workflow failed during execution."
+          details: "OpenTofu Harbor management workflow failed during execution."
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository

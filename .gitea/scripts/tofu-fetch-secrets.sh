@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Usage: tofu-fetch-secrets.sh [buckets|harbor]   (default: buckets)
+STACK="${1:-buckets}"
+case "${STACK}" in
+  buckets | harbor) ;;
+  *)
+    echo "Usage: $0 [buckets|harbor]" >&2
+    exit 1
+    ;;
+esac
+
 output_var() {
   local key="$1"
   local val="$2"
@@ -75,6 +85,25 @@ fi
 
 mask_var "${OPENBAO_TOKEN}"
 output_var "openbao_token" "${OPENBAO_TOKEN}"
+
+# Harbor stack: only the dedicated Harbor OpenTofu robot credentials are needed
+if [ "${STACK}" = "harbor" ]; then
+  echo ">> Fetching Harbor OpenTofu credentials from OpenBao..."
+  RESP=$(fetch_bao_path "cl01tl/harbor/tofu")
+  HARBOR_USER=$(echo "$RESP" | jq -r '.data.data.username // empty' 2>/dev/null || true)
+  HARBOR_PASS=$(echo "$RESP" | jq -r '.data.data.password // empty' 2>/dev/null || true)
+  if [ -z "${HARBOR_USER}" ] || [ -z "${HARBOR_PASS}" ]; then
+    echo "Error: could not read username/password from OpenBao: secret/cl01tl/harbor/tofu" >&2
+    exit 1
+  fi
+  mask_var "${HARBOR_PASS}"
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "TF_VAR_harbor_username=${HARBOR_USER}" >> "${GITHUB_ENV}"
+    echo "TF_VAR_harbor_password=${HARBOR_PASS}" >> "${GITHUB_ENV}"
+  fi
+  echo ">> Loaded Harbor credentials from OpenBao: secret/cl01tl/harbor/tofu"
+  exit 0
+fi
 
 # Retrieve Garage Admin Tokens per Storage Tier
 echo ">> Fetching Garage admin tokens from OpenBao..."

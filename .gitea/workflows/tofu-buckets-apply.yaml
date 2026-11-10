@@ -1,0 +1,114 @@
+name: tofu-buckets-apply
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "tofu/buckets/**"
+      - ".gitea/workflows/tofu-buckets-*.yaml"
+      - ".gitea/scripts/tofu-*.sh"
+      - "clusters/cl01tl/helm/affine/**"
+      - "clusters/cl01tl/helm/backrest/**"
+      - "clusters/cl01tl/helm/cloudnative-pg/**"
+      - "clusters/cl01tl/helm/donetick/**"
+      - "clusters/cl01tl/helm/gitea/**"
+      - "clusters/cl01tl/helm/harbor/**"
+      - "clusters/cl01tl/helm/homebox/**"
+      - "clusters/cl01tl/helm/kaneo/**"
+      - "clusters/cl01tl/helm/karakeep/**"
+      - "clusters/cl01tl/helm/librechat/**"
+      - "clusters/cl01tl/helm/loki/**"
+      - "clusters/cl01tl/helm/mariadb-operator/**"
+      - "clusters/cl01tl/helm/memos/**"
+      - "clusters/cl01tl/helm/ntfy/**"
+      - "clusters/cl01tl/helm/open-archiver/**"
+      - "clusters/cl01tl/helm/openbao/**"
+      - "clusters/cl01tl/helm/outline/**"
+      - "clusters/cl01tl/helm/pocket-id-operator/**"
+      - "clusters/cl01tl/helm/psmdb-operator/**"
+      - "clusters/cl01tl/helm/reactive-resume/**"
+      - "clusters/cl01tl/helm/talos/**"
+      - "clusters/cl01tl/helm/thanos/**"
+      - "clusters/cl01tl/helm/volsync/**"
+      - "clusters/cl01tl/helm/web-assets/**"
+
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform (plan or apply)"
+        type: choice
+        options:
+          - apply
+          - plan
+        default: apply
+        required: true
+
+env:
+  TF_PLUGIN_CACHE_DIR: "~/.cache/.opentofu-plugin-cache"
+  TF_HTTP_USERNAME: "${{ vars.TF_HTTP_USERNAME || github.repository_owner }}"
+  TF_HTTP_PASSWORD: "${{ secrets.TOFU_TOKEN }}"
+  TF_VAR_gitea_token: "${{ secrets.TOFU_TOKEN }}"
+
+jobs:
+  apply:
+    runs-on: ubuntu-runner
+    steps:
+      - name: Checkout
+        uses: builtin:checkout
+        with:
+          fetch-depth: 1
+
+      - name: Retrieve Cluster Secrets
+        id: cluster-secrets
+        run: ./.gitea/scripts/tofu-fetch-secrets.sh buckets
+
+      - name: Cache OpenTofu Plugins
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: opentofu-${{ runner.os }}-${{ hashFiles('tofu/buckets/.terraform.lock.hcl') }}
+          restore-keys: |
+            opentofu-${{ runner.os }}-
+
+      - name: Initialize OpenTofu
+        working-directory: tofu/buckets
+        run: |
+          mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+          tofu init -reconfigure \
+            -backend-config="username=${TF_HTTP_USERNAME}" \
+            -backend-config="password=${TF_HTTP_PASSWORD}"
+
+      - name: OpenTofu Plan
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan'
+        working-directory: tofu/buckets
+        run: |
+          tofu plan -no-color -lock=false
+
+      - name: OpenTofu Apply
+        if:
+          github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action ==
+          'apply')
+        working-directory: tofu/buckets
+        run: |
+          tofu apply -auto-approve -no-color -lock=false
+
+      - name: ntfy Failed
+        uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
+        if: failure()
+        with:
+          url: "${{ secrets.NTFY_URL }}"
+          topic: "${{ vars.NTFY_TOPIC }}"
+          title: "🚨 OpenTofu Buckets Failure"
+          priority: 4
+          headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
+          tags: action,failed
+          details: "OpenTofu bucket management workflow failed during execution."
+          icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
+          actions:
+            '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
+            }}/actions/runs/${{ github.run_id }}", "clear": true}]'
