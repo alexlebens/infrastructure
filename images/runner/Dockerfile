@@ -5,7 +5,7 @@
 
 # --- Package & Tool Managers ---
 # renovate: datasource=docker depName=jdxcode/mise versioning=docker
-FROM harbor.alexlebens.dev/proxy-hub.docker/jdxcode/mise:2026.11.4@sha256:085be191bbe51dbe93894681b7f29f6c014ae267e7a365c0b8b6a2fdd882ac63 AS mise-source
+FROM harbor.alexlebens.dev/proxy-hub.docker/jdxcode/mise:2026.11.6@sha256:d4de1845114f6d73e90e15f7642885f74f3ca93074491038a2b9c43e4b897f21 AS mise-source
 # renovate: datasource=docker depName=oven/bun versioning=docker
 FROM harbor.alexlebens.dev/proxy-hub.docker/oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d AS bun-source
 # renovate: datasource=docker depName=ghcr.io/astral-sh/uv versioning=docker
