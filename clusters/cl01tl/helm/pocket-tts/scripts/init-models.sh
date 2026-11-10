@@ -22,3 +22,8 @@ fi
 if [ -d "$MODEL_DIR/languages/english/embeddings" ]; then
   cp -n "$MODEL_DIR/languages/english/embeddings"/*.safetensors /data/voices/ 2>/dev/null || true
 fi
+
+if [ -d "/models/voices" ]; then
+  echo "Syncing custom bundled voices from /models/voices to /data/voices..."
+  cp -n /models/voices/* /data/voices/ 2>/dev/null || true
+fi

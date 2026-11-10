@@ -150,8 +150,18 @@ snapshot_download(repo_id=repo, local_dir=target, token=token, max_workers=8, ig
     DIR_SIZE=$(du -sh "${TARGET_DIR}" | awk '{print $1}')
     echo ">> Downloaded snapshot for ${HF_REPO} (${DIR_SIZE})"
 
+    EXTRA_DIR=$(echo "${MODEL_ITEM}" | jq -r '.extra_files_dir // empty')
+    if [[ -n "${EXTRA_DIR}" && -d "${EXTRA_DIR}" ]]; then
+      echo ">> Bundling custom voices and files from ${EXTRA_DIR} ..."
+      VOICES_TARGET_DIR="${MODEL_TMP_DIR}/voices"
+      mkdir -p "${VOICES_TARGET_DIR}"
+      find "${EXTRA_DIR}" -type f ! -name "README.md" ! -name ".*" -exec cp {} "${VOICES_TARGET_DIR}/" \;
+      EXTRA_COUNT=$(find "${VOICES_TARGET_DIR}" -type f | wc -l | tr -d ' ')
+      echo ">> Added ${EXTRA_COUNT} custom file(s) into OCI image under /voices"
+    fi
+
     echo ">> Streaming directory tree into OCI image ${IMAGE_REF} ..."
-    tar -C "${MODEL_TMP_DIR}" -cf - "huggingface" | crane append --oci-empty-base -f - -t "${IMAGE_REF}"
+    tar -C "${MODEL_TMP_DIR}" -cf - . | crane append --oci-empty-base -f - -t "${IMAGE_REF}"
 
     echo ">> Applying OCI platform and metadata annotations ..."
     crane mutate "${IMAGE_REF}" \
