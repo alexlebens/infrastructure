@@ -185,7 +185,7 @@ render_helm_chart() {
     set -o pipefail
     if ! yq '... comments=""' "${RAW_FILE}" \
       | yq 'select(. != null)' \
-      | yq -s '"'"${SPLIT_DIR}"'" + .kind + "-" + .metadata.name + ".yaml"' > /dev/null 2>&1; then
+      | (cd "${SPLIT_DIR}" && yq -s '.kind + "-" + .metadata.name + ".yaml"') > /dev/null 2>&1; then
       echo ">> Failed yq splitting for ${CHART}" >&2
       if [ "${RAW_IS_TEMP}" = true ] || [ "${CLEANUP_RAW}" = true ]; then
         rm -f "${RAW_FILE}"
