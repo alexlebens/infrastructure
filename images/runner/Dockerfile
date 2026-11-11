@@ -28,6 +28,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
   UV_LINK_MODE="copy" \
   # --- Bun (persisted on runner /cache/bun mount) ---
   BUN_INSTALL_CACHE_DIR="/root/.bun/install/cache" \
+  # --- OpenTofu (persisted on runner /cache/tofu mount) ---
+  TF_PLUGIN_CACHE_DIR="/root/.cache/opentofu" \
   # --- Trivy (Harbor proxy caches avoid upstream rate limits) ---
   TRIVY_CACHE_DIR="/opt/trivy-cache" \
   TRIVY_DB_REPOSITORY="harbor.alexlebens.dev/proxy-ghcr.io/aquasecurity/trivy-db:2" \
@@ -37,4 +39,4 @@ ENV DEBIAN_FRONTEND=noninteractive \
 COPY --link --from=mise-source /usr/local/bin/mise /usr/local/bin/mise
 
 RUN --mount=type=bind,source=verify-tools.sh,target=/tmp/verify-tools.sh \
-  bash /tmp/verify-tools.sh
+  mkdir -p "${TF_PLUGIN_CACHE_DIR}" && bash /tmp/verify-tools.sh

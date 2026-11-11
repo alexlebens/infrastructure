@@ -15,7 +15,6 @@ on:
       - "tofu/harbor/**"
 
 env:
-  TF_PLUGIN_CACHE_DIR: "~/.cache/.opentofu-plugin-cache"
   TF_HTTP_USERNAME: "${{ vars.TF_HTTP_USERNAME || github.repository_owner }}"
   TF_HTTP_PASSWORD: "${{ secrets.TOFU_TOKEN }}"
 
@@ -35,18 +34,12 @@ jobs:
         id: cluster-secrets
         run: mise run tofu:fetch-secrets harbor
 
-      - name: Cache OpenTofu Plugins
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
-          key: opentofu-${{ runner.os }}-${{ hashFiles('tofu/harbor/.terraform.lock.hcl') }}
-          restore-keys: |
-            opentofu-${{ runner.os }}-
-
       - name: Initialize OpenTofu
         working-directory: tofu/harbor
         run: |
-          mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+          if [ -n "${TF_PLUGIN_CACHE_DIR:-}" ]; then
+            mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+          fi
           mise exec -- tofu init -reconfigure \
             -backend-config="username=${TF_HTTP_USERNAME}" \
             -backend-config="password=${TF_HTTP_PASSWORD}"
