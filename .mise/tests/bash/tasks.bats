@@ -119,3 +119,18 @@ setup() {
   assert_success
   assert_output --partial "Usage: mise run gitea:release-models"
 }
+
+@test "check:docker: positional dir overrides COMPOSE env var and rejects extra positional args" {
+  local compose_dir="${BATS_TEST_TMPDIR}/compose"
+  local docker_log="${BATS_TEST_TMPDIR}/docker.log"
+  mkdir -p "${compose_dir}"
+  _stub docker "printf '%s\n' \"\$*\" > '${docker_log}'"
+
+  COMPOSE="hosts/other/stack" run "${MISE_TASKS_DIR}/check/docker" "${compose_dir}" --step config
+  assert_success
+  assert_equal "$(cat "${docker_log}")" "compose --project-directory ${compose_dir} config --quiet"
+
+  COMPOSE="hosts/other/stack" run "${MISE_TASKS_DIR}/check/docker" "${compose_dir}" extra-arg --step config
+  assert_failure
+  assert_output --partial "Unknown argument: extra-arg"
+}
