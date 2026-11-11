@@ -5,9 +5,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
 REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
 
+ALL="${ALL:-false}"
+
 # Parse optional command-line flags
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --all)
+      ALL="true"
+      shift
+      ;;
     --base-branch)
       BASE_BRANCH="$2"
       shift 2
@@ -21,8 +27,8 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: mise run gitea:detect-docker [--base-branch <branch>] [--event-name <name>] [--event-before <sha>]"
-      echo "Detects changed Docker Compose directories in hosts/ and sets action outputs."
+      echo "Usage: mise run gitea:detect-docker [--all] [--base-branch <branch>] [--event-name <name>] [--event-before <sha>]"
+      echo "Detects changed Docker Compose directories in hosts/ (or all compose directories with --all / workflow_dispatch) and sets action outputs."
       exit 0
       ;;
     *)
@@ -38,14 +44,19 @@ EVENT_NAME="${EVENT_NAME:-${GITHUB_EVENT_NAME:-pull_request}}"
 EVENT_BEFORE="${EVENT_BEFORE:-}"
 GITHUB_OUTPUT="${GITHUB_OUTPUT:-}"
 
-echo ">> Target branch for diff is: ${BASE_BRANCH}"
+if [[ "${ALL}" == "true" || "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+  echo ">> Discovering all Docker Compose directories under hosts/ ..."
+  RAW_COMPOSE=$(find hosts -mindepth 2 -maxdepth 2 -type d 2>/dev/null | sort -u || true)
+else
+  echo ">> Target branch for diff is: ${BASE_BRANCH}"
 
-# Resolve diff target using shared helper
-# shellcheck source=../../lib/resolve-diff-target.sh
-source "${REPO_ROOT}/.mise/lib/resolve-diff-target.sh"
-resolve_diff_target
+  # Resolve diff target using shared helper
+  # shellcheck source=../../lib/resolve-diff-target.sh
+  source "${REPO_ROOT}/.mise/lib/resolve-diff-target.sh"
+  resolve_diff_target
 
-RAW_COMPOSE=$( (git diff --name-only "${DIFF_TARGET}" | grep -E "^hosts/[^/]+/[^/]+/" || true) | cut -d/ -f1,2,3 | sort -u)
+  RAW_COMPOSE=$( (git diff --name-only "${DIFF_TARGET}" | grep -E "^hosts/[^/]+/[^/]+/" || true) | cut -d/ -f1,2,3 | sort -u)
+fi
 VALID_COMPOSE=""
 
 for D in $RAW_COMPOSE; do

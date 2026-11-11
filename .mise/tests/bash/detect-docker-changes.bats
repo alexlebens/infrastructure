@@ -70,6 +70,21 @@ _run_detect() {
   assert_equal "$(_output_value changes-detected)" "false"
 }
 
+@test "detect-docker-changes: workflow_dispatch discovers all compose directories" {
+  run "${MISE_TASKS_DIR}/gitea/detect-docker" --event-name workflow_dispatch
+  assert_success
+  assert_equal "$(_output_value changes-detected)" "true"
+  assert_equal "$(_output_value matrix)" '["hosts/ps01/app-a","hosts/ps01/app-b","hosts/ps02/app-c","hosts/ps02/app-d"]'
+  assert_equal "$(_output_value dirs)" "hosts/ps01/app-a hosts/ps01/app-b hosts/ps02/app-c hosts/ps02/app-d"
+}
+
+@test "detect-docker-changes: --all discovers all compose directories" {
+  run "${MISE_TASKS_DIR}/gitea/detect-docker" --all
+  assert_success
+  assert_equal "$(_output_value changes-detected)" "true"
+  assert_equal "$(_output_value matrix)" '["hosts/ps01/app-a","hosts/ps01/app-b","hosts/ps02/app-c","hosts/ps02/app-d"]'
+}
+
 @test "detect-docker-changes: unknown argument fails" {
   run "${MISE_TASKS_DIR}/gitea/detect-docker" --nope
   assert_failure
