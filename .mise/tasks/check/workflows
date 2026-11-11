@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Validate Gitea Actions workflow YAML files with actionlint"
+#MISE description="Validate Gitea Actions workflow YAML files with jactionlint"
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
@@ -11,7 +11,7 @@ WORKFLOW_DIR="${REPO_ROOT}/.gitea/workflows"
 
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "Usage: mise run check:workflows"
-  echo "Validates Gitea Actions workflows using actionlint."
+  echo "Validates Gitea Actions workflows using jactionlint."
   exit 0
 fi
 
@@ -20,7 +20,7 @@ if [ ! -d "${WORKFLOW_DIR}" ]; then
   exit 0
 fi
 
-log_step "Running actionlint on workflows in .gitea/workflows/"
+log_step "Running jactionlint on workflows in .gitea/workflows/"
 
 shopt -s nullglob
 workflows=("${WORKFLOW_DIR}"/*.yaml "${WORKFLOW_DIR}"/*.yml)
@@ -31,14 +31,15 @@ if [ ${#workflows[@]} -eq 0 ]; then
   exit 0
 fi
 
-actionlint_args=(
-  -ignore 'specifying action "builtin:checkout" in invalid format'
-  -ignore 'undefined variable "gitea"'
+jactionlint_args=(
+  --profile correctness
+  --ignore 'specifying action "builtin:checkout" in invalid format'
+  --ignore 'undefined variable "gitea"'
 )
 
 if [ -f "${REPO_ROOT}/.github/actionlint.yaml" ]; then
-  actionlint_args+=(-config-file "${REPO_ROOT}/.github/actionlint.yaml")
+  jactionlint_args+=(--config-file "${REPO_ROOT}/.github/actionlint.yaml")
 fi
 
-actionlint "${actionlint_args[@]}" "${workflows[@]}"
-log_success "All workflows passed actionlint!"
+jactionlint "${jactionlint_args[@]}" "${workflows[@]}"
+log_success "All workflows passed jactionlint!"
