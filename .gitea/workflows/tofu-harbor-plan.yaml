@@ -9,10 +9,10 @@ on:
     branches:
       - "main"
     paths:
-      - "tofu/harbor/**"
       - ".gitea/workflows/tofu-harbor-*.yaml"
-      - ".gitea/scripts/tofu-fetch-secrets.sh"
-      - ".gitea/scripts/tofu-plan.sh"
+      - ".mise/lib/pr-comment-upsert.sh"
+      - ".mise/tasks/tofu/**"
+      - "tofu/harbor/**"
 
 env:
   TF_PLUGIN_CACHE_DIR: "~/.cache/.opentofu-plugin-cache"
@@ -28,9 +28,12 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Retrieve Cluster Secrets
         id: cluster-secrets
-        run: ./.gitea/scripts/tofu-fetch-secrets.sh harbor
+        run: mise run tofu:fetch-secrets harbor
 
       - name: Cache OpenTofu Plugins
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -44,7 +47,7 @@ jobs:
         working-directory: tofu/harbor
         run: |
           mkdir -p "${TF_PLUGIN_CACHE_DIR}"
-          tofu init -reconfigure \
+          mise exec -- tofu init -reconfigure \
             -backend-config="username=${TF_HTTP_USERNAME}" \
             -backend-config="password=${TF_HTTP_PASSWORD}"
 
@@ -54,7 +57,7 @@ jobs:
           PUBLIC_URL: ${{ vars.PUBLIC_URL }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          ./.gitea/scripts/tofu-plan.sh --dir "tofu/harbor"
+          mise run tofu:plan --dir "tofu/harbor"
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master

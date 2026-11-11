@@ -7,13 +7,18 @@ concurrency:
 on:
   pull_request:
     paths:
-      - ".mise/**"
-      - "mise.toml"
       - ".gitea/workflows/test-mise.yaml"
+      - ".mise/**"
+      - ".pre-commit-config.yaml"
+      - "mise.toml"
+      - "pyproject.toml"
+      - "uv.lock"
 
 jobs:
   test-mise:
     runs-on: ubuntu-runner
+    env:
+      FAILED_STAGE: "Initialization"
     steps:
       - name: Checkout
         uses: builtin:checkout
@@ -23,29 +28,23 @@ jobs:
       - name: Setup BATS
         uses: bats-core/bats-action@3566550e0f594451ac0f58fcbfdeca93aa29a45e # 4.1.0
         with:
-          support-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-support
-          assert-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-assert
+          support-path: ${{ github.workspace }}/.mise/tests/bash/test_helper/bats-support
+          assert-path: ${{ github.workspace }}/.mise/tests/bash/test_helper/bats-assert
           detik-install: false
           file-install: false
 
-      - name: Run Mise BATS Tests
-        run: |
-          bats .mise/tests/bash/
+      - name: Setup Tools (mise)
+        run: mise install
 
-      - name: Ruff Check & Format (.mise Python)
+      - name: Lint Bash Scripts (shellcheck)
         run: |
-          shopt -s nullglob
-          files=(.mise/lib/*.py .mise/tests/python/*.py)
-          if [ ${#files[@]} -gt 0 ]; then
-            ruff check "${files[@]}"
-            ruff format --check "${files[@]}"
-          fi
+          echo "FAILED_STAGE=ShellCheck" >> "$GITHUB_ENV"
+          mise run check:bash
 
-      - name: Run Mise Python Tests (pytest)
+      - name: Run Mise Tests (BATS & pytest)
         run: |
-          if [ -d ".mise/tests/python" ] && ls .mise/tests/python/*test*.py >/dev/null 2>&1; then
-            uv run pytest .mise/tests/python/
-          fi
+          echo "FAILED_STAGE=Mise Tests (Ruff / pytest / BATS)" >> "$GITHUB_ENV"
+          mise run test
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
@@ -57,7 +56,7 @@ jobs:
           priority: 4
           headers: '{"Authorization": "Bearer ${{ secrets.NTFY_CRED }}"}'
           tags: action,failed
-          details: "BATS tests failed for .mise tasks and libraries."
+          details: "Mise checks or tests failed at stage: ${{ env.FAILED_STAGE }}"
           icon: "https://cdn.jsdelivr.net/gh/selfhst/icons/png/gitea.png"
           actions:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository

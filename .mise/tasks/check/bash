@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+#MISE description="Lint Bash tasks, libraries, or specified scripts with ShellCheck"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
+
+TARGETS=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      echo "Usage: mise run check:bash [script...]"
+      echo "Runs ShellCheck on specified scripts, or all Bash scripts in .mise/lib/ and .mise/tasks/."
+      exit 0
+      ;;
+    *)
+      TARGETS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [ ${#TARGETS[@]} -gt 0 ]; then
+  log_step "Running ShellCheck on specified scripts: ${TARGETS[*]}"
+else
+  log_step "Running ShellCheck on Bash scripts in .mise/lib/ and .mise/tasks/"
+  while IFS= read -r -d '' file; do
+    TARGETS+=("$file")
+  done < <(find "${REPO_ROOT}/.mise/lib" -type f -name "*.sh" -print0 2>/dev/null)
+
+  while IFS= read -r -d '' file; do
+    if head -n 1 "$file" | grep -qE '^#!/(usr/)?bin/(env )?bash'; then
+      TARGETS+=("$file")
+    fi
+  done < <(find "${REPO_ROOT}/.mise/tasks" -type f -print0 2>/dev/null)
+fi
+
+if [ ${#TARGETS[@]} -eq 0 ]; then
+  log_info "No Bash scripts found to check."
+  exit 0
+fi
+
+shellcheck "${TARGETS[@]}"
+log_success "All Bash scripts passed ShellCheck!"

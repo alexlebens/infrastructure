@@ -9,9 +9,9 @@ on:
     branches:
       - "main"
     paths:
+      - ".gitea/workflows/release-model-image.yaml"
+      - ".mise/tasks/gitea/release-models"
       - "images/models/**"
-      - ".gitea/scripts/package-oci-model.sh"
-      - ".gitea/workflows/package-models.yaml"
 
   workflow_dispatch:
 
@@ -24,13 +24,16 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Package & Push OCI Models
         env:
           HARBOR_HOST: ${{ vars.HARBOR_HOST }}
           HARBOR_USER: ${{ vars.HARBOR_USER }}
           HARBOR_SECRET: ${{ secrets.HARBOR_USER_SECRET }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: ./.gitea/scripts/package-oci-model.sh
+        run: mise run gitea:release-models
 
       - name: ntfy Success
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master

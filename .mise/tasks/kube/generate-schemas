@@ -12,6 +12,9 @@ source "${REPO_ROOT}/.mise/lib/k8s.sh"
 SCHEMA_DIR="${SCHEMA_DIR:-${HOME}/.schemas}"
 INDEX_FILE="${K8S_OPENAPI_INDEX_FILE:-/tmp/k8s-openapi-v3-index.txt}"
 CRD_CACHE_HELPER="${REPO_ROOT}/.mise/lib/crd_schema_cache.py"
+KUBECONFORM_VERSION="${KUBECONFORM_VERSION:-0.8.0}"
+OPENAPI2JSONSCHEMA_CACHE="${XDG_CACHE_HOME:-${HOME}/.cache}/kubeconform/v${KUBECONFORM_VERSION#v}/openapi2jsonschema.py"
+OPENAPI2JSONSCHEMA_URL="https://raw.githubusercontent.com/yannh/kubeconform/v${KUBECONFORM_VERSION#v}/scripts/openapi2jsonschema.py"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -42,8 +45,15 @@ if ! command -v python3 >/dev/null 2>&1; then
   log_fatal "python3 is required but not installed."
 fi
 
-if ! command -v openapi2jsonschema.py >/dev/null 2>&1; then
-  log_fatal "openapi2jsonschema.py is required on PATH."
+SCHEMA_SCRIPT="$(command -v openapi2jsonschema.py 2>/dev/null || true)"
+if [ -z "${SCHEMA_SCRIPT}" ]; then
+  if [ ! -f "${OPENAPI2JSONSCHEMA_CACHE}" ]; then
+    log_step "Fetching openapi2jsonschema.py (v${KUBECONFORM_VERSION#v})"
+    mkdir -p "$(dirname "${OPENAPI2JSONSCHEMA_CACHE}")"
+    curl -sSfL "${OPENAPI2JSONSCHEMA_URL}" -o "${OPENAPI2JSONSCHEMA_CACHE}"
+    chmod +x "${OPENAPI2JSONSCHEMA_CACHE}"
+  fi
+  SCHEMA_SCRIPT="${OPENAPI2JSONSCHEMA_CACHE}"
 fi
 
 mkdir -p "${SCHEMA_DIR}"
@@ -145,7 +155,11 @@ if [ "${CHANGED_COUNT}" -gt 0 ] && [ -f "${CHANGED_CRD_FILE}" ]; then
   (
     cd "${TMP_DIR}"
     export FILENAME_FORMAT='{kind}_{version}'
-    openapi2jsonschema.py "${CHANGED_CRD_FILE}" 2>/dev/null || true
+    if head -n 1 "${SCHEMA_SCRIPT}" | grep -q python; then
+      uv run --project "${REPO_ROOT}" --locked python "${SCHEMA_SCRIPT}" "${CHANGED_CRD_FILE}" 2>/dev/null || true
+    else
+      "${SCHEMA_SCRIPT}" "${CHANGED_CRD_FILE}" 2>/dev/null || true
+    fi
     mv ./*.json "${SCHEMA_DIR}/" 2>/dev/null || true
   )
 fi

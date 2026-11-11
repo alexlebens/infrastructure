@@ -30,6 +30,9 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Check Directories for Changes
         id: check-dir-changes
         # Step Outputs:
@@ -40,7 +43,7 @@ jobs:
           BASE_BRANCH: ${{ env.BASE_BRANCH }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_BEFORE: ${{ github.event.before }}
-        run: ./.gitea/scripts/detect-helm-changes.sh
+        run: mise run gitea:detect-helm
 
   test-chart:
     needs: detect-changes
@@ -62,19 +65,22 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Add Repositories
         run: |
-          ./.mise/tasks/check-chart "${CHART}" --cluster "${CLUSTER}" --step repos
+          mise run check-chart "${CHART}" --cluster "${CLUSTER}" --step repos
 
       - name: Build Helm Dependencies
         run: |
           echo "FAILED_STAGE=Build Helm Dependencies" >> "$GITHUB_ENV"
-          ./.mise/tasks/check-chart "${CHART}" --cluster "${CLUSTER}" --step build
+          mise run check-chart "${CHART}" --cluster "${CLUSTER}" --step build
 
       - name: Lint Helm Chart
         run: |
           echo "FAILED_STAGE=Lint Helm Chart" >> "$GITHUB_ENV"
-          ./.mise/tasks/check-chart "${CHART}" --cluster "${CLUSTER}" --step lint
+          mise run check-chart "${CHART}" --cluster "${CLUSTER}" --step lint
 
       - name: Configure Kubeconfig
         uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
@@ -84,7 +90,7 @@ jobs:
 
       - name: Get Cluster Fingerprint
         id: cluster-fingerprint
-        run: ./.mise/tasks/kube/api-versions --fingerprint
+        run: mise run kube:api-versions --fingerprint
 
       - name: Cache Cluster API Versions
         id: cache-api-versions
@@ -97,14 +103,14 @@ jobs:
         id: get-api-versions
         # Step Outputs:
         #   - api-versions: comma-separated list of API versions and kinds
-        run: ./.mise/tasks/kube/api-versions --cache-file ~/.cache/k8s-api-versions/api-versions.txt
+        run: mise run kube:api-versions --cache-file ~/.cache/k8s-api-versions/api-versions.txt
 
       - name: Render Templates
         env:
           API_VERSIONS: ${{ steps.get-api-versions.outputs.api-versions }}
         run: |
           echo "FAILED_STAGE=Render Templates" >> "$GITHUB_ENV"
-          ./.mise/tasks/check-chart "${CHART}" --cluster "${CLUSTER}" --step render
+          mise run check-chart "${CHART}" --cluster "${CLUSTER}" --step render
 
       - name: Validate & Warm Harbor Cache
         id: harbor
@@ -116,7 +122,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           echo "FAILED_STAGE=Validate & Warm Harbor Cache" >> "$GITHUB_ENV"
-          ./.gitea/scripts/harbor-warm-cache.sh --chart "${CHART}"
+          mise run gitea:harbor-warm --chart "${CHART}"
 
       - name: Security Scan (Trivy)
         id: trivy
@@ -128,7 +134,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           echo "FAILED_STAGE=Trivy Security Scan" >> "$GITHUB_ENV"
-          ./.mise/tasks/check-chart "${CHART}" --cluster "${CLUSTER}" --step trivy
+          mise run check-chart "${CHART}" --cluster "${CLUSTER}" --step trivy
 
       - name: Cache CRD Schemas
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
@@ -144,7 +150,7 @@ jobs:
         if: steps.cache-schemas.outputs.cache-hit != 'true'
         run: |
           echo "FAILED_STAGE=Generate CRD Schemas" >> "$GITHUB_ENV"
-          ./.mise/tasks/kube/generate-schemas
+          mise run kube:generate-schemas
 
       - name: Schema Validation (kubeconform)
         id: kubeconform
@@ -153,7 +159,7 @@ jobs:
           KUBERNETES_VERSION: ${{ env.KUBECTL_VERSION }}
         run: |
           echo "FAILED_STAGE=Schema Validation (kubeconform)" >> "$GITHUB_ENV"
-          ./.mise/tasks/check-chart "${CHART}" --cluster "${CLUSTER}" --step kubeconform
+          mise run check-chart "${CHART}" --cluster "${CLUSTER}" --step kubeconform
 
       - name: ArgoCD App Diff
         id: diff
@@ -166,7 +172,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           echo "FAILED_STAGE=ArgoCD App Diff" >> "$GITHUB_ENV"
-          ./.gitea/scripts/argocd-app-diff.sh --chart "${CHART}"
+          mise run gitea:argocd-diff --chart "${CHART}"
 
       - name: Check Validation Outcomes
         if: |
@@ -223,6 +229,9 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Lint Chart Scripts (shellcheck)
         run: |
           if [ -d "clusters/${CLUSTER}/helm/${CHART}/scripts" ]; then
@@ -232,7 +241,7 @@ jobs:
             shopt -u nullglob
             if [ ${#scripts[@]} -gt 0 ]; then
               echo ">> Linting scripts in clusters/${CLUSTER}/helm/${CHART}/scripts/ ..."
-              ./.gitea/scripts/lint-bash-scripts.sh "${scripts[@]}"
+              mise run check:bash "${scripts[@]}"
             fi
           fi
 
@@ -249,8 +258,8 @@ jobs:
         if: steps.check-bats-tests.outputs.has_tests == 'true'
         uses: bats-core/bats-action@3566550e0f594451ac0f58fcbfdeca93aa29a45e # 4.1.0
         with:
-          support-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-support
-          assert-path: ${{ github.workspace }}/.gitea/tests/bash/test_helper/bats-assert
+          support-path: ${{ github.workspace }}/.mise/tests/bash/test_helper/bats-support
+          assert-path: ${{ github.workspace }}/.mise/tests/bash/test_helper/bats-assert
           detik-install: false
           file-install: false
 
@@ -259,7 +268,7 @@ jobs:
         run: |
           echo "FAILED_STAGE=Run Chart BATS Tests" >> "$GITHUB_ENV"
           echo ">> Running BATS tests for chart ${CHART} ..."
-          bats --recursive "clusters/${CLUSTER}/helm/${CHART}/tests/"
+          mise exec -- bats --recursive "clusters/${CLUSTER}/helm/${CHART}/tests/"
 
       - name: Check for Chart Python Files
         id: check-py
@@ -287,17 +296,15 @@ jobs:
           shopt -s nullglob
           scripts=("clusters/${CLUSTER}/helm/${CHART}/scripts/"*.py)
           shopt -u nullglob
-          echo ">> Running Ruff check on chart Python scripts in clusters/${CLUSTER}/helm/${CHART}/scripts/ ..."
-          ruff check "${scripts[@]}"
-          echo ">> Running Ruff format check on chart Python scripts in clusters/${CLUSTER}/helm/${CHART}/scripts/ ..."
-          ruff format --check "${scripts[@]}"
+          echo ">> Running Ruff checks on chart Python scripts in clusters/${CLUSTER}/helm/${CHART}/scripts/ ..."
+          mise run check:python "${scripts[@]}"
 
       - name: Run Chart Python Tests (pytest)
         if: steps.check-py.outputs.has_tests == 'true'
         run: |
           echo "FAILED_STAGE=Run Chart Python Tests (pytest)" >> "$GITHUB_ENV"
           echo ">> Running pytest for chart ${CHART} ..."
-          pytest "clusters/${CLUSTER}/helm/${CHART}/tests/"
+          mise exec -- uv run pytest "clusters/${CLUSTER}/helm/${CHART}/tests/"
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master

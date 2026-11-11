@@ -7,9 +7,10 @@ concurrency:
 on:
   pull_request:
     paths:
-      - "tofu/**"
       - ".gitea/workflows/test-tofu.yaml"
+      - ".mise/tasks/check/tofu"
       - ".pre-commit-config.yaml"
+      - "tofu/**"
 
 env:
   TF_PLUGIN_CACHE_DIR: "~/.cache/.opentofu-plugin-cache"
@@ -25,6 +26,9 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Cache OpenTofu Plugins
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
@@ -36,28 +40,17 @@ jobs:
       - name: Check Formatting (tofu fmt)
         run: |
           echo "FAILED_STAGE=tofu fmt" >> "$GITHUB_ENV"
-          echo ">> Checking OpenTofu formatting across tofu/ ..."
-          tofu fmt -check -recursive tofu/
+          mise run check:tofu --step fmt
 
       - name: Validate Configurations (tofu validate)
         run: |
           echo "FAILED_STAGE=tofu validate" >> "$GITHUB_ENV"
-          mkdir -p "${TF_PLUGIN_CACHE_DIR}"
-          for dir in tofu/*/; do
-            if [ -d "$dir" ] && ls "$dir"/*.tf >/dev/null 2>&1; then
-              echo ">> Initializing and validating $dir ..."
-              tofu -chdir="$dir" init -backend=false
-              tofu -chdir="$dir" validate
-              echo ""
-              echo "----"
-            fi
-          done
+          mise run check:tofu --step validate
 
       - name: Security Scan (Trivy)
         run: |
           echo "FAILED_STAGE=Trivy Security Scan" >> "$GITHUB_ENV"
-          echo ">> Scanning tofu/ with Trivy ..."
-          trivy config tofu/ --severity HIGH,CRITICAL --exit-code 1
+          mise run check:tofu --step trivy
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master

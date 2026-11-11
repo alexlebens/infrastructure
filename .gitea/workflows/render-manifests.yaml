@@ -29,8 +29,8 @@ env:
   BASE_BRANCH: "manifests"
   BRANCH_NAME_BASE: "auto/update-manifests"
   ASSIGNEE: "alexlebens"
-  MAIN_DIR: "infrastructure"
-  MANIFEST_DIR: "infrastructure-manifests"
+  MAIN_DIR: "."
+  MANIFEST_DIR: "../infrastructure-manifests"
   HELM_CACHE_VERSION: "v2"
 
 jobs:
@@ -39,6 +39,9 @@ jobs:
     if: >-
       github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name ==
       'pull_request' && github.event.pull_request.merged == true)
+    defaults:
+      run:
+        working-directory: infrastructure
     steps:
       - name: Checkout Main
         uses: builtin:checkout
@@ -53,6 +56,9 @@ jobs:
           ref: manifests
           path: infrastructure-manifests
           filter: blob:none
+
+      - name: Setup Tools (mise)
+        run: mise install
 
       - name: Cache Helm Dependencies
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
@@ -76,7 +82,7 @@ jobs:
 
       - name: Get Cluster Fingerprint
         id: cluster-fingerprint
-        run: ./infrastructure/.mise/tasks/kube/api-versions --fingerprint
+        run: mise run kube:api-versions --fingerprint
 
       - name: Cache Cluster API Versions
         id: cache-api-versions
@@ -87,7 +93,7 @@ jobs:
 
       - name: Get Cluster API Versions
         id: get-api-versions
-        run: ./infrastructure/.mise/tasks/kube/api-versions --cache-file ~/.cache/k8s-api-versions/api-versions.txt
+        run: mise run kube:api-versions --cache-file ~/.cache/k8s-api-versions/api-versions.txt
 
       - name: Determine Mode & Prepare Branch
         id: mode
@@ -99,7 +105,7 @@ jobs:
           MANIFEST_DIR: ${{ env.MANIFEST_DIR }}
           BASE_BRANCH: ${{ env.BASE_BRANCH }}
           BRANCH_NAME_BASE: ${{ env.BRANCH_NAME_BASE }}
-        run: ./infrastructure/.gitea/scripts/detect-manifest-mode.sh
+        run: mise run gitea:detect-manifest-mode
 
       - name: Check Directories for Changes
         id: check-dir-changes
@@ -108,7 +114,7 @@ jobs:
           CLUSTER: ${{ env.CLUSTER }}
           RENDER_ALL: ${{ steps.mode.outputs.render-all }}
           DIFF_TARGET: ${{ steps.mode.outputs.diff-target }}
-        run: ./infrastructure/.gitea/scripts/detect-manifest-changes.sh
+        run: mise run gitea:detect-manifests
 
       - name: Render Helm Manifests
         id: render-manifests
@@ -121,7 +127,7 @@ jobs:
           RENDER_DIR: ${{ steps.check-dir-changes.outputs.render-dir-csv }}
           API_VERSIONS: ${{ steps.get-api-versions.outputs.api-versions }}
           PARALLEL_JOBS: "5"
-        run: ./infrastructure/.mise/tasks/helm/render
+        run: mise run helm:render
 
       - name: Prepare Manifest PR Content
         id: pr-content
@@ -135,7 +141,7 @@ jobs:
           CHANGED_CHARTS: ${{ steps.render-manifests.outputs.changed-charts-csv }}
           MANIFEST_DIR: ${{ env.MANIFEST_DIR }}
           CLUSTER: ${{ env.CLUSTER }}
-        run: ./infrastructure/.gitea/scripts/pr-prepare-manifest-content.sh
+        run: mise run gitea:prepare-manifest-pr
 
       - name: Git Sync & Gitea Pull Request
         id: gitea-pr
@@ -153,7 +159,7 @@ jobs:
           TITLE: ${{ steps.pr-content.outputs.title }}
           BODY: ${{ steps.pr-content.outputs.body }}
           UPDATE_COMMENT: ${{ steps.pr-content.outputs.update-comment }}
-        run: ./infrastructure/.gitea/scripts/pr-gitea.py
+        run: mise run gitea:pr
 
       - name: ntfy Created
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master

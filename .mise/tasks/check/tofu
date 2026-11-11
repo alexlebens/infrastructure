@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+#MISE description="Format-check, validate, and Trivy-scan OpenTofu configurations"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
+
+STEP="all"
+TOFU_ROOT="${TOFU_ROOT:-${REPO_ROOT}/tofu}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --step)
+      STEP="$2"
+      shift 2
+      ;;
+    --tofu-root)
+      TOFU_ROOT="$2"
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: mise run check:tofu [--step <fmt|validate|trivy|all>] [--tofu-root <dir>]"
+      echo "Runs tofu fmt -check, tofu validate, and Trivy config scan across tofu/."
+      exit 0
+      ;;
+    *)
+      log_fatal "Unknown argument: $1"
+      ;;
+  esac
+done
+
+step_fmt() {
+  log_step "Checking OpenTofu formatting across ${TOFU_ROOT}"
+  tofu fmt -check -recursive "${TOFU_ROOT}"
+}
+
+step_validate() {
+  log_step "Validating OpenTofu configurations in ${TOFU_ROOT}"
+  if [ -n "${TF_PLUGIN_CACHE_DIR:-}" ]; then
+    mkdir -p "${TF_PLUGIN_CACHE_DIR}"
+  fi
+  for dir in "${TOFU_ROOT}"/*/; do
+    if [ -d "$dir" ] && ls "$dir"/*.tf >/dev/null 2>&1; then
+      log_info "Initializing and validating ${dir} ..."
+      tofu -chdir="$dir" init -backend=false
+      tofu -chdir="$dir" validate
+      log_divider
+    fi
+  done
+}
+
+step_trivy() {
+  log_step "Scanning ${TOFU_ROOT} with Trivy"
+  trivy config "${TOFU_ROOT}" --severity HIGH,CRITICAL --exit-code 1
+}
+
+case "${STEP}" in
+  fmt)
+    step_fmt
+    ;;
+  validate)
+    step_validate
+    ;;
+  trivy)
+    step_trivy
+    ;;
+  all)
+    step_fmt
+    step_validate
+    step_trivy
+    log_success "All OpenTofu checks passed!"
+    ;;
+  *)
+    log_fatal "Unknown step '${STEP}'. Valid steps: fmt, validate, trivy, all."
+    ;;
+esac
