@@ -47,6 +47,14 @@ for C in "${CHARTS[@]}"; do
     continue
   fi
 
+  if [ -f "${C_PATH}/Chart.lock" ] && [ ! -d "${C_PATH}/charts" ]; then
+    log_info "Building missing chart dependencies for ${C} ..."
+    if ! helm dependency build "${C_PATH}" --skip-refresh >/dev/null 2>&1; then
+      "${REPO_ROOT}/.mise/tasks/helm/repo" --main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${C}" >/dev/null 2>&1 || true
+      helm dependency build "${C_PATH}" --skip-refresh >/dev/null 2>&1 || true
+    fi
+  fi
+
   log_step "Linting chart [${C}]"
   if ! helm lint "${C_PATH}" --namespace "${NAMESPACE}"; then
     log_error "Lint failed for ${C}"

@@ -149,3 +149,19 @@ Service-demo.yaml"
   assert_output --partial "Failed helm template for demo"
   assert [ ! -e "${OUT_DIR}/raw.yaml" ]
 }
+
+@test "helm_init: normalizes and deduplicates chart file paths" {
+  local repo="${BATS_TEST_TMPDIR}/helm-repo"
+  mkdir -p "${repo}/clusters/cl01tl/helm/actual/templates" "${repo}/clusters/cl01tl/helm/grafana"
+  touch "${repo}/clusters/cl01tl/helm/actual/Chart.yaml" "${repo}/clusters/cl01tl/helm/grafana/Chart.yaml"
+
+  helm_init \
+    --main-dir "${repo}" \
+    clusters/cl01tl/helm/actual/values.yaml \
+    clusters/cl01tl/helm/actual/templates/deploy.yaml \
+    "${repo}/clusters/cl01tl/helm/grafana/Chart.yaml"
+
+  assert_equal "${#CHARTS[@]}" "2"
+  assert_equal "${CHARTS[0]}" "actual"
+  assert_equal "${CHARTS[1]}" "grafana"
+}
