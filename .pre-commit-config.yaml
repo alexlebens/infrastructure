@@ -18,10 +18,12 @@ repos:
     rev: v3.0.1
     hooks:
       - id: docker-compose-check
-  - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.12
+  - repo: local
     hooks:
       - id: actionlint
+        name: actionlint
+        entry: mise exec -- actionlint
+        language: system
         files: ^\.gitea/workflows/.*\.ya?ml$
         args:
           - -config-file
@@ -30,23 +32,21 @@ repos:
           - 'specifying action "builtin:checkout" in invalid format'
           - -ignore
           - 'undefined variable "gitea"'
-  - repo: local
-    hooks:
       - id: shellcheck
         name: shellcheck
         entry: mise exec -- shellcheck
         language: system
-        files: ^(\.gitea/scripts/|clusters/.*scripts/).*\.sh$
+        files: ^(\.mise/(lib/.*\.sh|tasks/(new-chart|check-chart|app/(cnpg-reset|tofu-adopt-garage-bucket)|check/(bash|docker|kubeconform|kubectl|tofu|trivy|workflows)|gitea/(argocd-diff|detect-.*|harbor-warm|prepare-manifest-pr|release-models)|helm/.*|host/.*|kube/.*|tofu/.*))|clusters/.*/scripts/.*\.sh)$
       - id: ruff
         name: ruff
         entry: mise exec -- ruff check --force-exclude --fix
         language: system
-        files: ^(\.gitea/(scripts|tests/python)/|\.mise/(lib|tests/python)/|clusters/.*scripts/).*\.py$
+        files: ^(\.mise/(lib/.*\.py|tests/python/.*\.py|tasks/(app/rebalance-backups|gitea/pr))|clusters/.*/scripts/.*\.py)$
       - id: ruff-format
         name: ruff-format
         entry: mise exec -- ruff format --force-exclude
         language: system
-        files: ^(\.gitea/(scripts|tests/python)/|\.mise/(lib|tests/python)/|clusters/.*scripts/).*\.py$
+        files: ^(\.mise/(lib/.*\.py|tests/python/.*\.py|tasks/(app/rebalance-backups|gitea/pr))|clusters/.*/scripts/.*\.py)$
       - id: tofu-fmt
         name: tofu fmt
         entry: mise exec -- tofu fmt
