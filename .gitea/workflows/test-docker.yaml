@@ -13,7 +13,6 @@ on:
 
 env:
   BASE_BRANCH: "origin/${{ github.base_ref }}"
-  DCLINT_VERSION: "3.1.0"
 
 jobs:
   detect-changes:
@@ -28,6 +27,9 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Check Directories for Changes
         id: check-dir-changes
         # Step Outputs:
@@ -38,7 +40,7 @@ jobs:
           BASE_BRANCH: ${{ env.BASE_BRANCH }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_BEFORE: ${{ github.event.before }}
-        run: ./.gitea/scripts/detect-docker-changes.sh
+        run: mise run gitea:detect-docker
 
   test-compose:
     needs: detect-changes
@@ -61,23 +63,23 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Validate Docker Compose Config
         run: |
           echo "FAILED_STAGE=Docker Compose Config" >> "$GITHUB_ENV"
-          echo ">> Validating docker compose config for ${{ matrix.compose }} ..."
-          docker compose --project-directory "${{ matrix.compose }}" config --quiet
+          mise run check:docker "${COMPOSE}" --step config
 
       - name: Lint Docker Compose (dclint)
         run: |
           echo "FAILED_STAGE=DCLint" >> "$GITHUB_ENV"
-          echo ">> Linting with dclint for ${{ matrix.compose }} ..."
-          bunx dclint@${{ env.DCLINT_VERSION }} "${{ matrix.compose }}" --max-warnings=0
+          mise run check:docker "${COMPOSE}" --step dclint
 
       - name: Trivy Security Scan
         run: |
           echo "FAILED_STAGE=Trivy Security Scan" >> "$GITHUB_ENV"
-          echo ">> Scanning ${{ matrix.compose }} with Trivy ..."
-          trivy config "${{ matrix.compose }}" --severity HIGH,CRITICAL --exit-code 1
+          mise run check:docker "${COMPOSE}" --step trivy
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master

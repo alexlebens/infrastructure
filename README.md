@@ -47,12 +47,16 @@ Host-level and node-specific Docker Compose services and configurations:
 ```text
 infrastructure/
 ├── .gitea/
-│   ├── scripts/     # Modular CI/CD helper scripts (rendering, PR automation, diffs, scanning)
-│   └── workflows/   # Gitea Actions CI/CD workflows
+│   └── workflows/   # Gitea Actions CI/CD workflows (executed via mise tasks)
+├── .mise/
+│   ├── lib/         # Shared Bash & Python helper libraries
+│   ├── tasks/       # Modular CI/CD, Helm, Kube, OpenTofu, and host tasks
+│   └── tests/       # BATS and pytest test suites for .mise tasks & libraries
 ├── clusters/
 │   └── cl01tl/
 │       └── helm/    # Helm charts and values files for Kubernetes workloads
 ├── hosts/           # Host-level services and compose configurations per node
+├── mise.toml        # Tool versions and mise task definitions
 └── renovate.json    # Renovate bot configuration and schedule rules
 ```
 

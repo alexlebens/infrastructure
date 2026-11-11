@@ -9,9 +9,8 @@ on:
     branches:
       - "main"
     paths:
-      - "tofu/buckets/**"
       - ".gitea/workflows/tofu-buckets-*.yaml"
-      - ".gitea/scripts/tofu-*.sh"
+      - ".mise/tasks/tofu/**"
       - "clusters/cl01tl/helm/affine/**"
       - "clusters/cl01tl/helm/backrest/**"
       - "clusters/cl01tl/helm/cloudnative-pg/**"
@@ -36,6 +35,7 @@ on:
       - "clusters/cl01tl/helm/thanos/**"
       - "clusters/cl01tl/helm/volsync/**"
       - "clusters/cl01tl/helm/web-assets/**"
+      - "tofu/buckets/**"
 
   workflow_dispatch:
     inputs:
@@ -63,9 +63,12 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Retrieve Cluster Secrets
         id: cluster-secrets
-        run: ./.gitea/scripts/tofu-fetch-secrets.sh buckets
+        run: mise run tofu:fetch-secrets buckets
 
       - name: Cache OpenTofu Plugins
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -79,7 +82,7 @@ jobs:
         working-directory: tofu/buckets
         run: |
           mkdir -p "${TF_PLUGIN_CACHE_DIR}"
-          tofu init -reconfigure \
+          mise exec -- tofu init -reconfigure \
             -backend-config="username=${TF_HTTP_USERNAME}" \
             -backend-config="password=${TF_HTTP_PASSWORD}"
 
@@ -87,7 +90,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan'
         working-directory: tofu/buckets
         run: |
-          tofu plan -no-color -lock=false
+          mise exec -- tofu plan -no-color -lock=false
 
       - name: OpenTofu Apply
         if:
@@ -95,7 +98,7 @@ jobs:
           'apply')
         working-directory: tofu/buckets
         run: |
-          tofu apply -auto-approve -no-color -lock=false
+          mise exec -- tofu apply -auto-approve -no-color -lock=false
 
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master

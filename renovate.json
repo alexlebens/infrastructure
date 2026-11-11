@@ -14,7 +14,7 @@
   "prConcurrentLimit": 0,
   "pinDigests": true,
   "baseBranchPatterns": ["main"],
-  "ignorePaths": [".helm-starters/**"],
+  "ignorePaths": [".helm-starters/**", ".mise/tests/bash/test_helper/**"],
   "separateMinorPatch": true,
   "customManagers": [
     {
@@ -35,15 +35,6 @@
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?\\s+image:\\s*[\"']?(?<packageName>[^@\\s\"']+):(?<currentValue>[^@:\\s\"']+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?[\"']?"
       ],
       "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}docker{{/if}}"
-    },
-    {
-      "description": "Update dclint version in GitHub Actions env",
-      "customType": "regex",
-      "managerFilePatterns": ["/^\\.gitea/workflows/.*\\.ya?ml$/"],
-      "matchStrings": ["DCLINT_VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
-      "depNameTemplate": "dclint",
-      "datasourceTemplate": "npm",
-      "versioningTemplate": "semver"
     },
     {
       "description": "Renovate updater for Navidrome install_plugin bash scripts",
@@ -234,14 +225,21 @@
       "groupName": "tailscale"
     },
     {
-      "description": "Group mise.toml and runner Dockerfile updates per tool and delay 3 days",
-      "matchManagers": ["mise", "dockerfile"],
-      "matchFileNames": ["mise.toml", "images/runner/Dockerfile"],
+      "description": "Group mise.toml updates per tool and delay 3 days",
+      "matchManagers": ["mise"],
+      "matchFileNames": ["mise.toml"],
       "groupName": "{{replace '^.*/' '' depName}} tool update",
       "minimumReleaseAge": "3 days"
     },
     {
-      "description": "Group ArgoCD across mise.toml, runner Dockerfile, workflows, and in-cluster Helm chart",
+      "description": "Group and throttle runner Dockerfile updates to weekends",
+      "matchFileNames": ["images/runner/Dockerfile"],
+      "groupName": "runner image",
+      "schedule": ["every weekend"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Group ArgoCD across mise.toml, workflows, and in-cluster Helm chart",
       "matchPackageNames": [
         "argocd",
         "argo-cd",
@@ -253,7 +251,7 @@
       "minimumReleaseAge": "3 days"
     },
     {
-      "description": "Group kubectl across mise.toml, runner Dockerfile, workflows, and in-cluster images",
+      "description": "Group kubectl across mise.toml, workflows, and in-cluster images",
       "matchPackageNames": [
         "kubectl",
         "kubernetes/kubernetes",
@@ -265,13 +263,13 @@
       "minimumReleaseAge": "3 days"
     },
     {
-      "description": "Group Helm across mise.toml, runner Dockerfile, and workflows",
+      "description": "Group Helm across mise.toml and workflows",
       "matchPackageNames": ["helm", "helm/helm", "alpine/helm", "harbor.alexlebens.dev/proxy-hub.docker/alpine/helm"],
       "groupName": "helm tool update",
       "minimumReleaseAge": "3 days"
     },
     {
-      "description": "Group OpenTofu across mise.toml, runner Dockerfile, and workflows",
+      "description": "Group OpenTofu across mise.toml and workflows",
       "matchPackageNames": [
         "opentofu",
         "opentofu/opentofu",
@@ -282,7 +280,7 @@
       "minimumReleaseAge": "3 days"
     },
     {
-      "description": "Group OpenBao across mise.toml, runner Dockerfile, and in-cluster Helm chart",
+      "description": "Group OpenBao across mise.toml and in-cluster Helm chart",
       "matchPackageNames": [
         "openbao",
         "openbao/openbao",
@@ -293,7 +291,7 @@
       "minimumReleaseAge": "3 days"
     },
     {
-      "description": "Group Trivy across mise.toml, runner Dockerfile, and workflows",
+      "description": "Group Trivy across mise.toml and workflows",
       "matchPackageNames": [
         "trivy",
         "aquasec/trivy",
@@ -304,7 +302,7 @@
       "minimumReleaseAge": "3 days"
     },
     {
-      "description": "Group Python across mise.toml, runner Dockerfile ENV, and in-cluster images",
+      "description": "Group Python across mise.toml and in-cluster images",
       "matchPackageNames": ["python", "python/cpython"],
       "groupName": "python tool update",
       "minimumReleaseAge": "3 days"

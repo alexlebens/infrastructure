@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+#MISE description="Update Komodo Periphery on systemd-managed hosts via SSH"
+set -euo pipefail
+
+TARGET_HOST="${TARGET_HOST:-}"
+SSH_USER="${SSH_USER:-alex}"
+SSH_PORT="${SSH_PORT:-22}"
+CORE_ADDRESS="${CORE_ADDRESS:-https://komodo.alexlebens.dev}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --host)
+      TARGET_HOST="$2"
+      shift 2
+      ;;
+    --user)
+      SSH_USER="$2"
+      shift 2
+      ;;
+    --port)
+      SSH_PORT="$2"
+      shift 2
+      ;;
+    --core-address)
+      CORE_ADDRESS="$2"
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: mise run host:update-periphery --host <target_host> [--user <ssh_user>] [--port <ssh_port>] [--core-address <url>]"
+      echo "Updates Komodo Periphery on systemd-managed hosts via SSH."
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "${TARGET_HOST}" ]]; then
+  echo "Error: --host (or TARGET_HOST) is required." >&2
+  exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REMOTE_SCRIPT="${REPO_ROOT}/.mise/lib/remote-update-periphery.sh"
+
+if [[ ! -f "${REMOTE_SCRIPT}" ]]; then
+  echo "Error: Remote script not found at ${REMOTE_SCRIPT}." >&2
+  exit 1
+fi
+
+echo ">> Connecting to ${SSH_USER}@${TARGET_HOST}:${SSH_PORT} for Systemd Periphery update..."
+
+ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=30 -p "${SSH_PORT}" "${SSH_USER}@${TARGET_HOST}" bash -s -- "${CORE_ADDRESS}" < "${REMOTE_SCRIPT}"
+
+echo ">> Successfully updated Komodo Periphery on ${TARGET_HOST}!"

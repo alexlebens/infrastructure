@@ -1,14 +1,20 @@
 [env]
 CLUSTER = "{{ env.CLUSTER | default(value='cl01tl') }}"
 
+[settings]
+npm.bun = true
+
 [tools]
+actionlint = "1.7.12"
 argocd = "3.6.1"
 bats = "1.14.0"
+bun = "1.4.4"
 crane = "0.22.1"
 helm = "4.3.1"
 jq = "1.8.2"
 kubectl = "1.37.2"
 kubeconform = "0.8.0"
+"npm:dclint" = "3.1.0"
 opentofu = "1.13.9"
 prettier = "3.9.10"
 python = "3.15.2"
@@ -98,28 +104,119 @@ echo ">> Execution logs:"
 kubectl logs "job/$JOB_NAME" -n cloudnative-pg
 """
 
+[tasks."app:rebalance-backups"]
+description = "Rebalance and stagger backup schedules for VolSync, Postgres, and S3 buckets"
+run = "uv run python .mise/tasks/app/rebalance-backups"
+
 [tasks."app:tofu-adopt-garage-bucket"]
 description = "Adopt pre-existing Garage S3 buckets into OpenTofu remote state"
 run = ".mise/tasks/app/tofu-adopt-garage-bucket"
 
 # -- Check
-[tasks."check:trivy"]
-description = "Scan rendered Helm manifests with Trivy for security misconfigurations"
-run = ".mise/tasks/check/trivy"
+[tasks."check:bash"]
+description = "Lint Bash tasks, libraries, or specified scripts with ShellCheck"
+run = ".mise/tasks/check/bash"
+
+[tasks."check:docker"]
+description = "Validate, lint, and Trivy-scan a Docker Compose directory"
+run = ".mise/tasks/check/docker"
 
 [tasks."check:kubeconform"]
 description = "Validate rendered Helm manifests using kubeconform"
 run = ".mise/tasks/check/kubeconform"
 
+[tasks."check:kubectl"]
+description = "Perform server-side Kubernetes API dry-run validation using kubectl"
+run = ".mise/tasks/check/kubectl"
+
+[tasks."check:prettier"]
+description = "Check formatting of repository files with Prettier"
+run = "prettier --check ."
+
+[tasks."check:python"]
+description = "Lint and format-check Python tasks, libraries, and tests with Ruff"
+run = ".mise/tasks/check/python"
+
+[tasks."check:tofu"]
+description = "Format-check, validate, and Trivy-scan OpenTofu configurations"
+run = ".mise/tasks/check/tofu"
+
+[tasks."check:trivy"]
+description = "Scan rendered Helm manifests with Trivy for security misconfigurations"
+run = ".mise/tasks/check/trivy"
+
+[tasks."check:workflows"]
+description = "Validate Gitea Actions workflow YAML files with actionlint"
+run = ".mise/tasks/check/workflows"
+
+# -- OpenTofu
+[tasks."tofu:fetch-secrets"]
+description = "Fetch OpenTofu credentials and endpoints dynamically from OpenBao"
+run = ".mise/tasks/tofu/fetch-secrets"
+
+[tasks."tofu:plan"]
+description = "Run OpenTofu plan and publish results to Action UI summary and PR comments"
+run = ".mise/tasks/tofu/plan"
+
+# -- Host
+[tasks."host:deploy-compose"]
+description = "Deploy or update a Docker Compose stack on a remote host via SSH"
+run = ".mise/tasks/host/deploy-compose"
+
+[tasks."host:update-periphery"]
+description = "Update Komodo Periphery on systemd-managed hosts via SSH"
+run = ".mise/tasks/host/update-periphery"
+
+# -- Gitea CI/CD Workflow Tasks
+[tasks."gitea:argocd-diff"]
+description = "Run ArgoCD app diff for a single chart and publish results (CI only)"
+run = ".mise/tasks/gitea/argocd-diff"
+
+[tasks."gitea:detect-docker"]
+description = "Detect changed Docker Compose directories in hosts/ for CI validation (CI only)"
+run = ".mise/tasks/gitea/detect-docker"
+
+[tasks."gitea:detect-helm"]
+description = "Detect changed Helm charts for CI validation (CI only)"
+run = ".mise/tasks/gitea/detect-helm"
+
+[tasks."gitea:detect-manifest-mode"]
+description = "Determine manifest rendering mode and prepare destination git branch (CI only)"
+run = ".mise/tasks/gitea/detect-manifest-mode"
+
+[tasks."gitea:detect-manifests"]
+description = "Detect Helm chart directories requiring manifest rendering (CI only)"
+run = ".mise/tasks/gitea/detect-manifests"
+
+[tasks."gitea:detect-periphery"]
+description = "Detect Komodo Periphery changes across systemd and Docker Compose hosts (CI only)"
+run = ".mise/tasks/gitea/detect-periphery"
+
+[tasks."gitea:harbor-warm"]
+description = "Extract container images from manifests and validate/warm Harbor proxy cache (CI only)"
+run = ".mise/tasks/gitea/harbor-warm"
+
+[tasks."gitea:pr"]
+description = "Manage Git commits, pushes, and Gitea Pull Requests (CI only)"
+run = "uv run python .mise/tasks/gitea/pr"
+
+[tasks."gitea:prepare-manifest-pr"]
+description = "Generate PR title, commit message, and body markdown for manifest workflows (CI only)"
+run = ".mise/tasks/gitea/prepare-manifest-pr"
+
+[tasks."gitea:release-models"]
+description = "Package Hugging Face GGUF models as OCI images and push to Harbor (CI only)"
+run = ".mise/tasks/gitea/release-models"
+
 # -- Testing
 [tasks.test]
 description = "Run all Bats tests and Python tests"
 depends = ["test:python"]
-run = "bats .mise/tests/bash/ .gitea/tests/bash/*.bats"
+run = "bats .mise/tests/bash/"
 
 [tasks."test:watch"]
 description = "Watch and re-run Bats tests on file changes"
-run = "watchexec -w .mise -w .gitea/scripts -w .gitea/tests -- bats .mise/tests/bash/ .gitea/tests/bash/*.bats"
+run = "watchexec -w .mise -- bats .mise/tests/bash/"
 
 [tasks."test:bash"]
 description = "Run Bats test suite for .mise tasks and libraries"
@@ -127,8 +224,5 @@ run = "bats .mise/tests/bash/"
 
 [tasks."test:python"]
 description = "Run Python linting, formatting check, and pytest via uv"
-run = """
-ruff check .gitea/scripts/ .gitea/tests/python/ .mise/lib/ .mise/tests/python/
-ruff format --check .gitea/scripts/ .gitea/tests/python/ .mise/lib/ .mise/tests/python/
-uv run pytest .gitea/tests/python/ .mise/tests/python/
-"""
+depends = ["check:python"]
+run = "uv run pytest .mise/tests/python/"

@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+#MISE description="Validate, lint, and Trivy-scan a Docker Compose directory"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
+
+COMPOSE_DIR="${COMPOSE:-}"
+STEP="all"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dir)
+      COMPOSE_DIR="$2"
+      shift 2
+      ;;
+    --step)
+      STEP="$2"
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: mise run check:docker <compose-dir> [--step <config|dclint|trivy|all>]"
+      echo "Validates Docker Compose config, runs dclint, and scans with Trivy."
+      exit 0
+      ;;
+    *)
+      if [ -z "${COMPOSE_DIR}" ] && [[ "$1" != -* ]]; then
+        COMPOSE_DIR="$1"
+        shift
+      else
+        log_fatal "Unknown argument: $1"
+      fi
+      ;;
+  esac
+done
+
+if [ -z "${COMPOSE_DIR}" ]; then
+  log_fatal "Usage: mise run check:docker <compose-dir> [--step <config|dclint|trivy|all>]"
+fi
+
+if [ ! -d "${COMPOSE_DIR}" ]; then
+  log_fatal "Compose directory '${COMPOSE_DIR}' does not exist."
+fi
+
+step_config() {
+  log_step "Validating docker compose config for ${COMPOSE_DIR}"
+  docker compose --project-directory "${COMPOSE_DIR}" config --quiet
+}
+
+step_dclint() {
+  log_step "Linting ${COMPOSE_DIR} with dclint"
+  dclint "${COMPOSE_DIR}" --max-warnings=0
+}
+
+step_trivy() {
+  log_step "Scanning ${COMPOSE_DIR} with Trivy"
+  trivy config "${COMPOSE_DIR}" --severity HIGH,CRITICAL --exit-code 1
+}
+
+case "${STEP}" in
+  config)
+    step_config
+    ;;
+  dclint)
+    step_dclint
+    ;;
+  trivy)
+    step_trivy
+    ;;
+  all)
+    step_config
+    step_dclint
+    step_trivy
+    log_success "Docker Compose directory '${COMPOSE_DIR}' passed all checks!"
+    ;;
+  *)
+    log_fatal "Unknown step '${STEP}'. Valid steps: config, dclint, trivy, all."
+    ;;
+esac

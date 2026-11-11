@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+#MISE description="Lint and format-check Python tasks, libraries, and tests with Ruff"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
+
+FIX=false
+TARGETS=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --fix)
+      FIX=true
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: mise run check:python [--fix] [file...]"
+      echo "Runs Ruff lint and format checks on specified files, or all Python scripts in .mise/."
+      exit 0
+      ;;
+    *)
+      if [[ "$1" != -* ]]; then
+        TARGETS+=("$1")
+        shift
+      else
+        log_fatal "Unknown argument: $1"
+      fi
+      ;;
+  esac
+done
+
+if [ ${#TARGETS[@]} -eq 0 ]; then
+  while IFS= read -r -d '' file; do
+    TARGETS+=("$file")
+  done < <(find "${REPO_ROOT}/.mise/lib" "${REPO_ROOT}/.mise/tests/python" -maxdepth 2 -type f -name "*.py" -print0 2>/dev/null)
+
+  while IFS= read -r -d '' file; do
+    if head -n 1 "$file" | grep -qE '^#!.*python'; then
+      TARGETS+=("$file")
+    fi
+  done < <(find "${REPO_ROOT}/.mise/tasks" -type f -print0 2>/dev/null)
+fi
+
+if [ ${#TARGETS[@]} -eq 0 ]; then
+  log_info "No Python files found to check."
+  exit 0
+fi
+
+log_step "Running Ruff check on Python scripts"
+if [ "${FIX}" = "true" ]; then
+  ruff check --fix "${TARGETS[@]}"
+  log_step "Running Ruff format on Python scripts"
+  ruff format "${TARGETS[@]}"
+else
+  ruff check "${TARGETS[@]}"
+  log_step "Running Ruff format check on Python scripts"
+  ruff format --check "${TARGETS[@]}"
+fi
+
+log_success "All Python scripts passed Ruff checks!"

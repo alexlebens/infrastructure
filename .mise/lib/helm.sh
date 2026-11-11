@@ -82,10 +82,26 @@ helm_init() {
       fi
     done
   else
-    # Normalize chart names if full/relative paths were passed (e.g. clusters/cl01tl/helm/foo -> foo)
+    # Normalize chart names from chart paths or changed files (e.g. clusters/cl01tl/helm/foo/values.yaml -> foo)
     local NORMALIZED_CHARTS=()
+    local c normalized existing seen
     for c in "${CHARTS[@]}"; do
-      NORMALIZED_CHARTS+=("$(basename "${c}")")
+      if [[ "${c}" =~ (^|/)clusters/([^/]+)/helm/([^/]+)(/|$) ]]; then
+        normalized="${BASH_REMATCH[3]}"
+      else
+        normalized="$(basename "${c}")"
+      fi
+
+      seen=false
+      for existing in "${NORMALIZED_CHARTS[@]+"${NORMALIZED_CHARTS[@]}"}"; do
+        if [[ "${existing}" == "${normalized}" ]]; then
+          seen=true
+          break
+        fi
+      done
+      if [[ "${seen}" == false ]]; then
+        NORMALIZED_CHARTS+=("${normalized}")
+      fi
     done
     CHARTS=("${NORMALIZED_CHARTS[@]}")
   fi
@@ -185,7 +201,7 @@ render_helm_chart() {
     set -o pipefail
     if ! yq '... comments=""' "${RAW_FILE}" \
       | yq 'select(. != null)' \
-      | yq -s '"'"${SPLIT_DIR}"'" + .kind + "-" + .metadata.name + ".yaml"' > /dev/null 2>&1; then
+      | (cd "${SPLIT_DIR}" && yq -s '.kind + "-" + .metadata.name + ".yaml"') > /dev/null 2>&1; then
       echo ">> Failed yq splitting for ${CHART}" >&2
       if [ "${RAW_IS_TEMP}" = true ] || [ "${CLEANUP_RAW}" = true ]; then
         rm -f "${RAW_FILE}"

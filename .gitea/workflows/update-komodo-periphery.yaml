@@ -9,12 +9,14 @@ on:
     branches:
       - "main"
     paths:
+      - ".gitea/workflows/update-komodo-periphery.yaml"
+      - ".mise/lib/remote-deploy-compose.sh"
+      - ".mise/lib/remote-update-periphery.sh"
+      - ".mise/tasks/gitea/detect-periphery"
+      - ".mise/tasks/host/deploy-compose"
+      - ".mise/tasks/host/update-periphery"
       - "clusters/cl01tl/helm/komodo/**"
       - "hosts/*/komodo-periphery/**"
-      - ".gitea/scripts/deploy-remote-compose.sh"
-      - ".gitea/scripts/detect-periphery-changes.sh"
-      - ".gitea/scripts/update-remote-periphery-systemd.sh"
-      - ".gitea/workflows/update-komodo-periphery.yaml"
 
   workflow_dispatch:
     inputs:
@@ -43,17 +45,20 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Detect Periphery Changes
         id: changes
         if: github.event_name == 'push'
         env:
           EVENT_NAME: ${{ github.event_name }}
           EVENT_BEFORE: ${{ github.event.before }}
-        run: ./.gitea/scripts/detect-periphery-changes.sh
+        run: mise run gitea:detect-periphery
 
   update-komodo-ps08rp:
     needs: [detect-changes]
-    runs-on: ubuntu-latest-slim
+    runs-on: ubuntu-runner
     if: |
       (github.event_name == 'push' && needs.detect-changes.outputs.systemd == 'true') ||
       github.event.inputs.target_host == 'all' ||
@@ -63,6 +68,9 @@ jobs:
         uses: builtin:checkout
         with:
           fetch-depth: 1
+
+      - name: Setup Tools (mise)
+        run: mise install
 
       - name: Set Up SSH Agent
         uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
@@ -75,7 +83,7 @@ jobs:
           SSH_USER: "${{ vars.SSH_USER }}"
           SSH_PORT: "${{ vars.SSH_PORT }}"
         run: |
-          ./.gitea/scripts/update-remote-periphery-systemd.sh \
+          mise run host:update-periphery \
             --host "${TARGET_HOST}" \
             --user "${SSH_USER}" \
             --port "${SSH_PORT}"
@@ -114,7 +122,7 @@ jobs:
 
   update-komodo-ps09rp:
     needs: [detect-changes, update-komodo-ps08rp]
-    runs-on: ubuntu-latest-slim
+    runs-on: ubuntu-runner
     if: |
       !cancelled() &&
       needs.detect-changes.result == 'success' && (
@@ -128,6 +136,9 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Set Up SSH Agent
         uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
         with:
@@ -139,7 +150,7 @@ jobs:
           SSH_USER: "${{ vars.SSH_USER }}"
           SSH_PORT: "${{ vars.SSH_PORT }}"
         run: |
-          ./.gitea/scripts/update-remote-periphery-systemd.sh \
+          mise run host:update-periphery \
             --host "${TARGET_HOST}" \
             --user "${SSH_USER}" \
             --port "${SSH_PORT}"
@@ -178,7 +189,7 @@ jobs:
 
   update-komodo-ps10rp:
     needs: [detect-changes, update-komodo-ps09rp]
-    runs-on: ubuntu-latest-slim
+    runs-on: ubuntu-runner
     if: |
       !cancelled() &&
       needs.detect-changes.result == 'success' && (
@@ -192,6 +203,9 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Set Up SSH Agent
         uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
         with:
@@ -203,7 +217,7 @@ jobs:
           SSH_USER: "${{ vars.SSH_USER }}"
           SSH_PORT: "${{ vars.SSH_PORT }}"
         run: |
-          ./.gitea/scripts/deploy-remote-compose.sh \
+          mise run host:deploy-compose \
             --host "${TARGET_HOST}" \
             --user "${SSH_USER}" \
             --port "${SSH_PORT}" \
@@ -244,7 +258,7 @@ jobs:
 
   update-komodo-ps02sn:
     needs: [detect-changes, update-komodo-ps10rp]
-    runs-on: ubuntu-latest-slim
+    runs-on: ubuntu-runner
     if: |
       !cancelled() &&
       needs.detect-changes.result == 'success' && (
@@ -258,6 +272,9 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Tools (mise)
+        run: mise install
+
       - name: Set Up SSH Agent
         uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
         with:
@@ -269,7 +286,7 @@ jobs:
           SSH_USER: "${{ vars.SSH_USER }}"
           SSH_PORT: "${{ vars.SSH_PORT }}"
         run: |
-          ./.gitea/scripts/deploy-remote-compose.sh \
+          mise run host:deploy-compose \
             --host "${TARGET_HOST}" \
             --user "${SSH_USER}" \
             --port "${SSH_PORT}" \
