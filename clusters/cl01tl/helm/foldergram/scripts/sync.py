@@ -58,7 +58,7 @@ def trigger_foldergram_scan():
 
 def sanitize_filename(name):
     """Replace filesystem-unsafe characters, collapse multiple underscores."""
-    name = re.sub(r"[^\w. -]", "_", name)
+    name = re.sub(r"[^\w. ()-]", "_", name)
     name = re.sub(r"_+", "_", name)
     return name.strip("_. ")
 
@@ -103,10 +103,13 @@ def format_standalone_name(asset):
     # Strip trailing standalone sequence numbers
     cleaned = re.sub(r"\s+\d+$", "", cleaned).strip()
 
-    title = cleaned.title() if cleaned else ""
-    if not title:
-        title = asset["id"][:8]
-    elif year:
+    # If stripping left nothing or only digits (e.g. PXL_20220727_161057448), keep original stem
+    if not cleaned or cleaned.isdigit():
+        safe_orig = sanitize_filename(name) or asset["id"][:8]
+        return f"{safe_orig}{ext}"
+
+    title = cleaned.title()
+    if year:
         title = f"{title} ({year})"
 
     safe_title = sanitize_filename(title) or asset["id"][:8]
