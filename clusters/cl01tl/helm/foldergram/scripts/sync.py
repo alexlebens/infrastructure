@@ -77,18 +77,55 @@ def parse_immich_datetime(dt_str):
     return None
 
 
-def build_filename(asset):
+def format_standalone_name(asset):
     """
-    Build a filesystem-safe filename using the original filename from Immich metadata.
-    Format: originalname.ext
-    Falls back to asset ID if originalFileName is missing.
+    Parse a clean Title Case name with year from originalFileName, e.g.:
+    '2026_07_08_19_04_04_icy_straight_point_10.jpg' -> 'Icy Straight Point (2026).jpg'
     """
     orig = asset.get("originalFileName") or f"{asset['id']}.jpg"
     name, ext = os.path.splitext(orig)
     ext = ext.lower() if ext else ".jpg"
-    safe_name = sanitize_filename(name) or asset["id"][:8]
 
-    return f"{safe_name}{ext}"
+    # Extract year from filename or metadata
+    year_match = re.search(r"\b((?:19|20)\d{2})\b", name)
+    year = year_match.group(1) if year_match else None
+    if not year:
+        dt = parse_immich_datetime(asset.get("localDateTime") or asset.get("fileCreatedAt"))
+        if dt:
+            year = str(dt.year)
+
+    # Normalize separators to spaces
+    cleaned = re.sub(r"[_-]+", " ", name).strip()
+    # Strip common camera prefixes and leading date/time stamps
+    cleaned = re.sub(r"^(?:IMG|PXL|DSC|VID|MVIMG)\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^(?:19|20)\d{2}(?:\s+\d{1,2}){2,5}\s*", "", cleaned)
+    cleaned = re.sub(r"^(?:19|20)\d{6}\s*\d{6}\s*", "", cleaned)
+    # Strip trailing standalone sequence numbers
+    cleaned = re.sub(r"\s+\d+$", "", cleaned).strip()
+
+    title = cleaned.title() if cleaned else ""
+    if not title:
+        title = asset["id"][:8]
+    elif year:
+        title = f"{title} ({year})"
+
+    safe_title = sanitize_filename(title) or asset["id"][:8]
+    return f"{safe_title}{ext}"
+
+
+def format_carousel_slide_name(album_name, slide_idx, total_slides, asset):
+    """
+    Format a carousel slide filename using the album name and slide index, e.g.:
+    'Icy Straight Point (2026) - 1.jpg'
+    """
+    orig = asset.get("originalFileName") or f"{asset['id']}.jpg"
+    _, ext = os.path.splitext(orig)
+    ext = ext.lower() if ext else ".jpg"
+
+    pad = 2 if total_slides >= 10 else 1
+    idx_str = f"{slide_idx:0{pad}d}"
+    safe_album = sanitize_filename(album_name) or "Album"
+    return f"{safe_album} - {idx_str}{ext}"
 
 
 def ensure_unique_filename(desired, existing_names):
@@ -254,14 +291,13 @@ def sync_favorites():
                 folder_name = safe_album if len(chunks) == 1 else f"{safe_album} ({chunk_idx})"
                 used_carousel_names = set()
                 for slide_idx, a in enumerate(chunk, start=1):
-                    base_name = build_filename(a)
-                    numbered = f"{slide_idx:02d}_{base_name}"
-                    fname = ensure_unique_filename(numbered, used_carousel_names)
+                    fname = format_carousel_slide_name(folder_name, slide_idx, len(chunk), a)
+                    fname = ensure_unique_filename(fname, used_carousel_names)
                     used_carousel_names.add(fname)
                     remote_assets[a["id"]] = os.path.join("carousels", folder_name, fname)
         else:
             for a in group:
-                desired = build_filename(a)
+                desired = format_standalone_name(a)
                 fname = ensure_unique_filename(desired, used_root_names)
                 used_root_names.add(fname)
                 remote_assets[a["id"]] = fname
