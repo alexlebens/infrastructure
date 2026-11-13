@@ -125,6 +125,30 @@ def fetch_asset_detail(asset_id):
     return api_request(f"assets/{asset_id}")
 
 
+def fetch_asset_album_map():
+    """Fetch all Immich albums and return {asset_id: album_name} (first album alphabetically)."""
+    albums = api_request("albums")
+    albums.sort(key=lambda a: (a.get("albumName") or "").lower())
+    asset_to_album = {}
+    for album in albums:
+        if album.get("assetCount", 0) == 0:
+            continue
+        album_id = album.get("id")
+        album_name = (album.get("albumName") or "").strip()
+        if not album_id or not album_name:
+            continue
+        try:
+            detail = api_request(f"albums/{album_id}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[sync] Warning: failed to fetch album '{album_name}': {e}")
+            continue
+        for asset in detail.get("assets", []):
+            aid = asset.get("id")
+            if aid and aid not in asset_to_album:
+                asset_to_album[aid] = album_name
+    return asset_to_album
+
+
 def download_asset(asset_id, dest_path):
     url = f"{IMMICH_URL}/assets/{asset_id}/original"
     req = urllib.request.Request(url, headers={"x-api-key": API_KEY})
@@ -192,61 +216,112 @@ def sync_favorites():
 
     print(f"[sync] Found {len(favorites)} favorite assets in Immich.")
 
-    # Load persisted index: asset_id → filename on disk
+    try:
+        asset_to_album = fetch_asset_album_map()
+        print(f"[sync] Mapped {len(asset_to_album)} assets across Immich albums.")
+    except Exception as e:  # noqa: BLE001
+        print(f"[sync] Warning: failed to fetch Immich albums ({e}); syncing without carousels.")
+        asset_to_album = {}
+
+    # Group favorites by album name (None = not in any album)
+    album_groups = {}
+    for a in favorites:
+        album_name = asset_to_album.get(a["id"])
+        album_groups.setdefault(album_name, []).append(a)
+
+    # Load persisted index: asset_id -> relative path on disk
     index = load_index()
 
-    # Build the desired filename for each remote asset, resolving collisions
-    used_names = set(index.values())
-    remote_assets = {}  # asset_id -> desired filename
-    for a in favorites:
-        aid = a["id"]
-        if aid in index:
-            # Already know the filename for this asset
-            remote_assets[aid] = index[aid]
+    # Build desired relative path for each remote asset
+    used_root_names = set()
+    remote_assets = {}  # asset_id -> desired relative path
+
+    def asset_sort_key(asset):
+        dt = parse_immich_datetime(asset.get("localDateTime") or asset.get("fileCreatedAt"))
+        return (dt.isoformat() if dt else "", asset.get("originalFileName") or asset["id"])
+
+    for album_name, group in album_groups.items():
+        if album_name and len(group) >= 2:
+            group.sort(key=asset_sort_key)
+            safe_album = sanitize_filename(album_name) or "Album"
+            # Foldergram supports 2-20 items per carousel; chunk larger albums
+            chunks = [group[i : i + 20] for i in range(0, len(group), 20)]
+            if len(chunks) > 1 and len(chunks[-1]) == 1:
+                # Avoid a 1-item trailing chunk by balancing the last two chunks
+                chunks[-2].append(chunks[-1].pop())
+                chunks.pop()
+            for chunk_idx, chunk in enumerate(chunks, start=1):
+                folder_name = safe_album if len(chunks) == 1 else f"{safe_album} ({chunk_idx})"
+                used_carousel_names = set()
+                for slide_idx, a in enumerate(chunk, start=1):
+                    base_name = build_filename(a)
+                    numbered = f"{slide_idx:02d}_{base_name}"
+                    fname = ensure_unique_filename(numbered, used_carousel_names)
+                    used_carousel_names.add(fname)
+                    remote_assets[a["id"]] = os.path.join("carousels", folder_name, fname)
         else:
-            desired = build_filename(a)
-            fname = ensure_unique_filename(desired, used_names)
-            used_names.add(fname)
-            remote_assets[aid] = fname
+            for a in group:
+                desired = build_filename(a)
+                fname = ensure_unique_filename(desired, used_root_names)
+                used_root_names.add(fname)
+                remote_assets[a["id"]] = fname
 
-    # Prune stale .tmp files
-    for fname in os.listdir(GALLERY_PATH):
-        if fname.endswith(".tmp"):
-            try:
-                os.remove(os.path.join(GALLERY_PATH, fname))
-            except OSError:
-                pass
+    # Prune stale .tmp files in GALLERY_PATH
+    for root, _dirs, files in os.walk(GALLERY_PATH):
+        for fname in files:
+            if fname.endswith(".tmp"):
+                try:
+                    os.remove(os.path.join(root, fname))
+                except OSError:
+                    pass
 
-    # Download missing assets
+    # Move relocated assets or download missing assets
     downloaded = 0
+    moved = 0
     for a in favorites:
         aid = a["id"]
-        fname = remote_assets[aid]
-        target = os.path.join(GALLERY_PATH, fname)
+        rel_path = remote_assets[aid]
+        target = os.path.join(GALLERY_PATH, rel_path)
+        old_rel_path = index.get(aid)
+
+        if old_rel_path and old_rel_path != rel_path:
+            old_target = os.path.join(GALLERY_PATH, old_rel_path)
+            if os.path.exists(old_target) and not os.path.exists(target):
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                os.replace(old_target, target)
+                index[aid] = rel_path
+                save_index(index)
+                moved += 1
+                print(f"[sync] Moved: {old_rel_path} -> {rel_path}")
+                continue
+
         if not os.path.exists(target):
-            print(f"[sync] Downloading: {fname} ...")
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            print(f"[sync] Downloading: {rel_path} ...")
             try:
                 download_asset(aid, target)
-                index[aid] = fname
+                index[aid] = rel_path
                 save_index(index)
                 downloaded += 1
             except Exception as e:  # noqa: BLE001
                 print(f"[sync] Failed to download {aid}: {e}")
-                # Clean up partial file if present
                 if os.path.exists(target):
                     try:
                         os.remove(target)
                     except OSError:
                         pass
+        elif old_rel_path != rel_path:
+            index[aid] = rel_path
+            save_index(index)
 
     # Prune un-favourited / deleted assets
     pruned = 0
     if PRUNE_DELETED:
         for aid in list(index.keys()):
             if aid not in remote_assets:
-                fname = index[aid]
-                target = os.path.join(GALLERY_PATH, fname)
-                print(f"[sync] Pruning: {fname} ...")
+                rel_path = index[aid]
+                target = os.path.join(GALLERY_PATH, rel_path)
+                print(f"[sync] Pruning: {rel_path} ...")
                 try:
                     os.remove(target)
                     pruned += 1
@@ -257,12 +332,22 @@ def sync_favorites():
                 del index[aid]
         save_index(index)
 
+    # Remove empty directories under carousels/
+    carousels_dir = os.path.join(GALLERY_PATH, "carousels")
+    if os.path.isdir(carousels_dir):
+        for root, dirs, files in os.walk(carousels_dir, topdown=False):
+            if not dirs and not files:
+                try:
+                    os.rmdir(root)
+                except OSError:
+                    pass
+
     print(
-        f"[sync] Sync finished: {downloaded} downloaded, {pruned} pruned, "
+        f"[sync] Sync finished: {downloaded} downloaded, {moved} moved, {pruned} pruned, "
         f"{len(remote_assets)} total in gallery."
     )
 
-    if downloaded > 0 or pruned > 0:
+    if downloaded > 0 or moved > 0 or pruned > 0:
         trigger_foldergram_scan()
 
 
