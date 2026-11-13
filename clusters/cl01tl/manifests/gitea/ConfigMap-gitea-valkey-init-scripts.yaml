@@ -4,7 +4,7 @@ kind: ConfigMap
 metadata:
   name: gitea-valkey-init-scripts
   labels:
-    helm.sh/chart: valkey-0.12.1
+    helm.sh/chart: valkey-1.0.0
     app.kubernetes.io/name: valkey
     app.kubernetes.io/instance: gitea
     app.kubernetes.io/version: "9.1.3"
@@ -16,10 +16,19 @@ data:
     set -eu
 
     # Default config paths
-    VALKEY_CONFIG=${VALKEY_CONFIG_PATH:-/data/conf/valkey.conf}
+    # The config lives on a memory backed emptyDir, not on the data volume: it
+    # carries the replication credentials in plain text, and CONFIG REWRITE puts
+    # them back on every failover even if this script never wrote them, so the
+    # file itself has to stay off persistent storage.
+    VALKEY_CONFIG=${VALKEY_CONFIG_PATH:-/valkey-conf/valkey.conf}
+    # The config is assembled in a temporary file and moved into place at the
+    # very end, so that an interrupted run can never leave a half written config
+    # behind. The restart logic below reads the previous config to decide the
+    # replication role, and a truncated file would make it read the wrong one.
+    VALKEY_CONFIG_TMP="${VALKEY_CONFIG}.tmp"
 
     LOGFILE="/data/init.log"
-    DATA_DIR="/data/conf"
+    DATA_DIR="$(dirname "$VALKEY_CONFIG")"
 
     # Logging function (outputs to stderr and file)
     log() {
@@ -37,7 +46,7 @@ data:
 
     log "Creating configuration in $DATA_DIR..."
     mkdir -p "$DATA_DIR"
-    rm -f "$VALKEY_CONFIG"
+    rm -f "$VALKEY_CONFIG_TMP"
 
 
     # Base valkey.conf
@@ -47,43 +56,75 @@ data:
       echo "protected-mode no"
       echo "bind * -::*"
       echo "dir /data"
-    } >>"$VALKEY_CONFIG"
+      echo "loglevel notice"
+    } >>"$VALKEY_CONFIG_TMP"
     # Replica mode configuration
     log "Configuring replication mode"
 
-    # Use POD_INDEX from Kubernetes metadata
-    POD_INDEX=${POD_INDEX:-0}
-    IS_MASTER=false
+    # Prints this pod's StatefulSet ordinal. It comes from the
+    # apps.kubernetes.io/pod-index label (POD_INDEX), which Kubernetes only
+    # sets from 1.28; before that the variable is empty. Assuming 0 would make
+    # every pod take itself for pod-0, the master, so fall back to the pod
+    # name (POD_NAME, from metadata.name), which for a StatefulSet pod ends in
+    # the ordinal, and fail when neither gives a number.
+    pod_index() {
+      index="${POD_INDEX:-}"
+      if [ -z "$index" ]; then
+        pod_name="${POD_NAME:-}"
+        index="${pod_name##*-}"
+      fi
+      case "$index" in
+        ""|*[!0-9]*)
+          echo "$(date) ERROR: cannot tell this pod's StatefulSet ordinal from the pod-index label ('${POD_INDEX:-}') or the pod name ('${POD_NAME:-}')" >&2
+          return 1
+          ;;
+      esac
+      printf '%s\n' "$index"
+    }
 
-    # Check if this is pod-0 (master)
+    POD_INDEX=$(pod_index) || exit 1
+    MASTER_HOST="gitea-valkey-0.gitea-valkey-headless.gitea.svc.cluster.local"
+    MASTER_PORT="6379"
+
+    # Every pod announces a stable hostname so that peers (and Sentinel) address
+    # it by DNS name instead of a pod IP that changes on every reschedule.
+    {
+      echo ""
+      echo "# Replication announce configuration"
+      echo "replica-announce-ip gitea-valkey-$POD_INDEX.gitea-valkey-headless.gitea.svc.cluster.local"
+      echo "replica-announce-port 6379"
+    } >>"$VALKEY_CONFIG_TMP"
+
+    # Determine the replication target for this pod.
+    REPLICATION_TARGET=""
     if [ "$POD_INDEX" = "0" ]; then
-      IS_MASTER=true
       log "This pod (index $POD_INDEX) is configured as MASTER"
     else
-      log "This pod (index $POD_INDEX) is configured as REPLICA"
+      log "This pod (index $POD_INDEX) is configured as REPLICA of $MASTER_HOST:$MASTER_PORT"
+      REPLICATION_TARGET="replicaof $MASTER_HOST $MASTER_PORT"
     fi
 
-    # Configure replica settings
-    if [ "$IS_MASTER" = "false" ]; then
-      MASTER_HOST="gitea-valkey-0.gitea-valkey-headless.gitea.svc.cluster.local"
-      MASTER_PORT="6379"
-
-      log "Configuring replica to follow master at $MASTER_HOST:$MASTER_PORT"
-
+    if [ -n "$REPLICATION_TARGET" ]; then
       {
         echo ""
         echo "# Replica Configuration"
-        echo "replicaof $MASTER_HOST $MASTER_PORT"
-        echo "replica-announce-ip gitea-valkey-$POD_INDEX.gitea-valkey-headless.gitea.svc.cluster.local"
-      } >>"$VALKEY_CONFIG"
+        echo "$REPLICATION_TARGET"
+      } >>"$VALKEY_CONFIG_TMP"
+    fi
+    CONFIGURE_REPLICA_SETTINGS=false
+    if [ -n "$REPLICATION_TARGET" ]; then
+      CONFIGURE_REPLICA_SETTINGS=true
+    fi
+
+    if [ "$CONFIGURE_REPLICA_SETTINGS" = "true" ]; then
+      log "Configuring replica settings"
     fi
 
     # Append extra configs if present
     if [ -f /usr/local/etc/valkey/valkey.conf ]; then
       log "Appending /usr/local/etc/valkey/valkey.conf"
-      cat /usr/local/etc/valkey/valkey.conf >>"$VALKEY_CONFIG"
+      cat /usr/local/etc/valkey/valkey.conf >>"$VALKEY_CONFIG_TMP"
     fi
-    if [ -d /extravalkeyconfigs ]; then
-      log "Appending files in /extravalkeyconfigs/"
-      cat /extravalkeyconfigs/* >>"$VALKEY_CONFIG"
-    fi
+
+    # Publish the finished config atomically.
+    mv "$VALKEY_CONFIG_TMP" "$VALKEY_CONFIG"
