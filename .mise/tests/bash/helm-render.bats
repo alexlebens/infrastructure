@@ -147,6 +147,7 @@ Service-demo.yaml"
   HELM_FAIL=1 run render_helm_chart --chart demo --chart-path "${CHART_DIR}" --raw-output-file "${OUT_DIR}/raw.yaml"
   assert_failure
   assert_output --partial "Failed helm template for demo"
+  assert_output --partial "boom"
   assert [ ! -e "${OUT_DIR}/raw.yaml" ]
 }
 

@@ -180,11 +180,17 @@ render_helm_chart() {
     RAW_IS_TEMP=true
   fi
 
-  if ! helm template "${HELM_ARGS[@]}" > "${RAW_FILE}" 2>/dev/null; then
+  local HELM_ERR_FILE
+  HELM_ERR_FILE="$(mktemp)"
+  if ! helm template "${HELM_ARGS[@]}" > "${RAW_FILE}" 2>"${HELM_ERR_FILE}"; then
     echo ">> Failed helm template for ${CHART}" >&2
-    rm -f "${RAW_FILE}"
+    if [ -s "${HELM_ERR_FILE}" ]; then
+      cat "${HELM_ERR_FILE}" >&2
+    fi
+    rm -f "${RAW_FILE}" "${HELM_ERR_FILE}"
     return 1
   fi
+  rm -f "${HELM_ERR_FILE}"
 
   if [ "${RAW_IS_TEMP}" = false ]; then
     echo ">> Raw template saved to ${RAW_FILE}"
@@ -198,16 +204,23 @@ render_helm_chart() {
     mkdir -p "${SPLIT_DIR}"
     echo ">> Splitting manifests into ${SPLIT_DIR} ..."
 
+    local YQ_ERR_FILE
+    YQ_ERR_FILE="$(mktemp)"
     set -o pipefail
     if ! yq '... comments=""' "${RAW_FILE}" \
       | yq 'select(. != null)' \
-      | (cd "${SPLIT_DIR}" && yq -s '.kind + "-" + .metadata.name + ".yaml"') > /dev/null 2>&1; then
+      | (cd "${SPLIT_DIR}" && yq -s '.kind + "-" + .metadata.name + ".yaml"') > /dev/null 2>"${YQ_ERR_FILE}"; then
       echo ">> Failed yq splitting for ${CHART}" >&2
+      if [ -s "${YQ_ERR_FILE}" ]; then
+        cat "${YQ_ERR_FILE}" >&2
+      fi
+      rm -f "${YQ_ERR_FILE}"
       if [ "${RAW_IS_TEMP}" = true ] || [ "${CLEANUP_RAW}" = true ]; then
         rm -f "${RAW_FILE}"
       fi
       return 1
     fi
+    rm -f "${YQ_ERR_FILE}"
 
     for file in "${SPLIT_DIR}"*; do
       if [ -f "${file}" ]; then
