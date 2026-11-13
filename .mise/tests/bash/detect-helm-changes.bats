@@ -121,3 +121,112 @@ _run_detect() {
   assert_success
   assert_output --partial "Usage:"
 }
+
+@test "detect-helm-changes: skips charts unchanged since last successful PR job" {
+  git checkout -q -b "renovate/multi-chart"
+  _fixture_write "clusters/cl01tl/helm/alpha/values.yaml" "a: 1"
+  _fixture_write "clusters/cl01tl/helm/beta/values.yaml" "b: 1"
+  _fixture_commit "commit 1: alpha and beta"
+  local sha1
+  sha1="$(git rev-parse HEAD)"
+
+  _fixture_write "clusters/cl01tl/helm/beta/values.yaml" "b: 2"
+  _fixture_commit "commit 2: only beta changed"
+
+  _stub curl "
+    if [[ \"\$*\" == *\"/actions/runs?branch=renovate%2Fmulti-chart\"* ]]; then
+      printf '{\"workflow_runs\":[{\"id\":101,\"head_sha\":\"%s\",\"workflow_id\":\"test-chart.yaml\"}]}\n' '${sha1}'
+    elif [[ \"\$*\" == *\"/actions/runs/101/jobs\"* ]]; then
+      printf '{\"jobs\":[{\"name\":\"test-chart (alpha)\",\"status\":\"completed\",\"conclusion\":\"success\"},{\"name\":\"test-chart (beta)\",\"status\":\"completed\",\"conclusion\":\"failure\"},{\"name\":\"test-chart-scripts (beta)\",\"status\":\"completed\",\"conclusion\":\"success\"}]}\n'
+    else
+      exit 1
+    fi
+  "
+
+  GITEA_TOKEN="tok" PUBLIC_URL="https://gitea.example.test" REPO="owner/repo" HEAD_BRANCH="renovate/multi-chart" CURRENT_RUN_ID="102" \
+    run "${MISE_TASKS_DIR}/gitea/detect-helm" --event-name pull_request --base-branch main
+
+  assert_success
+  assert_output --partial "Skipping charts unchanged since last successful run:"
+  assert_equal "$(_output_value changes-detected)" "true"
+  assert_equal "$(_output_value matrix)" '["beta"]'
+  assert_equal "$(_output_value scripts-detected)" "true"
+  assert_equal "$(_output_value script-matrix)" '["beta"]'
+}
+
+@test "detect-helm-changes: skips test-chart independently from test-chart-scripts" {
+  git checkout -q -b "feat/scripts"
+  _fixture_write "clusters/cl01tl/helm/beta/values.yaml" "b: 1"
+  _fixture_commit "commit 1"
+  local sha1
+  sha1="$(git rev-parse HEAD)"
+
+  _fixture_write "README.md" "docs"
+  _fixture_commit "commit 2: unrelated"
+
+  _stub curl "
+    if [[ \"\$*\" == *\"/actions/runs?\"* ]]; then
+      printf '{\"workflow_runs\":[{\"id\":201,\"head_sha\":\"%s\",\"workflow_id\":\".gitea/workflows/test-chart.yaml\"}]}\n' '${sha1}'
+    elif [[ \"\$*\" == *\"/actions/runs/201/jobs\"* ]]; then
+      printf '{\"jobs\":[{\"name\":\"test-chart (beta)\",\"status\":\"completed\",\"conclusion\":\"success\"},{\"name\":\"test-chart-scripts (beta)\",\"status\":\"completed\",\"conclusion\":\"failure\"}]}\n'
+    fi
+  "
+
+  GITEA_TOKEN="tok" PUBLIC_URL="https://gitea.example.test" REPO="owner/repo" HEAD_BRANCH="feat/scripts" CURRENT_RUN_ID="202" \
+    run "${MISE_TASKS_DIR}/gitea/detect-helm" --event-name pull_request --base-branch main
+
+  assert_success
+  assert_equal "$(_output_value changes-detected)" "false"
+  assert_equal "$(_output_value matrix)" "[]"
+  assert_equal "$(_output_value scripts-detected)" "true"
+  assert_equal "$(_output_value script-matrix)" '["beta"]'
+}
+
+@test "detect-helm-changes: re-tests charts when merge-base with base branch changes" {
+  git checkout -q -b "feat/rebase"
+  _fixture_write "clusters/cl01tl/helm/alpha/values.yaml" "a: 1"
+  _fixture_commit "commit 1"
+  local sha1
+  sha1="$(git rev-parse HEAD)"
+
+  git checkout -q main
+  _fixture_write "README.md" "main moved"
+  _fixture_commit "main advance"
+
+  git checkout -q "feat/rebase"
+  git merge -q --no-edit main
+
+  _stub curl "
+    if [[ \"\$*\" == *\"/actions/runs?\"* ]]; then
+      printf '{\"workflow_runs\":[{\"id\":301,\"head_sha\":\"%s\",\"workflow_id\":\"test-chart.yaml\"}]}\n' '${sha1}'
+    elif [[ \"\$*\" == *\"/actions/runs/301/jobs\"* ]]; then
+      printf '{\"jobs\":[{\"name\":\"test-chart (alpha)\",\"status\":\"completed\",\"conclusion\":\"success\"}]}\n'
+    fi
+  "
+
+  GITEA_TOKEN="tok" PUBLIC_URL="https://gitea.example.test" REPO="owner/repo" HEAD_BRANCH="feat/rebase" CURRENT_RUN_ID="302" \
+    run "${MISE_TASKS_DIR}/gitea/detect-helm" --event-name pull_request --base-branch main
+
+  assert_success
+  assert_equal "$(_output_value changes-detected)" "true"
+  assert_equal "$(_output_value matrix)" '["alpha"]'
+}
+
+@test "detect-helm-changes: --no-skip-passed disables API filtering and API errors fall back gracefully" {
+  git checkout -q -b "feat/fallback"
+  _fixture_write "clusters/cl01tl/helm/alpha/values.yaml" "a: 1"
+  _fixture_commit "commit 1"
+
+  _stub curl "exit 22"
+
+  GITEA_TOKEN="tok" PUBLIC_URL="https://gitea.example.test" REPO="owner/repo" HEAD_BRANCH="feat/fallback" CURRENT_RUN_ID="401" \
+    run "${MISE_TASKS_DIR}/gitea/detect-helm" --event-name pull_request --base-branch main
+
+  assert_success
+  assert_output --partial "Warning: Failed to query Gitea Actions runs API"
+  assert_equal "$(_output_value matrix)" '["alpha"]'
+
+  run "${MISE_TASKS_DIR}/gitea/detect-helm" --event-name pull_request --base-branch main --no-skip-passed
+  assert_success
+  assert_equal "$(_output_value matrix)" '["alpha"]'
+}
