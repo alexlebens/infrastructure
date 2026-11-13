@@ -166,10 +166,22 @@ else
   done | xargs -P "${PARALLEL_JOBS}" -I {} bash -c 'OUT=$(render_chart_target "$@" 2>&1); printf "%s\n" "$OUT"' _ {}
 fi
 
-FAILED_COUNT=$(find "${FAIL_DIR}" -name "failed_*" | wc -l | xargs)
+FAILED_CHARTS=()
+while IFS= read -r fail_file; do
+  [ -n "${fail_file}" ] && FAILED_CHARTS+=("$(basename "${fail_file}" | sed 's/^failed_//')")
+done < <(find "${FAIL_DIR}" -name "failed_*" | sort)
+
+FAILED_COUNT=${#FAILED_CHARTS[@]}
 if [ "${FAILED_COUNT}" -gt 0 ]; then
+  FAILED_CHARTS_CSV=$(IFS=", "; echo "${FAILED_CHARTS[*]}")
   echo ""
-  log_error "Rendering failed for ${FAILED_COUNT} chart(s)!"
+  log_error "Rendering failed for ${FAILED_COUNT} chart(s): ${FAILED_CHARTS_CSV}"
+  if [ -n "${GITHUB_OUTPUT:-}" ]; then
+    echo "failed-charts=${FAILED_CHARTS_CSV}" >> "${GITHUB_OUTPUT}"
+  fi
+  if [ -n "${GITHUB_ENV:-}" ]; then
+    echo "FAILED_CHARTS=${FAILED_CHARTS_CSV}" >> "${GITHUB_ENV}"
+  fi
   exit 1
 fi
 
