@@ -25,9 +25,12 @@ def trigger_foldergram_scan():
     if not FOLDERGRAM_URL:
         return
     print(f"[sync] Notifying Foldergram at {FOLDERGRAM_URL} to refresh library...")
+    parsed_origin = urllib.parse.urlparse(CSRF_ORIGIN)
     headers = {
         "Origin": CSRF_ORIGIN,
         "Referer": f"{CSRF_ORIGIN}/",
+        "Host": parsed_origin.netloc,
+        "X-Forwarded-Proto": parsed_origin.scheme or "https",
     }
     opener = urllib.request.build_opener(
         urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
