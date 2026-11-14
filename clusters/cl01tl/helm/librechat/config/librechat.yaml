@@ -65,6 +65,14 @@ mcpServers:
       ACTUAL_SESSION_TOKEN: "${ACTUAL_SESSION_TOKEN}"
       npm_config_cache: "/tmp/npx-actual-budget"
 
+  argocd:
+    type: streamable-http
+    url: "http://argocd-mcp.argocd:3000/mcp"
+    timeout: 60000
+    requiresOAuth: false
+    headers:
+      Authorization: "Bearer ${ARGOCD_MCP_TOKEN}"
+
   arr-stack:
     type: stdio
     timeout: 60000
@@ -113,27 +121,6 @@ mcpServers:
       RADARR_URL: "http://radarr-anime.radarr-anime:80"
       RADARR_API_KEY: "${RADARR_ANIME_API_KEY}"
       npm_config_cache: "/tmp/npx-arr-stack-anime"
-
-  radarr-standup:
-    type: stdio
-    timeout: 60000
-    initTimeout: 120000
-    command: npx
-    args:
-      - -y
-      - mcp-arr-server
-    env:
-      RADARR_URL: "http://radarr-standup.radarr-standup:80"
-      RADARR_API_KEY: "${RADARR_STANDUP_API_KEY}"
-      npm_config_cache: "/tmp/npx-radarr-standup"
-
-  argocd:
-    type: streamable-http
-    url: "http://argocd-mcp.argocd:3000/mcp"
-    timeout: 60000
-    requiresOAuth: false
-    headers:
-      Authorization: "Bearer ${ARGOCD_MCP_TOKEN}"
 
   calendar:
     type: streamable-http
@@ -213,6 +200,23 @@ mcpServers:
     headers:
       Authorization: "Bearer ${GITEA_MCP_TOKEN}"
 
+  gmail:
+    type: streamable-http
+    url: "https://gmailmcp.googleapis.com/mcp/v1"
+    timeout: 60000
+    initTimeout: 150000
+    requiresOAuth: true
+    startup: false
+    oauth:
+      authorization_url: "https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&prompt=consent"
+      token_url: "https://oauth2.googleapis.com/token"
+      client_id: "${GOOGLE_WORKSPACE_MCP_CLIENT_ID}"
+      client_secret: "${GOOGLE_WORKSPACE_MCP_CLIENT_SECRET}"
+      scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose"
+      redirect_uri: "https://ai.alexlebens.dev/api/mcp/gmail/oauth/callback"
+      token_exchange_method: default_post
+      token_endpoint_auth_methods_supported: ["client_secret_post"]
+
   grafana:
     type: "streamable-http"
     url: "http://grafana-mcp.grafana-operator:8000/mcp"
@@ -236,23 +240,6 @@ mcpServers:
     env:
       npm_config_cache: "/tmp/npx-harbor"
 
-  gmail:
-    type: streamable-http
-    url: "https://gmailmcp.googleapis.com/mcp/v1"
-    timeout: 60000
-    initTimeout: 150000
-    requiresOAuth: true
-    startup: false
-    oauth:
-      authorization_url: "https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&prompt=consent"
-      token_url: "https://oauth2.googleapis.com/token"
-      client_id: "${GOOGLE_WORKSPACE_MCP_CLIENT_ID}"
-      client_secret: "${GOOGLE_WORKSPACE_MCP_CLIENT_SECRET}"
-      scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose"
-      redirect_uri: "https://ai.alexlebens.dev/api/mcp/gmail/oauth/callback"
-      token_exchange_method: default_post
-      token_endpoint_auth_methods_supported: ["client_secret_post"]
-
   home-assistant:
     type: streamable-http
     url: "http://home-assistant.home-assistant:80/api/mcp"
@@ -274,6 +261,19 @@ mcpServers:
       UV_CACHE_DIR: "/tmp/uv-immich"
       UV_TOOL_DIR: "/tmp/uv-tools-immich"
 
+  jellyfin:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "jellyfin-mcp"
+    env:
+      JELLYFIN_URL: "http://jellyfin.jellyfin:8096"
+      JELLYFIN_API_KEY: "${JELLYFIN_API_KEY}"
+      npm_config_cache: "/tmp/npx-jellyfin"
+
   kaneo:
     type: "streamable-http"
     url: "https://kaneo.alexlebens.dev/api/mcp"
@@ -281,33 +281,6 @@ mcpServers:
     timeout: 60000
     initTimeout: 150000
     requiresOAuth: true
-
-  komodo:
-    type: "stdio"
-    timeout: 60000
-    initTimeout: 120000
-    command: "npx"
-    args:
-      - -y
-      - "@samik081/mcp-komodo"
-    env:
-      KOMODO_URL: "http://komodo-main.komodo:80"
-      KOMODO_API_KEY: "${KOMODO_API_KEY}"
-      KOMODO_API_SECRET: "${KOMODO_API_SECRET}"
-      npm_config_cache: "/tmp/npx-komodo"
-
-  kiwix:
-    type: "stdio"
-    timeout: 60000
-    initTimeout: 120000
-    command: "uvx"
-    args:
-      - "kiwix-mcp"
-      - "--base-url"
-      - "http://kiwix.kiwix:80"
-    env:
-      UV_CACHE_DIR: "/tmp/uv-kiwix"
-      UV_TOOL_DIR: "/tmp/uv-tools-kiwix"
 
   karakeep:
     type: "stdio"
@@ -357,6 +330,33 @@ mcpServers:
       KARAKEEP_API_ADDR: "http://karakeep.karakeep.svc.cluster.local:3000"
       KARAKEEP_API_KEY: "${KARAKEEP_API_KEY}"
       npm_config_cache: "/tmp/npx-karakeep"
+
+  kiwix:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "uvx"
+    args:
+      - "kiwix-mcp"
+      - "--base-url"
+      - "http://kiwix.kiwix:80"
+    env:
+      UV_CACHE_DIR: "/tmp/uv-kiwix"
+      UV_TOOL_DIR: "/tmp/uv-tools-kiwix"
+
+  komodo:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "@samik081/mcp-komodo"
+    env:
+      KOMODO_URL: "http://komodo-main.komodo:80"
+      KOMODO_API_KEY: "${KOMODO_API_KEY}"
+      KOMODO_API_SECRET: "${KOMODO_API_SECRET}"
+      npm_config_cache: "/tmp/npx-komodo"
 
   memos:
     type: "stdio"
@@ -440,6 +440,19 @@ mcpServers:
       PAPERLESS_API_KEY: "${PAPERLESS_API_KEY}"
       npm_config_cache: "/tmp/npx-paperless"
 
+  radarr-standup:
+    type: stdio
+    timeout: 60000
+    initTimeout: 120000
+    command: npx
+    args:
+      - -y
+      - mcp-arr-server
+    env:
+      RADARR_URL: "http://radarr-standup.radarr-standup:80"
+      RADARR_API_KEY: "${RADARR_STANDUP_API_KEY}"
+      npm_config_cache: "/tmp/npx-radarr-standup"
+
   reactive-resume:
     type: "streamable-http"
     url: "https://resume.alexlebens.dev/mcp"
@@ -464,18 +477,6 @@ mcpServers:
     headers:
       Authorization: "Bearer ${SPARKYFITNESS_API_KEY}"
 
-  thanos:
-    type: "stdio"
-    timeout: 60000
-    initTimeout: 120000
-    command: "uvx"
-    args:
-      - "prometheus-mcp-server"
-    env:
-      PROMETHEUS_URL: "http://thanos-query-frontend.thanos:9090"
-      UV_CACHE_DIR: "/tmp/uv-thanos"
-      UV_TOOL_DIR: "/tmp/uv-tools-thanos"
-
   talos:
     type: "stdio"
     timeout: 60000
@@ -487,6 +488,18 @@ mcpServers:
     env:
       TALOSCONFIG: "/home/node/.talos/config"
       npm_config_cache: "/tmp/npx-talos"
+
+  thanos:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "uvx"
+    args:
+      - "prometheus-mcp-server"
+    env:
+      PROMETHEUS_URL: "http://thanos-query-frontend.thanos:9090"
+      UV_CACHE_DIR: "/tmp/uv-thanos"
+      UV_TOOL_DIR: "/tmp/uv-tools-thanos"
 
   trek:
     type: "streamable-http"
