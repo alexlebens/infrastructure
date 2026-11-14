@@ -223,8 +223,6 @@ def fetch_asset_album_map():
     print(f"[sync] Found {len(albums)} Immich albums.")
     asset_to_album = {}
     for album in albums:
-        if album.get("assetCount", 0) == 0:
-            continue
         album_id = album.get("id")
         album_name = (album.get("albumName") or "").strip()
         if not album_id or not album_name:
