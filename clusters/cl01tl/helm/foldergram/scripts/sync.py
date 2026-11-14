@@ -117,10 +117,12 @@ def parse_immich_datetime(dt_str):
     return None
 
 
-def format_standalone_name(asset):
+def format_standalone_name(asset, album_name=None):
     """
-    Parse a clean Title Case name with year from originalFileName, e.g.:
-    '2026_07_08_19_04_04_icy_straight_point_10.jpg' -> 'Icy Straight Point (2026).jpg'
+    Parse a clean Title Case name with year, preferring:
+    1. Immich asset description (exifInfo.description)
+    2. Immich album name
+    3. Parsed originalFileName
     """
     orig = asset.get("originalFileName") or f"{asset['id']}.jpg"
     name, ext = os.path.splitext(orig)
@@ -134,10 +136,11 @@ def format_standalone_name(asset):
         if dt:
             year = str(dt.year)
 
-    # Prefer Immich asset description if set
+    # Prefer Immich asset description, then album name, if set
     description = ((asset.get("exifInfo") or {}).get("description") or "").strip()
-    if description:
-        title = description
+    preferred_title = description or (album_name or "").strip()
+    if preferred_title:
+        title = preferred_title
         if year and year not in title:
             title = f"{title} ({year})"
         safe_title = sanitize_filename(title) or asset["id"][:8]
@@ -321,10 +324,13 @@ def sync_favorites():
         print(f"[sync] Warning: failed to fetch Immich albums ({e}); syncing without carousels.")
         asset_to_album = {}
 
-    # Group favorites by album name (None = not in any album)
+    # Group favorites by album name (None = not in any album, or video)
+    video_exts = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
     album_groups = {}
     for a in favorites:
-        album_name = asset_to_album.get(a["id"])
+        ext = os.path.splitext(a.get("originalFileName") or "")[1].lower()
+        is_video = a.get("type") == "VIDEO" or ext in video_exts
+        album_name = None if is_video else asset_to_album.get(a["id"])
         album_groups.setdefault(album_name, []).append(a)
 
     # Load persisted index: asset_id -> relative path on disk
@@ -342,8 +348,8 @@ def sync_favorites():
         if album_name and len(group) >= 2:
             group.sort(key=asset_sort_key)
             safe_album = sanitize_filename(album_name) or "Album"
-            # Foldergram supports 2-20 items per carousel; chunk larger albums
-            chunks = [group[i : i + 20] for i in range(0, len(group), 20)]
+            # Foldergram supports 2-20 items per carousel; chunk larger albums (max 3)
+            chunks = [group[i : i + 3] for i in range(0, len(group), 3)]
             if len(chunks) > 1 and len(chunks[-1]) == 1:
                 # Avoid a 1-item trailing chunk by balancing the last two chunks
                 chunks[-2].append(chunks[-1].pop())
@@ -358,7 +364,7 @@ def sync_favorites():
                     remote_assets[a["id"]] = os.path.join("carousels", folder_name, fname)
         else:
             for a in group:
-                desired = format_standalone_name(a)
+                desired = format_standalone_name(a, asset_to_album.get(a["id"]))
                 fname = ensure_unique_filename(desired, used_root_names)
                 used_root_names.add(fname)
                 remote_assets[a["id"]] = fname
