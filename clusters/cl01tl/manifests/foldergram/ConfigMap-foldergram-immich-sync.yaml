@@ -66,7 +66,8 @@ data:
                 except urllib.error.HTTPError as e:
                     if e.code in (404, 405):
                         continue
-                    print(f"[sync] Foldergram login failed (HTTP {e.code} on {login_ep}).")
+                    err_body = e.read().decode("utf-8", errors="ignore").strip()
+                    print(f"[sync] Foldergram login failed (HTTP {e.code} on {login_ep}): {err_body}")
                     break
                 except Exception as e:  # noqa: BLE001
                     print(f"[sync] Foldergram login error on {login_ep}: {e}")
@@ -142,6 +143,15 @@ data:
             if dt:
                 year = str(dt.year)
 
+        # Prefer Immich asset description if set
+        description = ((asset.get("exifInfo") or {}).get("description") or "").strip()
+        if description:
+            title = description
+            if year and year not in title:
+                title = f"{title} ({year})"
+            safe_title = sanitize_filename(title) or asset["id"][:8]
+            return f"{safe_title}{ext}"
+
         # Normalize separators to spaces
         cleaned = re.sub(r"[_-]+", " ", name).strip()
         # Strip common camera prefixes and leading date/time stamps
@@ -214,9 +224,15 @@ data:
 
 
     def fetch_asset_album_map():
-        """Fetch all Immich albums and return {asset_id: album_name} (first album alphabetically)."""
-        albums = api_request("albums")
-        albums.sort(key=lambda a: (a.get("albumName") or "").lower())
+        """Fetch all Immich albums (owned + shared) and return {asset_id: album_name}."""
+        albums_by_id = {}
+        for endpoint in ("albums", "albums?shared=true"):
+            for album in api_request(endpoint):
+                aid = album.get("id")
+                if aid and aid not in albums_by_id:
+                    albums_by_id[aid] = album
+        albums = sorted(albums_by_id.values(), key=lambda a: (a.get("albumName") or "").lower())
+        print(f"[sync] Found {len(albums)} Immich albums.")
         asset_to_album = {}
         for album in albums:
             if album.get("assetCount", 0) == 0:
