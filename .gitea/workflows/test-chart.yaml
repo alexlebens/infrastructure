@@ -33,6 +33,16 @@ jobs:
       - name: Setup Tools (mise)
         run: mise install
 
+      - name: Restore Passed Chart State
+        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.cache/chart-pass-state
+          key:
+            chart-pass-state-v1-${{ env.CLUSTER }}-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}-${{
+            github.run_attempt }}
+          restore-keys: |
+            chart-pass-state-v1-${{ env.CLUSTER }}-${{ github.head_ref || github.ref_name }}-
+
       - name: Check Directories for Changes
         id: check-dir-changes
         # Step Outputs:
@@ -43,11 +53,11 @@ jobs:
           BASE_BRANCH: ${{ env.BASE_BRANCH }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_BEFORE: ${{ github.event.before }}
-          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
-          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
-          REPO: ${{ github.repository }}
-          HEAD_BRANCH: ${{ github.head_ref }}
-          CURRENT_RUN_ID: ${{ github.run_id }}
+          STATE_FILE: ~/.cache/chart-pass-state/state.json
+          CHART_TOOLING_HASH: >-
+            ${{ hashFiles('.mise/lib/helm.sh', '.mise/tasks/helm/**', '.mise/tasks/check/**',
+            '.mise/tasks/gitea/argocd-diff', '.mise/tasks/gitea/harbor-warm') }}
+          SCRIPT_TOOLING_HASH: ${{ hashFiles('.mise/tasks/check/bash', '.mise/tasks/check/python') }}
         run: mise run gitea:detect-helm
 
   test-chart:
@@ -197,6 +207,20 @@ jobs:
           echo "::error::The following validation stages failed: ${failed_str}"
           exit 1
 
+      - name: Prepare Chart Pass Marker
+        if: success()
+        run: |
+          mkdir -p ~/.cache/chart-pass
+          git rev-parse "HEAD:clusters/${CLUSTER}/helm/${CHART}" > "${HOME}/.cache/chart-pass/chart-${CHART}.pass"
+
+      - name: Upload Chart Pass Marker
+        if: success()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea28fcf655e8d20ef616511b4 # v4.4.3
+        with:
+          name: pass-chart-${{ matrix.chart }}
+          path: ~/.cache/chart-pass/chart-${{ matrix.chart }}.pass
+          retention-days: 1
+
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
         if: failure()
@@ -311,6 +335,20 @@ jobs:
           echo ">> Running pytest for chart ${CHART} ..."
           mise exec -- uv run pytest "clusters/${CLUSTER}/helm/${CHART}/tests/"
 
+      - name: Prepare Script Pass Marker
+        if: success()
+        run: |
+          mkdir -p ~/.cache/chart-pass
+          git rev-parse "HEAD:clusters/${CLUSTER}/helm/${CHART}" > "${HOME}/.cache/chart-pass/script-${CHART}.pass"
+
+      - name: Upload Script Pass Marker
+        if: success()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea28fcf655e8d20ef616511b4 # v4.4.3
+        with:
+          name: pass-script-${{ matrix.chart }}
+          path: ~/.cache/chart-pass/script-${CHART}.pass
+          retention-days: 1
+
       - name: ntfy Failed
         uses: niniyas/ntfy-action@96acac57fdc91d4c4f50b78486c1ed6f03f9f61c # master
         if: failure()
@@ -326,3 +364,83 @@ jobs:
           actions:
             '[{"action": "view", "label": "View Run", "url": "${{ vars.PUBLIC_URL }}/${{ github.repository
             }}/actions/runs/${{ github.run_id }}", "clear": true}]'
+
+  record-passed:
+    needs: [detect-changes, test-chart, test-chart-scripts]
+    runs-on: ubuntu-runner
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.test-chart.result == 'success' || needs.test-chart.result == 'failure' ||
+      needs.test-chart-scripts.result == 'success' || needs.test-chart-scripts.result == 'failure')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Restore Passed Chart State
+        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.cache/chart-pass-state
+          key:
+            chart-pass-state-v1-${{ env.CLUSTER }}-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}-${{
+            github.run_attempt }}
+          restore-keys: |
+            chart-pass-state-v1-${{ env.CLUSTER }}-${{ github.head_ref || github.ref_name }}-
+
+      - name: Download Pass Markers
+        uses: actions/download-artifact@fa0a91b85d4f404e4c400ed4349d224afbfa0571 # v4.1.8
+        continue-on-error: true
+        with:
+          pattern: pass-*
+          path: ~/.cache/chart-pass-artifacts
+          merge-multiple: true
+
+      - name: Update Passed Chart State
+        id: update-state
+        env:
+          CHART_TOOLING_HASH: >-
+            ${{ hashFiles('.mise/lib/helm.sh', '.mise/tasks/helm/**', '.mise/tasks/check/**',
+            '.mise/tasks/gitea/argocd-diff', '.mise/tasks/gitea/harbor-warm') }}
+          SCRIPT_TOOLING_HASH: ${{ hashFiles('.mise/tasks/check/bash', '.mise/tasks/check/python') }}
+        run: |
+          mkdir -p ~/.cache/chart-pass-state
+          state_file=~/.cache/chart-pass-state/state.json
+          if [ ! -f "${state_file}" ] || ! jq empty "${state_file}" 2>/dev/null; then
+            echo '{"charts":{},"scripts":{}}' > "${state_file}"
+          fi
+
+          updated=false
+          shopt -s nullglob
+          for marker in ~/.cache/chart-pass-artifacts/chart-*.pass; do
+            chart=$(basename "${marker}" .pass)
+            chart="${chart#chart-}"
+            tree_sha=$(tr -d '[:space:]' < "${marker}")
+            [ -n "${tree_sha}" ] || continue
+            jq --arg c "${chart}" --arg v "${tree_sha}:${CHART_TOOLING_HASH}" '.charts[$c] = $v' "${state_file}" > "${state_file}.tmp"
+            mv "${state_file}.tmp" "${state_file}"
+            updated=true
+          done
+
+          for marker in ~/.cache/chart-pass-artifacts/script-*.pass; do
+            chart=$(basename "${marker}" .pass)
+            chart="${chart#script-}"
+            tree_sha=$(tr -d '[:space:]' < "${marker}")
+            [ -n "${tree_sha}" ] || continue
+            jq --arg c "${chart}" --arg v "${tree_sha}:${SCRIPT_TOOLING_HASH}" '.scripts[$c] = $v' "${state_file}" > "${state_file}.tmp"
+            mv "${state_file}.tmp" "${state_file}"
+            updated=true
+          done
+          shopt -u nullglob
+
+          echo "updated=${updated}" >> "$GITHUB_OUTPUT"
+
+      - name: Save Passed Chart State
+        if: steps.update-state.outputs.updated == 'true'
+        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        with:
+          path: ~/.cache/chart-pass-state
+          key:
+            chart-pass-state-v1-${{ env.CLUSTER }}-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}-${{
+            github.run_attempt }}
