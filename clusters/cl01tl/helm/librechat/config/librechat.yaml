@@ -38,6 +38,7 @@ mcpSettings:
     - "dawarich.dawarich:80"
     - "frigate.frigate:80"
     - "gitea-mcp.gitea:8080"
+    - "grafana-mcp.grafana-operator:8000"
     - "home-assistant.home-assistant:80"
     - "kaneo.alexlebens.dev:443"
     - "komodo-main.komodo:80"
@@ -147,6 +148,8 @@ mcpServers:
       - frigate-mcp
     env:
       FRIGATE_URL: "http://frigate.frigate:80"
+      UV_CACHE_DIR: "/tmp/uv-frigate"
+      UV_TOOL_DIR: "/tmp/uv-tools-frigate"
 
   gitea:
     type: streamable-http
@@ -155,6 +158,12 @@ mcpServers:
     requiresOAuth: false
     headers:
       Authorization: "Bearer ${GITEA_MCP_TOKEN}"
+
+  grafana:
+    type: "streamable-http"
+    url: "http://grafana-mcp.grafana-operator:8000/mcp"
+    timeout: 60000
+    requiresOAuth: false
 
   gmail:
     type: streamable-http
@@ -357,6 +366,18 @@ mcpServers:
     requiresOAuth: false
     headers:
       Authorization: "Bearer ${SPARKYFITNESS_API_KEY}"
+
+  thanos:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "uvx"
+    args:
+      - "prometheus-mcp-server"
+    env:
+      PROMETHEUS_URL: "http://thanos-query-frontend.thanos:9090"
+      UV_CACHE_DIR: "/tmp/uv-thanos"
+      UV_TOOL_DIR: "/tmp/uv-tools-thanos"
 
   trek:
     type: "streamable-http"
