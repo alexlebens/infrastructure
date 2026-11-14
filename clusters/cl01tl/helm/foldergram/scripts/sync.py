@@ -342,8 +342,8 @@ def sync_favorites():
         if album_name and len(group) >= 2:
             group.sort(key=asset_sort_key)
             safe_album = sanitize_filename(album_name) or "Album"
-            # Foldergram supports 2-20 items per carousel; chunk larger albums
-            chunks = [group[i : i + 20] for i in range(0, len(group), 20)]
+            # Foldergram supports 2-20 items per carousel; chunk larger albums (max 3)
+            chunks = [group[i : i + 3] for i in range(0, len(group), 3)]
             if len(chunks) > 1 and len(chunks[-1]) == 1:
                 # Avoid a 1-item trailing chunk by balancing the last two chunks
                 chunks[-2].append(chunks[-1].pop())
