@@ -34,6 +34,7 @@ endpoints:
 mcpSettings:
   allowedAddresses:
     - "actual.actual:80"
+    - "affine.affine:80"
     - "argocd-mcp.argocd:3000"
     - "dawarich.dawarich:80"
     - "frigate.frigate:80"
@@ -44,6 +45,7 @@ mcpSettings:
     - "komodo-main.komodo:80"
     - "n8n-main.n8n.svc.cluster.local:5678"
     - "outline.alexlebens.dev:443"
+    - "postiz.postiz:80"
     - "resume.alexlebens.dev:443"
     - "rybbit-backend.rybbit:3001"
     - "sparkyfitness-server.sparkyfitness.svc.cluster.local:3010"
@@ -64,6 +66,14 @@ mcpServers:
       ACTUAL_BUDGET_ID: "${ACTUAL_BUDGET_ID}"
       ACTUAL_SESSION_TOKEN: "${ACTUAL_SESSION_TOKEN}"
       npm_config_cache: "/tmp/npx-actual-budget"
+
+  affine:
+    type: "streamable-http"
+    url: "http://affine.affine:80/api/workspaces/${AFFINE_WORKSPACE_ID}/mcp"
+    timeout: 60000
+    requiresOAuth: false
+    headers:
+      Authorization: "Bearer ${AFFINE_API_TOKEN}"
 
   argocd:
     type: streamable-http
@@ -358,6 +368,19 @@ mcpServers:
       KOMODO_API_SECRET: "${KOMODO_API_SECRET}"
       npm_config_cache: "/tmp/npx-komodo"
 
+  mealie:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "@ni-c/mealie-mcp"
+    env:
+      MEALIE_URL: "http://mealie.mealie:9000"
+      MEALIE_API_TOKEN: "${MEALIE_API_TOKEN}"
+      npm_config_cache: "/tmp/npx-mealie"
+
   memos:
     type: "stdio"
     timeout: 60000
@@ -440,6 +463,14 @@ mcpServers:
       PAPERLESS_API_KEY: "${PAPERLESS_API_KEY}"
       npm_config_cache: "/tmp/npx-paperless"
 
+  postiz:
+    type: "streamable-http"
+    url: "http://postiz.postiz:80/api/mcp"
+    timeout: 60000
+    requiresOAuth: false
+    headers:
+      Authorization: "Bearer ${POSTIZ_API_KEY}"
+
   radarr-standup:
     type: stdio
     timeout: 60000
@@ -468,6 +499,19 @@ mcpServers:
     requiresOAuth: false
     headers:
       Authorization: "Bearer ${RYBBIT_API_KEY}"
+
+  seerr:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "@jhomen368/overseerr-mcp"
+    env:
+      SEERR_URL: "http://seerr-seerr-chart.seerr:80"
+      SEERR_API_KEY: "${SEERR_API_KEY}"
+      npm_config_cache: "/tmp/npx-seerr"
 
   sparkyfitness:
     type: "streamable-http"
