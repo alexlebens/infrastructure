@@ -321,10 +321,13 @@ def sync_favorites():
         print(f"[sync] Warning: failed to fetch Immich albums ({e}); syncing without carousels.")
         asset_to_album = {}
 
-    # Group favorites by album name (None = not in any album)
+    # Group favorites by album name (None = not in any album, or video)
+    video_exts = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
     album_groups = {}
     for a in favorites:
-        album_name = asset_to_album.get(a["id"])
+        ext = os.path.splitext(a.get("originalFileName") or "")[1].lower()
+        is_video = a.get("type") == "VIDEO" or ext in video_exts
+        album_name = None if is_video else asset_to_album.get(a["id"])
         album_groups.setdefault(album_name, []).append(a)
 
     # Load persisted index: asset_id -> relative path on disk
