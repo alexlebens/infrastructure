@@ -117,10 +117,12 @@ def parse_immich_datetime(dt_str):
     return None
 
 
-def format_standalone_name(asset):
+def format_standalone_name(asset, album_name=None):
     """
-    Parse a clean Title Case name with year from originalFileName, e.g.:
-    '2026_07_08_19_04_04_icy_straight_point_10.jpg' -> 'Icy Straight Point (2026).jpg'
+    Parse a clean Title Case name with year, preferring:
+    1. Immich asset description (exifInfo.description)
+    2. Immich album name
+    3. Parsed originalFileName
     """
     orig = asset.get("originalFileName") or f"{asset['id']}.jpg"
     name, ext = os.path.splitext(orig)
@@ -134,10 +136,11 @@ def format_standalone_name(asset):
         if dt:
             year = str(dt.year)
 
-    # Prefer Immich asset description if set
+    # Prefer Immich asset description, then album name, if set
     description = ((asset.get("exifInfo") or {}).get("description") or "").strip()
-    if description:
-        title = description
+    preferred_title = description or (album_name or "").strip()
+    if preferred_title:
+        title = preferred_title
         if year and year not in title:
             title = f"{title} ({year})"
         safe_title = sanitize_filename(title) or asset["id"][:8]
@@ -361,7 +364,7 @@ def sync_favorites():
                     remote_assets[a["id"]] = os.path.join("carousels", folder_name, fname)
         else:
             for a in group:
-                desired = format_standalone_name(a)
+                desired = format_standalone_name(a, asset_to_album.get(a["id"]))
                 fname = ensure_unique_filename(desired, used_root_names)
                 used_root_names.add(fname)
                 remote_assets[a["id"]] = fname
