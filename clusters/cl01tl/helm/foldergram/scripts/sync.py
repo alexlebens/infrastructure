@@ -31,69 +31,39 @@ def trigger_foldergram_scan():
         "Referer": f"{CSRF_ORIGIN}/",
         "Host": parsed_origin.netloc,
         "X-Forwarded-Proto": parsed_origin.scheme or "https",
+        "x-foldergram-intent": "1",
     }
     opener = urllib.request.build_opener(
         urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
     )
 
     if FOLDERGRAM_PASSWORD:
-        login_body = json.dumps(
-            {"username": FOLDERGRAM_USERNAME, "password": FOLDERGRAM_PASSWORD}
-        ).encode("utf-8")
-        login_headers = {**headers, "Content-Type": "application/json"}
-        logged_in = False
-        for login_ep in ("/api/auth/login", "/api/login"):
-            try:
-                req = urllib.request.Request(
-                    f"{FOLDERGRAM_URL}{login_ep}",
-                    data=login_body,
-                    headers=login_headers,
-                    method="POST",
-                )
-                with opener.open(req, timeout=30) as resp:
-                    if resp.status in (200, 204):
-                        logged_in = True
-                        break
-            except urllib.error.HTTPError as e:
-                if e.code in (404, 405):
-                    continue
-                err_body = e.read().decode("utf-8", errors="ignore").strip()
-                print(f"[sync] Foldergram login failed (HTTP {e.code} on {login_ep}): {err_body}")
-                break
-            except Exception as e:  # noqa: BLE001
-                print(f"[sync] Foldergram login error on {login_ep}: {e}")
-                break
-        if not logged_in:
-            print("[sync] Warning: could not authenticate to Foldergram; attempting scan anyway.")
-
-    # Attempt common scan endpoints
-    for endpoint in ("/api/scan", "/api/library/scan", "/api/refresh", "/api/health"):
-        url = f"{FOLDERGRAM_URL}{endpoint}"
+        login_body = json.dumps({"password": FOLDERGRAM_PASSWORD}).encode("utf-8")
         try:
             req = urllib.request.Request(
-                url,
-                headers=headers,
-                method="POST" if "scan" in endpoint or "refresh" in endpoint else "GET",
+                f"{FOLDERGRAM_URL}/api/auth/login",
+                data=login_body,
+                headers={**headers, "Content-Type": "application/json"},
+                method="POST",
             )
             with opener.open(req, timeout=30) as resp:
-                if resp.status in (200, 201, 202, 204):
-                    print(
-                        f"[sync] Foldergram scan notification to {endpoint} successful (HTTP {resp.status})."
-                    )
-                    return
+                if resp.status not in (200, 204):
+                    print(f"[sync] Foldergram login returned HTTP {resp.status}.")
         except urllib.error.HTTPError as e:
-            if e.code in (404, 405):
-                continue
-            if e.code in (401, 403):
-                print(
-                    f"[sync] Foldergram scan notification skipped (HTTP {e.code} on {endpoint}). Files remain accessible on disk."
-                )
-                break
-            print(f"[sync] Foldergram returned HTTP {e.code} on {endpoint}.")
-            break
+            err_body = e.read().decode("utf-8", errors="ignore").strip()
+            print(f"[sync] Foldergram login failed (HTTP {e.code}): {err_body}")
         except Exception as e:  # noqa: BLE001
-            print(f"[sync] Could not connect to Foldergram at {url}: {e}")
-            break
+            print(f"[sync] Foldergram login error: {e}")
+
+    try:
+        req = urllib.request.Request(f"{FOLDERGRAM_URL}/api/scan", headers=headers, method="POST")
+        with opener.open(req, timeout=30) as resp:
+            print(f"[sync] Foldergram scan triggered (HTTP {resp.status}).")
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore").strip()
+        print(f"[sync] Foldergram scan failed (HTTP {e.code}): {err_body}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[sync] Could not connect to Foldergram at {FOLDERGRAM_URL}/api/scan: {e}")
 
 
 def sanitize_filename(name):
