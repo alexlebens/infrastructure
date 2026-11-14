@@ -131,6 +131,15 @@ def format_standalone_name(asset):
         if dt:
             year = str(dt.year)
 
+    # Prefer Immich asset description if set
+    description = ((asset.get("exifInfo") or {}).get("description") or "").strip()
+    if description:
+        title = description
+        if year and year not in title:
+            title = f"{title} ({year})"
+        safe_title = sanitize_filename(title) or asset["id"][:8]
+        return f"{safe_title}{ext}"
+
     # Normalize separators to spaces
     cleaned = re.sub(r"[_-]+", " ", name).strip()
     # Strip common camera prefixes and leading date/time stamps
