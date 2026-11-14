@@ -24,12 +24,20 @@ while [[ $# -gt 0 ]]; do
       EVENT_BEFORE="$2"
       shift 2
       ;;
-    --no-skip-passed)
-      SKIP_PASSED="false"
-      shift
+    --state-file)
+      STATE_FILE="$2"
+      shift 2
+      ;;
+    --chart-tooling-hash)
+      CHART_TOOLING_HASH="$2"
+      shift 2
+      ;;
+    --script-tooling-hash)
+      SCRIPT_TOOLING_HASH="$2"
+      shift 2
       ;;
     -h|--help)
-      echo "Usage: mise run gitea:detect-helm [--cluster <cluster>] [--base-branch <branch>] [--event-name <name>] [--event-before <sha>] [--no-skip-passed]"
+      echo "Usage: mise run gitea:detect-helm [--cluster <cluster>] [--base-branch <branch>] [--event-name <name>] [--event-before <sha>] [--state-file <path>] [--chart-tooling-hash <hash>] [--script-tooling-hash <hash>]"
       exit 0
       ;;
     *)
@@ -44,125 +52,10 @@ CLUSTER="${CLUSTER:-cl01tl}"
 BASE_BRANCH="${BASE_BRANCH:-origin/main}"
 EVENT_NAME="${EVENT_NAME:-${GITHUB_EVENT_NAME:-pull_request}}"
 EVENT_BEFORE="${EVENT_BEFORE:-}"
-SKIP_PASSED="${SKIP_PASSED:-true}"
+STATE_FILE="${STATE_FILE:-}"
+CHART_TOOLING_HASH="${CHART_TOOLING_HASH:-}"
+SCRIPT_TOOLING_HASH="${SCRIPT_TOOLING_HASH:-}"
 GITHUB_OUTPUT="${GITHUB_OUTPUT:-}"
-
-GITEA_TOKEN="${GITEA_TOKEN:-}"
-SERVER_URL="${PUBLIC_URL:-${GITHUB_SERVER_URL:-${GITEA_SERVER_URL:-}}}"
-REPO="${REPO:-${GITHUB_REPOSITORY:-}}"
-HEAD_BRANCH="${HEAD_BRANCH:-${GITHUB_HEAD_REF:-}}"
-CURRENT_RUN_ID="${CURRENT_RUN_ID:-${GITHUB_RUN_ID:-0}}"
-
-_map_get() {
-  local map="$1" key="$2"
-  printf '%s\n' "${map}" | awk -F '=' -v k="${key}" '$1 == k {print $2; exit}'
-}
-
-_all_charts_mapped() {
-  local charts="$1" map="$2" c
-  for c in ${charts}; do
-    if [ -z "$(_map_get "${map}" "${c}")" ]; then
-      return 1
-    fi
-  done
-  return 0
-}
-
-PASSED_CHART_MAP=""
-PASSED_SCRIPT_MAP=""
-
-collect_passed_commits() {
-  local runs_url runs_json current_mb
-  local checked=0 total_runs=0 page=1 run_id run_sha run_mb jobs_url jobs_json job_name chart
-
-  current_mb=$(git merge-base "${BASE_BRANCH}" HEAD 2>/dev/null || true)
-
-  while [ "${page}" -le 3 ] && [ "${checked}" -lt 30 ]; do
-    runs_url="${SERVER_URL%/}/api/v1/repos/${REPO}/actions/runs?event=pull_request&limit=50&page=${page}"
-
-    if ! runs_json=$(curl -fsSL -H "Authorization: token ${GITEA_TOKEN}" "${runs_url}" 2>/dev/null); then
-      if [ "${page}" -eq 1 ]; then
-        echo ">> Warning: Failed to query Gitea Actions runs API; testing all changed charts." >&2
-        return 0
-      fi
-      break
-    fi
-
-    local page_count
-    page_count=$(printf '%s' "${runs_json}" | jq -r '(.workflow_runs // []) | length' 2>/dev/null || echo 0)
-    [ "${page_count}" -gt 0 ] || break
-    total_runs=$((total_runs + page_count))
-
-    local candidate_runs
-    if ! candidate_runs=$(printf '%s' "${runs_json}" | jq -r --argjson cur "${CURRENT_RUN_ID:-0}" '
-      .workflow_runs // []
-      | map(select(
-          (.id != $cur) and
-          ((.workflow_id // "") == "" or (.workflow_id | endswith("test-chart.yaml")))
-        ))
-      | sort_by(-.id)
-      | .[]
-      | "\(.id)\t\(.head_sha // "")"
-    ' 2>/dev/null); then
-      echo ">> Warning: Unexpected response from Gitea Actions runs API; testing all changed charts." >&2
-      return 0
-    fi
-
-    while IFS=$'\t' read -r run_id run_sha; do
-      [ -n "${run_id}" ] && [ -n "${run_sha}" ] || continue
-      [ "${checked}" -lt 30 ] || break
-
-      git cat-file -e "${run_sha}^{commit}" 2>/dev/null || continue
-      git merge-base --is-ancestor "${run_sha}" HEAD 2>/dev/null || continue
-
-      if [ -n "${current_mb}" ]; then
-        run_mb=$(git merge-base "${BASE_BRANCH}" "${run_sha}" 2>/dev/null || true)
-        [ "${run_mb}" = "${current_mb}" ] || continue
-      fi
-
-      checked=$((checked + 1))
-
-      jobs_url="${SERVER_URL%/}/api/v1/repos/${REPO}/actions/runs/${run_id}/jobs?limit=250"
-      if ! jobs_json=$(curl -fsSL -H "Authorization: token ${GITEA_TOKEN}" "${jobs_url}" 2>/dev/null); then
-        continue
-      fi
-
-      local succeeded_jobs
-      succeeded_jobs=$(printf '%s' "${jobs_json}" | jq -r '
-        .jobs // []
-        | map(select((.status == "success") or (.status == "completed" and .conclusion == "success")))
-        | .[].name // empty
-      ' 2>/dev/null || true)
-
-      local chart_re='^test-chart \(([^)]+)\)$'
-      local script_re='^test-chart-scripts \(([^)]+)\)$'
-      while IFS= read -r job_name; do
-        [ -n "${job_name}" ] || continue
-        if [[ "${job_name}" =~ ${chart_re} ]]; then
-          chart="${BASH_REMATCH[1]}"
-          if [ -z "$(_map_get "${PASSED_CHART_MAP}" "${chart}")" ]; then
-            PASSED_CHART_MAP="${PASSED_CHART_MAP}${chart}=${run_sha}"$'\n'
-          fi
-        elif [[ "${job_name}" =~ ${script_re} ]]; then
-          chart="${BASH_REMATCH[1]}"
-          if [ -z "$(_map_get "${PASSED_SCRIPT_MAP}" "${chart}")" ]; then
-            PASSED_SCRIPT_MAP="${PASSED_SCRIPT_MAP}${chart}=${run_sha}"$'\n'
-          fi
-        fi
-      done <<< "${succeeded_jobs}"
-
-      if _all_charts_mapped "${ALL_VALID_CHARTS}" "${PASSED_CHART_MAP}" && \
-         _all_charts_mapped "${ALL_SCRIPT_CHARTS}" "${PASSED_SCRIPT_MAP}"; then
-        break 2
-      fi
-    done <<< "${candidate_runs}"
-
-    [ "${page_count}" -eq 50 ] || break
-    page=$((page + 1))
-  done
-
-  echo ">> Actions API: fetched ${total_runs} PR workflow run(s), inspected ${checked} matching ancestor run(s)."
-}
 
 echo ">> Target branch for diff is: ${BASE_BRANCH}"
 
@@ -171,14 +64,31 @@ echo ">> Target branch for diff is: ${BASE_BRANCH}"
 source "${REPO_ROOT}/.mise/lib/resolve-diff-target.sh"
 resolve_diff_target
 
+_state_matches() {
+  local section="$1" chart="$2" expected="$3"
+  [ -n "${STATE_FILE}" ] && [ -f "${STATE_FILE}" ] && [ -n "${expected}" ] || return 1
+  local recorded
+  recorded=$(jq -r --arg s "${section}" --arg c "${chart}" '.[$s][$c] // ""' "${STATE_FILE}" 2>/dev/null || true)
+  [ -n "${recorded}" ] && [ "${recorded}" = "${expected}" ]
+}
+
 # Find changed charts
 RAW_CHARTS=$( (git diff --name-only "${DIFF_TARGET}" | grep -E "^clusters/${CLUSTER}/helm/" || true) | awk -F '/' '{print $4}' | sort -u)
-ALL_VALID_CHARTS=""
-ALL_SCRIPT_CHARTS=""
+VALID_CHARTS=""
+SCRIPT_CHARTS=""
+SKIPPED_CHARTS=""
+SKIPPED_SCRIPT_CHARTS=""
 
 for C in $RAW_CHARTS; do
   if [ -n "$C" ] && [ -f "clusters/${CLUSTER}/helm/${C}/Chart.yaml" ]; then
-    ALL_VALID_CHARTS="${ALL_VALID_CHARTS} ${C}"
+    tree_sha=$(git rev-parse "HEAD:clusters/${CLUSTER}/helm/${C}" 2>/dev/null || true)
+
+    if [ -n "${tree_sha}" ] && _state_matches "charts" "${C}" "${tree_sha}:${CHART_TOOLING_HASH}"; then
+      SKIPPED_CHARTS="${SKIPPED_CHARTS} ${C}(${tree_sha:0:7})"
+    else
+      VALID_CHARTS="${VALID_CHARTS} ${C}"
+    fi
+
     has_scripts=false
     if [ -d "clusters/${CLUSTER}/helm/${C}/scripts" ] && ls "clusters/${CLUSTER}/helm/${C}/scripts"/* >/dev/null 2>&1; then
       has_scripts=true
@@ -186,56 +96,27 @@ for C in $RAW_CHARTS; do
       has_scripts=true
     fi
     if [ "${has_scripts}" = "true" ]; then
-      ALL_SCRIPT_CHARTS="${ALL_SCRIPT_CHARTS} ${C}"
+      if [ -n "${tree_sha}" ] && _state_matches "scripts" "${C}" "${tree_sha}:${SCRIPT_TOOLING_HASH}"; then
+        SKIPPED_SCRIPT_CHARTS="${SKIPPED_SCRIPT_CHARTS} ${C}(${tree_sha:0:7})"
+      else
+        SCRIPT_CHARTS="${SCRIPT_CHARTS} ${C}"
+      fi
     fi
   fi
 done
 
-ALL_VALID_CHARTS=$(echo "${ALL_VALID_CHARTS}" | xargs)
-ALL_SCRIPT_CHARTS=$(echo "${ALL_SCRIPT_CHARTS}" | xargs)
-
-if [ -n "${ALL_VALID_CHARTS}" ] && [ "${EVENT_NAME}" = "pull_request" ] && [ "${SKIP_PASSED}" = "true" ]; then
-  if [ -n "${GITEA_TOKEN}" ] && [ -n "${SERVER_URL}" ] && [ -n "${REPO}" ] && [ -n "${HEAD_BRANCH}" ]; then
-    collect_passed_commits
-  else
-    echo ">> Skipping Actions API lookup (missing: $([ -z "${GITEA_TOKEN}" ] && echo "GITEA_TOKEN ") $([ -z "${SERVER_URL}" ] && echo "SERVER_URL ") $([ -z "${REPO}" ] && echo "REPO ") $([ -z "${HEAD_BRANCH}" ] && echo "HEAD_BRANCH"))."
-  fi
-fi
-
-VALID_CHARTS=""
-SKIPPED_CHARTS=""
-for C in ${ALL_VALID_CHARTS}; do
-  passed_sha=$(_map_get "${PASSED_CHART_MAP}" "${C}")
-  if [ -n "${passed_sha}" ] && git diff --quiet "${passed_sha}..HEAD" -- "clusters/${CLUSTER}/helm/${C}"; then
-    SKIPPED_CHARTS="${SKIPPED_CHARTS} ${C}(${passed_sha:0:7})"
-  else
-    VALID_CHARTS="${VALID_CHARTS} ${C}"
-  fi
-done
-
-SCRIPT_CHARTS=""
-SKIPPED_SCRIPT_CHARTS=""
-for C in ${ALL_SCRIPT_CHARTS}; do
-  passed_sha=$(_map_get "${PASSED_SCRIPT_MAP}" "${C}")
-  if [ -n "${passed_sha}" ] && git diff --quiet "${passed_sha}..HEAD" -- "clusters/${CLUSTER}/helm/${C}"; then
-    SKIPPED_SCRIPT_CHARTS="${SKIPPED_SCRIPT_CHARTS} ${C}(${passed_sha:0:7})"
-  else
-    SCRIPT_CHARTS="${SCRIPT_CHARTS} ${C}"
-  fi
-done
-
 VALID_CHARTS=$(echo "${VALID_CHARTS}" | xargs)
-SKIPPED_CHARTS=$(echo "${SKIPPED_CHARTS}" | xargs)
 SCRIPT_CHARTS=$(echo "${SCRIPT_CHARTS}" | xargs)
+SKIPPED_CHARTS=$(echo "${SKIPPED_CHARTS}" | xargs)
 SKIPPED_SCRIPT_CHARTS=$(echo "${SKIPPED_SCRIPT_CHARTS}" | xargs)
 
 if [ -n "${SKIPPED_CHARTS}" ]; then
   echo ""
-  echo ">> Skipping charts unchanged since last successful run:"
+  echo ">> Skipping charts unchanged since last cached pass:"
   echo "${SKIPPED_CHARTS}"
 fi
 if [ -n "${SKIPPED_SCRIPT_CHARTS}" ]; then
-  echo ">> Skipping chart script suites unchanged since last successful run:"
+  echo ">> Skipping chart script suites unchanged since last cached pass:"
   echo "${SKIPPED_SCRIPT_CHARTS}"
 fi
 
