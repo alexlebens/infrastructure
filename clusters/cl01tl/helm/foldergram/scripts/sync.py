@@ -203,9 +203,15 @@ def fetch_asset_detail(asset_id):
 
 
 def fetch_asset_album_map():
-    """Fetch all Immich albums and return {asset_id: album_name} (first album alphabetically)."""
-    albums = api_request("albums")
-    albums.sort(key=lambda a: (a.get("albumName") or "").lower())
+    """Fetch all Immich albums (owned + shared) and return {asset_id: album_name}."""
+    albums_by_id = {}
+    for endpoint in ("albums", "albums?shared=true"):
+        for album in api_request(endpoint):
+            aid = album.get("id")
+            if aid and aid not in albums_by_id:
+                albums_by_id[aid] = album
+    albums = sorted(albums_by_id.values(), key=lambda a: (a.get("albumName") or "").lower())
+    print(f"[sync] Found {len(albums)} Immich albums.")
     asset_to_album = {}
     for album in albums:
         if album.get("assetCount", 0) == 0:
