@@ -54,7 +54,8 @@ def trigger_foldergram_scan():
             except urllib.error.HTTPError as e:
                 if e.code in (404, 405):
                     continue
-                print(f"[sync] Foldergram login failed (HTTP {e.code} on {login_ep}).")
+                err_body = e.read().decode("utf-8", errors="ignore").strip()
+                print(f"[sync] Foldergram login failed (HTTP {e.code} on {login_ep}): {err_body}")
                 break
             except Exception as e:  # noqa: BLE001
                 print(f"[sync] Foldergram login error on {login_ep}: {e}")
