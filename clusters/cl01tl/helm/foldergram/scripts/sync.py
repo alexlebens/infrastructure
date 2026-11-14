@@ -228,11 +228,14 @@ def fetch_asset_album_map():
         if not album_id or not album_name:
             continue
         try:
-            detail = api_request(f"albums/{album_id}")
+            detail = api_request(f"albums/{album_id}?withoutAssets=false")
         except Exception as e:  # noqa: BLE001
             print(f"[sync] Warning: failed to fetch album '{album_name}': {e}")
             continue
-        for asset in detail.get("assets", []):
+        assets_list = detail.get("assets") or []
+        if not assets_list and not asset_to_album:
+            print(f"[sync] Debug: album '{album_name}' detail keys: {list(detail.keys())}")
+        for asset in assets_list:
             aid = asset.get("id")
             if aid and aid not in asset_to_album:
                 asset_to_album[aid] = album_name
