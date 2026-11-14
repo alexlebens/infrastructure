@@ -56,14 +56,16 @@ def trigger_foldergram_scan():
             print(f"[sync] Foldergram login error: {e}")
 
     try:
-        req = urllib.request.Request(f"{FOLDERGRAM_URL}/api/scan", headers=headers, method="POST")
+        req = urllib.request.Request(
+            f"{FOLDERGRAM_URL}/api/admin/rescan", headers=headers, method="POST"
+        )
         with opener.open(req, timeout=30) as resp:
-            print(f"[sync] Foldergram scan triggered (HTTP {resp.status}).")
+            print(f"[sync] Foldergram rescan triggered (HTTP {resp.status}).")
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8", errors="ignore").strip()
-        print(f"[sync] Foldergram scan failed (HTTP {e.code}): {err_body}")
+        print(f"[sync] Foldergram rescan failed (HTTP {e.code}): {err_body}")
     except Exception as e:  # noqa: BLE001
-        print(f"[sync] Could not connect to Foldergram at {FOLDERGRAM_URL}/api/scan: {e}")
+        print(f"[sync] Could not connect to Foldergram at {FOLDERGRAM_URL}/api/admin/rescan: {e}")
 
 
 def sanitize_filename(name):
