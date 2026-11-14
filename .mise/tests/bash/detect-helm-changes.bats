@@ -134,7 +134,7 @@ _run_detect() {
   _fixture_commit "commit 2: only beta changed"
 
   _stub curl "
-    if [[ \"\$*\" == *\"/actions/runs?branch=renovate%2Fmulti-chart\"* ]]; then
+    if [[ \"\$*\" == *\"/actions/runs?event=pull_request\"* ]]; then
       printf '{\"workflow_runs\":[{\"id\":101,\"head_sha\":\"%s\",\"workflow_id\":\"test-chart.yaml\"}]}\n' '${sha1}'
     elif [[ \"\$*\" == *\"/actions/runs/101/jobs\"* ]]; then
       printf '{\"jobs\":[{\"name\":\"test-chart (alpha)\",\"status\":\"completed\",\"conclusion\":\"success\"},{\"name\":\"test-chart (beta)\",\"status\":\"completed\",\"conclusion\":\"failure\"},{\"name\":\"test-chart-scripts (beta)\",\"status\":\"completed\",\"conclusion\":\"success\"}]}\n'
