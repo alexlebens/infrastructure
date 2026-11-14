@@ -84,7 +84,15 @@ collect_passed_commits() {
     return 0
   fi
 
-  local candidate_runs
+  local candidate_runs total_runs=0 ancestor_runs=0
+  total_runs=$(printf '%s' "${runs_json}" | jq -r '(.workflow_runs // []) | length' 2>/dev/null || echo 0)
+  if [ "${total_runs}" -eq 0 ]; then
+    runs_url="${SERVER_URL%/}/api/v1/repos/${REPO}/actions/runs?event=pull_request&limit=30"
+    if runs_json=$(curl -fsSL -H "Authorization: token ${GITEA_TOKEN}" "${runs_url}" 2>/dev/null); then
+      total_runs=$(printf '%s' "${runs_json}" | jq -r '(.workflow_runs // []) | length' 2>/dev/null || echo 0)
+    fi
+  fi
+
   if ! candidate_runs=$(printf '%s' "${runs_json}" | jq -r --argjson cur "${CURRENT_RUN_ID:-0}" '
     .workflow_runs // []
     | map(select(
@@ -99,6 +107,8 @@ collect_passed_commits() {
     return 0
   fi
 
+  echo ">> Actions API: fetched ${total_runs} PR workflow run(s) for branch '${HEAD_BRANCH}'."
+
   while IFS=$'\t' read -r run_id run_sha; do
     [ -n "${run_id}" ] && [ -n "${run_sha}" ] || continue
 
@@ -110,6 +120,7 @@ collect_passed_commits() {
       [ "${run_mb}" = "${current_mb}" ] || continue
     fi
 
+    ancestor_runs=$((ancestor_runs + 1))
     checked=$((checked + 1))
     [ "${checked}" -le 10 ] || break
 
@@ -121,7 +132,7 @@ collect_passed_commits() {
     local succeeded_jobs
     succeeded_jobs=$(printf '%s' "${jobs_json}" | jq -r '
       .jobs // []
-      | map(select(.status == "completed" and .conclusion == "success"))
+      | map(select((.status == "success") or (.status == "completed" and .conclusion == "success")))
       | .[].name // empty
     ' 2>/dev/null || true)
 
@@ -147,6 +158,8 @@ collect_passed_commits() {
       break
     fi
   done <<< "${candidate_runs}"
+
+  echo ">> Actions API: inspected ${ancestor_runs} matching ancestor run(s)."
 }
 
 echo ">> Target branch for diff is: ${BASE_BRANCH}"
@@ -179,14 +192,12 @@ done
 ALL_VALID_CHARTS=$(echo "${ALL_VALID_CHARTS}" | xargs)
 ALL_SCRIPT_CHARTS=$(echo "${ALL_SCRIPT_CHARTS}" | xargs)
 
-if [ -n "${ALL_VALID_CHARTS}" ] && \
-   [ "${EVENT_NAME}" = "pull_request" ] && \
-   [ "${SKIP_PASSED}" = "true" ] && \
-   [ -n "${GITEA_TOKEN}" ] && \
-   [ -n "${SERVER_URL}" ] && \
-   [ -n "${REPO}" ] && \
-   [ -n "${HEAD_BRANCH}" ]; then
-  collect_passed_commits
+if [ -n "${ALL_VALID_CHARTS}" ] && [ "${EVENT_NAME}" = "pull_request" ] && [ "${SKIP_PASSED}" = "true" ]; then
+  if [ -n "${GITEA_TOKEN}" ] && [ -n "${SERVER_URL}" ] && [ -n "${REPO}" ] && [ -n "${HEAD_BRANCH}" ]; then
+    collect_passed_commits
+  else
+    echo ">> Skipping Actions API lookup (missing: $([ -z "${GITEA_TOKEN}" ] && echo "GITEA_TOKEN ") $([ -z "${SERVER_URL}" ] && echo "SERVER_URL ") $([ -z "${REPO}" ] && echo "REPO ") $([ -z "${HEAD_BRANCH}" ] && echo "HEAD_BRANCH"))."
+  fi
 fi
 
 VALID_CHARTS=""

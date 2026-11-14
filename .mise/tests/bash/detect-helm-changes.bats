@@ -230,3 +230,31 @@ _run_detect() {
   assert_success
   assert_equal "$(_output_value matrix)" '["alpha"]'
 }
+
+@test "detect-helm-changes: recognizes Gitea native status=success on jobs" {
+  git checkout -q -b "feat/gitea-status"
+  _fixture_write "clusters/cl01tl/helm/alpha/values.yaml" "a: 1"
+  _fixture_write "clusters/cl01tl/helm/beta/values.yaml" "b: 1"
+  _fixture_commit "commit 1"
+  local sha1
+  sha1="$(git rev-parse HEAD)"
+
+  _fixture_write "clusters/cl01tl/helm/beta/values.yaml" "b: 2"
+  _fixture_commit "commit 2"
+
+  _stub curl "
+    if [[ \"\$*\" == *\"/actions/runs?branch=\"* ]]; then
+      printf '{\"workflow_runs\":[]}\n'
+    elif [[ \"\$*\" == *\"/actions/runs?event=pull_request\"* ]]; then
+      printf '{\"workflow_runs\":[{\"id\":501,\"head_sha\":\"%s\",\"workflow_id\":\"test-chart.yaml\"}]}\n' '${sha1}'
+    elif [[ \"\$*\" == *\"/actions/runs/501/jobs\"* ]]; then
+      printf '{\"jobs\":[{\"name\":\"test-chart (alpha)\",\"status\":\"success\"}]}\n'
+    fi
+  "
+
+  GITEA_TOKEN="tok" PUBLIC_URL="https://gitea.example.test" REPO="owner/repo" HEAD_BRANCH="feat/gitea-status" CURRENT_RUN_ID="502" \
+    run "${MISE_TASKS_DIR}/gitea/detect-helm" --event-name pull_request --base-branch main
+
+  assert_success
+  assert_equal "$(_output_value matrix)" '["beta"]'
+}
