@@ -34,15 +34,18 @@ endpoints:
 mcpSettings:
   allowedAddresses:
     - "actual.actual:80"
+    - "affine.affine:80"
     - "argocd-mcp.argocd:3000"
     - "dawarich.dawarich:80"
     - "frigate.frigate:80"
     - "gitea-mcp.gitea:8080"
+    - "grafana-mcp.grafana-operator:8000"
     - "home-assistant.home-assistant:80"
     - "kaneo.alexlebens.dev:443"
     - "komodo-main.komodo:80"
     - "n8n-main.n8n.svc.cluster.local:5678"
     - "outline.alexlebens.dev:443"
+    - "postiz.postiz:80"
     - "resume.alexlebens.dev:443"
     - "rybbit-backend.rybbit:3001"
     - "sparkyfitness-server.sparkyfitness.svc.cluster.local:3010"
@@ -64,6 +67,22 @@ mcpServers:
       ACTUAL_SESSION_TOKEN: "${ACTUAL_SESSION_TOKEN}"
       npm_config_cache: "/tmp/npx-actual-budget"
 
+  affine:
+    type: "streamable-http"
+    url: "http://affine.affine:80/api/workspaces/${AFFINE_WORKSPACE_ID}/mcp"
+    timeout: 60000
+    requiresOAuth: false
+    headers:
+      Authorization: "Bearer ${AFFINE_API_TOKEN}"
+
+  argocd:
+    type: streamable-http
+    url: "http://argocd-mcp.argocd:3000/mcp"
+    timeout: 60000
+    requiresOAuth: false
+    headers:
+      Authorization: "Bearer ${ARGOCD_MCP_TOKEN}"
+
   arr-stack:
     type: stdio
     timeout: 60000
@@ -83,13 +102,35 @@ mcpServers:
       PROWLARR_API_KEY: "${PROWLARR_API_KEY}"
       npm_config_cache: "/tmp/npx-arr-stack"
 
-  argocd:
-    type: streamable-http
-    url: "http://argocd-mcp.argocd:3000/mcp"
+  arr-stack-4k:
+    type: stdio
     timeout: 60000
-    requiresOAuth: false
-    headers:
-      Authorization: "Bearer ${ARGOCD_MCP_TOKEN}"
+    initTimeout: 120000
+    command: npx
+    args:
+      - -y
+      - mcp-arr-server
+    env:
+      SONARR_URL: "http://sonarr-4k.sonarr-4k:80"
+      SONARR_API_KEY: "${SONARR_4K_API_KEY}"
+      RADARR_URL: "http://radarr-4k.radarr-4k:80"
+      RADARR_API_KEY: "${RADARR_4K_API_KEY}"
+      npm_config_cache: "/tmp/npx-arr-stack-4k"
+
+  arr-stack-anime:
+    type: stdio
+    timeout: 60000
+    initTimeout: 120000
+    command: npx
+    args:
+      - -y
+      - mcp-arr-server
+    env:
+      SONARR_URL: "http://sonarr-anime.sonarr-anime:80"
+      SONARR_API_KEY: "${SONARR_ANIME_API_KEY}"
+      RADARR_URL: "http://radarr-anime.radarr-anime:80"
+      RADARR_API_KEY: "${RADARR_ANIME_API_KEY}"
+      npm_config_cache: "/tmp/npx-arr-stack-anime"
 
   calendar:
     type: streamable-http
@@ -136,6 +177,17 @@ mcpServers:
       token_exchange_method: default_post
       token_endpoint_auth_methods_supported: ["client_secret_post"]
 
+  excalidraw:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "mcp-excalidraw"
+    env:
+      npm_config_cache: "/tmp/npx-excalidraw"
+
   frigate:
     type: stdio
     timeout: 60000
@@ -147,6 +199,40 @@ mcpServers:
       - frigate-mcp
     env:
       FRIGATE_URL: "http://frigate.frigate:80"
+      UV_CACHE_DIR: "/tmp/uv-frigate"
+      UV_TOOL_DIR: "/tmp/uv-tools-frigate"
+
+  garage-a:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "aws-s3-mcp"
+    env:
+      AWS_ACCESS_KEY_ID: "${GARAGE_A_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${GARAGE_A_SECRET_ACCESS_KEY}"
+      AWS_REGION: "${GARAGE_A_REGION}"
+      AWS_ENDPOINT_URL: "${GARAGE_A_ENDPOINT}"
+      AWS_FORCE_PATH_STYLE: "true"
+      npm_config_cache: "/tmp/npx-garage-a"
+
+  garage-b:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "aws-s3-mcp"
+    env:
+      AWS_ACCESS_KEY_ID: "${GARAGE_B_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${GARAGE_B_SECRET_ACCESS_KEY}"
+      AWS_REGION: "${GARAGE_B_REGION}"
+      AWS_ENDPOINT_URL: "${GARAGE_B_ENDPOINT}"
+      AWS_FORCE_PATH_STYLE: "true"
+      npm_config_cache: "/tmp/npx-garage-b"
 
   gitea:
     type: streamable-http
@@ -173,6 +259,29 @@ mcpServers:
       token_exchange_method: default_post
       token_endpoint_auth_methods_supported: ["client_secret_post"]
 
+  grafana:
+    type: "streamable-http"
+    url: "http://grafana-mcp.grafana-operator:8000/mcp"
+    timeout: 60000
+    requiresOAuth: false
+
+  harbor:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "mcp-harbor"
+      - "--url"
+      - "http://harbor-core.harbor:80"
+      - "--username"
+      - "admin"
+      - "--password"
+      - "${HARBOR_ADMIN_PASSWORD}"
+    env:
+      npm_config_cache: "/tmp/npx-harbor"
+
   home-assistant:
     type: streamable-http
     url: "http://home-assistant.home-assistant:80/api/mcp"
@@ -181,6 +290,32 @@ mcpServers:
     headers:
       Authorization: "Bearer ${HOME_ASSISTANT_API_KEY}"
 
+  immich:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "uvx"
+    args:
+      - "immich-photo-manager"
+    env:
+      IMMICH_BASE_URL: "http://immich-main.immich:80/api"
+      IMMICH_API_KEY: "${IMMICH_API_KEY}"
+      UV_CACHE_DIR: "/tmp/uv-immich"
+      UV_TOOL_DIR: "/tmp/uv-tools-immich"
+
+  jellyfin:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "jellyfin-mcp"
+    env:
+      JELLYFIN_URL: "http://jellyfin.jellyfin:8096"
+      JELLYFIN_API_KEY: "${JELLYFIN_API_KEY}"
+      npm_config_cache: "/tmp/npx-jellyfin"
+
   kaneo:
     type: "streamable-http"
     url: "https://kaneo.alexlebens.dev/api/mcp"
@@ -188,20 +323,6 @@ mcpServers:
     timeout: 60000
     initTimeout: 150000
     requiresOAuth: true
-
-  komodo:
-    type: "stdio"
-    timeout: 60000
-    initTimeout: 120000
-    command: "npx"
-    args:
-      - -y
-      - "@samik081/mcp-komodo"
-    env:
-      KOMODO_URL: "http://komodo-main.komodo:80"
-      KOMODO_API_KEY: "${KOMODO_API_KEY}"
-      KOMODO_API_SECRET: "${KOMODO_API_SECRET}"
-      npm_config_cache: "/tmp/npx-komodo"
 
   karakeep:
     type: "stdio"
@@ -251,6 +372,46 @@ mcpServers:
       KARAKEEP_API_ADDR: "http://karakeep.karakeep.svc.cluster.local:3000"
       KARAKEEP_API_KEY: "${KARAKEEP_API_KEY}"
       npm_config_cache: "/tmp/npx-karakeep"
+
+  kiwix:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "uvx"
+    args:
+      - "kiwix-mcp"
+      - "--base-url"
+      - "http://kiwix.kiwix:80"
+    env:
+      UV_CACHE_DIR: "/tmp/uv-kiwix"
+      UV_TOOL_DIR: "/tmp/uv-tools-kiwix"
+
+  komodo:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "@samik081/mcp-komodo"
+    env:
+      KOMODO_URL: "http://komodo-main.komodo:80"
+      KOMODO_API_KEY: "${KOMODO_API_KEY}"
+      KOMODO_API_SECRET: "${KOMODO_API_SECRET}"
+      npm_config_cache: "/tmp/npx-komodo"
+
+  mealie:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "@ni-c/mealie-mcp"
+    env:
+      MEALIE_URL: "http://mealie.mealie:9000"
+      MEALIE_API_TOKEN: "${MEALIE_API_TOKEN}"
+      npm_config_cache: "/tmp/npx-mealie"
 
   memos:
     type: "stdio"
@@ -334,6 +495,27 @@ mcpServers:
       PAPERLESS_API_KEY: "${PAPERLESS_API_KEY}"
       npm_config_cache: "/tmp/npx-paperless"
 
+  postiz:
+    type: "streamable-http"
+    url: "http://postiz.postiz:80/api/mcp"
+    timeout: 60000
+    requiresOAuth: false
+    headers:
+      Authorization: "Bearer ${POSTIZ_API_KEY}"
+
+  radarr-standup:
+    type: stdio
+    timeout: 60000
+    initTimeout: 120000
+    command: npx
+    args:
+      - -y
+      - mcp-arr-server
+    env:
+      RADARR_URL: "http://radarr-standup.radarr-standup:80"
+      RADARR_API_KEY: "${RADARR_STANDUP_API_KEY}"
+      npm_config_cache: "/tmp/npx-radarr-standup"
+
   reactive-resume:
     type: "streamable-http"
     url: "https://resume.alexlebens.dev/mcp"
@@ -350,6 +532,19 @@ mcpServers:
     headers:
       Authorization: "Bearer ${RYBBIT_API_KEY}"
 
+  seerr:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "@jhomen368/overseerr-mcp"
+    env:
+      SEERR_URL: "http://seerr-seerr-chart.seerr:80"
+      SEERR_API_KEY: "${SEERR_API_KEY}"
+      npm_config_cache: "/tmp/npx-seerr"
+
   sparkyfitness:
     type: "streamable-http"
     url: "http://sparkyfitness-server.sparkyfitness.svc.cluster.local:3010/mcp"
@@ -357,6 +552,30 @@ mcpServers:
     requiresOAuth: false
     headers:
       Authorization: "Bearer ${SPARKYFITNESS_API_KEY}"
+
+  talos:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "npx"
+    args:
+      - -y
+      - "talos-mcp"
+    env:
+      TALOSCONFIG: "/home/node/.talos/config"
+      npm_config_cache: "/tmp/npx-talos"
+
+  thanos:
+    type: "stdio"
+    timeout: 60000
+    initTimeout: 120000
+    command: "uvx"
+    args:
+      - "prometheus-mcp-server"
+    env:
+      PROMETHEUS_URL: "http://thanos-query-frontend.thanos:9090"
+      UV_CACHE_DIR: "/tmp/uv-thanos"
+      UV_TOOL_DIR: "/tmp/uv-tools-thanos"
 
   trek:
     type: "streamable-http"

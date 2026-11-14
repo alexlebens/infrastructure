@@ -68,3 +68,66 @@ common-helpers:
 
 grafanaDashboard:
   folder: platform
+
+grafana-mcp:
+  global:
+    nameOverride: grafana-mcp
+    fullnameOverride: grafana-mcp
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: grafana/mcp-grafana
+            # renovate: datasource=docker depName=grafana/mcp-grafana
+            tag: 2.3.0@sha256:c27248b5919d09d64ea273ca1b128b32902c6796f6e2dfcd11849d4f1363f9ed
+          command:
+            - "/app/mcp-grafana"
+          args:
+            - "--transport"
+            - "streamable-http"
+            - "--address"
+            - "0.0.0.0:8000"
+          env:
+            - name: GRAFANA_URL
+              value: "http://grafana-main-service.grafana-operator:3000"
+            - name: GRAFANA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-config
+                  key: admin-user
+            - name: GRAFANA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-config
+                  key: admin-password
+          resources:
+            requests:
+              cpu: 5m
+              memory: 40Mi
+  service:
+    main:
+      forceRename: grafana-mcp
+      ports:
+        http:
+          port: 8000
+  persistence:
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
