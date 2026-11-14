@@ -44,6 +44,7 @@ mcpSettings:
     - "n8n-main.n8n.svc.cluster.local:5678"
     - "outline.alexlebens.dev:443"
     - "resume.alexlebens.dev:443"
+    - "rybbit-backend.rybbit:3001"
     - "sparkyfitness-server.sparkyfitness.svc.cluster.local:3010"
     - "sparkyfitness.alexlebens.dev:443"
     - "trek.alexlebens.dev:443"
@@ -59,6 +60,7 @@ mcpServers:
       ACTUAL_SERVER_URL: "http://actual.actual:80"
       ACTUAL_BUDGET_ID: "${ACTUAL_BUDGET_ID}"
       ACTUAL_SESSION_TOKEN: "${ACTUAL_SESSION_TOKEN}"
+      npm_config_cache: "/tmp/npx-actual-budget"
 
   argocd:
     type: streamable-http
@@ -174,6 +176,7 @@ mcpServers:
       KOMODO_URL: "http://komodo-main.komodo:80"
       KOMODO_API_KEY: "${KOMODO_API_KEY}"
       KOMODO_API_SECRET: "${KOMODO_API_SECRET}"
+      npm_config_cache: "/tmp/npx-komodo"
 
   karakeep:
     type: "stdio"
@@ -220,6 +223,21 @@ mcpServers:
     env:
       KARAKEEP_API_ADDR: "http://karakeep.karakeep.svc.cluster.local:3000"
       KARAKEEP_API_KEY: "${KARAKEEP_API_KEY}"
+      npm_config_cache: "/tmp/npx-karakeep"
+
+  n8n:
+    type: "stdio"
+    command: "npx"
+    args:
+      - -y
+      - "n8n-mcp"
+    env:
+      MCP_MODE: "stdio"
+      LOG_LEVEL: "error"
+      DISABLE_CONSOLE_OUTPUT: "true"
+      N8N_API_URL: "http://n8n-main.n8n.svc.cluster.local:5678"
+      N8N_API_KEY: "${N8N_API_KEY}"
+      npm_config_cache: "/tmp/npx-n8n"
 
   n8n-documents:
     type: "sse"
@@ -240,6 +258,14 @@ mcpServers:
     requiresOAuth: false
     headers:
       x-api-key: "${REACTIVE_RESUME_API_KEY}"
+
+  rybbit:
+    type: "streamable-http"
+    url: "http://rybbit-backend.rybbit:3001/api/mcp"
+    timeout: 60000
+    requiresOAuth: false
+    headers:
+      Authorization: "Bearer ${RYBBIT_API_KEY}"
 
   sparkyfitness:
     type: "streamable-http"

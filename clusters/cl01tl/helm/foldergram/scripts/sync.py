@@ -1,3 +1,4 @@
+import http.cookiejar
 import json
 import os
 import re
@@ -11,6 +12,8 @@ API_KEY = os.environ.get("IMMICH_API_KEY", "")
 GALLERY_PATH = os.environ.get("GALLERY_PATH", "/gallery/Favorites")
 PRUNE_DELETED = os.environ.get("PRUNE_DELETED", "true").lower() in ("true", "1", "yes")
 FOLDERGRAM_URL = os.environ.get("FOLDERGRAM_URL", "http://foldergram.foldergram:80").rstrip("/")
+FOLDERGRAM_USERNAME = os.environ.get("FOLDERGRAM_USERNAME", "admin")
+FOLDERGRAM_PASSWORD = os.environ.get("FOLDERGRAM_PASSWORD", "")
 CSRF_ORIGIN = os.environ.get("CSRF_ORIGIN", "https://photos.alexlebens.dev").rstrip("/")
 
 # Persistent index file: maps asset_id -> filename on disk
@@ -26,6 +29,39 @@ def trigger_foldergram_scan():
         "Origin": CSRF_ORIGIN,
         "Referer": f"{CSRF_ORIGIN}/",
     }
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+    )
+
+    if FOLDERGRAM_PASSWORD:
+        login_body = json.dumps(
+            {"username": FOLDERGRAM_USERNAME, "password": FOLDERGRAM_PASSWORD}
+        ).encode("utf-8")
+        login_headers = {**headers, "Content-Type": "application/json"}
+        logged_in = False
+        for login_ep in ("/api/auth/login", "/api/login"):
+            try:
+                req = urllib.request.Request(
+                    f"{FOLDERGRAM_URL}{login_ep}",
+                    data=login_body,
+                    headers=login_headers,
+                    method="POST",
+                )
+                with opener.open(req, timeout=30) as resp:
+                    if resp.status in (200, 204):
+                        logged_in = True
+                        break
+            except urllib.error.HTTPError as e:
+                if e.code in (404, 405):
+                    continue
+                print(f"[sync] Foldergram login failed (HTTP {e.code} on {login_ep}).")
+                break
+            except Exception as e:  # noqa: BLE001
+                print(f"[sync] Foldergram login error on {login_ep}: {e}")
+                break
+        if not logged_in:
+            print("[sync] Warning: could not authenticate to Foldergram; attempting scan anyway.")
+
     # Attempt common scan endpoints
     for endpoint in ("/api/scan", "/api/library/scan", "/api/refresh", "/api/health"):
         url = f"{FOLDERGRAM_URL}{endpoint}"
@@ -35,7 +71,7 @@ def trigger_foldergram_scan():
                 headers=headers,
                 method="POST" if "scan" in endpoint or "refresh" in endpoint else "GET",
             )
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with opener.open(req, timeout=30) as resp:
                 if resp.status in (200, 201, 202, 204):
                     print(
                         f"[sync] Foldergram scan notification to {endpoint} successful (HTTP {resp.status})."
@@ -58,7 +94,7 @@ def trigger_foldergram_scan():
 
 def sanitize_filename(name):
     """Replace filesystem-unsafe characters, collapse multiple underscores."""
-    name = re.sub(r"[^\w. -]", "_", name)
+    name = re.sub(r"[^\w. ()-]", "_", name)
     name = re.sub(r"_+", "_", name)
     return name.strip("_. ")
 
@@ -103,10 +139,13 @@ def format_standalone_name(asset):
     # Strip trailing standalone sequence numbers
     cleaned = re.sub(r"\s+\d+$", "", cleaned).strip()
 
-    title = cleaned.title() if cleaned else ""
-    if not title:
-        title = asset["id"][:8]
-    elif year:
+    # If stripping left nothing or only digits (e.g. PXL_20220727_161057448), keep original stem
+    if not cleaned or cleaned.isdigit():
+        safe_orig = sanitize_filename(name) or asset["id"][:8]
+        return f"{safe_orig}{ext}"
+
+    title = cleaned.title()
+    if year:
         title = f"{title} ({year})"
 
     safe_title = sanitize_filename(title) or asset["id"][:8]
