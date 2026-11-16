@@ -1,0 +1,88 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: picpeak-backup
+  namespace: picpeak
+  labels:
+    app.kubernetes.io/name: picpeak-backup
+    helm.sh/chart: volsync-target-data-4.1.3
+    app.kubernetes.io/instance: picpeak
+    app.kubernetes.io/part-of: picpeak
+    app.kubernetes.io/version: "0.17.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  groups:
+    - name: volsync.alerts
+      rules:
+        - alert: VolSyncBackupPodFailed
+          expr: |
+            sum by (namespace) (
+              (kube_pod_status_phase{namespace="picpeak", phase="Failed", pod=~"volsync-.*picpeak-backup-.*"} == 1)
+              * on(namespace, pod) group_left(owner_name)
+              kube_pod_owner{namespace="picpeak", owner_kind="Job", owner_name=~"volsync-.*picpeak-backup-.*"}
+            ) > 0
+          keep_firing_for: 10m
+          labels:
+            severity: critical
+            pvc: picpeak
+          annotations:
+            summary: "VolSync backup pod failed in {{ $labels.namespace }}"
+            description: |
+              {{ $value }} VolSync backup pod(s) failed for PVC 'picpeak'.
+              Target: picpeak-backup
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-a
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="picpeak-backup-source-a", obj_namespace="picpeak"}) > 129600
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="picpeak", job_name=~"volsync-.*picpeak-backup-source-a-.*"})) > 129600
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: a
+            pvc: picpeak
+          annotations:
+            summary: "VolSync backup delayed for tier a in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'a' for PVC 'picpeak' has not completed successfully in 36h (schedule: '25 10 * * *').
+              Target: picpeak-backup-source-a
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-c
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="picpeak-backup-source-c", obj_namespace="picpeak"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="picpeak", job_name=~"volsync-.*picpeak-backup-source-c-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: c
+            pvc: picpeak
+          annotations:
+            summary: "VolSync backup delayed for tier c in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'c' for PVC 'picpeak' has not completed successfully in 8d (schedule: '55 10 * * 0').
+              Target: picpeak-backup-source-c
+              Namespace: {{ $labels.namespace }}
+        - alert: VolSyncBackupDelayed-d
+          expr: |
+            (
+              (time() - volsync_replicationsource_last_sync_time{obj_name="picpeak-backup-source-d", obj_namespace="picpeak"}) > 691200
+            ) or (
+              (time() - max by (namespace) (kube_job_status_completion_time{namespace="picpeak", job_name=~"volsync-.*picpeak-backup-source-d-.*"})) > 691200
+            )
+          for: 15m
+          labels:
+            severity: warning
+            tier: d
+            pvc: picpeak
+          annotations:
+            summary: "VolSync backup delayed for tier d in {{ $labels.namespace }}"
+            description: |
+              VolSync backup on tier 'd' for PVC 'picpeak' has not completed successfully in 8d (schedule: '55 9 * * 0').
+              Target: picpeak-backup-source-d
+              Namespace: {{ $labels.namespace }}

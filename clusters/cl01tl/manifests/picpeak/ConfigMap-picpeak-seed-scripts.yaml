@@ -1,0 +1,59 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: picpeak-seed-scripts
+  namespace: picpeak
+  labels:
+    app.kubernetes.io/name: picpeak-seed-scripts
+    helm.sh/chart: pocket-id-client-0.5.1
+    app.kubernetes.io/instance: picpeak
+    app.kubernetes.io/part-of: picpeak
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-10"
+    "argocd.argoproj.io/hook": PreSync
+    "argocd.argoproj.io/hook-delete-policy": BeforeHookCreation,HookSucceeded
+data:
+  seed.sh: |-
+    #!/bin/sh
+    set -e
+
+    export HOME=/home/vault
+    export BAO_ADDR="${VAULT_ADDR}"
+
+    echo ">> Authenticating to OpenBao via Kubernetes auth..."
+    bao login -method=kubernetes -no-print \
+      role="${VAULT_ROLE}" \
+      mount_path="${AUTH_PATH}" \
+      jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+
+    SECRET_PATH="${SECRET_PATH#/}"
+    echo ">> Checking if secret exists at: ${SECRET_PATH}"
+
+    if bao kv get -mount="${VAULT_MOUNT}" "${SECRET_PATH}" > /dev/null 2>&1; then
+      echo ">> Secret already exists at ${SECRET_PATH}, skipping seed."
+      exit 0
+    fi
+
+    echo ">> Secret not found, generating new credentials..."
+
+    # Generate secrets using OpenBao's server-side random generation
+    CLIENT_SECRET=$(bao write -f -field=random_bytes sys/tools/random/48 format=hex)
+
+    echo ">> Writing secrets to ${SECRET_PATH}..."
+    if [ "${MODE}" = "oauth" ]; then
+      COOKIE_SECRET=$(bao write -f -field=random_bytes sys/tools/random/16 format=hex)
+      bao kv put -mount="${VAULT_MOUNT}" "${SECRET_PATH}" \
+        clientId="${CLIENT_ID}" \
+        clientSecret="${CLIENT_SECRET}" \
+        cookie="${COOKIE_SECRET}"
+    else
+      bao kv put -mount="${VAULT_MOUNT}" "${SECRET_PATH}" \
+        clientId="${CLIENT_ID}" \
+        clientSecret="${CLIENT_SECRET}"
+    fi
+
+    echo ">> Seed complete for ${APP_NAME}"
