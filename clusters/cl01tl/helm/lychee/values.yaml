@@ -14,6 +14,25 @@ lychee:
           fsGroupChangePolicy: OnRootMismatch
           seccompProfile:
             type: RuntimeDefault
+      initContainers:
+        init-worker:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: ghcr.io/lycheeorg/lychee
+            tag: v7.13.0@sha256:bcf5759bd44d23257e79556e8c90e6d23fb6eca8b5e89c685542ac48e6cd2ea8
+          command:
+            - cp
+            - /app/vendor/laravel/octane/src/Commands/stubs/frankenphp-worker.php
+            - /frankenphp-worker/frankenphp-worker.php
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
       containers:
         main:
           securityContext:
@@ -269,6 +288,16 @@ lychee:
             - path: /app/bootstrap/cache
           worker:
             - path: /app/bootstrap/cache
+    frankenphp-worker:
+      type: emptyDir
+      advancedMounts:
+        main:
+          init-worker:
+            - path: /frankenphp-worker
+          main:
+            - path: /app/public/frankenphp-worker.php
+              subPath: frankenphp-worker.php
+              readOnly: true
     frankenphp-data:
       type: emptyDir
       advancedMounts:
