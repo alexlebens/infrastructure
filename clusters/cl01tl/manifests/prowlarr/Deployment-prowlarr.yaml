@@ -45,18 +45,57 @@ spec:
         - env:
             - name: TZ
               value: America/Chicago
+            - name: PROWLARR__APP__INSTANCENAME
+              value: Prowlarr
+            - name: PROWLARR__APP__THEME
+              value: dark
+            - name: PROWLARR__APP__LAUNCHBROWSER
+              value: "false"
+            - name: PROWLARR__AUTH__APIKEY
+              valueFrom:
+                secretKeyRef:
+                  key: key
+                  name: prowlarr-key-secret
             - name: PROWLARR__AUTH__METHOD
               value: External
             - name: PROWLARR__AUTH__REQUIRED
               value: DisabledForLocalAddresses
+            - name: PROWLARR__SERVER__BINDADDRESS
+              value: '*'
+            - name: PROWLARR__SERVER__PORT
+              value: "9696"
+            - name: PROWLARR__SERVER__SSLPORT
+              value: "6969"
+            - name: PROWLARR__SERVER__ENABLESSL
+              value: "false"
+            - name: PROWLARR__SERVER__URLBASE
+              value: ""
+            - name: PROWLARR__SERVER__ALLOWEDHOSTS
+              value: localhost;prowlarr;prowlarr.prowlarr;prowlarr.alexlebens.dev
+            - name: PROWLARR__SERVER__TRUSTEDNETWORKS
+              value: 10.244.0.0/16
+            - name: PROWLARR__LOG__LEVEL
+              value: debug
+            - name: PROWLARR__LOG__ANALYTICSENABLED
+              value: "false"
+            - name: PROWLARR__UPDATE__MECHANISM
+              value: Docker
+            - name: PROWLARR__UPDATE__BRANCH
+              value: master
           image: ghcr.io/linuxserver/prowlarr:3.0.2.5780-ls169@sha256:45117ba8439e2337a92ffe38a451a4dafc0be771754d05d88cdf102419d09646
           livenessProbe:
             httpGet:
+              httpHeaders:
+                - name: Host
+                  value: localhost
               path: /ping
               port: 9696
           name: main
           readinessProbe:
             httpGet:
+              httpHeaders:
+                - name: Host
+                  value: localhost
               path: /ping
               port: 9696
           resources:
@@ -66,6 +105,9 @@ spec:
           startupProbe:
             failureThreshold: 30
             httpGet:
+              httpHeaders:
+                - name: Host
+                  value: localhost
               path: /ping
               port: 9696
             periodSeconds: 5
