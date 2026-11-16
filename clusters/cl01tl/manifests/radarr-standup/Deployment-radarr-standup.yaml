@@ -50,17 +50,39 @@ spec:
             - name: PGID
               value: "1000"
             - name: RADARR__AUTH__METHOD
-              value: External
+              value: Oidc
             - name: RADARR__AUTH__REQUIRED
               value: DisabledForLocalAddresses
+            - name: RADARR__AUTH__OIDCAUTHORITY
+              value: https://auth.alexlebens.dev
+            - name: RADARR__AUTH__OIDCCLIENTID
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: radarr-standup-oidc-secret
+            - name: RADARR__AUTH__OIDCCLIENTSECRET
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: radarr-standup-oidc-secret
+            - name: RADARR__AUTH__OIDCUSERIDENTIFIER
+              value: alexanderlebens@gmail.com
+            - name: RADARR__AUTH__OIDCSCOPES
+              value: openid profile email
           image: ghcr.io/linuxserver/radarr:7.0.3.10918-ls328@sha256:044788f5508b7f67a3e0368cdd142c77c4d4cd5aec2efaba53e1a68b6b6231e7
           livenessProbe:
             httpGet:
+              httpHeaders:
+                - name: Host
+                  value: localhost
               path: /ping
               port: 7878
           name: main
           readinessProbe:
             httpGet:
+              httpHeaders:
+                - name: Host
+                  value: localhost
               path: /ping
               port: 7878
           resources:
@@ -70,6 +92,9 @@ spec:
           startupProbe:
             failureThreshold: 30
             httpGet:
+              httpHeaders:
+                - name: Host
+                  value: localhost
               path: /ping
               port: 7878
             periodSeconds: 5
@@ -107,55 +132,6 @@ spec:
             - mountPath: /config
               name: config
               readOnly: true
-        - env:
-            - name: OAUTH2_PROXY_HTTP_ADDRESS
-              value: 0.0.0.0:4180
-            - name: OAUTH2_PROXY_METRICS_ADDRESS
-              value: 0.0.0.0:44180
-            - name: OAUTH2_PROXY_UPSTREAMS
-              value: http://localhost:7878
-            - name: OAUTH2_PROXY_PROVIDER
-              value: oidc
-            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
-              value: S256
-            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
-              value: "true"
-            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
-              value: "true"
-            - name: OAUTH2_PROXY_EMAIL_DOMAINS
-              value: '*'
-          envFrom:
-            - secretRef:
-                name: radarr-standup-oauth-proxy
-          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
-          livenessProbe:
-            failureThreshold: 3
-            httpGet:
-              path: /ping
-              port: 4180
-            periodSeconds: 10
-            timeoutSeconds: 5
-          name: oauth
-          readinessProbe:
-            failureThreshold: 3
-            httpGet:
-              path: /ready
-              port: 4180
-            periodSeconds: 10
-            timeoutSeconds: 5
-          resources:
-            requests:
-              cpu: 1m
-              memory: 20Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            readOnlyRootFilesystem: true
-          volumeMounts:
-            - mountPath: /tmp
-              name: tmp
       volumes:
         - name: config
           persistentVolumeClaim:
@@ -163,5 +139,3 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: radarr-standup-nfs-storage
-        - emptyDir: {}
-          name: tmp
