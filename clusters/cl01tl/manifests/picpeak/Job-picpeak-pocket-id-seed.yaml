@@ -1,0 +1,95 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: picpeak-pocket-id-seed
+  namespace: picpeak
+  labels:
+    app.kubernetes.io/name: picpeak-pocket-id-seed
+    helm.sh/chart: pocket-id-client-0.5.1
+    app.kubernetes.io/instance: picpeak
+    app.kubernetes.io/part-of: picpeak
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-5"
+    "argocd.argoproj.io/hook": PreSync
+    "argocd.argoproj.io/hook-delete-policy": BeforeHookCreation,HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 120
+  backoffLimit: 3
+  template:
+    metadata:
+      name: picpeak-pocket-id-seed
+      labels:
+        app.kubernetes.io/name: picpeak-pocket-id-seed
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: pocket-id-seed
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: seed
+          image: "quay.io/openbao/openbao:2.7.2@sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f"
+          env:
+            - name: HOME
+              value: /home/vault
+            - name: VAULT_ADDR
+              value: "http://openbao-internal.openbao:8200"
+            - name: VAULT_ROLE
+              value: "pocket-id-seed"
+            - name: AUTH_PATH
+              value: "kubernetes"
+            - name: VAULT_MOUNT
+              value: "secret"
+            - name: SECRET_PATH
+              value: "/cl01tl/pocket-id/oidc/picpeak"
+            - name: CLIENT_ID
+              value: "B304CF41-9A6B-93A0-952A-6F6DF87BC2CE"
+            - name: MODE
+              value: "oidc"
+            - name: APP_NAME
+              value: "picpeak"
+          command:
+            - /bin/sh
+            - /scripts/seed.sh
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            limits:
+              memory: 64Mi
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts/seed.sh
+              subPath: seed.sh
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: home
+              mountPath: /home/vault
+      volumes:
+        - name: scripts
+          configMap:
+            name: picpeak-seed-scripts
+            defaultMode: 0755
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+        - name: home
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
