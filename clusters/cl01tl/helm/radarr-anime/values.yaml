@@ -24,9 +24,25 @@ radarr-anime:
             - name: PGID
               value: 1000
             - name: RADARR__AUTH__METHOD
-              value: "External"
+              value: "Oidc"
             - name: RADARR__AUTH__REQUIRED
               value: "DisabledForLocalAddresses"
+            - name: RADARR__AUTH__OIDCAUTHORITY
+              value: "https://auth.alexlebens.dev"
+            - name: RADARR__AUTH__OIDCCLIENTID
+              valueFrom:
+                secretKeyRef:
+                  name: radarr-anime-oidc-secret
+                  key: clientId
+            - name: RADARR__AUTH__OIDCCLIENTSECRET
+              valueFrom:
+                secretKeyRef:
+                  name: radarr-anime-oidc-secret
+                  key: clientSecret
+            - name: RADARR__AUTH__OIDCUSERIDENTIFIER
+              value: "alexanderlebens@gmail.com"
+            - name: RADARR__AUTH__OIDCSCOPES
+              value: "openid profile email"
           resources:
             requests:
               cpu: 10m
@@ -39,6 +55,9 @@ radarr-anime:
                 httpGet:
                   path: /ping
                   port: 7878
+                  httpHeaders:
+                    - name: Host
+                      value: localhost
             readiness:
               enabled: true
               custom: true
@@ -46,6 +65,9 @@ radarr-anime:
                 httpGet:
                   path: /ping
                   port: 7878
+                  httpHeaders:
+                    - name: Host
+                      value: localhost
             startup:
               enabled: true
               custom: true
@@ -53,6 +75,9 @@ radarr-anime:
                 httpGet:
                   path: /ping
                   port: 7878
+                  httpHeaders:
+                    - name: Host
+                      value: localhost
                 failureThreshold: 30
                 periodSeconds: 5
         metrics:
@@ -81,61 +106,6 @@ radarr-anime:
             requests:
               cpu: 1m
               memory: 30Mi
-        oauth:
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop:
-                - ALL
-          image:
-            repository: quay.io/oauth2-proxy/oauth2-proxy
-            tag: v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
-          envFrom:
-            - secretRef:
-                name: radarr-anime-oauth-proxy
-          env:
-            - name: OAUTH2_PROXY_HTTP_ADDRESS
-              value: 0.0.0.0:4180
-            - name: OAUTH2_PROXY_METRICS_ADDRESS
-              value: 0.0.0.0:44180
-            - name: OAUTH2_PROXY_UPSTREAMS
-              value: http://localhost:7878
-            - name: OAUTH2_PROXY_PROVIDER
-              value: oidc
-            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
-              value: "S256"
-            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
-              value: "true"
-            - name: OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL
-              value: "true"
-            - name: OAUTH2_PROXY_EMAIL_DOMAINS
-              value: "*"
-          resources:
-            requests:
-              cpu: 1m
-              memory: 20Mi
-          probes:
-            liveness:
-              enabled: true
-              custom: true
-              spec:
-                httpGet:
-                  path: /ping
-                  port: 4180
-                periodSeconds: 10
-                timeoutSeconds: 5
-                failureThreshold: 3
-            readiness:
-              enabled: true
-              custom: true
-              spec:
-                httpGet:
-                  path: /ready
-                  port: 4180
-                periodSeconds: 10
-                timeoutSeconds: 5
-                failureThreshold: 3
   service:
     main:
       forceRename: radarr-anime
@@ -145,10 +115,6 @@ radarr-anime:
           targetPort: 7878
         metrics:
           port: 9793
-        oauth:
-          port: 4180
-        oauth-metrics:
-          port: 44180
   serviceMonitor:
     main:
       serviceName: radarr-anime
@@ -156,7 +122,6 @@ radarr-anime:
         - port: metrics
           interval: 3m
           scrapeTimeout: 1m
-        - port: oauth-metrics
   route:
     main:
       kind: HTTPRoute
@@ -182,7 +147,7 @@ radarr-anime:
       rules:
         - backendRefs:
             - name: radarr-anime
-              port: 4180
+              port: 80
           matches:
             - path:
                 type: PathPrefix
@@ -206,18 +171,15 @@ radarr-anime:
         main:
           main:
             - path: /mnt/store
-    tmp:
-      type: emptyDir
-      advancedMounts:
-        main:
-          oauth:
-            - path: /tmp
 
 pocket-id-client:
+  mode: oidc
   client:
     displayName: "Radarr (Anime)"
     description: "A movie collection manager for Usenet and BitTorrent users (Anime)."
     clientID: B3263418-C0E8-43D2-8B60-B843C0F05D4D
+    callbackUrls:
+      - https://radarr-anime.alexlebens.dev/signin-oidc
     allowedUserGroups:
       - name: admin
         namespace: pocket-id-operator
