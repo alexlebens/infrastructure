@@ -49,6 +49,17 @@ spec:
               value: "1000"
             - name: PGID
               value: "1000"
+            - name: RADARR__APP__INSTANCENAME
+              value: Radarr
+            - name: RADARR__APP__THEME
+              value: dark
+            - name: RADARR__APP__LAUNCHBROWSER
+              value: "false"
+            - name: RADARR__AUTH__APIKEY
+              valueFrom:
+                secretKeyRef:
+                  key: key
+                  name: radarr-4k-key-secret
             - name: RADARR__AUTH__METHOD
               value: Oidc
             - name: RADARR__AUTH__REQUIRED
@@ -69,6 +80,52 @@ spec:
               value: alexanderlebens@gmail.com
             - name: RADARR__AUTH__OIDCSCOPES
               value: openid profile email
+            - name: RADARR__SERVER__BINDADDRESS
+              value: '*'
+            - name: RADARR__SERVER__PORT
+              value: "7878"
+            - name: RADARR__SERVER__SSLPORT
+              value: "9898"
+            - name: RADARR__SERVER__ENABLESSL
+              value: "false"
+            - name: RADARR__SERVER__URLBASE
+              value: ""
+            - name: RADARR__SERVER__ALLOWEDHOSTS
+              value: localhost;radarr-4k;radarr-4k.radarr-4k;radarr-4k.alexlebens.dev
+            - name: RADARR__SERVER__TRUSTEDNETWORKS
+              value: 10.244.0.0/16
+            - name: RADARR__POSTGRES__HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: radarr-4k-postgresql-18-cluster-app
+            - name: RADARR__POSTGRES__PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: radarr-4k-postgresql-18-cluster-app
+            - name: RADARR__POSTGRES__MAINDB
+              value: radarr-main
+            - name: RADARR__POSTGRES__LOGDB
+              value: radarr-log
+            - name: RADARR__POSTGRES__USER
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: radarr-4k-postgresql-18-cluster-app
+            - name: RADARR__POSTGRES__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: radarr-4k-postgresql-18-cluster-app
+            - name: RADARR__LOG__LEVEL
+              value: debug
+            - name: RADARR__LOG__ANALYTICSENABLED
+              value: "false"
+            - name: RADARR__UPDATE__MECHANISM
+              value: Docker
+            - name: RADARR__UPDATE__BRANCH
+              value: master
           image: ghcr.io/linuxserver/radarr:7.0.3.10918-ls328@sha256:044788f5508b7f67a3e0368cdd142c77c4d4cd5aec2efaba53e1a68b6b6231e7
           livenessProbe:
             httpGet:
@@ -107,11 +164,14 @@ spec:
             - radarr
           env:
             - name: URL
-              value: http://localhost
-            - name: CONFIG
-              value: /config/config.xml
+              value: http://localhost:7878
             - name: PORT
               value: "9793"
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  key: key
+                  name: radarr-4k-key-secret
             - name: ENABLE_ADDITIONAL_METRICS
               value: "false"
             - name: ENABLE_UNKNOWN_QUEUE_ITEMS
@@ -128,10 +188,6 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
-          volumeMounts:
-            - mountPath: /config
-              name: config
-              readOnly: true
       volumes:
         - name: config
           persistentVolumeClaim:
