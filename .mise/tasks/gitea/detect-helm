@@ -53,11 +53,24 @@ BASE_BRANCH="${BASE_BRANCH:-origin/main}"
 EVENT_NAME="${EVENT_NAME:-${GITHUB_EVENT_NAME:-pull_request}}"
 EVENT_BEFORE="${EVENT_BEFORE:-}"
 STATE_FILE="${STATE_FILE:-}"
+# shellcheck disable=SC2088
+case "${STATE_FILE}" in
+  '~/'*) STATE_FILE="${HOME}/${STATE_FILE#\~/}" ;;
+esac
 CHART_TOOLING_HASH="${CHART_TOOLING_HASH:-}"
 SCRIPT_TOOLING_HASH="${SCRIPT_TOOLING_HASH:-}"
 GITHUB_OUTPUT="${GITHUB_OUTPUT:-}"
 
 echo ">> Target branch for diff is: ${BASE_BRANCH}"
+if [ -n "${STATE_FILE}" ]; then
+  if [ -f "${STATE_FILE}" ]; then
+    cached_charts=$(jq -r '(.charts // {}) | length' "${STATE_FILE}" 2>/dev/null || echo 0)
+    cached_scripts=$(jq -r '(.scripts // {}) | length' "${STATE_FILE}" 2>/dev/null || echo 0)
+    echo ">> State cache: loaded ${cached_charts} chart(s) and ${cached_scripts} script suite(s) from ${STATE_FILE}"
+  else
+    echo ">> State cache: no prior state file at ${STATE_FILE}"
+  fi
+fi
 
 # Resolve diff target using shared helper
 # shellcheck source=../../lib/resolve-diff-target.sh

@@ -1,0 +1,318 @@
+picpeak:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          fsGroup: 1001
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: picpeak/aio
+            tag: 3.135.15@sha256:4c2e8bff646a4209d7c795501892a5be3348b0cbf9d7967a8bec90b376c25ede
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: NODE_ENV
+              value: production
+            - name: NODE_OPTIONS
+              value: --require /app/picpeak-init.js
+            - name: TRUST_PROXY
+              value: "1"
+            - name: COOKIE_SECURE
+              value: "true"
+            - name: ENABLE_HSTS
+              value: "true"
+            - name: FRONTEND_URL
+              value: https://pictures.alexlebens.dev
+            - name: ADMIN_URL
+              value: https://pictures.alexlebens.dev
+            - name: UPDATE_CHECK_ENABLED
+              value: "false"
+            - name: DATABASE_CLIENT
+              value: pg
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: picpeak-postgresql-18-cluster-app
+                  key: host
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: picpeak-postgresql-18-cluster-app
+                  key: port
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: picpeak-postgresql-18-cluster-app
+                  key: dbname
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: picpeak-postgresql-18-cluster-app
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: picpeak-postgresql-18-cluster-app
+                  key: password
+            - name: STORAGE_BACKEND
+              value: s3
+            - name: STORAGE_S3_BUCKET
+              value: picpeak-assets
+            - name: STORAGE_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: picpeak-assets-secret
+                  key: endpoint
+            - name: STORAGE_S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: picpeak-assets-secret
+                  key: region
+            - name: STORAGE_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: picpeak-assets-secret
+                  key: AWS_ACCESS_KEY_ID
+            - name: STORAGE_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: picpeak-assets-secret
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: STORAGE_S3_FORCE_PATH_STYLE
+              value: "true"
+            - name: STORAGE_S3_SSL
+              value: "false"
+            - name: EXTERNAL_MEDIA_ROOT
+              value: /mnt
+            - name: EXTERNAL_MEDIA_WATCH
+              value: "true"
+            - name: EXTERNAL_MEDIA_WATCH_POLLING
+              value: "true"
+            - name: SMTP_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: SMTP_PORT
+              value: "25"
+            - name: SMTP_SECURE
+              value: "false"
+            - name: EMAIL_FROM
+              value: picpeak@alexlebens.dev
+            - name: MAIL_PRIVATE_ENDPOINTS
+              value: smtp://postfix.postfix.svc.cluster.local:25
+            - name: INTEGRATION_PRIVATE_ORIGINS
+              value: https://auth.alexlebens.dev,https://rybbit.alexlebens.dev,http://n8n-main.n8n:5678,https://n8n.alexlebens.dev
+            - name: WEBHOOK_ALLOW_PRIVATE_URLS
+              value: "true"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 200Mi
+          probes:
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 10
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 30
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 3000
+                periodSeconds: 30
+                timeoutSeconds: 10
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 3000
+                periodSeconds: 15
+                timeoutSeconds: 10
+                failureThreshold: 3
+  service:
+    main:
+      forceRename: picpeak
+      ports:
+        http:
+          port: 80
+          targetPort: 3000
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Pictures"
+        gethomepage.dev/description: "PicPeak"
+        gethomepage.dev/group: "Media"
+        gethomepage.dev/icon: "sh-picpeak.webp"
+        gethomepage.dev/siteMonitor: "http://picpeak.picpeak:80/health"
+        gethomepage.dev/weight: "350"
+        gethomepage.dev/pod-selector: ""
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - pictures.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: picpeak
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    config:
+      type: configMap
+      name: picpeak-config
+      advancedMounts:
+        main:
+          main:
+            - path: /app/picpeak-init.js
+              subPath: picpeak-init.js
+              readOnly: true
+    data:
+      forceRename: picpeak
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /data
+            - path: /app/data
+              subPath: db
+    external-media:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt
+    artists:
+      existingClaim: picpeak-artists-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/Artists
+              readOnly: true
+    museums:
+      existingClaim: picpeak-museums-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/Museums
+              readOnly: true
+    pictures:
+      existingClaim: picpeak-pictures-nfs-storage
+      advancedMounts:
+        main:
+          main:
+            - path: /mnt/Pictures
+              readOnly: true
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "PicPeak"
+    description: "Open-source, self-hosted photo sharing and event gallery platform."
+    launchUrl: https://pictures.alexlebens.dev
+    callbackUrls:
+      - https://pictures.alexlebens.dev/api/auth/admin/sso/callback
+      - https://pictures.alexlebens.dev/admin/login
+  seedJob:
+    enabled: true
+
+postgres-18-cluster:
+  mode: standalone
+  cluster:
+    resources:
+      requests:
+        cpu: 15m
+        memory: 128Mi
+  recovery:
+    objectStore:
+      index: 1
+  backup:
+    objectStore:
+      index: 1
+    scheduledBackups:
+      suspend: false
+      schedule: "0 30 6 * * *"
+
+s3-bucket:
+  enabled: true
+  bucketName: picpeak-assets
+  target: garage-b
+  backups:
+    a:
+      enabled: true
+      schedule: "45 3 * * *"
+      destination:
+        bucketName: picpeak-assets
+    c:
+      enabled: true
+      schedule: "35 2 * * 5"
+      destination:
+        bucketName: picpeak-assets
+    d:
+      enabled: true
+      schedule: "5 2 * * 5"
+      destination:
+        bucketName: picpeak-assets-51a1e993b4751c36
+      lifecycle:
+        disableVersioning: true
+        daysFromHidingToDeleting: 7
+
+volsync-target-data:
+  pvcTarget: picpeak
+  moverSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+    fsGroupChangePolicy: OnRootMismatch
+  a:
+    enabled: true
+    schedule: "25 10 * * *"
+  c:
+    enabled: true
+    schedule: "55 10 * * 0"
+  d:
+    enabled: true
+    schedule: "55 9 * * 0"
+
+common-helpers:
+  probe:
+    internal: http://picpeak.picpeak:80/health
+    external: https://pictures.alexlebens.dev/health
