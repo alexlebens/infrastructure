@@ -36,7 +36,7 @@ jobs:
       - name: Restore Passed Chart State
         uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
         with:
-          path: ~/.cache/chart-pass-state
+          path: ${{ runner.temp }}/chart-pass-state
           key:
             chart-pass-state-v1-${{ env.CLUSTER }}-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}-${{
             github.run_attempt }}
@@ -53,7 +53,7 @@ jobs:
           BASE_BRANCH: ${{ env.BASE_BRANCH }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_BEFORE: ${{ github.event.before }}
-          STATE_FILE: ~/.cache/chart-pass-state/state.json
+          STATE_FILE: ${{ runner.temp }}/chart-pass-state/state.json
           CHART_TOOLING_HASH: >-
             ${{ hashFiles('.mise/lib/helm.sh', '.mise/tasks/helm/**', '.mise/tasks/check/**',
             '.mise/tasks/gitea/argocd-diff', '.mise/tasks/gitea/harbor-warm') }}
@@ -382,7 +382,7 @@ jobs:
       - name: Restore Passed Chart State
         uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
         with:
-          path: ~/.cache/chart-pass-state
+          path: ${{ runner.temp }}/chart-pass-state
           key:
             chart-pass-state-v1-${{ env.CLUSTER }}-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}-${{
             github.run_attempt }}
@@ -394,7 +394,7 @@ jobs:
         continue-on-error: true
         with:
           pattern: pass-*
-          path: ~/.cache/chart-pass-artifacts
+          path: ${{ runner.temp }}/chart-pass-artifacts
           merge-multiple: true
 
       - name: Update Passed Chart State
@@ -405,15 +405,15 @@ jobs:
             '.mise/tasks/gitea/argocd-diff', '.mise/tasks/gitea/harbor-warm') }}
           SCRIPT_TOOLING_HASH: ${{ hashFiles('.mise/tasks/check/bash', '.mise/tasks/check/python') }}
         run: |
-          mkdir -p ~/.cache/chart-pass-state
-          state_file=~/.cache/chart-pass-state/state.json
+          mkdir -p "${RUNNER_TEMP}/chart-pass-state"
+          state_file="${RUNNER_TEMP}/chart-pass-state/state.json"
           if [ ! -f "${state_file}" ] || ! jq empty "${state_file}" 2>/dev/null; then
             echo '{"charts":{},"scripts":{}}' > "${state_file}"
           fi
 
           updated=false
           shopt -s nullglob
-          for marker in ~/.cache/chart-pass-artifacts/chart-*.pass; do
+          for marker in "${RUNNER_TEMP}/chart-pass-artifacts"/chart-*.pass; do
             chart=$(basename "${marker}" .pass)
             chart="${chart#chart-}"
             tree_sha=$(tr -d '[:space:]' < "${marker}")
@@ -423,7 +423,7 @@ jobs:
             updated=true
           done
 
-          for marker in ~/.cache/chart-pass-artifacts/script-*.pass; do
+          for marker in "${RUNNER_TEMP}/chart-pass-artifacts"/script-*.pass; do
             chart=$(basename "${marker}" .pass)
             chart="${chart#script-}"
             tree_sha=$(tr -d '[:space:]' < "${marker}")
@@ -440,7 +440,7 @@ jobs:
         if: steps.update-state.outputs.updated == 'true'
         uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
         with:
-          path: ~/.cache/chart-pass-state
+          path: ${{ runner.temp }}/chart-pass-state
           key:
             chart-pass-state-v1-${{ env.CLUSTER }}-${{ github.head_ref || github.ref_name }}-${{ github.run_id }}-${{
             github.run_attempt }}
