@@ -1,0 +1,410 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lychee
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: lychee
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: lychee
+    helm.sh/chart: lychee-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
+  namespace: lychee
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/instance: lychee
+      app.kubernetes.io/name: lychee
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: lychee
+        app.kubernetes.io/name: lychee
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: lychee
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 33
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 33
+        runAsNonRoot: true
+        runAsUser: 33
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - args:
+            - |
+              if [ ! -s /app/storage/app.key ]; then
+                php artisan key:generate --show > /app/storage/app.key
+              fi
+              export APP_KEY="$(cat /app/storage/app.key)"
+              mkdir -p /app/storage/framework/cache /app/storage/framework/sessions /app/storage/framework/views /app/storage/logs
+              php artisan migrate --force
+              php artisan config:cache
+              php artisan route:cache
+              php artisan view:cache
+              exec php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8000
+          command:
+            - /bin/sh
+            - -c
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: PHP_TZ
+              value: America/Chicago
+            - name: APP_NAME
+              value: Lychee
+            - name: APP_ENV
+              value: production
+            - name: APP_DEBUG
+              value: "false"
+            - name: APP_URL
+              value: https://pictures.alexlebens.dev
+            - name: APP_FORCE_HTTPS
+              value: "true"
+            - name: TRUSTED_PROXIES
+              value: '*'
+            - name: DB_CONNECTION
+              value: pgsql
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: lychee-postgresql-18-cluster-app
+            - name: CACHE_STORE
+              value: redis
+            - name: SESSION_DRIVER
+              value: redis
+            - name: QUEUE_CONNECTION
+              value: redis
+            - name: LOG_VIEWER_CACHE_DRIVER
+              value: file
+            - name: REDIS_HOST
+              value: lychee-valkey.lychee
+            - name: REDIS_PORT
+              value: "6379"
+            - name: S3_ENABLED
+              value: "true"
+            - name: AWS_BUCKET
+              value: lychee-assets
+            - name: AWS_ENDPOINT
+              value: https://b.s3.alexlebens.dev
+            - name: AWS_USE_PATH_STYLE_ENDPOINT
+              value: "true"
+            - name: AWS_IMAGE_VISIBILITY
+              value: private
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: region
+                  name: lychee-assets-secret
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_ACCESS_KEY_ID
+                  name: lychee-assets-secret
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_SECRET_ACCESS_KEY
+                  name: lychee-assets-secret
+            - name: MAIL_MAILER
+              value: smtp
+            - name: MAIL_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: MAIL_PORT
+              value: "587"
+            - name: MAIL_FROM_ADDRESS
+              value: lychee@alexlebens.dev
+            - name: MAIL_FROM_NAME
+              value: Lychee
+            - name: POCKETID_BASE_URL
+              value: https://auth.alexlebens.dev
+            - name: POCKETID_REDIRECT_URI
+              value: /auth/pocketid/redirect
+            - name: POCKETID_USE_PKCE
+              value: "true"
+            - name: POCKETID_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: lychee-oidc-secret
+            - name: POCKETID_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: lychee-oidc-secret
+            - name: XDG_DATA_HOME
+              value: /data
+            - name: XDG_CONFIG_HOME
+              value: /config
+          image: ghcr.io/lycheeorg/lychee:v7.13.0@sha256:bcf5759bd44d23257e79556e8c90e6d23fb6eca8b5e89c685542ac48e6cd2ea8
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 8000
+            periodSeconds: 30
+            timeoutSeconds: 10
+          name: main
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 8000
+            periodSeconds: 15
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 200Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - mountPath: /mnt/Artists
+              name: artists
+              readOnly: true
+            - mountPath: /app/bootstrap/cache
+              name: bootstrap-cache
+            - mountPath: /app/storage
+              name: data
+              subPath: storage
+            - mountPath: /app/public/uploads
+              name: data
+              subPath: uploads
+            - mountPath: /mnt
+              name: external-media
+            - mountPath: /config
+              name: frankenphp-config
+            - mountPath: /data
+              name: frankenphp-data
+            - mountPath: /mnt/Museums
+              name: museums
+              readOnly: true
+            - mountPath: /mnt/Pictures
+              name: pictures
+              readOnly: true
+            - mountPath: /tmp
+              name: tmp
+        - args:
+            - |
+              until [ -s /app/storage/app.key ]; do sleep 2; done
+              export APP_KEY="$(cat /app/storage/app.key)"
+              until php artisan migrate:status 2>/dev/null | grep -vq "Pending"; do sleep 5; done
+              exec php artisan queue:work --queue=high,default,low --tries=3 --timeout=3600 --sleep=3 --max-time=3600
+          command:
+            - /bin/sh
+            - -c
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: PHP_TZ
+              value: America/Chicago
+            - name: APP_NAME
+              value: Lychee
+            - name: APP_ENV
+              value: production
+            - name: APP_DEBUG
+              value: "false"
+            - name: APP_URL
+              value: https://pictures.alexlebens.dev
+            - name: APP_FORCE_HTTPS
+              value: "true"
+            - name: TRUSTED_PROXIES
+              value: '*'
+            - name: DB_CONNECTION
+              value: pgsql
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: lychee-postgresql-18-cluster-app
+            - name: CACHE_STORE
+              value: redis
+            - name: SESSION_DRIVER
+              value: redis
+            - name: QUEUE_CONNECTION
+              value: redis
+            - name: LOG_VIEWER_CACHE_DRIVER
+              value: file
+            - name: REDIS_HOST
+              value: lychee-valkey.lychee
+            - name: REDIS_PORT
+              value: "6379"
+            - name: S3_ENABLED
+              value: "true"
+            - name: AWS_BUCKET
+              value: lychee-assets
+            - name: AWS_ENDPOINT
+              value: https://b.s3.alexlebens.dev
+            - name: AWS_USE_PATH_STYLE_ENDPOINT
+              value: "true"
+            - name: AWS_IMAGE_VISIBILITY
+              value: private
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: region
+                  name: lychee-assets-secret
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_ACCESS_KEY_ID
+                  name: lychee-assets-secret
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_SECRET_ACCESS_KEY
+                  name: lychee-assets-secret
+            - name: MAIL_MAILER
+              value: smtp
+            - name: MAIL_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: MAIL_PORT
+              value: "587"
+            - name: MAIL_FROM_ADDRESS
+              value: lychee@alexlebens.dev
+            - name: MAIL_FROM_NAME
+              value: Lychee
+            - name: POCKETID_BASE_URL
+              value: https://auth.alexlebens.dev
+            - name: POCKETID_REDIRECT_URI
+              value: /auth/pocketid/redirect
+            - name: POCKETID_USE_PKCE
+              value: "true"
+            - name: POCKETID_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: lychee-oidc-secret
+            - name: POCKETID_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: lychee-oidc-secret
+            - name: XDG_DATA_HOME
+              value: /data
+            - name: XDG_CONFIG_HOME
+              value: /config
+          image: ghcr.io/lycheeorg/lychee:v7.13.0@sha256:bcf5759bd44d23257e79556e8c90e6d23fb6eca8b5e89c685542ac48e6cd2ea8
+          name: worker
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /mnt/Artists
+              name: artists
+              readOnly: true
+            - mountPath: /app/bootstrap/cache
+              name: bootstrap-cache
+            - mountPath: /app/storage
+              name: data
+              subPath: storage
+            - mountPath: /app/public/uploads
+              name: data
+              subPath: uploads
+            - mountPath: /mnt
+              name: external-media
+            - mountPath: /mnt/Museums
+              name: museums
+              readOnly: true
+            - mountPath: /mnt/Pictures
+              name: pictures
+              readOnly: true
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - name: artists
+          persistentVolumeClaim:
+            claimName: lychee-artists-nfs-storage
+        - emptyDir: {}
+          name: bootstrap-cache
+        - name: data
+          persistentVolumeClaim:
+            claimName: lychee
+        - emptyDir: {}
+          name: external-media
+        - emptyDir: {}
+          name: frankenphp-config
+        - emptyDir: {}
+          name: frankenphp-data
+        - name: museums
+          persistentVolumeClaim:
+            claimName: lychee-museums-nfs-storage
+        - name: pictures
+          persistentVolumeClaim:
+            claimName: lychee-pictures-nfs-storage
+        - emptyDir: {}
+          name: tmp
