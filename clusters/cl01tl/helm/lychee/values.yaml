@@ -52,11 +52,11 @@ lychee:
             - -c
           args:
             - |
-              if [ ! -s /app/storage/app.key ]; then
-                php artisan key:generate --show > /app/storage/app.key
+              mkdir -p /app/storage/framework/cache /app/storage/framework/sessions /app/storage/framework/views /app/storage/logs
+              if ! grep -q '^base64:' /app/storage/app.key 2>/dev/null; then
+                printf 'base64:%s\n' "$(openssl rand -base64 32)" > /app/storage/app.key
               fi
               export APP_KEY="$(cat /app/storage/app.key)"
-              mkdir -p /app/storage/framework/cache /app/storage/framework/sessions /app/storage/framework/views /app/storage/logs
               php artisan migrate --force
               php artisan config:cache
               php artisan route:cache
@@ -224,7 +224,7 @@ lychee:
             - -c
           args:
             - |
-              until [ -s /app/storage/app.key ]; do sleep 2; done
+              until grep -q '^base64:' /app/storage/app.key 2>/dev/null; do sleep 2; done
               export APP_KEY="$(cat /app/storage/app.key)"
               until php artisan migrate:status 2>/dev/null | grep -vq "Pending"; do sleep 5; done
               exec php artisan queue:work --queue=high,default,low --tries=3 --timeout=3600 --sleep=3 --max-time=3600
