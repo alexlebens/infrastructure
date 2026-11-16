@@ -29,6 +29,11 @@ radarr:
               value: "dark"
             - name: RADARR__APP__LAUNCHBROWSER
               value: "false"
+            - name: RADARR__AUTH__APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: radarr-key-secret
+                  key: key
             - name: RADARR__AUTH__METHOD
               value: "Oidc"
             - name: RADARR__AUTH__REQUIRED
@@ -145,11 +150,14 @@ radarr:
           args: ["radarr"]
           env:
             - name: URL
-              value: http://localhost
-            - name: CONFIG
-              value: /config/config.xml
+              value: http://localhost:7878
             - name: PORT
               value: 9793
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: radarr-key-secret
+                  key: key
             - name: ENABLE_ADDITIONAL_METRICS
               value: false
             - name: ENABLE_UNKNOWN_QUEUE_ITEMS
@@ -214,9 +222,6 @@ radarr:
         main:
           main:
             - path: /config
-          metrics:
-            - path: /config
-              readOnly: true
     media:
       existingClaim: radarr-nfs-storage
       advancedMounts:
