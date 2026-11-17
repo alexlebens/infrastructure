@@ -1,0 +1,343 @@
+pricebuddy:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          image:
+            repository: jez500/pricebuddy
+            tag: v1.0.57@sha256:94259d62bc6b8f5b02313343eda8a99dca1f3d05c96de228f726580fef208a6f
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: APP_URL
+              value: https://pricebuddy.alexlebens.dev
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-secret
+                  key: app-key
+            - name: APP_USER_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-secret
+                  key: admin-email
+            - name: APP_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-secret
+                  key: admin-password
+            - name: DB_CONNECTION
+              value: mysql
+            - name: DB_HOST
+              value: pricebuddy-mariadb-cluster-primary.pricebuddy
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_DATABASE
+              value: pricebuddy
+            - name: DB_USERNAME
+              value: pricebuddy
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-database-secret
+                  key: password
+            - name: SCRAPER_BASE_URL
+              value: http://pricebuddy-scraper.pricebuddy:3000
+            - name: OPENAI_URL
+              value: http://ai-gateway.ai-gateway:8080/v1
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-ai-gateway
+                  key: apiKey
+            - name: TRUSTED_PROXIES
+              value: "*"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 200Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+                failureThreshold: 5
+                periodSeconds: 10
+                timeoutSeconds: 5
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+                failureThreshold: 5
+                periodSeconds: 10
+                timeoutSeconds: 5
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 80
+                failureThreshold: 30
+                periodSeconds: 5
+                timeoutSeconds: 5
+    scraper:
+      type: deployment
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        scraper:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: jez500/seleniumbase-scrapper
+            tag: v1.0.1@sha256:e3030d4545a66b40ad0e77b046a2e794efdc6c5274bbb5c80e35a61841fb8bbc
+          env:
+            - name: TZ
+              value: America/Chicago
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 3000
+                failureThreshold: 5
+                periodSeconds: 10
+                timeoutSeconds: 5
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 3000
+                failureThreshold: 5
+                periodSeconds: 10
+                timeoutSeconds: 5
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 3000
+                failureThreshold: 30
+                periodSeconds: 5
+                timeoutSeconds: 5
+  service:
+    main:
+      forceRename: pricebuddy
+      controller: main
+      ports:
+        http:
+          port: 80
+    scraper:
+      forceRename: pricebuddy-scraper
+      controller: scraper
+      ports:
+        http:
+          port: 3000
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Price Tracking"
+        gethomepage.dev/description: "PriceBuddy"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "sh-pricebuddy.webp"
+        gethomepage.dev/siteMonitor: "http://pricebuddy.pricebuddy:80"
+        gethomepage.dev/weight: "400"
+        gethomepage.dev/pod-selector: ""
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - pricebuddy.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: pricebuddy
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    storage:
+      forceRename: pricebuddy-storage
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /app/storage
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+    shm:
+      type: emptyDir
+      medium: Memory
+      sizeLimit: 1Gi
+      advancedMounts:
+        scraper:
+          scraper:
+            - path: /dev/shm
+
+mariadb-cluster:
+  mariadb:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 200Mi
+    rootPasswordSecretKeyRef:
+      name: pricebuddy-database-secret
+      key: password
+      generate: false
+    storage:
+      size: 5Gi
+    startupProbe:
+      failureThreshold: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+    bootstrapFrom:
+      s3:
+        bucket: mariadb-backups
+        prefix: cl01tl/pricebuddy
+        endpoint: a.s3.alexlebens.dev
+        region: garage
+        accessKeyIdSecretKeyRef:
+          name: pricebuddy-mariadb-cluster-backup-secret-a
+          key: access
+        secretAccessKeySecretKeyRef:
+          name: pricebuddy-mariadb-cluster-backup-secret-a
+          key: secret
+        tls:
+          enabled: true
+      backupContentType: Physical
+  databases:
+    - name: pricebuddy
+      characterSet: utf8mb4
+      collate: utf8mb4_unicode_ci
+  users:
+    - name: pricebuddy
+      passwordSecretKeyRef:
+        name: pricebuddy-database-secret
+        key: password
+      host: "%"
+  grants:
+    - name: pricebuddy
+      privileges:
+        - "ALL PRIVILEGES"
+      database: "pricebuddy"
+      table: "*"
+      username: pricebuddy
+      grantOption: true
+      host: "%"
+  physicalBackups:
+    - name: backup-a
+      schedule:
+        cron: "0 0 * * *"
+        suspend: false
+        immediate: true
+      compression: gzip
+      maxRetention: 360h
+      successfulJobsHistoryLimit: 1
+      storage:
+        s3:
+          bucket: mariadb-backups
+          prefix: cl01tl/pricebuddy
+          endpoint: a.s3.alexlebens.dev
+          region: garage
+          accessKeyIdSecretKeyRef:
+            name: pricebuddy-mariadb-cluster-backup-secret-a
+            key: access
+          secretAccessKeySecretKeyRef:
+            name: pricebuddy-mariadb-cluster-backup-secret-a
+            key: secret
+          tls:
+            enabled: true
+    - name: backup-c
+      schedule:
+        cron: "0 0 * * 0"
+        suspend: false
+        immediate: true
+      compression: gzip
+      maxRetention: 2160h
+      successfulJobsHistoryLimit: 1
+      storage:
+        s3:
+          bucket: mariadb-backups
+          prefix: cl01tl/pricebuddy
+          endpoint: c.s3.alexlebens.dev
+          region: garage
+          accessKeyIdSecretKeyRef:
+            name: pricebuddy-mariadb-cluster-backup-secret-c
+            key: access
+          secretAccessKeySecretKeyRef:
+            name: pricebuddy-mariadb-cluster-backup-secret-c
+            key: secret
+          tls:
+            enabled: true
+    - name: backup-d
+      schedule:
+        cron: "0 0 * * 6"
+        suspend: false
+        immediate: true
+      compression: gzip
+      maxRetention: 2160h
+      successfulJobsHistoryLimit: 1
+      storage:
+        s3:
+          bucket: mariadb-backups-6e3b78870f7af040
+          prefix: cl01tl/pricebuddy
+          endpoint: s3.us-east-005.backblazeb2.com
+          region: us-east-005
+          accessKeyIdSecretKeyRef:
+            name: pricebuddy-mariadb-cluster-backup-secret-d
+            key: access
+          secretAccessKeySecretKeyRef:
+            name: pricebuddy-mariadb-cluster-backup-secret-d
+            key: secret
+          tls:
+            enabled: true
+
+volsync-target-storage:
+  pvcTarget: pricebuddy-storage
+  a:
+    enabled: true
+    schedule: 45 10 * * *
+  c:
+    enabled: true
+    schedule: 45 12 * * 0
+  d:
+    enabled: true
+    schedule: 45 11 * * 0
+
+common-helpers:
+  probe:
+    internal: http://pricebuddy.pricebuddy:80
+    external: https://pricebuddy.alexlebens.dev
