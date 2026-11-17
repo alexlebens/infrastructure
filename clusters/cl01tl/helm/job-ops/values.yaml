@@ -1,0 +1,210 @@
+job-ops:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: ghcr.io/dakheera47/job-ops
+            tag: v0.14.0@sha256:4e94e734b03030a6299b4562d9d52b21185d7e3b797342bb30926039dfc92ab1
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3001"
+            - name: TZ
+              value: America/Chicago
+            - name: PYTHON_PATH
+              value: /usr/bin/python3
+            - name: CODEX_HOME
+              value: /app/codex-home
+            - name: JOBOPS_PUBLIC_BASE_URL
+              value: https://job-ops.alexlebens.dev
+            - name: LLM_PROVIDER
+              value: openai_compatible
+            - name: LLM_BASE_URL
+              value: http://ai-gateway.ai-gateway:8080/v1
+            - name: MODEL
+              value: gemma4
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: job-ops-ai-gateway
+                  key: apiKey
+            - name: RXRESUME_URL
+              value: http://reactive-resume.reactive-resume:80
+            - name: RXRESUME_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: job-ops-secret
+                  key: rxresume-api-key
+            - name: GMAIL_OAUTH_REDIRECT_URI
+              value: https://job-ops.alexlebens.dev/oauth/gmail/callback
+            - name: GMAIL_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: job-ops-secret
+                  key: gmail-oauth-client-id
+            - name: GMAIL_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: job-ops-secret
+                  key: gmail-oauth-client-secret
+            - name: SSO_REDIRECT_BASE_URL
+              value: https://job-ops.alexlebens.dev
+            - name: SSO_OIDC_ISSUER_URL
+              value: https://auth.alexlebens.dev
+            - name: SSO_OIDC_DISPLAY_NAME
+              value: AlexAuth
+            - name: SSO_OIDC_ALLOW_SIGNUP
+              value: "true"
+            - name: SSO_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: job-ops-oidc-secret
+                  key: clientId
+            - name: SSO_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: job-ops-oidc-secret
+                  key: clientSecret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 500Mi
+          probes:
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 3001
+                initialDelaySeconds: 10
+                periodSeconds: 5
+                failureThreshold: 30
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 3001
+                periodSeconds: 30
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /health
+                  port: 3001
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+  service:
+    main:
+      forceRename: job-ops
+      ports:
+        http:
+          port: 80
+          targetPort: 3001
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Job Ops"
+        gethomepage.dev/description: "Job Hunting Pipeline"
+        gethomepage.dev/group: "Applications"
+        gethomepage.dev/icon: "mdi-briefcase-search"
+        gethomepage.dev/siteMonitor: "http://job-ops.job-ops:80/health"
+        gethomepage.dev/weight: "450"
+        gethomepage.dev/pod-selector: ""
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - job-ops.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: job-ops
+              port: 80
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    data:
+      forceRename: job-ops-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /app/data
+    codex-home:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /app/codex-home
+    tectonic-cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /root/.cache/Tectonic
+    npm-cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /root/.npm
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+
+pocket-id-client:
+  mode: oidc
+  client:
+    displayName: "Job Ops"
+    description: "Self-hosted job application management and pipeline tool."
+    launchUrl: https://job-ops.alexlebens.dev
+    callbackUrls:
+      - https://job-ops.alexlebens.dev/sso/callback/oidc
+  seedJob:
+    enabled: true
+
+volsync-target-data:
+  pvcTarget: job-ops-data
+  a:
+    enabled: true
+    schedule: 25 8 * * *
+  c:
+    enabled: true
+    schedule: 35 10 * * 4
+  d:
+    enabled: true
+    schedule: 35 9 * * 4
+
+common-helpers:
+  probe:
+    internal: http://job-ops.job-ops:80/health
+    external: https://job-ops.alexlebens.dev
