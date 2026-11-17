@@ -1,0 +1,124 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pricebuddy-main
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: pricebuddy
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: pricebuddy
+    helm.sh/chart: pricebuddy-5.3.0
+  namespace: pricebuddy
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/instance: pricebuddy
+      app.kubernetes.io/name: pricebuddy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: pricebuddy
+        app.kubernetes.io/name: pricebuddy
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: pricebuddy
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: APP_URL
+              value: https://pricebuddy.alexlebens.dev
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: app-key
+                  name: pricebuddy-secret
+            - name: APP_USER_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  key: admin-email
+                  name: pricebuddy-secret
+            - name: APP_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: admin-password
+                  name: pricebuddy-secret
+            - name: DB_CONNECTION
+              value: mysql
+            - name: DB_HOST
+              value: pricebuddy-mariadb-cluster-primary.pricebuddy
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_DATABASE
+              value: pricebuddy
+            - name: DB_USERNAME
+              value: pricebuddy
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: pricebuddy-database-secret
+            - name: SCRAPER_BASE_URL
+              value: http://pricebuddy-scraper.pricebuddy:3000
+            - name: OPENAI_URL
+              value: http://ai-gateway.ai-gateway:8080/v1
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: apiKey
+                  name: pricebuddy-ai-gateway
+            - name: TRUSTED_PROXIES
+              value: '*'
+          image: jez500/pricebuddy:v1.0.57@sha256:94259d62bc6b8f5b02313343eda8a99dca1f3d05c96de228f726580fef208a6f
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: main
+          readinessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 200Mi
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 5
+            timeoutSeconds: 5
+          volumeMounts:
+            - mountPath: /app/storage
+              name: storage
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: pricebuddy-storage
+        - emptyDir: {}
+          name: tmp

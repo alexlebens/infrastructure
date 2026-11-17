@@ -1,0 +1,45 @@
+---
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: MariaDB
+metadata:
+  name: pricebuddy-mariadb-cluster
+  namespace: pricebuddy
+  labels:
+    helm.sh/chart: mariadb-cluster-26.10.2
+    app.kubernetes.io/name: mariadb-cluster
+    app.kubernetes.io/instance: pricebuddy
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  bootstrapFrom:
+    backupContentType: Physical
+    s3:
+      accessKeyIdSecretKeyRef:
+        key: access
+        name: pricebuddy-mariadb-cluster-backup-secret-a
+      bucket: mariadb-backups
+      endpoint: a.s3.alexlebens.dev
+      prefix: cl01tl/pricebuddy
+      region: garage
+      secretAccessKeySecretKeyRef:
+        key: secret
+        name: pricebuddy-mariadb-cluster-backup-secret-a
+      tls:
+        enabled: true
+  galera:
+    enabled: true
+  replicas: 3
+  resources:
+    requests:
+      cpu: 5m
+      memory: 200Mi
+  rootPasswordSecretKeyRef:
+    generate: false
+    key: password
+    name: pricebuddy-database-secret
+  startupProbe:
+    failureThreshold: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+  storage:
+    size: 5Gi
