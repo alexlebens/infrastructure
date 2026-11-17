@@ -1,0 +1,30 @@
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: FlowSchema
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}
+    {{- include "custom.labels" . | nindent 4 }}
+spec:
+  distinguisherMethod:
+    type: ByUser
+  matchingPrecedence: 800
+  priorityLevelConfiguration:
+    name: {{ .Release.Name }}
+  rules:
+    - resourceRules:
+        - apiGroups:
+            - "*"
+          clusterScope: true
+          namespaces:
+            - "*"
+          resources:
+            - "*"
+          verbs:
+            - get
+            - list
+      subjects:
+        - kind: ServiceAccount
+          serviceAccount:
+            name: homepage
+            namespace: {{ .Release.Namespace }}
