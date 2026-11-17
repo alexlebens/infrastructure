@@ -149,6 +149,10 @@ lychee:
               value: /data
             - name: XDG_CONFIG_HOME
               value: /config
+            - name: SYNC_DAY
+              value: daily
+            - name: SYNC_TIME
+              value: "04:00"
           resources:
             requests:
               cpu: 50m
@@ -228,7 +232,7 @@ lychee:
               export APP_KEY="$(cat /app/storage/app.key)"
               until php artisan migrate:status 2>/dev/null | grep -vq "Pending"; do sleep 5; done
               while true; do
-                secs=$(php -r '$now = time(); $next = strtotime("next Sunday 04:00"); if (date("N", $now) == 7 && date("Hi", $now) < "0400") { $next = strtotime("today 04:00"); } echo max(60, $next - $now);')
+                secs=$(php -r '$day = getenv("SYNC_DAY") ?: "Sunday"; $time = getenv("SYNC_TIME") ?: "04:00"; $now = time(); if ($day === "*" || strcasecmp($day, "daily") === 0) { $today = strtotime("today $time", $now); $next = ($today > $now) ? $today : strtotime("tomorrow $time", $now); } else { $today = strtotime("today $time", $now); $next = (date("N", $now) == date("N", strtotime($day)) && $today > $now) ? $today : strtotime("next $day $time", $now); } echo max(60, $next - $now);')
                 sleep "$secs"
                 php artisan lychee:sync /mnt/Artists /mnt/Museums /mnt/Pictures --import_via_symlink=1 --skip_duplicates=1 || true
               done
