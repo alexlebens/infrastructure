@@ -1,0 +1,37 @@
+---
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: PhysicalBackup
+metadata:
+  name: pricebuddy-mariadb-cluster-backup-c
+  namespace: pricebuddy
+  labels:
+    helm.sh/chart: mariadb-cluster-26.10.2
+    app.kubernetes.io/name: mariadb-cluster
+    app.kubernetes.io/instance: pricebuddy
+    app.kubernetes.io/version: "0.0.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  mariaDbRef:
+    name: pricebuddy-mariadb-cluster
+    namespace: pricebuddy
+  compression: gzip
+  maxRetention: 2160h
+  schedule:
+    cron: 0 0 * * 0
+    immediate: true
+    suspend: false
+  storage:
+    s3:
+      accessKeyIdSecretKeyRef:
+        key: access
+        name: pricebuddy-mariadb-cluster-backup-secret-c
+      bucket: mariadb-backups
+      endpoint: c.s3.alexlebens.dev
+      prefix: cl01tl/pricebuddy
+      region: garage
+      secretAccessKeySecretKeyRef:
+        key: secret
+        name: pricebuddy-mariadb-cluster-backup-secret-c
+      tls:
+        enabled: true
+  successfulJobsHistoryLimit: 1

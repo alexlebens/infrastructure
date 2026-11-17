@@ -57,7 +57,7 @@ spec:
           resources:
             requests:
               cpu: 5m
-              memory: 16Mi
+              memory: 20Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -76,6 +76,7 @@ spec:
               fi
               export APP_KEY="$(cat /app/storage/app.key)"
               php artisan migrate --force
+              php -r 'require "/app/vendor/autoload.php"; $app = require "/app/bootstrap/app.php"; $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap(); \DB::statement("ALTER TABLE jobs_history ALTER COLUMN job TYPE text");'
               php artisan config:cache
               php artisan route:cache
               php artisan view:cache
@@ -169,6 +170,10 @@ spec:
               value: /data
             - name: XDG_CONFIG_HOME
               value: /config
+            - name: SYNC_DAY
+              value: daily
+            - name: SYNC_TIME
+              value: "04:00"
           image: ghcr.io/lycheeorg/lychee:v7.13.0@sha256:bcf5759bd44d23257e79556e8c90e6d23fb6eca8b5e89c685542ac48e6cd2ea8
           livenessProbe:
             failureThreshold: 3
@@ -229,6 +234,151 @@ spec:
               name: frankenphp-worker
               readOnly: true
               subPath: frankenphp
+            - mountPath: /mnt/Museums
+              name: museums
+              readOnly: true
+            - mountPath: /mnt/Pictures
+              name: pictures
+              readOnly: true
+            - mountPath: /tmp
+              name: tmp
+        - args:
+            - |
+              until grep -q '^base64:' /app/storage/app.key 2>/dev/null; do sleep 2; done
+              export APP_KEY="$(cat /app/storage/app.key)"
+              until php artisan migrate:status 2>/dev/null | grep -vq "Pending"; do sleep 5; done
+              while true; do
+                secs=$(php -r '$day = getenv("SYNC_DAY") ?: "Sunday"; $time = getenv("SYNC_TIME") ?: "04:00"; $now = time(); if ($day === "*" || strcasecmp($day, "daily") === 0) { $today = strtotime("today $time", $now); $next = ($today > $now) ? $today : strtotime("tomorrow $time", $now); } else { $today = strtotime("today $time", $now); $next = (date("N", $now) == date("N", strtotime($day)) && $today > $now) ? $today : strtotime("next $day $time", $now); } echo max(60, $next - $now);')
+                sleep "$secs"
+                set --
+                for root in /mnt/Artists /mnt/Museums /mnt/Pictures; do
+                  for dir in "$root"/*; do
+                    [ -d "$dir" ] || continue
+                    case "$(basename "$dir")" in @eaDir) continue ;; esac
+                    set -- "$@" "$dir"
+                  done
+                done
+                [ "$#" -gt 0 ] && php artisan lychee:sync "$@" --import_via_symlink=1 --skip_duplicates=1 || true
+              done
+          command:
+            - /bin/sh
+            - -c
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: PHP_TZ
+              value: America/Chicago
+            - name: APP_NAME
+              value: Lychee
+            - name: APP_ENV
+              value: production
+            - name: APP_DEBUG
+              value: "false"
+            - name: APP_URL
+              value: https://pictures.alexlebens.dev
+            - name: APP_FORCE_HTTPS
+              value: "false"
+            - name: TRUSTED_PROXIES
+              value: '*'
+            - name: DB_CONNECTION
+              value: pgsql
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  key: host
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  key: port
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  key: dbname
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: lychee-postgresql-18-cluster-app
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: lychee-postgresql-18-cluster-app
+            - name: CACHE_STORE
+              value: redis
+            - name: SESSION_DRIVER
+              value: redis
+            - name: QUEUE_CONNECTION
+              value: redis
+            - name: LOG_VIEWER_CACHE_DRIVER
+              value: file
+            - name: REDIS_HOST
+              value: lychee-valkey.lychee
+            - name: REDIS_PORT
+              value: "6379"
+            - name: MAIL_MAILER
+              value: smtp
+            - name: MAIL_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: MAIL_PORT
+              value: "587"
+            - name: MAIL_FROM_ADDRESS
+              value: lychee@alexlebens.dev
+            - name: MAIL_FROM_NAME
+              value: Lychee
+            - name: POCKETID_BASE_URL
+              value: https://auth.alexlebens.dev
+            - name: POCKETID_REDIRECT_URI
+              value: /auth/pocketid/redirect
+            - name: POCKETID_USE_PKCE
+              value: "true"
+            - name: POCKETID_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: lychee-oidc-secret
+            - name: POCKETID_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: lychee-oidc-secret
+            - name: XDG_DATA_HOME
+              value: /data
+            - name: XDG_CONFIG_HOME
+              value: /config
+            - name: SYNC_DAY
+              value: daily
+            - name: SYNC_TIME
+              value: "04:00"
+          image: ghcr.io/lycheeorg/lychee:v7.13.0@sha256:bcf5759bd44d23257e79556e8c90e6d23fb6eca8b5e89c685542ac48e6cd2ea8
+          name: sync
+          resources:
+            requests:
+              cpu: 5m
+              memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /mnt/Artists
+              name: artists
+              readOnly: true
+            - mountPath: /app/bootstrap/cache
+              name: bootstrap-cache
+            - mountPath: /app/storage
+              name: data
+              subPath: storage
+            - mountPath: /app/public/uploads
+              name: data
+              subPath: uploads
+            - mountPath: /mnt
+              name: external-media
             - mountPath: /mnt/Museums
               name: museums
               readOnly: true
@@ -332,12 +482,16 @@ spec:
               value: /data
             - name: XDG_CONFIG_HOME
               value: /config
+            - name: SYNC_DAY
+              value: daily
+            - name: SYNC_TIME
+              value: "04:00"
           image: ghcr.io/lycheeorg/lychee:v7.13.0@sha256:bcf5759bd44d23257e79556e8c90e6d23fb6eca8b5e89c685542ac48e6cd2ea8
           name: worker
           resources:
             requests:
               cpu: 25m
-              memory: 128Mi
+              memory: 100Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

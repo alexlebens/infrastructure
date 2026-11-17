@@ -1,0 +1,40 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pricebuddy
+  labels:
+    app.kubernetes.io/instance: pricebuddy
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: pricebuddy
+    helm.sh/chart: pricebuddy-5.3.0
+  annotations:
+    gethomepage.dev/description: PriceBuddy
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Applications
+    gethomepage.dev/icon: sh-pricebuddy.webp
+    gethomepage.dev/name: Price Tracking
+    gethomepage.dev/pod-selector: ""
+    gethomepage.dev/siteMonitor: http://pricebuddy.pricebuddy:80
+    gethomepage.dev/weight: "400"
+  namespace: pricebuddy
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: "traefik"
+  hostnames:
+    - "pricebuddy.alexlebens.dev"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: pricebuddy
+          namespace: pricebuddy
+          port: 80
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
