@@ -234,7 +234,15 @@ lychee:
               while true; do
                 secs=$(php -r '$day = getenv("SYNC_DAY") ?: "Sunday"; $time = getenv("SYNC_TIME") ?: "04:00"; $now = time(); if ($day === "*" || strcasecmp($day, "daily") === 0) { $today = strtotime("today $time", $now); $next = ($today > $now) ? $today : strtotime("tomorrow $time", $now); } else { $today = strtotime("today $time", $now); $next = (date("N", $now) == date("N", strtotime($day)) && $today > $now) ? $today : strtotime("next $day $time", $now); } echo max(60, $next - $now);')
                 sleep "$secs"
-                php artisan lychee:sync /mnt/Artists /mnt/Museums /mnt/Pictures --import_via_symlink=1 --skip_duplicates=1 || true
+                set --
+                for root in /mnt/Artists /mnt/Museums /mnt/Pictures; do
+                  for dir in "$root"/*; do
+                    [ -d "$dir" ] || continue
+                    case "$(basename "$dir")" in @eaDir) continue ;; esac
+                    set -- "$@" "$dir"
+                  done
+                done
+                [ "$#" -gt 0 ] && php artisan lychee:sync "$@" --import_via_symlink=1 --skip_duplicates=1 || true
               done
           env: *lychee-env
           resources:
