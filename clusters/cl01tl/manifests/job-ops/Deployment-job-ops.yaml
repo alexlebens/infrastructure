@@ -1,0 +1,157 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: job-ops
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: job-ops
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: job-ops
+    helm.sh/chart: job-ops-5.3.0
+  namespace: job-ops
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/instance: job-ops
+      app.kubernetes.io/name: job-ops
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: job-ops
+        app.kubernetes.io/name: job-ops
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: job-ops
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3001"
+            - name: TZ
+              value: America/Chicago
+            - name: PYTHON_PATH
+              value: /usr/bin/python3
+            - name: CODEX_HOME
+              value: /app/codex-home
+            - name: JOBOPS_PUBLIC_BASE_URL
+              value: https://job-ops.alexlebens.dev
+            - name: LLM_PROVIDER
+              value: openai_compatible
+            - name: LLM_BASE_URL
+              value: http://ai-gateway.ai-gateway:8080/v1
+            - name: MODEL
+              value: gemma4
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: apiKey
+                  name: job-ops-ai-gateway
+            - name: RXRESUME_URL
+              value: http://reactive-resume.reactive-resume:80
+            - name: RXRESUME_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: rxresume-api-key
+                  name: job-ops-secret
+            - name: GMAIL_OAUTH_REDIRECT_URI
+              value: https://job-ops.alexlebens.dev/oauth/gmail/callback
+            - name: GMAIL_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: gmail-oauth-client-id
+                  name: job-ops-secret
+            - name: GMAIL_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: gmail-oauth-client-secret
+                  name: job-ops-secret
+            - name: SSO_REDIRECT_BASE_URL
+              value: https://job-ops.alexlebens.dev
+            - name: SSO_OIDC_ISSUER_URL
+              value: https://auth.alexlebens.dev
+            - name: SSO_OIDC_DISPLAY_NAME
+              value: AlexAuth
+            - name: SSO_OIDC_ALLOW_SIGNUP
+              value: "true"
+            - name: SSO_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  key: clientId
+                  name: job-ops-oidc-secret
+            - name: SSO_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: clientSecret
+                  name: job-ops-oidc-secret
+          image: ghcr.io/dakheera47/job-ops:v0.14.0@sha256:4e94e734b03030a6299b4562d9d52b21185d7e3b797342bb30926039dfc92ab1
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3001
+            periodSeconds: 30
+            timeoutSeconds: 5
+          name: main
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3001
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 500Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - mountPath: /app/codex-home
+              name: codex-home
+            - mountPath: /app/data
+              name: data
+            - mountPath: /root/.npm
+              name: npm-cache
+            - mountPath: /root/.cache/Tectonic
+              name: tectonic-cache
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - emptyDir: {}
+          name: codex-home
+        - name: data
+          persistentVolumeClaim:
+            claimName: job-ops-data
+        - emptyDir: {}
+          name: npm-cache
+        - emptyDir: {}
+          name: tectonic-cache
+        - emptyDir: {}
+          name: tmp
