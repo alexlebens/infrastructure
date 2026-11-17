@@ -19,6 +19,11 @@ CSRF_ORIGIN = os.environ.get("CSRF_ORIGIN", "https://photos.alexlebens.dev").rst
 # Persistent index file: maps asset_id -> filename on disk
 INDEX_PATH = os.path.join(GALLERY_PATH, ".foldergram-index.json")
 
+# Extensions natively supported by Foldergram
+SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"}
+SUPPORTED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+VIDEO_EXTENSIONS = SUPPORTED_VIDEO_EXTENSIONS | {".avi"}
+
 
 def trigger_foldergram_scan():
     """Trigger Foldergram scan/library refresh if URL is configured."""
@@ -89,6 +94,28 @@ def parse_immich_datetime(dt_str):
     return None
 
 
+def is_video_asset(asset):
+    ext = os.path.splitext(asset.get("originalFileName") or "")[1].lower()
+    return asset.get("type") == "VIDEO" or ext in VIDEO_EXTENSIONS
+
+
+def is_unsupported_image(asset):
+    """Return True for image assets whose original extension Foldergram cannot index (e.g. RAW/HEIC)."""
+    if is_video_asset(asset):
+        return False
+    ext = os.path.splitext(asset.get("originalFileName") or "")[1].lower()
+    return bool(ext) and ext not in SUPPORTED_IMAGE_EXTENSIONS
+
+
+def target_extension(asset):
+    """Return the file extension to save locally, converting unsupported images to .jpg."""
+    if is_unsupported_image(asset):
+        return ".jpg"
+    orig = asset.get("originalFileName") or f"{asset['id']}.jpg"
+    _, ext = os.path.splitext(orig)
+    return ext.lower() if ext else ".jpg"
+
+
 def format_standalone_name(asset, album_name=None):
     """
     Parse a clean Title Case name with year, preferring:
@@ -97,8 +124,8 @@ def format_standalone_name(asset, album_name=None):
     3. Parsed originalFileName
     """
     orig = asset.get("originalFileName") or f"{asset['id']}.jpg"
-    name, ext = os.path.splitext(orig)
-    ext = ext.lower() if ext else ".jpg"
+    name, _ = os.path.splitext(orig)
+    ext = target_extension(asset)
 
     # Extract year from filename or metadata
     year_match = re.search(r"\b((?:19|20)\d{2})\b", name)
@@ -145,9 +172,7 @@ def format_carousel_slide_name(album_name, slide_idx, total_slides, asset):
     Format a carousel slide filename using the album name and slide index, e.g.:
     'Icy Straight Point (2026) - 1.jpg'
     """
-    orig = asset.get("originalFileName") or f"{asset['id']}.jpg"
-    _, ext = os.path.splitext(orig)
-    ext = ext.lower() if ext else ".jpg"
+    ext = target_extension(asset)
 
     pad = 2 if total_slides >= 10 else 1
     idx_str = f"{slide_idx:0{pad}d}"
@@ -222,8 +247,11 @@ def fetch_asset_album_map():
     return asset_to_album
 
 
-def download_asset(asset_id, dest_path):
-    url = f"{IMMICH_URL}/assets/{asset_id}/original"
+def download_asset(asset_id, dest_path, use_preview=False):
+    if use_preview:
+        url = f"{IMMICH_URL}/assets/{asset_id}/thumbnail?size=fullsize"
+    else:
+        url = f"{IMMICH_URL}/assets/{asset_id}/original"
     req = urllib.request.Request(url, headers={"x-api-key": API_KEY})
     tmp_path = f"{dest_path}.tmp"
     with urllib.request.urlopen(req, timeout=300) as resp, open(tmp_path, "wb") as f:
@@ -297,12 +325,9 @@ def sync_favorites():
         asset_to_album = {}
 
     # Group favorites by album name (None = not in any album, or video)
-    video_exts = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
     album_groups = {}
     for a in favorites:
-        ext = os.path.splitext(a.get("originalFileName") or "")[1].lower()
-        is_video = a.get("type") == "VIDEO" or ext in video_exts
-        album_name = None if is_video else asset_to_album.get(a["id"])
+        album_name = None if is_video_asset(a) else asset_to_album.get(a["id"])
         album_groups.setdefault(album_name, []).append(a)
 
     # Load persisted index: asset_id -> relative path on disk
@@ -361,20 +386,30 @@ def sync_favorites():
 
         if old_rel_path and old_rel_path != rel_path:
             old_target = os.path.join(GALLERY_PATH, old_rel_path)
+            same_ext = (
+                os.path.splitext(old_rel_path)[1].lower() == os.path.splitext(rel_path)[1].lower()
+            )
             if os.path.exists(old_target) and not os.path.exists(target):
-                os.makedirs(os.path.dirname(target), exist_ok=True)
-                os.replace(old_target, target)
-                index[aid] = rel_path
-                save_index(index)
-                moved += 1
-                print(f"[sync] Moved: {old_rel_path} -> {rel_path}")
-                continue
+                if same_ext:
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    os.replace(old_target, target)
+                    index[aid] = rel_path
+                    save_index(index)
+                    moved += 1
+                    print(f"[sync] Moved: {old_rel_path} -> {rel_path}")
+                    continue
+                try:
+                    os.remove(old_target)
+                    print(f"[sync] Removed old format: {old_rel_path}")
+                except OSError as e:
+                    print(f"[sync] Failed to remove {old_target}: {e}")
 
         if not os.path.exists(target):
             os.makedirs(os.path.dirname(target), exist_ok=True)
+            use_preview = is_unsupported_image(a)
             print(f"[sync] Downloading: {rel_path} ...")
             try:
-                download_asset(aid, target)
+                download_asset(aid, target, use_preview=use_preview)
                 index[aid] = rel_path
                 save_index(index)
                 downloaded += 1
