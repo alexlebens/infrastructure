@@ -35,7 +35,7 @@ lychee:
           resources:
             requests:
               cpu: 5m
-              memory: 16Mi
+              memory: 20Mi
       containers:
         main:
           securityContext:
@@ -58,6 +58,7 @@ lychee:
               fi
               export APP_KEY="$(cat /app/storage/app.key)"
               php artisan migrate --force
+              php -r 'require "/app/vendor/autoload.php"; $app = require "/app/bootstrap/app.php"; $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap(); \DB::statement("ALTER TABLE jobs_history ALTER COLUMN job TYPE text");'
               php artisan config:cache
               php artisan route:cache
               php artisan view:cache
@@ -148,6 +149,10 @@ lychee:
               value: /data
             - name: XDG_CONFIG_HOME
               value: /config
+            - name: SYNC_DAY
+              value: daily
+            - name: SYNC_TIME
+              value: "04:00"
           resources:
             requests:
               cpu: 50m
@@ -207,7 +212,43 @@ lychee:
           resources:
             requests:
               cpu: 25m
-              memory: 128Mi
+              memory: 100Mi
+        sync:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: ghcr.io/lycheeorg/lychee
+            tag: v7.13.0@sha256:bcf5759bd44d23257e79556e8c90e6d23fb6eca8b5e89c685542ac48e6cd2ea8
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              until grep -q '^base64:' /app/storage/app.key 2>/dev/null; do sleep 2; done
+              export APP_KEY="$(cat /app/storage/app.key)"
+              until php artisan migrate:status 2>/dev/null | grep -vq "Pending"; do sleep 5; done
+              while true; do
+                secs=$(php -r '$day = getenv("SYNC_DAY") ?: "Sunday"; $time = getenv("SYNC_TIME") ?: "04:00"; $now = time(); if ($day === "*" || strcasecmp($day, "daily") === 0) { $today = strtotime("today $time", $now); $next = ($today > $now) ? $today : strtotime("tomorrow $time", $now); } else { $today = strtotime("today $time", $now); $next = (date("N", $now) == date("N", strtotime($day)) && $today > $now) ? $today : strtotime("next $day $time", $now); } echo max(60, $next - $now);')
+                sleep "$secs"
+                set --
+                for root in /mnt/Artists /mnt/Museums /mnt/Pictures; do
+                  for dir in "$root"/*; do
+                    [ -d "$dir" ] || continue
+                    case "$(basename "$dir")" in @eaDir) continue ;; esac
+                    set -- "$@" "$dir"
+                  done
+                done
+                [ "$#" -gt 0 ] && php artisan lychee:sync "$@" --import_via_symlink=1 --skip_duplicates=1 || true
+              done
+          env: *lychee-env
+          resources:
+            requests:
+              cpu: 5m
+              memory: 20Mi
   service:
     main:
       forceRename: lychee
@@ -223,7 +264,7 @@ lychee:
         gethomepage.dev/name: "Pictures"
         gethomepage.dev/description: "Lychee"
         gethomepage.dev/group: "Media"
-        gethomepage.dev/icon: "sh-lychee.webp"
+        gethomepage.dev/icon: "mdi-image-multiple"
         gethomepage.dev/siteMonitor: "http://lychee.lychee:80/"
         gethomepage.dev/weight: "350"
         gethomepage.dev/pod-selector: ""
@@ -258,6 +299,11 @@ lychee:
               subPath: storage
             - path: /app/public/uploads
               subPath: uploads
+          sync:
+            - path: /app/storage
+              subPath: storage
+            - path: /app/public/uploads
+              subPath: uploads
     bootstrap-cache:
       type: emptyDir
       advancedMounts:
@@ -265,6 +311,8 @@ lychee:
           main:
             - path: /app/bootstrap/cache
           worker:
+            - path: /app/bootstrap/cache
+          sync:
             - path: /app/bootstrap/cache
     frankenphp-worker:
       type: emptyDir
@@ -299,6 +347,8 @@ lychee:
             - path: /tmp
           worker:
             - path: /tmp
+          sync:
+            - path: /tmp
     external-media:
       type: emptyDir
       advancedMounts:
@@ -306,6 +356,8 @@ lychee:
           main:
             - path: /mnt
           worker:
+            - path: /mnt
+          sync:
             - path: /mnt
     artists:
       existingClaim: lychee-artists-nfs-storage
@@ -315,6 +367,9 @@ lychee:
             - path: /mnt/Artists
               readOnly: true
           worker:
+            - path: /mnt/Artists
+              readOnly: true
+          sync:
             - path: /mnt/Artists
               readOnly: true
     museums:
@@ -327,6 +382,9 @@ lychee:
           worker:
             - path: /mnt/Museums
               readOnly: true
+          sync:
+            - path: /mnt/Museums
+              readOnly: true
     pictures:
       existingClaim: lychee-pictures-nfs-storage
       advancedMounts:
@@ -335,6 +393,9 @@ lychee:
             - path: /mnt/Pictures
               readOnly: true
           worker:
+            - path: /mnt/Pictures
+              readOnly: true
+          sync:
             - path: /mnt/Pictures
               readOnly: true
 
@@ -346,18 +407,9 @@ pocket-id-client:
     launchUrl: https://pictures.alexlebens.dev
     callbackUrls:
       - https://pictures.alexlebens.dev/auth/pocketid/redirect
-    allowedUserGroups:
-      - name: platform-admin
-        namespace: pocket-id-operator
-      - name: admin
-        namespace: pocket-id-operator
-      - name: user
-        namespace: pocket-id-operator
-  seedJob:
-    enabled: true
 
 postgres-18-cluster:
-  mode: standalone
+  mode: recovery
   cluster:
     resources:
       requests:
