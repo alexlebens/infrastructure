@@ -17,13 +17,14 @@
   },
   "editable": false,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -85,7 +86,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "up{job=\"openbao-active\"}",
           "format": "time_series",
@@ -100,7 +101,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -150,7 +151,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
           "expr": "${metrics_prefix}_secret_kv_count",
@@ -165,7 +166,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -208,9 +209,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(${metrics_prefix}_identity_num_entities)",
+          "expr": "(avg(${metrics_prefix}_identity_num_entities)) or vector(0)",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -222,7 +223,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -275,9 +276,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg without(instance) (${metrics_prefix}_identity_entity_alias_count)",
+          "expr": "(avg without(instance) (${metrics_prefix}_identity_entity_alias_count)) or vector(0)",
           "format": "time_series",
           "interval": "",
           "legendFormat": "{{ auth_method }}",
@@ -290,7 +291,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -355,7 +356,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "max(1 + ${metrics_prefix}_core_unsealed{})",
           "format": "time_series",
@@ -370,7 +371,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -425,7 +426,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "avg(${metrics_prefix}_expire_num_leases)",
           "interval": "",
@@ -440,7 +441,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 1,
@@ -454,18 +455,18 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "refId": "A"
         }
       ],
-      "title": "Path Info: $mountpoint",
+      "title": "Vault Route Operations",
       "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -552,67 +553,66 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(increase(${metrics_prefix}_route_create_${mountpoint}__count[5m]))",
-          "format": "time_series",
-          "interval": "5m",
-          "legendFormat": "Create",
-          "refId": "A"
+          "editorMode": "code",
+          "expr": "avg(increase(${metrics_prefix}_route_create_secret__count[$__rate_interval]))",
+          "legendFormat": "Create (secret/)",
+          "refId": "A",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(increase(${metrics_prefix}_route_delete_${mountpoint}__count[5m]))",
-          "interval": "5m",
-          "legendFormat": "Delete",
-          "refId": "B"
+          "editorMode": "code",
+          "expr": "avg(increase(${metrics_prefix}_route_read_secret__count[$__rate_interval]))",
+          "legendFormat": "Read (secret/)",
+          "refId": "B",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(increase(${metrics_prefix}_route_read_${mountpoint}__count[5m]))",
-          "format": "time_series",
-          "instant": false,
-          "interval": "5m",
-          "intervalFactor": 1,
-          "legendFormat": "Read",
-          "refId": "C"
+          "editorMode": "code",
+          "expr": "avg(increase(${metrics_prefix}_route_delete_secret__count[$__rate_interval]))",
+          "legendFormat": "Delete (secret/)",
+          "refId": "C",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(increase(${metrics_prefix}_route_list_${mountpoint}__count[5m]))",
-          "format": "time_series",
-          "interval": "5m",
-          "legendFormat": "List",
-          "refId": "D"
+          "editorMode": "code",
+          "expr": "avg(increase(${metrics_prefix}_route_list_secret__count[$__rate_interval]))",
+          "legendFormat": "List (secret/)",
+          "refId": "D",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(increase(${metrics_prefix}_route_rollback_${mountpoint}__count[5m]))",
-          "hide": true,
-          "interval": "5m",
-          "legendFormat": "Rollback",
-          "refId": "E"
+          "editorMode": "code",
+          "expr": "avg(increase(${metrics_prefix}_route_read_auth_token__count[$__rate_interval]))",
+          "legendFormat": "Read (auth/token/)",
+          "refId": "E",
+          "range": true
         }
       ],
-      "title": "Number of Operations in \"$mountpoint\"",
+      "title": "Route Operations by Secret / Auth Path",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -665,7 +665,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -699,65 +700,56 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(rate(${metrics_prefix}_route_create_${mountpoint}__sum[1m]) / rate(${metrics_prefix}_route_create_${mountpoint}__count[1m]) * 1000)",
-          "format": "time_series",
-          "interval": "",
-          "intervalFactor": 1,
-          "legendFormat": "Create",
-          "refId": "A"
+          "editorMode": "code",
+          "expr": "avg(rate(${metrics_prefix}_route_create_secret__sum[$__rate_interval]) / clamp_min(rate(${metrics_prefix}_route_create_secret__count[$__rate_interval]), 1e-9))",
+          "legendFormat": "Create (secret/)",
+          "refId": "A",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(rate(${metrics_prefix}_route_delete_${mountpoint}__sum[1m]) / rate(${metrics_prefix}_route_delete_${mountpoint}__count[1m]) * 1000)",
-          "interval": "",
-          "legendFormat": "Delete",
-          "refId": "B"
+          "editorMode": "code",
+          "expr": "avg(rate(${metrics_prefix}_route_read_secret__sum[$__rate_interval]) / clamp_min(rate(${metrics_prefix}_route_read_secret__count[$__rate_interval]), 1e-9))",
+          "legendFormat": "Read (secret/)",
+          "refId": "B",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(rate(${metrics_prefix}_route_read_${mountpoint}__sum[1m]) / rate(${metrics_prefix}_route_read_${mountpoint}__count[1m]) * 1000)",
-          "interval": "",
-          "legendFormat": "Read",
-          "refId": "C"
+          "editorMode": "code",
+          "expr": "avg(rate(${metrics_prefix}_route_delete_secret__sum[$__rate_interval]) / clamp_min(rate(${metrics_prefix}_route_delete_secret__count[$__rate_interval]), 1e-9))",
+          "legendFormat": "Delete (secret/)",
+          "refId": "C",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(rate(${metrics_prefix}_route_list_${mountpoint}__sum[1m]) / rate(${metrics_prefix}_route_list_${mountpoint}__count[1m]) * 1000)",
-          "interval": "",
-          "legendFormat": "List",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "kube-prometheus-stack"
-          },
-          "expr": "avg(rate(${metrics_prefix}_route_rollback_${mountpoint}__sum[1m]) / rate(${metrics_prefix}_route_rollback_${mountpoint}__count[1m]) * 1000)",
-          "hide": true,
-          "interval": "",
-          "legendFormat": "Rollback",
-          "refId": "E"
+          "editorMode": "code",
+          "expr": "avg(rate(${metrics_prefix}_route_list_secret__sum[$__rate_interval]) / clamp_min(rate(${metrics_prefix}_route_list_secret__count[$__rate_interval]), 1e-9))",
+          "legendFormat": "List (secret/)",
+          "refId": "D",
+          "range": true
         }
       ],
-      "title": "Time of Operations in \"$mountpoint\"",
+      "title": "Route Operation Latency (ms)",
       "type": "timeseries"
     },
     {
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 1,
@@ -770,7 +762,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "refId": "A"
         }
@@ -781,7 +773,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -829,7 +821,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "avg(${metrics_prefix}_runtime_heap_objects{} / ${metrics_prefix}_runtime_malloc_count{})",
           "interval": "",
@@ -844,7 +836,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -900,7 +892,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "avg(${metrics_prefix}_runtime_num_goroutines{})",
           "interval": "",
@@ -914,7 +906,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1002,7 +994,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "avg(${metrics_prefix}_runtime_alloc_bytes{})",
           "interval": "",
@@ -1018,7 +1010,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 1,
@@ -1031,7 +1023,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "refId": "A"
         }
@@ -1042,7 +1034,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1086,9 +1078,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(${metrics_prefix}_token_count)",
+          "expr": "(avg(${metrics_prefix}_token_count)) or vector(0)",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -1100,7 +1092,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1158,9 +1150,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg without(instance) (${metrics_prefix}_token_count_by_policy)",
+          "expr": "(avg without(instance) (${metrics_prefix}_token_count_by_policy)) or vector(0)",
           "interval": "",
           "legendFormat": "{{ policy }}",
           "refId": "A"
@@ -1172,7 +1164,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1229,7 +1221,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "avg(${metrics_prefix}_token_create_count - ${metrics_prefix}_token_store_count)",
           "format": "time_series",
@@ -1245,7 +1237,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1300,9 +1292,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg without(instance) (${metrics_prefix}_token_count_by_ttl)",
+          "expr": "(avg without(instance) (${metrics_prefix}_token_count_by_ttl)) or vector(0)",
           "format": "time_series",
           "interval": "",
           "legendFormat": "{{ creation_ttl }}",
@@ -1315,7 +1307,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1370,7 +1362,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "avg without(instance) (${metrics_prefix}_token_count_by_auth)",
           "interval": "",
@@ -1384,7 +1376,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1472,7 +1464,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "avg by(auth_method, creation_ttl) (${metrics_prefix}_token_creation)",
           "format": "time_series",
@@ -1489,7 +1481,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1576,7 +1568,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "avg without(instance) (${metrics_prefix}_token_create_count)",
           "format": "time_series",
@@ -1589,7 +1581,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "avg without(instance) (${metrics_prefix}_token_store_count)",
           "format": "time_series",
@@ -1606,7 +1598,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1693,9 +1685,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(irate(${metrics_prefix}_token_lookup_count[1m]))",
+          "expr": "avg(irate(${metrics_prefix}_token_lookup_count[$__rate_interval]))",
           "interval": "",
           "legendFormat": "Lookups",
           "refId": "B"
@@ -1708,7 +1700,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 1,
@@ -1721,7 +1713,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "refId": "A"
         }
@@ -1732,7 +1724,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1780,7 +1772,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "max(idelta(${metrics_prefix}_audit_log_request_failure[1m]))",
           "format": "time_series",
@@ -1795,7 +1787,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1882,9 +1874,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(irate(${metrics_prefix}_audit_log_request_count[1m]))",
+          "expr": "avg(irate(${metrics_prefix}_audit_log_request_count[$__rate_interval]))",
           "format": "time_series",
           "instant": false,
           "interval": "",
@@ -1895,9 +1887,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(irate(${metrics_prefix}_audit_log_response_count[1m]))",
+          "expr": "avg(irate(${metrics_prefix}_audit_log_response_count[$__rate_interval]))",
           "format": "time_series",
           "instant": false,
           "interval": "",
@@ -1908,9 +1900,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(irate(${metrics_prefix}_core_handle_request_count[1m]))",
+          "expr": "avg(irate(${metrics_prefix}_core_handle_request_count[$__rate_interval]))",
           "format": "time_series",
           "interval": "",
           "intervalFactor": 1,
@@ -1924,7 +1916,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1977,7 +1969,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -2011,52 +2004,66 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(irate(${metrics_prefix}_consul_get_count[1m]))",
-          "interval": "",
-          "intervalFactor": 1,
-          "legendFormat": "GET",
-          "refId": "A"
+          "editorMode": "code",
+          "expr": "avg(${metrics_prefix}_raft_commitTime)",
+          "legendFormat": "Raft Commit Time (ms)",
+          "refId": "A",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(irate(${metrics_prefix}_consul_put_count[1m]))",
-          "interval": "",
-          "legendFormat": "PUT",
-          "refId": "B"
+          "editorMode": "code",
+          "expr": "avg(${metrics_prefix}_raft_apply)",
+          "legendFormat": "Raft Apply Time (ms)",
+          "refId": "B",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(irate(${metrics_prefix}_consul_delete_count[1m]))",
-          "interval": "",
-          "legendFormat": "DELETE",
-          "refId": "C"
+          "editorMode": "code",
+          "expr": "avg(${metrics_prefix}_raft_replication_heartbeat)",
+          "legendFormat": "Raft Heartbeat (ms)",
+          "refId": "C",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "irate(${metrics_prefix}_consul_list_count{instance=\"$node:$port\"}[1m])",
-          "interval": "",
-          "legendFormat": "LIST",
-          "refId": "D"
+          "editorMode": "code",
+          "expr": "avg(rate(${metrics_prefix}_raft_boltdb_storeLogs_count[$__rate_interval]))",
+          "legendFormat": "BoltDB StoreLogs/s",
+          "refId": "D",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "avg(rate(${metrics_prefix}_raft_boltdb_getLog_count[$__rate_interval]))",
+          "legendFormat": "BoltDB GetLog/s",
+          "refId": "E",
+          "range": true
         }
       ],
-      "title": "Consul Requests",
+      "title": "Raft Storage & Autopilot Health",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -2104,7 +2111,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "expr": "max(idelta(${metrics_prefix}_audit_log_response_failure[1m]))",
           "format": "time_series",
@@ -2120,7 +2127,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 1,
@@ -2133,7 +2140,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "refId": "A"
         }
@@ -2144,7 +2151,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -2234,23 +2241,44 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(irate(${metrics_prefix}_policy_set_policy_count[1m]))",
-          "format": "time_series",
-          "interval": "",
-          "intervalFactor": 1,
-          "legendFormat": "SET",
-          "refId": "A"
+          "editorMode": "code",
+          "expr": "avg(rate(${metrics_prefix}_policy_get_policy_count[$__rate_interval]))",
+          "legendFormat": "Policy Get/s",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "min(${metrics_prefix}_autopilot_healthy)",
+          "legendFormat": "Autopilot Healthy (1=OK)",
+          "refId": "B",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "min(${metrics_prefix}_autopilot_failure_tolerance)",
+          "legendFormat": "Failure Tolerance",
+          "refId": "C",
+          "range": true
         }
       ],
-      "title": "Policy Set",
+      "title": "Policy Reads & Autopilot",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -2337,9 +2365,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "expr": "avg(irate(${metrics_prefix}_policy_get_policy_count[1m]))",
+          "expr": "avg(irate(${metrics_prefix}_policy_get_policy_count[$__rate_interval]))",
           "format": "time_series",
           "interval": "",
           "intervalFactor": 1,
@@ -2351,12 +2379,27 @@
       "type": "timeseries"
     }
   ],
-  "preload": true,
-  "refresh": "",
   "schemaVersion": 42,
   "tags": ["platform", "secrets"],
   "templating": {
     "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "Prometheus",
+          "value": "kube-prometheus-stack"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "label": "Prometheus",
+        "multi": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
       {
         "allowCustomValue": true,
         "current": {
@@ -2365,7 +2408,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(up{job=\"openbao-active\"}, instance)",
         "hide": 2,
@@ -2390,7 +2433,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(up{job=\"openbao-active\",instance=~\"$node:(.*)\"}, instance)",
         "hide": 2,
@@ -2404,31 +2447,6 @@
         "regexApplyTo": "value",
         "skipUrlSync": false,
         "sort": 0,
-        "type": "query"
-      },
-      {
-        "allowCustomValue": true,
-        "current": {
-          "text": [""],
-          "value": [""]
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "kube-prometheus-stack"
-        },
-        "definition": "label_values(${metrics_prefix}_secret_kv_count, mount_point)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Mount Point:",
-        "multi": true,
-        "name": "mountpoint",
-        "options": [],
-        "query": "label_values(${metrics_prefix}_secret_kv_count, mount_point)",
-        "refresh": 1,
-        "regex": "/(.*)//",
-        "regexApplyTo": "value",
-        "skipUrlSync": false,
-        "sort": 1,
         "type": "query"
       },
       {
@@ -2453,7 +2471,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "OpenBao",
-  "weekStart": "",
   "uid": "openbao",
-  "id": 460
+  "id": null
 }
