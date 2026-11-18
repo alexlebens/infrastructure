@@ -82,9 +82,10 @@ do not need a local `templates/grafana-dashboard.yaml` at all.)_
 
 ## Dashboard Query & JSON Best Practices
 
-- **Clean Metadata**: Set `"id": null`, `"editable": true`, `"graphTooltip": 1` (shared crosshair), and an explicit
-  `"refresh"` matched to the exporter scrape interval (`"1m"` default, `"5m"` for 5m exporters, `"1h"` for 6h
-  exporters).
+- **Clean Metadata**: Standardize every dashboard's top-level schema to match the canonical template (`editable: false`,
+  `fiscalYearStartMonth: 0`, `graphTooltip: 1`, `links: []`, `liveNow: false`, `schemaVersion: 42`, `timepicker: {}`,
+  `timezone: "browser"`, `id: null`), preserve each dashboard's `time` period, `title`, `uid`, `tags`, `annotations`,
+  `panels`, and `templating`, and omit `refresh`, `version`, `preload`, `weekStart`, `__requires`, and `description`.
 - **Standardized Datasource Variable**: Define a hidden `DS_PROMETHEUS` (`"hide": 2`, `"type": "datasource"`,
   `"query": "prometheus"`, default `"kube-prometheus-stack"`) and reference
   `{"type": "prometheus", "uid": "${DS_PROMETHEUS}"}` across queries (plus hidden `DS_LOKI` /
