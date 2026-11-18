@@ -17,7 +17,8 @@
   },
   "editable": false,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
+  "links": [],
   "liveNow": false,
   "panels": [
     {
@@ -30,48 +31,43 @@
       },
       "id": 1,
       "panels": [],
-      "title": "Runner Overview",
+      "title": "Gitea Actions Runner Overview",
       "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Total active runner replicas discovered by Prometheus",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
-          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
-              },
-              {
                 "color": "green",
-                "value": 1
+                "value": null
               }
             ]
-          }
+          },
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
         "x": 0,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 2,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -79,63 +75,56 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(up{namespace=~\"$namespace\", pod=~\"$pod\"} == 1)",
+          "expr": "sum(gitea_runner_info{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Runners",
+          "refId": "A",
           "instant": true,
-          "range": false,
-          "refId": "A"
+          "range": false
         }
       ],
-      "title": "Online Runners",
+      "title": "Active Runners",
       "type": "stat"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Currently running jobs across all runner replicas",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
-          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "green",
                 "value": null
-              },
-              {
-                "color": "orange",
-                "value": 4
-              },
-              {
-                "color": "red",
-                "value": 6
               }
             ]
-          }
+          },
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 1
+        "x": 4,
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 3,
       "options": {
@@ -148,38 +137,38 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(gitea_runner_job_active{namespace=~\"$namespace\", pod=~\"$pod\"}) or sum(cicd_worker_count{cicd_worker_state=\"busy\", namespace=~\"$namespace\", pod=~\"$pod\"}) or vector(0)",
-          "instant": false,
-          "range": true,
-          "refId": "A"
+          "expr": "sum(gitea_runner_capacity{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Capacity",
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
-      "title": "Active Jobs",
+      "title": "Total Capacity",
       "type": "stat"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Total jobs executed in the selected time range",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
-          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -188,20 +177,21 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 1
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 4,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -209,64 +199,61 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "round(increase(sum(gitea_runner_jobs_total{namespace=~\"$namespace\", pod=~\"$pod\"})[$__range:])) or vector(0)",
+          "expr": "sum(gitea_runner_job_running{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Running",
+          "refId": "A",
           "instant": true,
-          "range": false,
-          "refId": "A"
+          "range": false
         }
       ],
-      "title": "Total Jobs (Range)",
+      "title": "Running Jobs",
       "type": "stat"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Client or API errors communicating with Gitea server",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
-          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
               }
             ]
-          }
+          },
+          "unit": "percentunit"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 1
+        "x": 12,
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 5,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -274,23 +261,148 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "round(increase(sum(gitea_runner_client_errors_total{namespace=~\"$namespace\", pod=~\"$pod\"})[$__range:])) or round(increase(sum(cicd_system_errors_total{namespace=~\"$namespace\", pod=~\"$pod\"})[$__range:])) or vector(0)",
-          "instant": true,
-          "range": false,
-          "refId": "A"
+          "expr": "avg(gitea_runner_job_capacity_utilization_ratio{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Utilization",
+          "refId": "A",
+          "range": true
         }
       ],
-      "title": "API Errors (Range)",
+      "title": "Capacity Utilization",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "round(sum(increase(gitea_runner_job_total{namespace=~\"$namespace\",pod=~\"$pod\"}[$__range])))",
+          "legendFormat": "Jobs",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Jobs Completed (Range)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max(gitea_runner_uptime_seconds{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Uptime",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "title": "Max Runner Uptime",
       "type": "stat"
     },
     {
@@ -301,215 +413,78 @@
         "x": 0,
         "y": 5
       },
-      "id": 6,
+      "id": 10,
       "panels": [],
-      "title": "Job Execution & Performance",
+      "title": "Jobs & Polling Activity",
       "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Job completion rate categorized by result/status",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
             "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "fillOpacity": 15,
-            "gradientMode": "opacity",
-            "spanNulls": false,
-            "showPoints": "auto"
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           },
           "unit": "ops"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 6
-      },
-      "id": 7,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "kube-prometheus-stack"
-          },
-          "editorMode": "code",
-          "expr": "sum by (result) (rate(gitea_runner_jobs_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
-          "legendFormat": "{{result}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Job Completion Rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "kube-prometheus-stack"
-      },
-      "description": "Average job duration calculated from duration histogram",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "fillOpacity": 15,
-            "spanNulls": false
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
+        "y": 6,
         "w": 12,
-        "x": 12,
-        "y": 6
-      },
-      "id": 8,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "kube-prometheus-stack"
-          },
-          "editorMode": "code",
-          "expr": "rate(gitea_runner_job_duration_seconds_sum{namespace=~\"$namespace\", pod=~\"$pod\"}[5m]) / rate(gitea_runner_job_duration_seconds_count{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])",
-          "legendFormat": "{{pod}} (avg duration)",
-          "refId": "A"
-        }
-      ],
-      "title": "Average Job Duration",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 14
-      },
-      "id": 9,
-      "panels": [],
-      "title": "Task Polling & Communication",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "kube-prometheus-stack"
-      },
-      "description": "Rate of task poll requests against the Gitea instance",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "spanNulls": false
-          },
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 15
-      },
-      "id": 10,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "kube-prometheus-stack"
-          },
-          "editorMode": "code",
-          "expr": "sum by (pod) (rate(gitea_runner_poll_fetches_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
-          "legendFormat": "{{pod}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Task Poll Frequency",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "kube-prometheus-stack"
-      },
-      "description": "Duration of poll fetch calls to Gitea server",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "spanNulls": false
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 15
+        "h": 8
       },
       "id": 11,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -522,60 +497,187 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "rate(gitea_runner_poll_fetch_duration_seconds_sum{namespace=~\"$namespace\", pod=~\"$pod\"}[5m]) / rate(gitea_runner_poll_fetch_duration_seconds_count{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])",
-          "legendFormat": "{{pod}} (poll latency)",
-          "refId": "A"
+          "expr": "sum by (status) (rate(gitea_runner_job_total{namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "{{status}}",
+          "refId": "A",
+          "range": true
         }
       ],
-      "title": "Task Poll Latency",
+      "title": "Jobs Processed by Status",
       "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 23
-      },
-      "id": 12,
-      "panels": [],
-      "title": "Runner Process Resources",
-      "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Resident set size memory usage per runner process",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
             "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "fillOpacity": 15,
-            "spanNulls": false
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
-          "unit": "bytes"
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "x": 12,
+        "y": 6,
         "w": 12,
+        "h": 8
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(gitea_runner_job_duration_seconds_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval])))",
+          "legendFormat": "p50",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(gitea_runner_job_duration_seconds_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval])))",
+          "legendFormat": "p95",
+          "refId": "B",
+          "range": true
+        }
+      ],
+      "title": "Job Duration (p50 / p95)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
         "x": 0,
-        "y": 24
+        "y": 14,
+        "w": 12,
+        "h": 8
       },
       "id": 13,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -588,47 +690,85 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "process_resident_memory_bytes{namespace=~\"$namespace\", pod=~\"$pod\"}",
-          "legendFormat": "{{pod}}",
-          "refId": "A"
+          "expr": "sum by (result) (rate(gitea_runner_poll_fetch_total{namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "{{result}}",
+          "refId": "A",
+          "range": true
         }
       ],
-      "title": "Runner Memory (RSS)",
+      "title": "Task Poll Frequency by Result",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "CPU usage rate per runner replica",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
             "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "fillOpacity": 15,
-            "spanNulls": false
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
-          "unit": "percentunit"
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 24
+        "y": 14,
+        "w": 12,
+        "h": 8
       },
       "id": 14,
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -641,73 +781,104 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "rate(process_cpu_seconds_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])",
-          "legendFormat": "{{pod}}",
-          "refId": "A"
+          "expr": "sum by (state) (gitea_runner_state{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "State: {{state}}",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum by (pod) (gitea_runner_report_log_buffer_rows{namespace=~\"$namespace\",pod=~\"$pod\"})",
+          "legendFormat": "Log Buffer: {{pod}}",
+          "refId": "B",
+          "range": true
         }
       ],
-      "title": "Runner CPU Usage",
+      "title": "Runner State & Log Buffer",
       "type": "timeseries"
     }
   ],
-  "preload": true,
-  "refresh": "",
   "schemaVersion": 42,
-  "tags": ["platform", "code", "ci"],
+  "tags": ["platform", "code", "ci", "gitea"],
   "templating": {
     "list": [
       {
         "current": {
           "selected": true,
-          "text": "gitea",
-          "value": "gitea"
+          "text": "Prometheus",
+          "value": "kube-prometheus-stack"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "label": "Prometheus",
+        "multi": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": ["All"],
+          "value": ["$__all"]
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(up{pod=~\"gitea-runner.*\"}, namespace)",
         "hide": 0,
-        "includeAll": false,
+        "includeAll": true,
         "label": "Namespace",
-        "multi": false,
+        "multi": true,
         "name": "namespace",
         "options": [],
         "query": {
+          "qryType": 1,
           "query": "label_values(up{pod=~\"gitea-runner.*\"}, namespace)",
-          "refId": "StandardVariableQuery"
+          "refId": "Var-namespace"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
       {
+        "allValue": ".*",
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": ["All"],
+          "value": ["$__all"]
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(up{namespace=~\"$namespace\", pod=~\"gitea-runner.*\"}, pod)",
         "hide": 0,
         "includeAll": true,
-        "label": "Runner Pod",
+        "label": "Pod",
         "multi": true,
         "name": "pod",
         "options": [],
         "query": {
+          "qryType": 1,
           "query": "label_values(up{namespace=~\"$namespace\", pod=~\"gitea-runner.*\"}, pod)",
-          "refId": "StandardVariableQuery"
+          "refId": "Var-pod"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
@@ -723,5 +894,5 @@
   "timezone": "browser",
   "title": "Gitea Actions Runner",
   "uid": "0c34e768fe2ac61f75260a0ebd96ced0",
-  "id": 1931283958320468488
+  "id": null
 }
