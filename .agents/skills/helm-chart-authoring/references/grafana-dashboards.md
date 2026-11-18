@@ -41,67 +41,42 @@ Grafana folders must use single-word functional categories (`GrafanaFolder` reso
 
 ## Values Configuration (`values.yaml`)
 
-Specify the default Grafana folder for the chart in `values.yaml`, and optionally override per dashboard filename
-(without `.json`) when a single chart ships dashboards targeting different folders:
+Dashboard provisioning is managed centrally through the `common-helpers` dependency (`>= 1.3.0`). Configure the default
+folder (and optional per-dashboard overrides keyed by filename without `.json`) under `common-helpers.grafanaDashboard`:
 
 ```yaml
-grafanaDashboard:
-  folder: applications
-  # Optional per-dashboard folder override:
-  # folders:
-  #   <dashboard-filename>: hardware
+common-helpers:
+  grafanaDashboard:
+    enabled: true
+    folder: applications
+    # Optional per-dashboard override (keyed by filename without .json):
+    # <dashboard-filename>:
+    #   enabled: true
+    #   folder: hardware
 ```
 
-Folder resolution precedence is: `grafanaDashboard.folders.<name>` → `grafanaDashboard.folder` → first valid folder
-category found in `$dashboard.tags` → `"applications"`. Rendering fails fast if the resolved folder is not one of the
-valid categories above.
+Multi-dashboard charts with dashboards in different folders (for example `kube-prometheus-stack` or `grafana-operator`)
+key each dashboard explicitly under `common-helpers.grafanaDashboard.<name>`. Per-dashboard entries also support Grafana
+Operator CRD options (`folderUID`, `folderRef`, `resyncPeriod`, `uid`, `datasources`, `plugins`, `variables`) and
+remote/inline sources (`url`, `grafanaCom`, `oci`, `configMapRef`, `json`, `jsonnet`).
+
+Folder resolution precedence is: `item.folderRef` → `item.folderUID` → `item.folder` → `defaults.folderRef` →
+`defaults.folderUID` → `defaults.folder` → `"applications"`. Both `common-helpers`'s `values.schema.json` enum and
+template rendering validate folders fail-fast against the 8 taxonomy categories above.
 
 ---
 
 ## Standard Manifest (`templates/grafana-dashboard.yaml`)
 
-Every chart shipping a dashboard must include this identical standard manifest to deploy `GrafanaDashboard` custom
-resources:
+Every chart shipping local `dashboards/*.json` files must include this single-line template referencing
+`common-helpers`:
 
 ```yaml
-{{- range $path, $bytes := .Files.Glob "dashboards/*.json" }}
-{{- $name := base $path | replace ".json" "" }}
-{{- $json := $.Files.Get $path }}
-{{- $dashboard := $json | fromJson }}
-{{- $cfg := $.Values.grafanaDashboard | default dict }}
-{{- $folders := $cfg.folders | default dict }}
-{{- $validFolders := list "overview" "hardware" "kubernetes" "networking" "storage" "platform" "applications" "iot" }}
-{{- $folder := index $folders $name | default $cfg.folder }}
-{{- if not $folder }}
-  {{- range ($dashboard.tags | default list) }}
-    {{- if and (not $folder) (has . $validFolders) }}
-      {{- $folder = . }}
-    {{- end }}
-  {{- end }}
-{{- end }}
-{{- $folder = $folder | default "applications" }}
-{{- if not (has $folder $validFolders) }}
-  {{- fail (printf "Invalid Grafana folder %q for dashboard %q; must be one of: %s" $folder $name (join ", " $validFolders)) }}
-{{- end }}
----
-apiVersion: grafana.integreatly.org/v1beta1
-kind: GrafanaDashboard
-metadata:
-  name: {{ $name }}
-  namespace: grafana-operator
-  labels:
-    app.kubernetes.io/name: {{ $name }}
-    {{- include "custom.labels" $ | nindent 4 }}
-spec:
-  instanceSelector:
-    matchLabels:
-      app: grafana-main
-  folderUID: grafana-folder-{{ $folder }}
-  resyncPeriod: 6h
-  json: |-
-{{ $json | indent 4 }}
-{{- end }}
+{{- include "custom.grafanaDashboards" . }}
 ```
+
+_(Charts using only remote/inline sources such as `url` or `grafanaCom` under `common-helpers.grafanaDashboard.<name>`
+do not need a local `templates/grafana-dashboard.yaml` at all.)_
 
 ---
 
