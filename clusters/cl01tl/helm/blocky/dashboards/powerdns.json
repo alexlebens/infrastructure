@@ -4,8 +4,8 @@
       {
         "builtIn": 1,
         "datasource": {
-          "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "type": "grafana",
+          "uid": "-- Grafana --"
         },
         "enable": true,
         "hide": true,
@@ -17,8 +17,9 @@
   },
   "editable": false,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
       "collapsed": false,
@@ -29,18 +30,19 @@
         "y": 0
       },
       "id": 1,
+      "panels": [],
       "title": "Overview",
       "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
@@ -57,10 +59,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 0,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 2,
       "options": {
@@ -73,20 +75,21 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(pdns_auth_queries_total{job=~\"$job\"}[$__rate_interval]))",
+          "expr": "sum(rate(pdns_auth_udp_queries{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]) + rate(pdns_auth_tcp_queries{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "Queries",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "range": true
         }
       ],
       "title": "Total Query Rate",
@@ -95,7 +98,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -103,34 +106,25 @@
             "mode": "thresholds"
           },
           "mappings": [],
-          "max": 100,
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 50
-              },
-              {
                 "color": "green",
-                "value": 80
+                "value": null
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percent",
+          "decimals": 1
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 4,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 3,
       "options": {
@@ -143,20 +137,21 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(sum(rate(pdns_auth_packetcache_hit_total{job=~\"$job\"}[$__rate_interval])) / (sum(rate(pdns_auth_packetcache_hit_total{job=~\"$job\"}[$__rate_interval])) + sum(rate(pdns_auth_packetcache_miss_total{job=~\"$job\"}[$__rate_interval])) > 0)) * 100 or vector(0)",
+          "expr": "100 * sum(rate(pdns_auth_packetcache_hit{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum(rate(pdns_auth_packetcache_hit{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]) + rate(pdns_auth_packetcache_miss{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])), 1e-9)",
           "legendFormat": "Hit Ratio",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "range": true
         }
       ],
       "title": "Packet Cache Hit Ratio",
@@ -165,7 +160,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -179,26 +174,18 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1000
-              },
-              {
-                "color": "red",
-                "value": 5000
               }
             ]
           },
-          "unit": "µs"
+          "unit": "\u00b5s"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 8,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 4,
       "options": {
@@ -211,20 +198,21 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "avg(pdns_auth_latency_usec{job=~\"$job\"})",
+          "expr": "avg(pdns_auth_latency{job=~\"$job\", instance=~\"$instance\"})",
           "legendFormat": "Latency",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "range": true
         }
       ],
       "title": "Avg Query Latency",
@@ -233,12 +221,12 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
@@ -255,10 +243,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 12,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 5,
       "options": {
@@ -271,29 +259,30 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(pdns_auth_tcp_connections{job=~\"$job\"})",
+          "expr": "sum(pdns_auth_open_tcp_connections{job=~\"$job\", instance=~\"$instance\"})",
           "legendFormat": "Connections",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "range": true
         }
       ],
-      "title": "Active TCP Connections",
+      "title": "Open TCP Connections",
       "type": "stat"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -305,12 +294,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
-              },
-              {
                 "color": "green",
-                "value": 1
+                "value": null
               }
             ]
           },
@@ -319,15 +304,15 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 16,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 6,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -335,20 +320,22 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(up{job=~\"$job\"} == 1)",
+          "expr": "count(up{job=~\"$job\", instance=~\"$instance\"} == 1)",
           "legendFormat": "Replicas Up",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "title": "Healthy Replicas",
@@ -357,12 +344,12 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
@@ -379,15 +366,15 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 20,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 7,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -395,20 +382,22 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "max(pdns_auth_uptime_seconds{job=~\"$job\"})",
+          "expr": "max(pdns_auth_uptime{job=~\"$job\", instance=~\"$instance\"})",
           "legendFormat": "Uptime",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
       "title": "Server Uptime",
@@ -422,14 +411,15 @@
         "x": 0,
         "y": 5
       },
-      "id": 8,
+      "id": 10,
+      "panels": [],
       "title": "DNS Queries & Traffic",
       "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -444,16 +434,17 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "none",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
+            "pointSize": 4,
             "scaleDistribution": {
               "type": "linear"
             },
@@ -482,16 +473,16 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 6
+        "y": 6,
+        "w": 12,
+        "h": 8
       },
-      "id": 9,
+      "id": 11,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -504,35 +495,35 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(pdns_auth_udp_queries_total{job=~\"$job\"}[$__rate_interval]))",
+          "expr": "sum(rate(pdns_auth_udp_queries{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "UDP Queries",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(pdns_auth_tcp_queries_total{job=~\"$job\"}[$__rate_interval]))",
+          "expr": "sum(rate(pdns_auth_tcp_queries{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "TCP Queries",
-          "range": true,
-          "refId": "B"
+          "refId": "B",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(pdns_auth_answers_total{job=~\"$job\"}[$__rate_interval]))",
+          "expr": "sum(rate(pdns_auth_udp_answers{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]) + rate(pdns_auth_tcp_answers{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "Answers",
-          "range": true,
-          "refId": "C"
+          "refId": "C",
+          "range": true
         }
       ],
       "title": "Query vs Answer Rate by Protocol",
@@ -541,7 +532,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -556,16 +547,17 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "none",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
+            "pointSize": 4,
             "scaleDistribution": {
               "type": "linear"
             },
@@ -591,65 +583,19 @@
           },
           "unit": "pps"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "NOERROR"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "green",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "NXDOMAIN"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "yellow",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "SERVFAIL"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 6
+        "y": 6,
+        "w": 12,
+        "h": 8
       },
-      "id": 10,
+      "id": 12,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -662,35 +608,35 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(pdns_auth_noerror_packets_total{job=~\"$job\"}[$__rate_interval]))",
+          "expr": "sum(rate(pdns_auth_noerror_packets{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "NOERROR",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(pdns_auth_nxdomain_packets_total{job=~\"$job\"}[$__rate_interval]))",
+          "expr": "sum(rate(pdns_auth_nxdomain_packets{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "NXDOMAIN",
-          "range": true,
-          "refId": "B"
+          "refId": "B",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(pdns_auth_servfail_packets_total{job=~\"$job\"}[$__rate_interval]))",
+          "expr": "sum(rate(pdns_auth_servfail_packets{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "SERVFAIL",
-          "range": true,
-          "refId": "C"
+          "refId": "C",
+          "range": true
         }
       ],
       "title": "Response Codes (RCODE)",
@@ -704,14 +650,15 @@
         "x": 0,
         "y": 14
       },
-      "id": 11,
+      "id": 20,
+      "panels": [],
       "title": "Cache & Performance",
       "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -726,16 +673,17 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "none",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
+            "pointSize": 4,
             "scaleDistribution": {
               "type": "linear"
             },
@@ -764,16 +712,16 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 8,
         "x": 0,
-        "y": 15
+        "y": 15,
+        "w": 8,
+        "h": 8
       },
-      "id": 12,
+      "id": 21,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -786,33 +734,55 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(pdns_auth_packetcache_hit_total{job=~\"$job\"}[$__rate_interval]))",
-          "legendFormat": "Cache Hits",
-          "range": true,
-          "refId": "A"
+          "expr": "sum(rate(pdns_auth_packetcache_hit{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Packet Cache Hits",
+          "refId": "A",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(pdns_auth_packetcache_miss_total{job=~\"$job\"}[$__rate_interval]))",
-          "legendFormat": "Cache Misses",
-          "range": true,
-          "refId": "B"
+          "expr": "sum(rate(pdns_auth_packetcache_miss{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Packet Cache Misses",
+          "refId": "B",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(pdns_auth_query_cache_hit{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Query Cache Hits",
+          "refId": "C",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(pdns_auth_query_cache_miss{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Query Cache Misses",
+          "refId": "D",
+          "range": true
         }
       ],
-      "title": "Packet Cache Hits vs Misses",
+      "title": "Packet & Query Cache Hits vs Misses",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -827,16 +797,17 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "none",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
+            "pointSize": 4,
             "scaleDistribution": {
               "type": "linear"
             },
@@ -865,16 +836,16 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 8,
         "x": 8,
-        "y": 15
+        "y": 15,
+        "w": 8,
+        "h": 8
       },
-      "id": 13,
+      "id": 22,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -887,35 +858,46 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(pdns_auth_packetcache_size{job=~\"$job\"})",
+          "expr": "sum(pdns_auth_packetcache_size{job=~\"$job\", instance=~\"$instance\"})",
           "legendFormat": "Packet Cache Size",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(pdns_auth_query_cache_size{job=~\"$job\"})",
+          "expr": "sum(pdns_auth_query_cache_size{job=~\"$job\", instance=~\"$instance\"})",
           "legendFormat": "Query Cache Size",
-          "range": true,
-          "refId": "B"
+          "refId": "B",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(pdns_auth_key_cache_size{job=~\"$job\"})",
+          "expr": "sum(pdns_auth_key_cache_size{job=~\"$job\", instance=~\"$instance\"})",
           "legendFormat": "Key Cache Size",
-          "range": true,
-          "refId": "C"
+          "refId": "C",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(pdns_auth_zone_cache_size{job=~\"$job\", instance=~\"$instance\"})",
+          "legendFormat": "Zone Cache Size",
+          "refId": "D",
+          "range": true
         }
       ],
       "title": "Cache Entries / Sizes",
@@ -924,7 +906,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -939,16 +921,17 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "none",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
+            "pointSize": 4,
             "scaleDistribution": {
               "type": "linear"
             },
@@ -972,21 +955,21 @@
               }
             ]
           },
-          "unit": "µs"
+          "unit": "\u00b5s"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 8,
         "x": 16,
-        "y": 15
+        "y": 15,
+        "w": 8,
+        "h": 8
       },
-      "id": 14,
+      "id": 23,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -999,27 +982,38 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "avg(pdns_auth_latency_usec{job=~\"$job\"})",
+          "expr": "avg(pdns_auth_latency{job=~\"$job\", instance=~\"$instance\"})",
           "legendFormat": "Query Latency",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "avg(pdns_auth_backend_latency_usec{job=~\"$job\"})",
+          "expr": "avg(pdns_auth_cache_latency{job=~\"$job\", instance=~\"$instance\"})",
+          "legendFormat": "Cache Latency",
+          "refId": "B",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "avg(pdns_auth_backend_latency{job=~\"$job\", instance=~\"$instance\"})",
           "legendFormat": "Backend DB Latency",
-          "range": true,
-          "refId": "B"
+          "refId": "C",
+          "range": true
         }
       ],
-      "title": "Latency Analysis (Query vs Backend DB)",
+      "title": "Latency Analysis (Query / Cache / Backend)",
       "type": "timeseries"
     },
     {
@@ -1030,14 +1024,15 @@
         "x": 0,
         "y": 23
       },
-      "id": 15,
+      "id": 30,
+      "panels": [],
       "title": "Backend & System Resources",
       "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1052,16 +1047,17 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "none",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
+            "pointSize": 4,
             "scaleDistribution": {
               "type": "linear"
             },
@@ -1090,16 +1086,16 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 8,
         "x": 0,
-        "y": 24
+        "y": 24,
+        "w": 8,
+        "h": 8
       },
-      "id": 16,
+      "id": 31,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -1112,13 +1108,13 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "pdns_auth_real_memory_usage_bytes{job=~\"$job\"}",
-          "legendFormat": "{{ instance }} Memory",
-          "range": true,
-          "refId": "A"
+          "expr": "pdns_auth_real_memory_usage{job=~\"$job\", instance=~\"$instance\"}",
+          "legendFormat": "{{instance}} Memory",
+          "refId": "A",
+          "range": true
         }
       ],
       "title": "Process Memory Usage",
@@ -1127,7 +1123,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1142,16 +1138,17 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "none",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
+            "pointSize": 4,
             "scaleDistribution": {
               "type": "linear"
             },
@@ -1180,16 +1177,16 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 8,
         "x": 8,
-        "y": 24
+        "y": 24,
+        "w": 8,
+        "h": 8
       },
-      "id": 17,
+      "id": 32,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -1202,13 +1199,13 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(pdns_auth_backend_queries_total{job=~\"$job\"}[$__rate_interval]))",
-          "legendFormat": "Backend DB Queries",
-          "range": true,
-          "refId": "A"
+          "expr": "sum by (instance) (rate(pdns_auth_backend_queries{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{instance}} DB Queries",
+          "refId": "A",
+          "range": true
         }
       ],
       "title": "Backend Database Query Rate",
@@ -1217,7 +1214,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1232,16 +1229,17 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 15,
-            "gradientMode": "none",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
+            "pointSize": 4,
             "scaleDistribution": {
               "type": "linear"
             },
@@ -1270,16 +1268,16 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 8,
         "x": 16,
-        "y": 24
+        "y": 24,
+        "w": 8,
+        "h": 8
       },
-      "id": 18,
+      "id": 33,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -1292,36 +1290,51 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(pdns_auth_coroutine_count{job=~\"$job\"})",
-          "legendFormat": "Coroutines",
-          "range": true,
-          "refId": "A"
+          "expr": "sum by (instance) (pdns_auth_fd_usage{job=~\"$job\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}} FDs",
+          "refId": "A",
+          "range": true
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(pdns_auth_qsize_q{job=~\"$job\"})",
-          "legendFormat": "Queue Size",
-          "range": true,
-          "refId": "B"
+          "expr": "sum by (instance) (pdns_auth_qsize_q{job=~\"$job\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}} Queue Size",
+          "refId": "B",
+          "range": true
         }
       ],
-      "title": "Coroutines & Receive Queue",
+      "title": "File Descriptors & Receive Queue",
       "type": "timeseries"
     }
   ],
-  "preload": true,
-  "refresh": "",
   "schemaVersion": 42,
-  "tags": ["service", "dns"],
+  "tags": ["networking", "dns", "powerdns"],
   "templating": {
     "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "Prometheus",
+          "value": "kube-prometheus-stack"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "label": "Prometheus",
+        "multi": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
       {
         "current": {
           "selected": true,
@@ -1330,47 +1343,50 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(pdns_auth_queries_total, job)",
+        "definition": "label_values(pdns_auth_uptime, job)",
         "hide": 0,
         "includeAll": false,
         "label": "Job",
+        "multi": false,
         "name": "job",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(pdns_auth_queries_total, job)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "query": "label_values(pdns_auth_uptime, job)",
+          "refId": "Var-job"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
       {
+        "allValue": ".*",
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": ["All"],
+          "value": ["$__all"]
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values(pdns_auth_queries_total{job=~\"$job\"}, instance)",
+        "definition": "label_values(pdns_auth_uptime{job=~\"$job\"}, instance)",
         "hide": 0,
         "includeAll": true,
         "label": "Instance",
+        "multi": true,
         "name": "instance",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(pdns_auth_queries_total{job=~\"$job\"}, instance)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "query": "label_values(pdns_auth_uptime{job=~\"$job\"}, instance)",
+          "refId": "Var-instance"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
@@ -1379,12 +1395,12 @@
     ]
   },
   "time": {
-    "from": "now-7d",
+    "from": "now-24h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "PowerDNS Authoritative Server",
   "uid": "6fd145f5b288f4b02fdc2a8c63538f06",
-  "id": 178345634523456
+  "id": null
 }
