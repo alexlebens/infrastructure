@@ -34,14 +34,15 @@ spec:
       },
       "editable": false,
       "fiscalYearStartMonth": 0,
-      "graphTooltip": 0,
+      "graphTooltip": 1,
       "links": [],
+      "liveNow": false,
       "panels": [
         {
           "collapsed": false,
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "gridPos": {
             "h": 1,
@@ -55,9 +56,10 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "kube-prometheus-stack"
+                "uid": "${DS_PROMETHEUS}"
               },
-              "refId": "A"
+              "refId": "A",
+              "expr": ""
             }
           ],
           "title": "Subtitles Information",
@@ -113,7 +115,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sum(bazarr_subtitles_wanted_total{namespace=\"$namespace\"} OR on() vector(0)) by (namespace)",
+              "expr": "sum(bazarr_subtitles_wanted_total{namespace=~\"$namespace\"} OR on() vector(0)) by (namespace)",
               "instant": true,
               "interval": "",
               "legendFormat": "Wanted",
@@ -125,7 +127,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sum(bazarr_subtitles_missing_total{namespace=\"$namespace\"}) by (namespace)",
+              "expr": "sum(bazarr_subtitles_missing_total{namespace=~\"$namespace\"}) by (namespace)",
               "hide": false,
               "instant": true,
               "interval": "",
@@ -138,7 +140,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sum(bazarr_subtitles_history_total{namespace=\"$namespace\"}) by (namespace)",
+              "expr": "sum(bazarr_subtitles_history_total{namespace=~\"$namespace\"}) by (namespace)",
               "hide": false,
               "instant": false,
               "legendFormat": "Completed",
@@ -199,7 +201,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sum(bazarr_subtitles_downloaded_total{namespace=\"$namespace\"}) by (namespace)",
+              "expr": "sum(bazarr_subtitles_downloaded_total{namespace=~\"$namespace\"}) by (namespace)",
               "interval": "",
               "legendFormat": "Downloaded",
               "range": true,
@@ -211,7 +213,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sum(bazarr_subtitles_monitored_total{namespace=\"$namespace\"}) by (namespace)",
+              "expr": "sum(bazarr_subtitles_monitored_total{namespace=~\"$namespace\"}) by (namespace)",
               "instant": false,
               "interval": "",
               "legendFormat": "Monitored",
@@ -223,7 +225,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "count(count by (language) (bazarr_subtitles_language_total{namespace=\"$namespace\"}))",
+              "expr": "count(count by (language) (bazarr_subtitles_language_total{namespace=~\"$namespace\"}))",
               "interval": "",
               "legendFormat": "Languages",
               "range": true,
@@ -292,7 +294,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sort_desc(sum(bazarr_subtitles_provider_total{namespace=\"$namespace\"}) by (provider))",
+              "expr": "sort_desc(sum(bazarr_subtitles_provider_total{namespace=~\"$namespace\"}) by (provider))",
               "interval": "",
               "legendFormat": "{{ provider }}",
               "range": true,
@@ -361,7 +363,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sort_desc(sum(bazarr_subtitles_language_total{namespace=\"$namespace\"}) by (language))",
+              "expr": "sort_desc(sum(bazarr_subtitles_language_total{namespace=~\"$namespace\"}) by (language))",
               "interval": "",
               "legendFormat": "{{ language }}",
               "range": true,
@@ -375,7 +377,7 @@ spec:
           "collapsed": false,
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "gridPos": {
             "h": 1,
@@ -389,9 +391,10 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "kube-prometheus-stack"
+                "uid": "${DS_PROMETHEUS}"
               },
-              "refId": "A"
+              "refId": "A",
+              "expr": ""
             }
           ],
           "title": "Storage & System",
@@ -448,7 +451,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sum(bazarr_subtitles_filesize_total{namespace=\"$namespace\"}) by (namespace)",
+              "expr": "sum(bazarr_subtitles_filesize_total{namespace=~\"$namespace\"}) by (namespace)",
               "instant": false,
               "interval": "",
               "legendFormat": "__auto",
@@ -474,13 +477,11 @@ spec:
                   "options": {
                     "0": {
                       "color": "red",
-                      "index": 1,
-                      "text": "Disconnected"
+                      "text": "Down"
                     },
                     "1": {
                       "color": "green",
-                      "index": 0,
-                      "text": "Connected"
+                      "text": "Up"
                     }
                   },
                   "type": "value"
@@ -532,14 +533,14 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "bazarr_signalr_connected{namespace=\"$namespace\"}",
+              "expr": "max by (namespace) (bazarr_system_status{namespace=~\"$namespace\"})",
+              "legendFormat": "{{namespace}}",
+              "refId": "A",
               "instant": true,
-              "interval": "",
-              "legendFormat": "{{app}}",
-              "refId": "A"
+              "range": false
             }
           ],
-          "title": "SignalR Upstream Status",
+          "title": "Bazarr Status",
           "type": "stat"
         },
         {
@@ -600,11 +601,11 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sum(bazarr_throttled_providers{namespace=\"$namespace\"} OR on() vector(0)) by (namespace)",
+              "expr": "sum(bazarr_system_health_issues{namespace=~\"$namespace\"}) or vector(0)",
+              "legendFormat": "Health Issues",
+              "refId": "A",
               "instant": true,
-              "interval": "",
-              "legendFormat": "Throttled Providers",
-              "refId": "A"
+              "range": false
             },
             {
               "datasource": {
@@ -612,34 +613,35 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sum(bazarr_system_health_issues{namespace=\"$namespace\"} OR on() vector(0)) by (namespace)",
+              "expr": "sum(bazarr_movie_subtitles_missing_total{namespace=~\"$namespace\"}) or vector(0)",
+              "legendFormat": "Movie Subtitles Missing",
+              "refId": "B",
               "instant": true,
-              "interval": "",
-              "legendFormat": "Health Issues",
-              "refId": "B"
+              "range": false
             }
           ],
-          "title": "Provider Health & Issues",
+          "title": "Health Issues & Missing Movie Subtitles",
           "type": "stat"
         }
       ],
-      "preload": true,
-      "refresh": "",
       "schemaVersion": 42,
-      "tags": ["application", "subtitles"],
+      "tags": ["applications", "subtitles"],
       "templating": {
         "list": [
           {
             "current": {
+              "selected": true,
               "text": "Prometheus",
               "value": "kube-prometheus-stack"
             },
+            "hide": 2,
             "includeAll": false,
-            "label": "Datasource",
+            "label": "Prometheus",
+            "multi": false,
             "name": "DS_PROMETHEUS",
             "options": [],
             "query": "prometheus",
-            "refresh": 0,
+            "refresh": 1,
             "regex": "",
             "type": "datasource"
           },
@@ -653,7 +655,7 @@ spec:
               "uid": "${DS_PROMETHEUS}"
             },
             "definition": "label_values(bazarr_system_status,namespace)",
-            "includeAll": false,
+            "includeAll": true,
             "label": "Instance",
             "name": "namespace",
             "options": [],
@@ -664,7 +666,9 @@ spec:
             },
             "refresh": 1,
             "regex": "",
-            "type": "query"
+            "type": "query",
+            "multi": true,
+            "allValue": ".*"
           }
         ]
       },
@@ -676,5 +680,5 @@ spec:
       "timezone": "browser",
       "title": "Bazarr",
       "uid": "7b2a94510f8164a74fd01b80",
-      "id": 1970591482281985
+      "id": null
     }

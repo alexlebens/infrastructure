@@ -34,8 +34,9 @@ spec:
       },
       "editable": false,
       "fiscalYearStartMonth": 0,
-      "graphTooltip": 0,
+      "graphTooltip": 1,
       "links": [],
+      "liveNow": false,
       "panels": [
         {
           "datasource": {
@@ -579,16 +580,21 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "etcd_debugging_mvcc_dbz",
-              "format": "time_series",
-              "hide": false,
-              "interval": "",
-              "intervalFactor": 2,
-              "legendFormat": "{{instance}} DB Size",
-              "metric": "",
-              "range": true,
+              "expr": "etcd_mvcc_db_total_size_in_bytes",
+              "legendFormat": "{{instance}} Total DB Size",
               "refId": "A",
-              "step": 120
+              "range": true
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "editorMode": "code",
+              "expr": "etcd_mvcc_db_total_size_in_use_in_bytes",
+              "legendFormat": "{{instance}} In-Use DB Size",
+              "refId": "B",
+              "range": true
             }
           ],
           "title": "DB Size",
@@ -1736,7 +1742,7 @@ spec:
                 "type": "prometheus",
                 "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(rate(etcd_disk_wal_fsync_duration_seconds_sum[1m]))",
+              "expr": "sum(rate(etcd_disk_wal_fsync_duration_seconds_sum[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "\tThe latency distributions of fsync called by wal",
@@ -1748,7 +1754,7 @@ spec:
                 "type": "prometheus",
                 "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(rate(etcd_disk_backend_commit_duration_seconds_sum[1m]))",
+              "expr": "sum(rate(etcd_disk_backend_commit_duration_seconds_sum[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "The latency distributions of commit called by backend",
@@ -1845,7 +1851,7 @@ spec:
                 "type": "prometheus",
                 "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(rate(etcd_network_client_grpc_received_bytes_total[1m]))",
+              "expr": "sum(rate(etcd_network_client_grpc_received_bytes_total[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "The total number of bytes received by grpc clients",
@@ -1857,7 +1863,7 @@ spec:
                 "type": "prometheus",
                 "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(rate(etcd_network_client_grpc_sent_bytes_total[1m]))",
+              "expr": "sum(rate(etcd_network_client_grpc_sent_bytes_total[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "The total number of bytes sent to grpc clients",
@@ -1955,7 +1961,7 @@ spec:
                 "type": "prometheus",
                 "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(rate(etcd_debugging_snap_save_total_duration_seconds_sum[1m]))",
+              "expr": "sum(rate(etcd_debugging_snap_save_total_duration_seconds_sum[$__rate_interval]))",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "The total latency distributions of save called by snapshot",
@@ -1967,23 +1973,24 @@ spec:
           "type": "timeseries"
         }
       ],
-      "preload": true,
-      "refresh": "",
       "schemaVersion": 42,
-      "tags": ["system", "cluster"],
+      "tags": ["kubernetes", "cluster"],
       "templating": {
         "list": [
           {
             "current": {
+              "selected": true,
               "text": "Prometheus",
               "value": "kube-prometheus-stack"
             },
+            "hide": 2,
             "includeAll": false,
-            "label": "Datasource",
+            "label": "Prometheus",
+            "multi": false,
             "name": "DS_PROMETHEUS",
             "options": [],
             "query": "prometheus",
-            "refresh": 0,
+            "refresh": 1,
             "regex": "",
             "type": "datasource"
           }
@@ -1996,7 +2003,6 @@ spec:
       "timepicker": {},
       "timezone": "browser",
       "title": "Etcd",
-      "weekStart": "",
       "uid": "730e13ce69865e2bb26c732f6c2ae25c",
-      "id": 187
+      "id": null
     }

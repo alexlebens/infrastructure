@@ -44,40 +44,6 @@ spec:
               value: America/Chicago
             - name: JELLYFIN_PublishedServerUrl
               value: https://jellyfin.alexlebens.dev
-          lifecycle:
-            postStart:
-              exec:
-                command:
-                  - /bin/sh
-                  - -c
-                  - |
-                    echo "Waiting for system.xml to enable metrics..."
-                    timeout=300 # 5 minutes timeout
-                    interval=5  # Check every 5 seconds
-                    systemxml="${JELLYFIN_CONFIG_DIR:-/config/config}/system.xml"
-                    elapsed=0
-                    while [ ! -f "$systemxml" ]; do
-                      if [ $elapsed -ge $timeout ]; then
-                        echo "ERROR: Timed out waiting for $systemxml" >&2
-                        exit 1
-                      fi
-                      sleep $interval
-                      elapsed=$((elapsed + interval))
-                    done
-                    echo "Found $systemxml, enabling metrics..."
-                    # Check if metrics are already enabled before running sed
-                    if ! grep -q '<EnableMetrics>true</EnableMetrics>' "$systemxml"; then
-                      sed 's,<EnableMetrics>false</EnableMetrics>,<EnableMetrics>true</EnableMetrics>,' -i "$systemxml"
-                      if [ $? -eq 0 ]; then
-                        echo "Metrics enabled successfully."
-                      else
-                        echo "ERROR: Failed to enable metrics in $systemxml" >&2
-                        exit 1
-                      fi
-                    else
-                      echo "Metrics already enabled."
-                    fi
-                    exit 0
           ports:
             - name: http
               containerPort: 8096
@@ -122,23 +88,16 @@ spec:
               readOnly: true
             - mountPath: /cache/transcodes
               name: transcode
-        - env:
+        - args:
+            - --collector.transcoding
+          env:
             - name: JELLYFIN_ADDRESS
-              value: http://127.0.0.1:8096
-            - name: JELLYFIN_BASE_URL
               value: http://127.0.0.1:8096
             - name: JELLYFIN_TOKEN
               valueFrom:
                 secretKeyRef:
                   key: token
                   name: jellyfin-metrics
-            - name: JELLYFIN_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  key: token
-                  name: jellyfin-metrics
-            - name: PORT
-              value: "9594"
           image: rebelcore/jellyfin-exporter:v1.6.0@sha256:d1985ef9ad50b8924e74ee1dd12accd64936a65150375a8e190c2293b6e2678c
           name: jellyfin-exporter
           ports:
