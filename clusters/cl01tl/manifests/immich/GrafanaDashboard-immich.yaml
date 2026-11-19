@@ -34,7 +34,8 @@ spec:
       },
       "editable": false,
       "fiscalYearStartMonth": 0,
-      "graphTooltip": 0,
+      "graphTooltip": 1,
+      "links": [],
       "liveNow": false,
       "panels": [
         {
@@ -471,7 +472,7 @@ spec:
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "(sum(rate(http_server_duration_count{namespace=\"$NAMESPACE\", endpoint=\"metrics-api\"}[5m])) by (http_method, http_status_code)) * $__interval_ms / 1000",
+              "expr": "(sum(rate(http_server_duration_count{namespace=\"$NAMESPACE\", endpoint=\"metrics-api\"}[$__rate_interval])) by (http_method, http_status_code)) ",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "legendFormat": "{{http_method}} {{http_status_code}}",
@@ -575,7 +576,7 @@ spec:
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "avg by(http_method, http_status_code) (rate(http_server_duration_sum{namespace=\"$NAMESPACE\", endpoint=\"metrics-api\"}[5m])) / avg by(http_method, http_status_code) (rate(http_server_duration_count{namespace=\"$NAMESPACE\", endpoint=\"metrics-api\"}[5m]))",
+              "expr": "avg by(http_method, http_status_code) (rate(http_server_duration_sum{namespace=\"$NAMESPACE\", endpoint=\"metrics-api\"}[$__rate_interval])) / avg by(http_method, http_status_code) (rate(http_server_duration_count{namespace=\"$NAMESPACE\", endpoint=\"metrics-api\"}[$__rate_interval]))",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "legendFormat": "{{http_method}} {{http_status_code}}",
@@ -681,7 +682,7 @@ spec:
               },
               "disableTextWrap": false,
               "editorMode": "builder",
-              "expr": "sum by(http_method, http_status_code) (increase(http_server_duration_sum{namespace=\"$NAMESPACE\", endpoint=\"metrics-api\", http_status_code=~\"4.*|5.*\"}[5m]))",
+              "expr": "sum by(http_method, http_status_code) (increase(http_server_duration_count{namespace=\"$NAMESPACE\", endpoint=\"metrics-api\", http_status_code=~\"4.*|5.*\"}[$__rate_interval]))",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "legendFormat": "{{http_method}} {{http_status_code}}",
@@ -747,7 +748,7 @@ spec:
               "refId": "A"
             }
           ],
-          "title": "Immich Server Logs (Promtail)",
+          "title": "Immich Server Logs",
           "type": "logs"
         },
         {
@@ -1550,46 +1551,42 @@ spec:
           "type": "timeseries"
         }
       ],
-      "preload": true,
-      "refresh": "",
       "schemaVersion": 42,
-      "tags": ["application", "photos"],
+      "tags": ["applications", "photos"],
       "templating": {
         "list": [
           {
-            "allowCustomValue": true,
             "current": {
+              "selected": true,
               "text": "Prometheus",
               "value": "kube-prometheus-stack"
             },
-            "hide": 0,
+            "hide": 2,
             "includeAll": false,
-            "label": "Datasource",
+            "label": "Prometheus",
             "multi": false,
             "name": "DS_PROMETHEUS",
             "options": [],
             "query": "prometheus",
             "refresh": 1,
             "regex": "",
-            "skipUrlSync": false,
             "type": "datasource"
           },
           {
-            "allowCustomValue": true,
             "current": {
+              "selected": true,
               "text": "Loki",
-              "value": "eelzi15e34lc0b"
+              "value": "loki"
             },
-            "hide": 0,
+            "hide": 2,
             "includeAll": false,
-            "label": "Logs Source",
+            "label": "Loki",
             "multi": false,
             "name": "DS_LOKI",
             "options": [],
             "query": "loki",
             "refresh": 1,
             "regex": "",
-            "skipUrlSync": false,
             "type": "datasource"
           },
           {
@@ -1600,7 +1597,7 @@ spec:
             },
             "datasource": {
               "type": "prometheus",
-              "uid": "kube-prometheus-stack"
+              "uid": "${DS_PROMETHEUS}"
             },
             "definition": "label_values(namespace)",
             "hide": 0,
@@ -1630,7 +1627,6 @@ spec:
       "timepicker": {},
       "timezone": "browser",
       "title": "Immich",
-      "weekStart": "",
       "uid": "0d41a8234bdf8d25079f759c2e3f3d0a",
       "id": null
     }

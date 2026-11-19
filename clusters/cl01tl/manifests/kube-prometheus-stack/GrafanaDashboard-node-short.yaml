@@ -34,8 +34,9 @@ spec:
       },
       "editable": false,
       "fiscalYearStartMonth": 0,
-      "graphTooltip": 0,
+      "graphTooltip": 1,
       "links": [],
+      "liveNow": false,
       "panels": [
         {
           "datasource": {
@@ -138,7 +139,7 @@ spec:
               "step": 50
             }
           ],
-          "title": "Idle CPU",
+          "title": "CPU Usage",
           "type": "timeseries"
         },
         {
@@ -197,7 +198,7 @@ spec:
                   }
                 ]
               },
-              "unit": "percentunit"
+              "unit": "short"
             },
             "overrides": []
           },
@@ -560,7 +561,7 @@ spec:
                   }
                 ]
               },
-              "unit": "bytes"
+              "unit": "Bps"
             },
             "overrides": [
               {
@@ -624,38 +625,22 @@ spec:
                 "type": "prometheus",
                 "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum by (instance) (rate(node_nfsd_disk_bytes_read_total{instance=\"$server\"}[2m]))",
-              "format": "time_series",
-              "hide": false,
-              "intervalFactor": 4,
-              "legendFormat": "read",
+              "editorMode": "code",
+              "expr": "sum by (instance) (rate(node_disk_read_bytes_total{instance=\"$server\",device!~\"loop.*|ram.*|rbd.*\"}[$__rate_interval]))",
+              "legendFormat": "Read",
               "refId": "A",
-              "step": 20,
-              "target": ""
+              "range": true
             },
             {
               "datasource": {
                 "type": "prometheus",
                 "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum by (instance) (rate(node_nfsd_disk_bytes_written_total{instance=\"$server\"}[2m]))",
-              "format": "time_series",
-              "intervalFactor": 4,
-              "legendFormat": "written",
+              "editorMode": "code",
+              "expr": "-sum by (instance) (rate(node_disk_written_bytes_total{instance=\"$server\",device!~\"loop.*|ram.*|rbd.*\"}[$__rate_interval]))",
+              "legendFormat": "Written",
               "refId": "B",
-              "step": 20
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              },
-              "expr": "sum by (instance) (rate(node_disk_io_time_seconds_total{instance=\"$server\"}[2m]))",
-              "format": "time_series",
-              "intervalFactor": 4,
-              "legendFormat": "io time",
-              "refId": "C",
-              "step": 20
+              "range": true
             }
           ],
           "title": "Disk I/O",
@@ -731,7 +716,7 @@ spec:
                 "type": "prometheus",
                 "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "(sum(node_filesystem_size_bytes{device!=\"rootfs\",instance=\"$server\"}) - sum(node_filesystem_free_bytes{device!=\"rootfs\",instance=\"$server\"})) / sum(node_filesystem_size_bytes{device!=\"rootfs\",instance=\"$server\"})",
+              "expr": "(sum(node_filesystem_size_bytes{instance=\"$server\",fstype!~\"tmpfs|overlay|squashfs|rootfs|proc|sysfs|cgroup.*|nsfs|ramfs|fuse.*\",mountpoint!~\"/volume1/@.*|/etc/.*|/usr/.*\"}) - sum(node_filesystem_avail_bytes{instance=\"$server\",fstype!~\"tmpfs|overlay|squashfs|rootfs|proc|sysfs|cgroup.*|nsfs|ramfs|fuse.*\",mountpoint!~\"/volume1/@.*|/etc/.*|/usr/.*\"})) / sum(node_filesystem_size_bytes{instance=\"$server\",fstype!~\"tmpfs|overlay|squashfs|rootfs|proc|sysfs|cgroup.*|nsfs|ramfs|fuse.*\",mountpoint!~\"/volume1/@.*|/etc/.*|/usr/.*\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "refId": "A",
@@ -799,7 +784,7 @@ spec:
                   }
                 ]
               },
-              "unit": "bytes"
+              "unit": "Bps"
             },
             "overrides": [
               {
@@ -913,7 +898,7 @@ spec:
                   }
                 ]
               },
-              "unit": "bytes"
+              "unit": "Bps"
             },
             "overrides": [
               {
@@ -971,23 +956,24 @@ spec:
           "type": "timeseries"
         }
       ],
-      "preload": true,
-      "refresh": "",
       "schemaVersion": 42,
-      "tags": ["system", "monitoring"],
+      "tags": ["hardware"],
       "templating": {
         "list": [
           {
             "current": {
+              "selected": true,
               "text": "Prometheus",
               "value": "kube-prometheus-stack"
             },
+            "hide": 2,
             "includeAll": false,
-            "label": "Datasource",
+            "label": "Prometheus",
+            "multi": false,
             "name": "DS_PROMETHEUS",
             "options": [],
             "query": "prometheus",
-            "refresh": 0,
+            "refresh": 1,
             "regex": "",
             "type": "datasource"
           },
@@ -997,6 +983,7 @@ spec:
               "value": "10.232.1.11:9100"
             },
             "datasource": {
+              "type": "prometheus",
               "uid": "${DS_PROMETHEUS}"
             },
             "includeAll": false,
@@ -1015,8 +1002,7 @@ spec:
       },
       "timepicker": {},
       "timezone": "browser",
-      "weekStart": "",
       "title": "Node Short",
       "uid": "a244b8977bcc6f317eadfed6e0fb2751",
-      "id": 189
+      "id": null
     }

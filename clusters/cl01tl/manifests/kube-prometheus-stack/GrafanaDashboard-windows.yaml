@@ -250,7 +250,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "100 - (avg by (instance) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"idle\"}[1m])) * 100)",
+              "expr": "100 - (avg by (instance) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"idle\"}[$__rate_interval])) * 100)",
               "instant": true,
               "legendFormat": "CPU Usage",
               "range": false,
@@ -818,7 +818,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "(1 - sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"idle\"}[1m])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
+              "expr": "(1 - sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"idle\"}[$__rate_interval])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
               "legendFormat": "Total CPU Busy",
               "range": true,
               "refId": "A"
@@ -829,7 +829,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "(sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"user\"}[1m])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
+              "expr": "(sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"user\"}[$__rate_interval])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
               "legendFormat": "User Mode",
               "range": true,
               "refId": "B"
@@ -840,7 +840,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "(sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"privileged\"}[1m])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
+              "expr": "(sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=\"privileged\"}[$__rate_interval])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
               "legendFormat": "Privileged (Kernel)",
               "range": true,
               "refId": "C"
@@ -851,7 +851,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "(sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=~\"dpc|interrupt\"}[1m])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
+              "expr": "(sum without (core) (irate(windows_cpu_time_seconds_total{instance=~\"$instance\", mode=~\"dpc|interrupt\"}[$__rate_interval])) / scalar(windows_cpu_logical_processor{instance=~\"$instance\"})) * 100",
               "legendFormat": "DPC & Interrupts",
               "range": true,
               "refId": "D"
@@ -1108,7 +1108,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "rate(windows_logical_disk_read_bytes_total{instance=~\"$instance\", volume=~\"[A-Z]:\"}[1m])",
+              "expr": "rate(windows_logical_disk_read_bytes_total{instance=~\"$instance\", volume=~\"[A-Z]:\"}[$__rate_interval])",
               "legendFormat": "Read {{volume}}",
               "range": true,
               "refId": "A"
@@ -1119,7 +1119,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "rate(windows_logical_disk_write_bytes_total{instance=~\"$instance\", volume=~\"[A-Z]:\"}[1m])",
+              "expr": "rate(windows_logical_disk_write_bytes_total{instance=~\"$instance\", volume=~\"[A-Z]:\"}[$__rate_interval])",
               "legendFormat": "Write {{volume}}",
               "range": true,
               "refId": "B"
@@ -1204,7 +1204,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "rate(windows_net_bytes_received_total{instance=~\"$instance\", nic!~\"Bluetooth.*|Microsoft Wi-Fi Direct.*|Software Loopback.*\"}[1m])",
+              "expr": "rate(windows_net_bytes_received_total{instance=~\"$instance\", nic!~\"Bluetooth.*|Microsoft Wi-Fi Direct.*|Software Loopback.*\"}[$__rate_interval])",
               "legendFormat": "Rx: {{nic}}",
               "range": true,
               "refId": "A"
@@ -1215,7 +1215,7 @@ spec:
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "rate(windows_net_bytes_sent_total{instance=~\"$instance\", nic!~\"Bluetooth.*|Microsoft Wi-Fi Direct.*|Software Loopback.*\"}[1m])",
+              "expr": "rate(windows_net_bytes_sent_total{instance=~\"$instance\", nic!~\"Bluetooth.*|Microsoft Wi-Fi Direct.*|Software Loopback.*\"}[$__rate_interval])",
               "legendFormat": "Tx: {{nic}}",
               "range": true,
               "refId": "B"
@@ -1225,19 +1225,20 @@ spec:
           "type": "timeseries"
         }
       ],
-      "preload": true,
-      "refresh": "30s",
       "schemaVersion": 42,
       "tags": ["hardware", "windows", "gpu"],
       "templating": {
         "list": [
           {
             "current": {
+              "selected": true,
               "text": "Prometheus",
               "value": "kube-prometheus-stack"
             },
-            "hide": 0,
-            "label": "Data Source",
+            "hide": 2,
+            "includeAll": false,
+            "label": "Prometheus",
+            "multi": false,
             "name": "DS_PROMETHEUS",
             "options": [],
             "query": "prometheus",
@@ -1279,12 +1280,12 @@ spec:
         ]
       },
       "time": {
-        "from": "now-1h",
+        "from": "now-24h",
         "to": "now"
       },
       "timepicker": {},
       "timezone": "browser",
       "title": "Windows Host",
       "uid": "c62bdf87c3bc4e73",
-      "version": 2
+      "id": null
     }

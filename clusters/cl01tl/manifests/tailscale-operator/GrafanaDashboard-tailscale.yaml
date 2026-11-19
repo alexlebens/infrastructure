@@ -34,8 +34,9 @@ spec:
       },
       "editable": false,
       "fiscalYearStartMonth": 0,
-      "graphTooltip": 2,
+      "graphTooltip": 1,
       "links": [],
+      "liveNow": false,
       "panels": [
         {
           "collapsed": false,
@@ -52,7 +53,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Number of tailscaled instances currently reporting metrics. A sudden drop usually means scrape failures, stopped daemons, or machines that can no longer reach Prometheus.",
           "fieldConfig": {
@@ -96,7 +97,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "expr": "count(\n  tailscaled_health_messages{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n)\n",
               "instant": false,
@@ -109,7 +110,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Advertised routes are routes machines offer to the tailnet. Approved routes are routes the control plane allows clients to use. A gap means subnet routing is configured but not fully enabled.",
           "fieldConfig": {
@@ -162,7 +163,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "expr": "sum(\n  tailscaled_advertised_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n)\n",
               "instant": true,
@@ -172,7 +173,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "expr": "sum(\n  tailscaled_approved_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n)\n",
               "instant": true,
@@ -186,7 +187,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Inbound traffic split by path over the last hour. DERP-heavy traffic can indicate failed direct connectivity, restrictive NAT, or firewall changes.",
           "fieldConfig": {
@@ -239,7 +240,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "expr": "sum(\n  increase(\n    tailscaled_inbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (path)\n",
               "instant": true,
@@ -253,7 +254,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Outbound traffic split by path over the last hour. A high DERP share is useful when investigating latency or relay dependency.",
           "fieldConfig": {
@@ -306,7 +307,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "expr": "sum(\n  increase(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (path)\n",
               "instant": true,
@@ -320,7 +321,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Inbound and outbound traffic over the last hour. Large asymmetry can help identify machines acting as gateways, subnet routers, or unexpectedly chatty clients.",
           "fieldConfig": {
@@ -373,7 +374,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "expr": "sum(\n  rate(\n    tailscaled_inbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n)\n",
               "instant": true,
@@ -383,7 +384,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "expr": "sum(\n  rate(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n)\n",
               "instant": true,
@@ -397,7 +398,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Dropped outbound packets grouped by reason over the last hour. Non-zero values are worth correlating with route approval, ACLs, and path changes.",
           "fieldConfig": {
@@ -450,7 +451,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (reason)\n",
               "instant": true,
@@ -464,7 +465,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Highest inbound-traffic machines over the last hour. Use this to spot subnet routers, gateways, or unexpected traffic concentration, then drill into the machine row.",
           "fieldConfig": {
@@ -484,7 +485,7 @@ spec:
                   "targetBlank": true,
                   "title": "Go To Machine",
                   "type": "dashboard",
-                  "url": "/d/tailscaled-mixin-over-k12e/tailscale-machine?var-tailscale_machine=${__data.fields.Tailscale Machine}"
+                  "url": "/d/tailscaled-mixin-over-k12e/tailscale-machine?var-ts_proxy_parent_name=${__data.fields.Tailscale Machine}"
                 }
               ],
               "thresholds": {
@@ -517,9 +518,9 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "topk(\n  20,\n  sum(\n    rate(\n      tailscaled_inbound_bytes_total{\n        cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n      }[1h]\n    )\n  ) by (tailscale_machine)\n)\n",
+              "expr": "topk(\n  20,\n  sum(\n    rate(\n      tailscaled_inbound_bytes_total{\n        cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n      }[1h]\n    )\n  ) by (ts_proxy_parent_name)\n)\n",
               "format": "table",
               "instant": true,
               "refId": "A"
@@ -532,15 +533,15 @@ spec:
               "options": {
                 "includeByName": {
                   "Value": true,
-                  "tailscale_machine": true
+                  "ts_proxy_parent_name": true
                 },
                 "indexByName": {
                   "Value": 1,
-                  "tailscale_machine": 0
+                  "ts_proxy_parent_name": 0
                 },
                 "renameByName": {
                   "Value": "Inbound Traffic (Bps)",
-                  "tailscale_machine": "Tailscale Machine"
+                  "ts_proxy_parent_name": "Tailscale Machine"
                 }
               }
             }
@@ -550,7 +551,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Machines where advertised routes exceed approved routes. These machines are offering routes that clients cannot use until the routes are approved.",
           "fieldConfig": {
@@ -570,7 +571,7 @@ spec:
                   "targetBlank": true,
                   "title": "Go To Machine",
                   "type": "dashboard",
-                  "url": "/d/tailscaled-mixin-over-k12e/tailscale-machine?var-tailscale_machine=${__data.fields.Tailscale Machine}"
+                  "url": "/d/tailscaled-mixin-over-k12e/tailscale-machine?var-ts_proxy_parent_name=${__data.fields.Tailscale Machine}"
                 }
               ],
               "thresholds": {
@@ -603,9 +604,9 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(\n  tailscaled_advertised_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n) by (tailscale_machine)\n-\nsum(\n  tailscaled_approved_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n) by (tailscale_machine)\n> 0\n",
+              "expr": "sum(\n  tailscaled_advertised_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n) by (ts_proxy_parent_name)\n-\nsum(\n  tailscaled_approved_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n) by (ts_proxy_parent_name)\n> 0\n",
               "format": "table",
               "instant": true,
               "refId": "A"
@@ -618,15 +619,15 @@ spec:
               "options": {
                 "includeByName": {
                   "Value": true,
-                  "tailscale_machine": true
+                  "ts_proxy_parent_name": true
                 },
                 "indexByName": {
                   "Value": 1,
-                  "tailscale_machine": 0
+                  "ts_proxy_parent_name": 0
                 },
                 "renameByName": {
                   "Value": "Unapproved Routes",
-                  "tailscale_machine": "Tailscale Machine"
+                  "ts_proxy_parent_name": "Tailscale Machine"
                 }
               }
             }
@@ -636,7 +637,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Machines with outbound packet drops in the last hour. Investigate persistent values with path, route, and ACL changes for the same machine.",
           "fieldConfig": {
@@ -656,7 +657,7 @@ spec:
                   "targetBlank": true,
                   "title": "Go To Machine",
                   "type": "dashboard",
-                  "url": "/d/tailscaled-mixin-over-k12e/tailscale-machine?var-tailscale_machine=${__data.fields.Tailscale Machine}"
+                  "url": "/d/tailscaled-mixin-over-k12e/tailscale-machine?var-ts_proxy_parent_name=${__data.fields.Tailscale Machine}"
                 }
               ],
               "thresholds": {
@@ -711,9 +712,9 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (tailscale_machine)\n/\nsum(\n  increase(\n    tailscaled_outbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (tailscale_machine)\n* 100\n> 0\n",
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (ts_proxy_parent_name)\n/\nsum(\n  increase(\n    tailscaled_outbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[1h]\n  )\n) by (ts_proxy_parent_name)\n* 100\n> 0\n",
               "format": "table",
               "instant": true,
               "refId": "A"
@@ -726,15 +727,15 @@ spec:
               "options": {
                 "includeByName": {
                   "Value": true,
-                  "tailscale_machine": true
+                  "ts_proxy_parent_name": true
                 },
                 "indexByName": {
                   "Value": 1,
-                  "tailscale_machine": 0
+                  "ts_proxy_parent_name": 0
                 },
                 "renameByName": {
                   "Value": "Dropped Packets",
-                  "tailscale_machine": "Tailscale Machine"
+                  "ts_proxy_parent_name": "Tailscale Machine"
                 }
               }
             }
@@ -756,7 +757,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Health messages grouped by type across selected machines. Spikes usually point to daemon warnings, network path degradation, or local host issues that need machine-level drilldown.",
           "fieldConfig": {
@@ -848,7 +849,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
               "expr": "sum(\n  tailscaled_health_messages{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n  }\n) by (type)\n",
@@ -862,7 +863,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Outbound packet drops grouped by reason. Use this with the affected-machine table to identify whether drops are isolated to one host or broad across the fleet.",
           "fieldConfig": {
@@ -954,7 +955,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
               "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[$__rate_interval]\n  )\n) by (reason)\n",
@@ -968,7 +969,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Inbound traffic grouped by direct and relay paths. Changes in path mix can explain latency shifts even when total traffic is stable.",
           "fieldConfig": {
@@ -1060,7 +1061,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
               "expr": "sum(\n  increase(\n    tailscaled_inbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
@@ -1074,7 +1075,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Inbound packet rate by path. Compare with bytes by path to distinguish many small control packets from large data transfers.",
           "fieldConfig": {
@@ -1166,7 +1167,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
               "expr": "sum(\n  increase(\n    tailscaled_inbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
@@ -1180,7 +1181,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Outbound traffic grouped by direct and relay paths. A rising DERP line often means direct peer connectivity is failing or becoming less reliable.",
           "fieldConfig": {
@@ -1272,7 +1273,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
               "expr": "sum(\n  increase(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
@@ -1286,7 +1287,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Outbound packet rate by path. Sustained DERP packet volume can indicate relay dependency even when bandwidth is modest.",
           "fieldConfig": {
@@ -1378,7 +1379,7 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
               "expr": "sum(\n  increase(\n    tailscaled_outbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
@@ -1398,14 +1399,14 @@ spec:
             "y": 30
           },
           "id": 30,
-          "repeat": "tailscale_machine",
-          "title": "Tailscale Machine $tailscale_machine",
+          "repeat": "ts_proxy_parent_name",
+          "title": "Tailscale Machine $ts_proxy_parent_name",
           "type": "row"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Advertised versus approved routes for the selected machine. A mismatch means the machine is offering routes that are not active for clients.",
           "fieldConfig": {
@@ -1458,9 +1459,9 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(\n  tailscaled_advertised_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n  }\n)\n",
+              "expr": "sum(\n  tailscaled_advertised_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\nts_proxy_parent_name=~\"$ts_proxy_parent_name\"\n\n  }\n)\n",
               "instant": true,
               "legendFormat": "Advertised",
               "refId": "A"
@@ -1468,9 +1469,9 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(\n  tailscaled_approved_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n  }\n)\n",
+              "expr": "sum(\n  tailscaled_approved_routes{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\nts_proxy_parent_name=~\"$ts_proxy_parent_name\"\n\n  }\n)\n",
               "instant": true,
               "legendFormat": "Approved",
               "refId": "B"
@@ -1482,7 +1483,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "DERP versus direct outbound traffic for the selected machine over the last hour. High DERP usage can explain latency and is often caused by NAT, firewall, or connectivity changes.",
           "fieldConfig": {
@@ -1535,9 +1536,9 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(\n  rate(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n,\n      path=\"derp\"\n    }[1h]\n  )\n)\n",
+              "expr": "sum(\n  rate(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\nts_proxy_parent_name=~\"$ts_proxy_parent_name\"\n,\n      path=\"derp\"\n    }[1h]\n  )\n)\n",
               "instant": true,
               "legendFormat": "DERP",
               "refId": "A"
@@ -1545,9 +1546,9 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(\n  rate(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n,\n      path!=\"derp\"\n    }[1h]\n  )\n)\n",
+              "expr": "sum(\n  rate(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\nts_proxy_parent_name=~\"$ts_proxy_parent_name\"\n,\n      path!=\"derp\"\n    }[1h]\n  )\n)\n",
               "instant": true,
               "legendFormat": "Non-DERP",
               "refId": "B"
@@ -1559,7 +1560,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Dropped outbound packets by reason for the selected machine over the last hour. Non-zero values should be checked against health messages and route state.",
           "fieldConfig": {
@@ -1612,9 +1613,9 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
-              "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[1h]\n  )\n) by (reason)\n",
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\nts_proxy_parent_name=~\"$ts_proxy_parent_name\"\n\n    }[1h]\n  )\n) by (reason)\n",
               "instant": true,
               "legendFormat": "{{ reason }}",
               "refId": "A"
@@ -1626,7 +1627,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Health messages by type for the selected machine. Persistent or new message types are often the first signal of local daemon or network-path problems.",
           "fieldConfig": {
@@ -1718,10 +1719,10 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
-              "expr": "sum(\n  tailscaled_health_messages{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n  }\n) by (type)\n",
+              "expr": "sum(\n  tailscaled_health_messages{\n    cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\nts_proxy_parent_name=~\"$ts_proxy_parent_name\"\n\n  }\n) by (type)\n",
               "legendFormat": "{{ type }}",
               "refId": "A"
             }
@@ -1732,7 +1733,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Outbound packet drops by reason for the selected machine. Use this to verify whether packet loss is transient or tied to a specific drop reason.",
           "fieldConfig": {
@@ -1824,10 +1825,10 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
-              "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[$__rate_interval]\n  )\n) by (reason)\n",
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_dropped_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\nts_proxy_parent_name=~\"$ts_proxy_parent_name\"\n\n    }[$__rate_interval]\n  )\n) by (reason)\n",
               "legendFormat": "{{ reason }}",
               "refId": "A"
             }
@@ -1838,7 +1839,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Inbound traffic by path for the selected machine. A move from direct to DERP usually indicates peer-to-peer connectivity regression.",
           "fieldConfig": {
@@ -1930,10 +1931,10 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
-              "expr": "sum(\n  increase(\n    tailscaled_inbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "expr": "sum(\n  increase(\n    tailscaled_inbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\nts_proxy_parent_name=~\"$ts_proxy_parent_name\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
               "legendFormat": "{{ path }}",
               "refId": "A"
             }
@@ -1944,7 +1945,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Inbound packets by path for the selected machine. Compare with byte volume to understand packet size and control-plane chatter.",
           "fieldConfig": {
@@ -2036,10 +2037,10 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
-              "expr": "sum(\n  increase(\n    tailscaled_inbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "expr": "sum(\n  increase(\n    tailscaled_inbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\nts_proxy_parent_name=~\"$ts_proxy_parent_name\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
               "legendFormat": "{{ path }}",
               "refId": "A"
             }
@@ -2050,7 +2051,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Outbound traffic by path for the selected machine. High DERP traffic can point to relay dependency and higher expected latency.",
           "fieldConfig": {
@@ -2142,10 +2143,10 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
-              "expr": "sum(\n  increase(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_bytes_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\nts_proxy_parent_name=~\"$ts_proxy_parent_name\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
               "legendFormat": "{{ path }}",
               "refId": "A"
             }
@@ -2156,7 +2157,7 @@ spec:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${DS_PROMETHEUS}"
           },
           "description": "Outbound packets by path for the selected machine. Sustained relay packet rate is a useful signal when troubleshooting latency or firewall behavior.",
           "fieldConfig": {
@@ -2248,10 +2249,10 @@ spec:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "$datasource"
+                "uid": "${DS_PROMETHEUS}"
               },
               "exemplar": false,
-              "expr": "sum(\n  increase(\n    tailscaled_outbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\ntailscale_machine=~\"$tailscale_machine\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
+              "expr": "sum(\n  increase(\n    tailscaled_outbound_packets_total{\n      cluster=\"$cluster\"\n,\njob=~\"$job\"\n,\nts_proxy_parent_name=~\"$ts_proxy_parent_name\"\n\n    }[$__rate_interval]\n  )\n) by (path)\n",
               "legendFormat": "{{ path }}",
               "refId": "A"
             }
@@ -2260,28 +2261,25 @@ spec:
           "type": "timeseries"
         }
       ],
-      "preload": true,
-      "refresh": "",
       "schemaVersion": 42,
-      "tags": ["service", "tailscale", "network"],
+      "tags": ["networking", "tailscale", "network"],
       "templating": {
         "list": [
           {
-            "allowCustomValue": true,
             "current": {
-              "text": "default",
-              "value": "default"
+              "selected": true,
+              "text": "Prometheus",
+              "value": "kube-prometheus-stack"
             },
-            "hide": 0,
+            "hide": 2,
             "includeAll": false,
-            "label": "Data source",
+            "label": "Prometheus",
             "multi": false,
-            "name": "datasource",
+            "name": "DS_PROMETHEUS",
             "options": [],
             "query": "prometheus",
             "refresh": 1,
             "regex": "",
-            "skipUrlSync": false,
             "type": "datasource"
           },
           {
@@ -2292,7 +2290,7 @@ spec:
             },
             "datasource": {
               "type": "prometheus",
-              "uid": "${datasource}"
+              "uid": "${DS_PROMETHEUS}"
             },
             "hide": 2,
             "includeAll": false,
@@ -2316,7 +2314,7 @@ spec:
             },
             "datasource": {
               "type": "prometheus",
-              "uid": "${datasource}"
+              "uid": "${DS_PROMETHEUS}"
             },
             "hide": 0,
             "includeAll": true,
@@ -2340,15 +2338,15 @@ spec:
             },
             "datasource": {
               "type": "prometheus",
-              "uid": "${datasource}"
+              "uid": "${DS_PROMETHEUS}"
             },
             "hide": 0,
             "includeAll": false,
             "label": "Tailscale Machine",
             "multi": true,
-            "name": "tailscale_machine",
+            "name": "ts_proxy_parent_name",
             "options": [],
-            "query": "label_values(tailscaled_health_messages{cluster=\"$cluster\", job=~\"$job\"}, tailscale_machine)",
+            "query": "label_values(tailscaled_health_messages{cluster=\"$cluster\", job=~\"$job\"}, ts_proxy_parent_name)",
             "refresh": 2,
             "regex": "",
             "regexApplyTo": "value",
@@ -2365,7 +2363,6 @@ spec:
       "timepicker": {},
       "timezone": "browser",
       "title": "Tailscale",
-      "weekStart": "",
       "uid": "tailscaled-mixin-over-k12e",
-      "id": 3897231890161664
+      "id": null
     }
