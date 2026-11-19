@@ -17,14 +17,15 @@
   },
   "editable": false,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 1,
@@ -38,9 +39,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "refId": "A"
+          "refId": "A",
+          "expr": ""
         }
       ],
       "title": "Resources",
@@ -278,7 +280,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(\r\n    kube_pod_container_resource_requests{job=\"$kubeStateMetricsJob\", namespace=\"monitoring-system\", pod=~\"$pod\", resource=\"cpu\", $k8sClusterLabelKey=\"$cluster\"}\r\n)",
+          "expr": "sum(\r\n    kube_pod_container_resource_requests{job=\"$kubeStateMetricsJob\", namespace=\"grafana-operator\", pod=~\"$pod\", resource=\"cpu\", $k8sClusterLabelKey=\"$cluster\"}\r\n)",
           "hide": false,
           "instant": false,
           "legendFormat": "requests",
@@ -291,7 +293,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(\r\n    kube_pod_container_resource_limits{job=\"$kubeStateMetricsJob\", namespace=\"monitoring-system\", pod=~\"$pod\", resource=\"cpu\", $k8sClusterLabelKey=\"$cluster\"}\r\n)",
+          "expr": "sum(\r\n    kube_pod_container_resource_limits{job=\"$kubeStateMetricsJob\", namespace=\"grafana-operator\", pod=~\"$pod\", resource=\"cpu\", $k8sClusterLabelKey=\"$cluster\"}\r\n)",
           "hide": false,
           "instant": false,
           "legendFormat": "limits",
@@ -457,7 +459,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(\r\n    kube_pod_container_resource_requests{job=\"$kubeStateMetricsJob\", namespace=\"monitoring-system\", pod=~\"$pod\", resource=\"memory\", $k8sClusterLabelKey=\"$cluster\"}\r\n)",
+          "expr": "sum(\r\n    kube_pod_container_resource_requests{job=\"$kubeStateMetricsJob\", namespace=\"grafana-operator\", pod=~\"$pod\", resource=\"memory\", $k8sClusterLabelKey=\"$cluster\"}\r\n)",
           "hide": false,
           "instant": false,
           "legendFormat": "requests",
@@ -470,7 +472,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(\r\n    kube_pod_container_resource_limits{job=\"$kubeStateMetricsJob\", namespace=\"monitoring-system\", pod=~\"$pod\", resource=\"memory\", $k8sClusterLabelKey=\"$cluster\"}\r\n)",
+          "expr": "sum(\r\n    kube_pod_container_resource_limits{job=\"$kubeStateMetricsJob\", namespace=\"grafana-operator\", pod=~\"$pod\", resource=\"memory\", $k8sClusterLabelKey=\"$cluster\"}\r\n)",
           "hide": false,
           "instant": false,
           "legendFormat": "limits",
@@ -585,7 +587,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 1,
@@ -599,9 +601,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "refId": "A"
+          "refId": "A",
+          "expr": ""
         }
       ],
       "title": "Custom Resources",
@@ -661,10 +664,11 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(grafana_operator_dashboards_initial_sync_duration{$k8sClusterLabelKey=\"$cluster\", pod=~\"$pod\", job=\"$job\"})",
-          "legendFormat": "Dashboards",
-          "range": true,
-          "refId": "A"
+          "expr": "sum(grafana_operator_reconciler_initial_sync_duration{$k8sClusterLabelKey=\"$cluster\", pod=~\"$pod\", job=\"$job\"})",
+          "legendFormat": "Initial Sync (ms)",
+          "refId": "A",
+          "instant": true,
+          "range": false
         },
         {
           "datasource": {
@@ -672,28 +676,14 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(grafana_operator_datasources_initial_sync_duration{$k8sClusterLabelKey=\"$cluster\", pod=~\"$pod\", job=\"$job\"})",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "Datasources",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "sum(grafana_operator_folders_initial_sync_duration{$k8sClusterLabelKey=\"$cluster\", pod=~\"$pod\", job=\"$job\"})",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "Folders",
-          "range": true,
-          "refId": "C"
+          "expr": "sum(grafana_operator_reconciler_failed_reconciles{$k8sClusterLabelKey=\"$cluster\", pod=~\"$pod\", job=\"$job\"}) or vector(0)",
+          "legendFormat": "Failed Reconciles",
+          "refId": "B",
+          "instant": true,
+          "range": false
         }
       ],
-      "title": "CR Initial Sync Durations",
+      "title": "Initial Sync Duration & Failed Reconciles",
       "type": "stat"
     },
     {
@@ -799,7 +789,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 1,
@@ -813,9 +803,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
-          "refId": "A"
+          "refId": "A",
+          "expr": ""
         }
       ],
       "title": "Work Queue",
@@ -962,22 +953,15 @@
       "id": 4,
       "options": {
         "legend": {
-          "calcs": [],
+          "calcs": ["mean", "max", "lastNotNull"],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
-        "minVizHeight": 75,
-        "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "pluginVersion": "12.0.0",
       "targets": [
@@ -998,7 +982,7 @@
         }
       ],
       "title": "Work Queue Depth",
-      "type": "gauge"
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -1337,23 +1321,24 @@
       "type": "timeseries"
     }
   ],
-  "preload": true,
-  "refresh": "",
   "schemaVersion": 42,
-  "tags": ["service", "monitoring"],
+  "tags": ["platform"],
   "templating": {
     "list": [
       {
         "current": {
+          "selected": true,
           "text": "Prometheus",
           "value": "kube-prometheus-stack"
         },
+        "hide": 2,
         "includeAll": false,
-        "label": "Datasource",
+        "label": "Prometheus",
+        "multi": false,
         "name": "DS_PROMETHEUS",
         "options": [],
         "query": "prometheus",
-        "refresh": 0,
+        "refresh": 1,
         "regex": "",
         "type": "datasource"
       },
@@ -1401,7 +1386,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(up{job=\"apiserver\"},$k8sClusterLabelKey)",
         "label": "K8s Cluster",
@@ -1423,7 +1408,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(grafana_operator_grafana_api_requests{$k8sClusterLabelKey=\"$cluster\"},job)",
         "label": "Scrape Job",
@@ -1446,7 +1431,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(up{job=\"$job\", $k8sClusterLabelKey=\"$cluster\"},pod)",
         "includeAll": true,
@@ -1472,7 +1457,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Grafana Operator",
-  "weekStart": "",
   "uid": "8b07141ea2db0ce80cdfabc7aa2b0f4f",
-  "id": 174
+  "id": null
 }

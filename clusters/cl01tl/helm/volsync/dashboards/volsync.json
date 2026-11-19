@@ -17,8 +17,9 @@
   },
   "editable": false,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
       "datasource": {
@@ -205,7 +206,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(volsync_volume_out_of_sync{obj_namespace=~\"$namespace\"} != 0)",
+          "expr": "(count(volsync_volume_out_of_sync{obj_namespace=~\"$namespace\"} != 0)) or vector(0)",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -353,7 +354,8 @@
                 "color": "green"
               }
             ]
-          }
+          },
+          "noValue": "All volumes in sync"
         },
         "overrides": [
           {
@@ -412,7 +414,7 @@
           "expr": "volsync_volume_out_of_sync{obj_namespace=~\"$namespace\",obj_name!~\"$replicationDestName\"}!=0",
           "format": "table",
           "instant": true,
-          "legendFormat": "{{label_name}}",
+          "legendFormat": "{{obj_namespace}}/{{obj_name}}",
           "range": false,
           "refId": "A"
         }
@@ -475,7 +477,8 @@
                 "color": "green"
               }
             ]
-          }
+          },
+          "noValue": "All volumes in sync"
         },
         "overrides": []
       },
@@ -508,7 +511,7 @@
           "expr": "volsync_missed_intervals_total{obj_namespace=~\"$namespace\",obj_name!~\"$replicationDestName\",role=\"source\"}!=0",
           "format": "table",
           "instant": true,
-          "legendFormat": "{{label_name}}",
+          "legendFormat": "{{obj_namespace}}/{{obj_name}}",
           "range": false,
           "refId": "A"
         }
@@ -739,19 +742,20 @@
       "type": "timeseries"
     }
   ],
-  "preload": true,
-  "refresh": "",
   "schemaVersion": 42,
-  "tags": ["service", "storage"],
+  "tags": ["storage"],
   "templating": {
     "list": [
       {
         "current": {
+          "selected": true,
           "text": "Prometheus",
           "value": "kube-prometheus-stack"
         },
+        "hide": 2,
         "includeAll": false,
-        "label": "Datasource",
+        "label": "Prometheus",
+        "multi": false,
         "name": "DS_PROMETHEUS",
         "options": [],
         "query": "prometheus",
@@ -787,14 +791,15 @@
       },
       {
         "current": {
-          "text": "${VAR_REPLICATIONDESTNAME}",
-          "value": "${VAR_REPLICATIONDESTNAME}"
+          "selected": true,
+          "text": "^$",
+          "value": "^$"
         },
         "description": "Name(s) of VolSync objects to ignore. To ignore ones ending in \"dst\" or \"bootstrap\" then use value:  .*-dst|.*-bootstrap",
         "hide": 2,
         "label": "ReplicationDestName",
         "name": "replicationDestName",
-        "query": "${VAR_REPLICATIONDESTNAME}",
+        "query": "^$",
         "skipUrlSync": true,
         "type": "constant"
       },
@@ -856,7 +861,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "VolSync",
-  "weekStart": "",
   "uid": "26d7c6dccd245d0d4f5b0a40e16f4c70",
-  "id": 175
+  "id": null
 }

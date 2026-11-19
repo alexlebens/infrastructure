@@ -17,8 +17,9 @@
   },
   "editable": false,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
       "collapsed": false,
@@ -29,26 +30,26 @@
         "y": 0
       },
       "id": 1,
+      "panels": [],
       "title": "Overview",
       "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Total incoming request rate across OAuth2 Proxy sidecars",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
+                "color": "green",
                 "value": null
               }
             ]
@@ -58,10 +59,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 5,
         "x": 0,
-        "y": 1
+        "y": 1,
+        "w": 5,
+        "h": 4
       },
       "id": 2,
       "options": {
@@ -74,20 +75,21 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
-          "legendFormat": "Total Requests",
-          "range": true,
-          "refId": "A"
+          "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Requests",
+          "refId": "A",
+          "range": true
         }
       ],
       "title": "Request Rate",
@@ -96,17 +98,14 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Percentage of requests returning HTTP 2xx or 3xx",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
-          "max": 100,
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -124,15 +123,16 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percent",
+          "decimals": 1
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 5,
         "x": 5,
-        "y": 1
+        "y": 1,
+        "w": 5,
+        "h": 4
       },
       "id": 3,
       "options": {
@@ -145,20 +145,21 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "(sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"[23]..\"}[5m])) / (sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) > 0)) * 100",
-          "legendFormat": "Success Rate",
-          "range": true,
-          "refId": "A"
+          "expr": "(sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\", code=~\"[23]..\"}[$__rate_interval])) / clamp_min(sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])), 1e-9)) * 100 or vector(100)",
+          "legendFormat": "Success %",
+          "refId": "A",
+          "range": true
         }
       ],
       "title": "Success Rate",
@@ -167,9 +168,8 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Rate of client errors (HTTP 4xx, e.g. 401 Unauthorized / 403 Forbidden)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -182,14 +182,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 0.1
-              },
-              {
-                "color": "red",
-                "value": 1
               }
             ]
           },
@@ -198,10 +190,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 5,
         "x": 10,
-        "y": 1
+        "y": 1,
+        "w": 5,
+        "h": 4
       },
       "id": 4,
       "options": {
@@ -214,20 +206,21 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"4..\"}[5m])) or vector(0)",
-          "legendFormat": "4xx Errors",
-          "range": true,
-          "refId": "A"
+          "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\", code=~\"4..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "4xx",
+          "refId": "A",
+          "range": true
         }
       ],
       "title": "4xx Client Errors",
@@ -236,9 +229,8 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Rate of server errors (HTTP 5xx, e.g. 500 / 502 upstream errors)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -253,12 +245,8 @@
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": 0.01
-              },
-              {
                 "color": "red",
-                "value": 0.5
+                "value": 0.1
               }
             ]
           },
@@ -267,10 +255,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 5,
         "x": 15,
-        "y": 1
+        "y": 1,
+        "w": 5,
+        "h": 4
       },
       "id": 5,
       "options": {
@@ -283,20 +271,21 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\", status_code=~\"5..\"}[5m])) or vector(0)",
-          "legendFormat": "5xx Errors",
-          "range": true,
-          "refId": "A"
+          "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\", code=~\"5..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "5xx",
+          "refId": "A",
+          "range": true
         }
       ],
       "title": "5xx Server Errors",
@@ -305,38 +294,37 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Total number of namespaces with active OAuth2 Proxy instances",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "purple",
+                "color": "green",
                 "value": null
               }
             ]
           },
-          "unit": "short"
+          "unit": "none"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 20,
-        "y": 1
+        "y": 1,
+        "w": 4,
+        "h": 4
       },
       "id": 6,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -344,23 +332,25 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(count by (namespace) (oauth2_proxy_requests_total))",
-          "legendFormat": "Protected Services",
-          "range": true,
-          "refId": "A"
+          "expr": "count(count by (namespace) (oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}))",
+          "legendFormat": "Services",
+          "refId": "A",
+          "instant": true,
+          "range": false
         }
       ],
-      "title": "Protected Services",
+      "title": "Active In-Flight / Services",
       "type": "stat"
     },
     {
@@ -371,16 +361,16 @@
         "x": 0,
         "y": 5
       },
-      "id": 7,
-      "title": "Traffic & Authentication Activity",
+      "id": 10,
+      "panels": [],
+      "title": "Traffic & Latency",
       "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Rate of incoming requests grouped by application namespace",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -392,13 +382,31 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
-            "fillOpacity": 15,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 12,
             "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "spanNulls": false
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -415,16 +423,16 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 6
+        "y": 6,
+        "w": 12,
+        "h": 8
       },
-      "id": 8,
+      "id": 11,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -433,29 +441,27 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) by (namespace)",
+          "expr": "sum by (namespace) (rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))",
           "legendFormat": "{{namespace}}",
-          "range": true,
-          "refId": "A"
+          "refId": "A",
+          "range": true
         }
       ],
-      "title": "Request Rate by Service",
+      "title": "Request Rate by Namespace",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Rate of requests categorized by HTTP status code",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -467,13 +473,31 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
-            "fillOpacity": 15,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 12,
             "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "spanNulls": false
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -490,16 +514,16 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 6
+        "y": 6,
+        "w": 12,
+        "h": 8
       },
-      "id": 9,
+      "id": 12,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -508,41 +532,27 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) by (status_code)",
-          "legendFormat": "HTTP {{status_code}}",
-          "range": true,
-          "refId": "A"
+          "expr": "sum by (code) (rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "HTTP {{code}}",
+          "refId": "A",
+          "range": true
         }
       ],
       "title": "Requests by HTTP Status Code",
       "type": "timeseries"
     },
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 14
-      },
-      "id": 10,
-      "title": "Upstream Requests & Forwarding",
-      "type": "row"
-    },
-    {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Requests forwarded upstream to backends grouped by namespace and upstream URL",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -554,13 +564,31 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
-            "fillOpacity": 15,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 12,
             "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "spanNulls": false
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -577,16 +605,16 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 15
+        "y": 14,
+        "w": 12,
+        "h": 8
       },
-      "id": 11,
+      "id": 13,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -595,29 +623,27 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(oauth2_proxy_upstream_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) by (namespace, upstream)",
-          "legendFormat": "{{namespace}} → {{upstream}}",
-          "range": true,
-          "refId": "A"
+          "expr": "sum by (namespace, code) (rate(oauth2_proxy_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "{{namespace}} [{{code}}]",
+          "refId": "A",
+          "range": true
         }
       ],
-      "title": "Upstream Forwarded Requests by Backend",
+      "title": "Requests by Namespace & Status Code",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
-      "description": "HTTP status codes returned by backend applications to the proxy",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -629,13 +655,31 @@
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
-            "fillOpacity": 15,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 12,
             "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "spanNulls": false
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -647,21 +691,21 @@
               }
             ]
           },
-          "unit": "reqps"
+          "unit": "s"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 15
+        "y": 14,
+        "w": 12,
+        "h": 8
       },
-      "id": 12,
+      "id": 14,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull", "max"],
-          "displayMode": "table",
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -670,40 +714,76 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(oauth2_proxy_upstream_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) by (status_code)",
-          "legendFormat": "Upstream HTTP {{status_code}}",
-          "range": true,
-          "refId": "A"
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(oauth2_proxy_response_duration_seconds_bucket{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])))",
+          "legendFormat": "p50",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(oauth2_proxy_response_duration_seconds_bucket{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])))",
+          "legendFormat": "p95",
+          "refId": "B",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(oauth2_proxy_response_duration_seconds_bucket{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])))",
+          "legendFormat": "p99",
+          "refId": "C",
+          "range": true
         }
       ],
-      "title": "Upstream Response Status Codes",
+      "title": "Response Latency Percentiles (p50 / p95 / p99)",
       "type": "timeseries"
     }
   ],
-  "preload": true,
-  "refresh": "",
   "schemaVersion": 42,
-  "tags": ["platform", "authentication"],
+  "tags": ["platform", "authentication", "oauth2-proxy"],
   "templating": {
     "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "Prometheus",
+          "value": "kube-prometheus-stack"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "label": "Prometheus",
+        "multi": false,
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
       {
         "allValue": ".*",
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": ["All"],
+          "value": ["$__all"]
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(oauth2_proxy_requests_total, namespace)",
         "hide": 0,
@@ -713,10 +793,11 @@
         "name": "namespace",
         "options": [],
         "query": {
+          "qryType": 1,
           "query": "label_values(oauth2_proxy_requests_total, namespace)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "refId": "Var-namespace"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
@@ -726,12 +807,12 @@
         "allValue": ".*",
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": ["All"],
+          "value": ["$__all"]
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(oauth2_proxy_requests_total{namespace=~\"$namespace\"}, pod)",
         "hide": 0,
@@ -741,10 +822,11 @@
         "name": "pod",
         "options": [],
         "query": {
+          "qryType": 1,
           "query": "label_values(oauth2_proxy_requests_total{namespace=~\"$namespace\"}, pod)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "refId": "Var-pod"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
@@ -760,5 +842,5 @@
   "timezone": "browser",
   "title": "OAuth2 Proxy",
   "uid": "3acb0657098ae92fc12fd75b2f83d7ed",
-  "id": 1522856787955328
+  "id": null
 }

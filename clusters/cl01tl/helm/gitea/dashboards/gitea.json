@@ -23,14 +23,15 @@
   },
   "editable": false,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
+  "links": [],
   "liveNow": false,
   "panels": [
     {
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 1,
@@ -44,7 +45,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "refId": "A"
         }
@@ -244,7 +245,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "rate(process_cpu_seconds_total{namespace=\"$namespace\"}[1m])",
+          "expr": "rate(process_cpu_seconds_total{namespace=\"$namespace\"}[$__rate_interval])",
           "fullMetaSearch": false,
           "includeNullMetadata": false,
           "instant": false,
@@ -1211,7 +1212,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "kube-prometheus-stack"
+        "uid": "${DS_PROMETHEUS}"
       },
       "gridPos": {
         "h": 1,
@@ -1225,7 +1226,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "kube-prometheus-stack"
+            "uid": "${DS_PROMETHEUS}"
           },
           "refId": "A"
         }
@@ -1324,21 +1325,36 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "exemplar": false,
-          "expr": "gitea_issues_by_repository",
-          "format": "time_series",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "{{repository}}",
-          "range": true,
+          "editorMode": "code",
+          "expr": "sum(gitea_issues_open)",
+          "legendFormat": "Open",
           "refId": "A",
-          "useBackend": false
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(gitea_issues_closed)",
+          "legendFormat": "Closed",
+          "refId": "B",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(gitea_issues)",
+          "legendFormat": "Total",
+          "refId": "C",
+          "range": true
         }
       ],
-      "title": "Issues by Repository",
+      "title": "Issues Open vs Closed",
       "type": "timeseries"
     },
     {
@@ -1430,37 +1446,68 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
-          "exemplar": false,
-          "expr": "gitea_issues_by_label",
-          "format": "time_series",
-          "instant": false,
-          "legendFormat": "{{label}}",
-          "range": true,
-          "refId": "A"
+          "editorMode": "code",
+          "expr": "sum(gitea_repositories)",
+          "legendFormat": "Repositories",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(gitea_releases)",
+          "legendFormat": "Releases",
+          "refId": "B",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(gitea_webhooks)",
+          "legendFormat": "Webhooks",
+          "refId": "C",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(gitea_hooktasks)",
+          "legendFormat": "Hook Tasks",
+          "refId": "D",
+          "range": true
         }
       ],
-      "title": "Issues by Label",
+      "title": "Repositories, Releases & Webhooks",
       "type": "timeseries"
     }
   ],
-  "preload": true,
-  "refresh": "",
   "schemaVersion": 42,
   "tags": ["platform", "code"],
   "templating": {
     "list": [
       {
         "current": {
+          "selected": true,
           "text": "Prometheus",
           "value": "kube-prometheus-stack"
         },
+        "hide": 2,
         "includeAll": false,
-        "label": "Datasource",
+        "label": "Prometheus",
+        "multi": false,
         "name": "DS_PROMETHEUS",
         "options": [],
         "query": "prometheus",
-        "refresh": 0,
+        "refresh": 1,
         "regex": "",
         "type": "datasource"
       },
@@ -1471,7 +1518,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(kube_namespace_status_phase{job=\"kube-state-metrics\", namespace=~\"gitea\"},namespace)",
         "includeAll": false,
@@ -1495,7 +1542,7 @@
         },
         "datasource": {
           "type": "prometheus",
-          "uid": "kube-prometheus-stack"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(kubelet_volume_stats_capacity_bytes{job=\"kubelet\", namespace=\"$namespace\"},persistentvolumeclaim)",
         "description": "Name of PVC Volume for Gitea",
@@ -1568,7 +1615,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Gitea",
-  "weekStart": "",
   "uid": "nNq1Iw5Gz",
-  "id": 193
+  "id": null
 }
