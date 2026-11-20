@@ -228,11 +228,19 @@ lychee:
             - -c
           args:
             - |
+              log() { printf '%s [sync] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
+
+              log "Waiting for APP_KEY..."
               until grep -q '^base64:' /app/storage/app.key 2>/dev/null; do sleep 2; done
               export APP_KEY="$(cat /app/storage/app.key)"
+
+              log "Waiting for database migrations..."
               until php artisan migrate:status 2>/dev/null | grep -vq "Pending"; do sleep 5; done
+
+              log "Sync scheduler ready (SYNC_DAY=${SYNC_DAY:-Sunday}, SYNC_TIME=${SYNC_TIME:-04:00})"
               while true; do
                 secs=$(php -r '$day = getenv("SYNC_DAY") ?: "Sunday"; $time = getenv("SYNC_TIME") ?: "04:00"; $now = time(); if ($day === "*" || strcasecmp($day, "daily") === 0) { $today = strtotime("today $time", $now); $next = ($today > $now) ? $today : strtotime("tomorrow $time", $now); } else { $today = strtotime("today $time", $now); $next = (date("N", $now) == date("N", strtotime($day)) && $today > $now) ? $today : strtotime("next $day $time", $now); } echo max(60, $next - $now);')
+                log "Sleeping ${secs}s until next sync"
                 sleep "$secs"
                 set --
                 for root in /mnt/Artists /mnt/Museums /mnt/Pictures; do
@@ -242,7 +250,16 @@ lychee:
                     set -- "$@" "$dir"
                   done
                 done
-                [ "$#" -gt 0 ] && php artisan lychee:sync "$@" --import_via_symlink=1 --skip_duplicates=1 || true
+                if [ "$#" -gt 0 ]; then
+                  log "Starting lychee:sync for $# directories"
+                  if LOG_CHANNEL=stderr php artisan lychee:sync "$@" --import_via_symlink=1 --skip_duplicates=1; then
+                    log "lychee:sync completed successfully"
+                  else
+                    log "lychee:sync exited with status $?"
+                  fi
+                else
+                  log "No directories found to sync"
+                fi
               done
           env: *lychee-env
           resources:
