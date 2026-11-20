@@ -15,7 +15,7 @@ resolve_diff_target() {
     echo ">> Checking for changes in a pull request ..."
     # If the PR was automerged before this step runs, origin/main might already
     # include our changes, causing the standard diff to be empty.
-    if git diff --name-only "${BASE_BRANCH}...HEAD" 2>/dev/null | grep -q . ; then
+    if [ -n "$(git diff --name-only "${BASE_BRANCH}...HEAD" 2>/dev/null || true)" ]; then
       DIFF_TARGET="${BASE_BRANCH}...HEAD"
     else
       echo ">> Diff against ${BASE_BRANCH}...HEAD is empty (likely already merged). Falling back to HEAD^1..HEAD"

@@ -62,3 +62,32 @@ setup() {
   resolve_diff_target
   assert_equal "${DIFF_TARGET}" "HEAD^1..HEAD"
 }
+
+@test "resolve_diff_target: pull_request with large multi-commit diff does not fall back to HEAD^1..HEAD under pipefail" {
+  git checkout -q -b feature
+
+  _fixture_write "clusters/cl01tl/helm/alpha/Chart.yaml" "name: alpha"
+  mkdir -p "clusters/cl01tl/helm/alpha/files"
+  local i
+  for i in $(seq -w 1 1500); do
+    : > "clusters/cl01tl/helm/alpha/files/padding-template-resource-file-${i}.yaml"
+  done
+  _fixture_commit "commit 1: alpha with large file list"
+
+  _fixture_write "clusters/cl01tl/helm/beta/Chart.yaml" "name: beta"
+  _fixture_write "clusters/cl01tl/helm/beta/values.yaml" "b: 1"
+  _fixture_commit "commit 2: beta"
+
+  _fixture_write "clusters/cl01tl/helm/gamma/Chart.yaml" "name: gamma"
+  _fixture_write "clusters/cl01tl/helm/gamma/values.yaml" "c: 1"
+  _fixture_commit "commit 3: gamma"
+
+  set -o pipefail
+  EVENT_NAME="pull_request" BASE_BRANCH="main"
+  resolve_diff_target
+  assert_equal "${DIFF_TARGET}" "main...HEAD"
+
+  run "${MISE_TASKS_DIR}/gitea/detect-helm" --event-name pull_request --base-branch main
+  assert_success
+  assert_equal "$(_output_value charts)" "alpha beta gamma"
+}
