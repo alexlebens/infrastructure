@@ -30,6 +30,8 @@ def parse_yaml_backup_targets(
     section_indent = 0
     sub_section = None
     sub_section_indent = 0
+    pg_backup_indent = 0
+    pg_sched_indent = 0
     volsync_type = None
     volsync_type_indent = 0
     s3_target = None
@@ -55,16 +57,20 @@ def parse_yaml_backup_targets(
             current_section = None
             sub_section = None
             sub_section_indent = 0
+            pg_backup_indent = 0
+            pg_sched_indent = 0
             volsync_type = None
             s3_target = None
             s3_target_indent = 0
 
-        # Match top-level Postgres cluster (e.g., postgres-18-cluster:, postgres-cluster:)
-        m_pg = re.match(r"^(\s*)(postgres[\w-]*cluster):\s*(?:#.*)?$", line)
+        # Match top-level Postgres cluster (e.g., postgres-18-cluster:, postgres-cluster:, powerdns-postgres-cluster:)
+        m_pg = re.match(r"^(\s*)((?:[\w-]+-)?postgres[\w-]*cluster):\s*(?:#.*)?$", line)
         if m_pg:
             current_section = ("postgres", m_pg.group(2))
             section_indent = len(m_pg.group(1))
             sub_section = None
+            pg_backup_indent = 0
+            pg_sched_indent = 0
             continue
 
         # Match top-level Volsync target (e.g., volsync-target-data:, volsync-target:)
@@ -93,11 +99,22 @@ def parse_yaml_backup_targets(
         sec_type, sec_name = current_section
 
         if sec_type == "postgres":
-            if re.match(r"^\s*backup:\s*(?:#.*)?$", line):
+            if sub_section == "scheduledBackup" and indent <= pg_sched_indent:
+                sub_section = "backup" if indent > pg_backup_indent else None
+            elif sub_section == "backup" and indent <= pg_backup_indent:
+                sub_section = None
+
+            if sub_section is None and re.match(r"^\s*backup:\s*(?:#.*)?$", line):
                 sub_section = "backup"
-            elif sub_section == "backup" and re.match(r"^\s*scheduledBackups:\s*(?:#.*)?$", line):
-                sub_section = "scheduledBackups"
-            elif sub_section == "scheduledBackups":
+                pg_backup_indent = indent
+            elif (
+                sub_section == "backup"
+                and indent > pg_backup_indent
+                and re.match(r"^\s*scheduledBackups?:\s*(?:#.*)?$", line)
+            ):
+                sub_section = "scheduledBackup"
+                pg_sched_indent = indent
+            elif sub_section == "scheduledBackup" and indent > pg_sched_indent:
                 m_sched = re.match(r"^(\s*schedule:\s*)([\"']?)([^\"'\n]+)([\"']?)(.*)$", line)
                 if m_sched:
                     postgres_targets.append(
@@ -227,7 +244,7 @@ def rebalance_schedules(
         for s3 in s3_targets:
             all_s3.append((chart_name, s3))
 
-    all_pg.sort(key=lambda x: x[0])
+    all_pg.sort(key=lambda x: (x[0], x[1]["section"]))
     sorted_vs_keys = sorted(all_vs.keys(), key=lambda x: (x[0], x[1]))
 
     all_s3_grouped: dict[tuple[str, str], dict[str, dict]] = {}

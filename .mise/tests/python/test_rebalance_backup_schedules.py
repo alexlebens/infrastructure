@@ -140,6 +140,47 @@ def test_parse_postgres_requires_scheduled_backups_block(tmp_path: Path):
     assert pg == []
 
 
+def test_parse_postgres_singular_scheduled_backup_and_prefixed_alias(tmp_path: Path):
+    f = write_values(
+        tmp_path,
+        "blocky",
+        """
+        powerdns-postgres-cluster:
+          mode: standalone
+          backup:
+            objectStore:
+              index: 1
+            scheduledBackup:
+              suspend: false
+              schedule: "0 15 6 * * *"
+        """,
+    )
+    pg, _, _ = rbs.parse_yaml_backup_targets(f)
+    assert len(pg) == 1
+    assert pg[0]["section"] == "powerdns-postgres-cluster"
+    assert pg[0]["current"] == "0 15 6 * * *"
+
+
+def test_parse_postgres_prefixed_legacy_cluster_and_empty_scheduled_backup_dedent(tmp_path: Path):
+    f = write_values(
+        tmp_path,
+        "blocky",
+        """
+        powerdns-postgres-18-cluster:
+          backup:
+            scheduledBackup:
+            unrelated:
+              schedule: "0 99 99 * * *"
+            scheduledBackups:
+              schedule: "0 25 15 * * *"
+        """,
+    )
+    pg, _, _ = rbs.parse_yaml_backup_targets(f)
+    assert len(pg) == 1
+    assert pg[0]["section"] == "powerdns-postgres-18-cluster"
+    assert pg[0]["current"] == "0 25 15 * * *"
+
+
 def test_parse_volsync_targets_tiers_and_quotes(tmp_path: Path):
     f = write_values(tmp_path, "app", VS_VALUES)
     _, vs, _ = rbs.parse_yaml_backup_targets(f)
@@ -237,6 +278,29 @@ def test_rebalance_postgres_slots_are_sequential_and_sorted(tmp_path: Path):
         ("zeta", "0 10 5 * * *"),
     ]
     assert changed == 3
+
+
+def test_rebalance_multi_postgres_cluster_order_is_deterministic(tmp_path: Path):
+    write_values(
+        tmp_path,
+        "n8n",
+        """
+        postgres-pgvector-cluster:
+          backup:
+            scheduledBackup:
+              schedule: "0 0 0 * * *"
+        postgres-cluster:
+          backup:
+            scheduledBackup:
+              schedule: "0 0 0 * * *"
+        """,
+    )
+    rows, changed = rbs.rebalance_schedules(tmp_path, "c1", dry_run=True)
+    assert [(r["app"], r["target"], r["utc"]) for r in rows] == [
+        ("n8n", "postgres-cluster", "0 0 5 * * *"),
+        ("n8n", "postgres-pgvector-cluster", "0 5 5 * * *"),
+    ]
+    assert changed == 1
 
 
 def test_rebalance_volsync_tiers(tmp_path: Path):
@@ -436,6 +500,12 @@ def real_rows(project_root: Path) -> list[dict]:
 
 def test_real_repo_has_backup_targets(real_rows: list[dict]):
     assert real_rows, "expected the rebalancer to discover backup targets"
+
+
+def test_real_repo_discovers_all_cl01tl_postgres_targets(real_rows: list[dict]):
+    pg_apps = {r["app"] for r in real_rows if r["kind"] == "Postgres"}
+    assert {"blocky", "memos", "outline", "pipedash", "streamystats"} <= pg_apps
+    assert len([r for r in real_rows if r["kind"] == "Postgres"]) >= 39
 
 
 def test_real_repo_schedules_are_valid_cron(real_rows: list[dict]):
