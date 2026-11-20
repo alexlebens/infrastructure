@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import collections
+import re
 import textwrap
 from pathlib import Path
 
 import pytest
+import yaml
 from conftest import load_script, parse_github_output
 
 rbs = load_script("app/rebalance-backups")
@@ -140,6 +142,47 @@ def test_parse_postgres_requires_scheduled_backups_block(tmp_path: Path):
     assert pg == []
 
 
+def test_parse_postgres_singular_scheduled_backup_and_prefixed_alias(tmp_path: Path):
+    f = write_values(
+        tmp_path,
+        "blocky",
+        """
+        powerdns-postgres-cluster:
+          mode: standalone
+          backup:
+            objectStore:
+              index: 1
+            scheduledBackup:
+              suspend: false
+              schedule: "0 15 6 * * *"
+        """,
+    )
+    pg, _, _ = rbs.parse_yaml_backup_targets(f)
+    assert len(pg) == 1
+    assert pg[0]["section"] == "powerdns-postgres-cluster"
+    assert pg[0]["current"] == "0 15 6 * * *"
+
+
+def test_parse_postgres_prefixed_legacy_cluster_and_empty_scheduled_backup_dedent(tmp_path: Path):
+    f = write_values(
+        tmp_path,
+        "blocky",
+        """
+        powerdns-postgres-18-cluster:
+          backup:
+            scheduledBackup:
+            unrelated:
+              schedule: "0 99 99 * * *"
+            scheduledBackups:
+              schedule: "0 25 15 * * *"
+        """,
+    )
+    pg, _, _ = rbs.parse_yaml_backup_targets(f)
+    assert len(pg) == 1
+    assert pg[0]["section"] == "powerdns-postgres-18-cluster"
+    assert pg[0]["current"] == "0 25 15 * * *"
+
+
 def test_parse_volsync_targets_tiers_and_quotes(tmp_path: Path):
     f = write_values(tmp_path, "app", VS_VALUES)
     _, vs, _ = rbs.parse_yaml_backup_targets(f)
@@ -237,6 +280,29 @@ def test_rebalance_postgres_slots_are_sequential_and_sorted(tmp_path: Path):
         ("zeta", "0 10 5 * * *"),
     ]
     assert changed == 3
+
+
+def test_rebalance_multi_postgres_cluster_order_is_deterministic(tmp_path: Path):
+    write_values(
+        tmp_path,
+        "n8n",
+        """
+        postgres-pgvector-cluster:
+          backup:
+            scheduledBackup:
+              schedule: "0 0 0 * * *"
+        postgres-cluster:
+          backup:
+            scheduledBackup:
+              schedule: "0 0 0 * * *"
+        """,
+    )
+    rows, changed = rbs.rebalance_schedules(tmp_path, "c1", dry_run=True)
+    assert [(r["app"], r["target"], r["utc"]) for r in rows] == [
+        ("n8n", "postgres-cluster", "0 0 5 * * *"),
+        ("n8n", "postgres-pgvector-cluster", "0 5 5 * * *"),
+    ]
+    assert changed == 1
 
 
 def test_rebalance_volsync_tiers(tmp_path: Path):
@@ -423,6 +489,160 @@ def test_main_rejects_non_positive_interval(tmp_path: Path, monkeypatch):
     assert exc.value.code == 1
 
 
+# ── postgres-cluster naming enforcement ─────────────────────────────
+
+
+def _parse_major_version(version: object) -> int:
+    m = re.match(r"^[v~^>=<\s]*(\d+)", str(version or ""))
+    return int(m.group(1)) if m else 0
+
+
+def find_postgres_naming_violations(helm_dir: Path) -> list[str]:
+    """Return naming or v9+ scheduledBackup violations between Chart.yaml and values.yaml."""
+    violations: list[str] = []
+    for chart_yaml in sorted(helm_dir.glob("*/Chart.yaml")):
+        app = chart_yaml.parent.name
+        chart = yaml.safe_load(chart_yaml.read_text(encoding="utf-8")) or {}
+        deps = [
+            d
+            for d in (chart.get("dependencies") or [])
+            if isinstance(d, dict) and d.get("name") == "postgres-cluster"
+        ]
+        dep_keys = {
+            str(d.get("alias") or d.get("name")): _parse_major_version(d.get("version"))
+            for d in deps
+        }
+
+        vals_path = chart_yaml.parent / "values.yaml"
+        vals = yaml.safe_load(vals_path.read_text(encoding="utf-8")) if vals_path.exists() else {}
+        vals = vals or {}
+
+        pg_keys = [str(k) for k in vals if re.match(r"^(?:[\w-]+-)?postgres[\w-]*cluster$", str(k))]
+        for key in pg_keys:
+            if key not in dep_keys:
+                violations.append(
+                    f"{app}: values.yaml key '{key}' has no matching postgres-cluster dependency in Chart.yaml"
+                )
+
+        for dep_key, major in dep_keys.items():
+            if dep_key not in vals:
+                violations.append(
+                    f"{app}: Chart.yaml dependency '{dep_key}' (v{major}) missing top-level key in values.yaml"
+                )
+                continue
+
+            if major >= 9:
+                if re.search(r"-\d+-cluster$", dep_key):
+                    violations.append(
+                        f"{app}: v{major} postgres-cluster key '{dep_key}' must use versionless naming"
+                    )
+                backup = (vals.get(dep_key) or {}).get("backup") or {}
+                if isinstance(backup, dict) and "scheduledBackups" in backup:
+                    violations.append(
+                        f"{app}: v{major} '{dep_key}.backup.scheduledBackups' must be singular 'scheduledBackup'"
+                    )
+
+    return violations
+
+
+def _write_chart_and_values(
+    root: Path,
+    app: str,
+    deps: list[dict],
+    values_content: str,
+    cluster: str = "c1",
+) -> Path:
+    chart_dir = root / "clusters" / cluster / "helm" / app
+    chart_dir.mkdir(parents=True, exist_ok=True)
+    (chart_dir / "Chart.yaml").write_text(
+        yaml.safe_dump({"apiVersion": "v2", "name": app, "version": "1.0.0", "dependencies": deps}),
+        encoding="utf-8",
+    )
+    (chart_dir / "values.yaml").write_text(
+        textwrap.dedent(values_content).lstrip("\n"), encoding="utf-8"
+    )
+    return root / "clusters" / cluster / "helm"
+
+
+def test_naming_allows_legacy_v8_and_clean_v9(tmp_path: Path):
+    helm_dir = _write_chart_and_values(
+        tmp_path,
+        "legacy",
+        [{"name": "postgres-cluster", "alias": "postgres-18-cluster", "version": "8.10.0"}],
+        PG_VALUES,
+    )
+    _write_chart_and_values(
+        tmp_path,
+        "modern",
+        [{"name": "postgres-cluster", "version": "9.0.0"}],
+        """
+        postgres-cluster:
+          backup:
+            scheduledBackup:
+              schedule: "0 0 5 * * *"
+        """,
+    )
+    _write_chart_and_values(
+        tmp_path,
+        "blocky",
+        [{"name": "postgres-cluster", "alias": "powerdns-postgres-cluster", "version": "9.1.0"}],
+        """
+        powerdns-postgres-cluster:
+          backup:
+            scheduledBackup:
+              schedule: "0 5 5 * * *"
+        """,
+    )
+    assert find_postgres_naming_violations(helm_dir) == []
+
+
+def test_naming_flags_orphan_values_key_and_missing_values_key(tmp_path: Path):
+    helm_dir = _write_chart_and_values(
+        tmp_path,
+        "orphan",
+        [{"name": "postgres-cluster", "version": "9.0.0"}],
+        """
+        postgres-18-cluster:
+          backup:
+            scheduledBackup:
+              schedule: "0 0 5 * * *"
+        """,
+    )
+    violations = find_postgres_naming_violations(helm_dir)
+    assert len(violations) == 2
+    assert any("postgres-18-cluster" in v and "orphan" in v for v in violations)
+    assert any("missing top-level key" in v for v in violations)
+
+
+def test_naming_flags_v9_plural_scheduled_backups_and_versioned_key(tmp_path: Path):
+    helm_dir = _write_chart_and_values(
+        tmp_path,
+        "bad-plural",
+        [{"name": "postgres-cluster", "version": "9.0.0"}],
+        """
+        postgres-cluster:
+          backup:
+            scheduledBackups:
+              schedule: "0 0 5 * * *"
+        """,
+    )
+    _write_chart_and_values(
+        tmp_path,
+        "bad-versioned",
+        [{"name": "postgres-cluster", "alias": "postgres-19-cluster", "version": "9.0.0"}],
+        """
+        postgres-19-cluster:
+          backup:
+            scheduledBackup:
+              schedule: "0 5 5 * * *"
+        """,
+    )
+    violations = find_postgres_naming_violations(helm_dir)
+    assert len(violations) == 2
+    assert any("scheduledBackups" in v for v in violations)
+    assert any("versionless naming" in v for v in violations)
+
+
 # ── invariants against the real repository ─────────────────────────
 
 
@@ -436,6 +656,19 @@ def real_rows(project_root: Path) -> list[dict]:
 
 def test_real_repo_has_backup_targets(real_rows: list[dict]):
     assert real_rows, "expected the rebalancer to discover backup targets"
+
+
+def test_real_repo_postgres_naming_matches_chart(project_root: Path):
+    helm_dir = project_root / "clusters" / "cl01tl" / "helm"
+    if not helm_dir.is_dir():
+        pytest.skip("cl01tl helm directory not present")
+    assert find_postgres_naming_violations(helm_dir) == []
+
+
+def test_real_repo_discovers_all_cl01tl_postgres_targets(real_rows: list[dict]):
+    pg_apps = {r["app"] for r in real_rows if r["kind"] == "Postgres"}
+    assert {"blocky", "memos", "outline", "pipedash", "streamystats"} <= pg_apps
+    assert len([r for r in real_rows if r["kind"] == "Postgres"]) >= 39
 
 
 def test_real_repo_schedules_are_valid_cron(real_rows: list[dict]):

@@ -128,6 +128,22 @@ Service-demo.yaml"
   assert_output "null"
 }
 
+@test "render_helm_chart: does not inject namespace into ClusterImageCatalog" {
+  cat >> "${HELM_FIXTURE}" <<'EOF'
+apiVersion: postgresql.cnpg.io/v1
+kind: ClusterImageCatalog
+metadata:
+  name: postgresql-standard-trixie
+---
+EOF
+
+  run render_helm_chart --chart demo --chart-path "${CHART_DIR}" --split-output-dir "${OUT_DIR}/split"
+  assert_success
+
+  run yq '.metadata.namespace' "${OUT_DIR}/split/ClusterImageCatalog-postgresql-standard-trixie.yaml"
+  assert_output "null"
+}
+
 @test "render_helm_chart: strips comments from split manifests" {
   run render_helm_chart --chart demo --chart-path "${CHART_DIR}" --split-output-dir "${OUT_DIR}/split"
   assert_success
