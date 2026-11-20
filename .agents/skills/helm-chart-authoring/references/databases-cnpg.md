@@ -7,20 +7,23 @@ must connect to a dedicated CloudNativePG (`Cluster`) instance.
 
 ## Architectural Patterns
 
-Applications integrate with CNPG with a depdent chart.
+Applications integrate with CNPG via a dependent `postgres-cluster` chart (no alias needed for `v9.0.0+`, which
+provisions versionless `<release>-postgres-cluster` resources and defaults to `ClusterImageCatalog`
+`postgresql-standard-trixie` at PostgreSQL `major: 19` for future in-place `pg_upgrade` support and automatic
+`<cluster.name>-pg<major>-backup-<index>` Barman `serverName` rotation).
 
 ```yaml
 dependencies:
   - name: postgres-cluster
     repository: oci://harbor.alexlebens.dev/helm-charts
-    version: 0.1.0
+    version: 9.0.0
 ```
 
-A minimal configuration for values.yaml. Use standalone mode to boostrap, recovery mode once initalized. Additional
-configuration is possible as the app requires in the Chart's values.
+A minimal configuration for `values.yaml`. Use `standalone` mode to bootstrap, `recovery` mode (`objectStore`) once
+initialized. Additional configuration is possible as the app requires in the chart's values.
 
 ```yaml
-postgres-18-cluster:
+postgres-cluster:
   mode: standalone
   recovery:
     objectStore:
@@ -28,7 +31,7 @@ postgres-18-cluster:
   backup:
     objectStore:
       index: 1
-    scheduledBackups:
+    scheduledBackup:
       suspend: false
       schedule: '0 5 5 * * *'
 ```
