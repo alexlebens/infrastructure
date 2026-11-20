@@ -134,152 +134,147 @@ spec:
                 )
               )
             ) * 0 + 1
+        - record: version_checker:outdated_image:age_seconds
+          expr: |-
+            (
+              time()
+              - min by (namespace, container, image) (version_checker_image_timestamp > 0)
+            )
+            * on (namespace, container, image) group_right()
+            (
+              max by (namespace, container, image, current_version, update_type) (
+                version_checker:outdated_image:type
+              ) * 0 + 1
+            )
     - name: version-checker.alerts
       interval: 5m
       rules:
         - alert: VersionCheckerImageOutdatedMajor
-          expr: |-
-            max by (namespace, container, image, current_version, update_type) (
-              version_checker:outdated_image:type{update_type="major"}
-            ) == 1
-          for: 7d
+          expr: (version_checker:outdated_image:age_seconds{update_type="major"} >= 604800) < 2592000
+          for: 1h
           labels:
             severity: warning
             update_type: major
             age_tier: 7d
           annotations:
             summary: Major image update available for {{ $labels.namespace }}/{{ $labels.container }} (>7d)
-            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream major update available for over 7 days."
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }}; running image was built {{ $value | humanizeDuration }} ago and has an upstream major update available."
         - alert: VersionCheckerImageOutdatedMajor
-          expr: |-
-            max by (namespace, container, image, current_version, update_type) (
-              version_checker:outdated_image:type{update_type="major"}
-            ) == 1
-          for: 30d
+          expr: version_checker:outdated_image:age_seconds{update_type="major"} >= 2592000
+          for: 1h
           labels:
             severity: critical
             update_type: major
             age_tier: 30d
           annotations:
             summary: Major image update critically overdue for {{ $labels.namespace }}/{{ $labels.container }} (>30d)
-            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream major update available for over 30 days."
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }}; running image was built {{ $value | humanizeDuration }} ago and has an upstream major update available."
         - alert: VersionCheckerImageOutdatedMinor
-          expr: |-
-            max by (namespace, container, image, current_version, update_type) (
-              version_checker:outdated_image:type{update_type="minor"}
-            ) == 1
-          for: 7d
+          expr: (version_checker:outdated_image:age_seconds{update_type="minor"} >= 604800) < 1209600
+          for: 1h
           labels:
             severity: info
             update_type: minor
             age_tier: 7d
           annotations:
             summary: Minor image update available for {{ $labels.namespace }}/{{ $labels.container }} (>7d)
-            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream minor update available for over 7 days."
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }}; running image was built {{ $value | humanizeDuration }} ago and has an upstream minor update available."
         - alert: VersionCheckerImageOutdatedMinor
-          expr: |-
-            max by (namespace, container, image, current_version, update_type) (
-              version_checker:outdated_image:type{update_type="minor"}
-            ) == 1
-          for: 14d
+          expr: (version_checker:outdated_image:age_seconds{update_type="minor"} >= 1209600) < 2592000
+          for: 1h
           labels:
             severity: warning
             update_type: minor
             age_tier: 14d
           annotations:
             summary: Minor image update overdue for {{ $labels.namespace }}/{{ $labels.container }} (>14d)
-            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream minor update available for over 14 days."
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }}; running image was built {{ $value | humanizeDuration }} ago and has an upstream minor update available."
         - alert: VersionCheckerImageOutdatedMinor
-          expr: |-
-            max by (namespace, container, image, current_version, update_type) (
-              version_checker:outdated_image:type{update_type="minor"}
-            ) == 1
-          for: 30d
+          expr: version_checker:outdated_image:age_seconds{update_type="minor"} >= 2592000
+          for: 1h
           labels:
             severity: critical
             update_type: minor
             age_tier: 30d
           annotations:
             summary: Minor image update critically overdue for {{ $labels.namespace }}/{{ $labels.container }} (>30d)
-            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream minor update available for over 30 days."
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }}; running image was built {{ $value | humanizeDuration }} ago and has an upstream minor update available."
         - alert: VersionCheckerImageOutdatedPatch
-          expr: |-
-            max by (namespace, container, image, current_version, update_type) (
-              version_checker:outdated_image:type{update_type="patch"}
-            ) == 1
-          for: 3d
+          expr: (version_checker:outdated_image:age_seconds{update_type="patch"} >= 259200) < 1209600
+          for: 1h
           labels:
             severity: info
             update_type: patch
             age_tier: 3d
           annotations:
             summary: Patch image update available for {{ $labels.namespace }}/{{ $labels.container }} (>3d)
-            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream patch update available for over 3 days."
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }}; running image was built {{ $value | humanizeDuration }} ago and has an upstream patch update available."
         - alert: VersionCheckerImageOutdatedPatch
-          expr: |-
-            max by (namespace, container, image, current_version, update_type) (
-              version_checker:outdated_image:type{update_type="patch"}
-            ) == 1
-          for: 14d
+          expr: (version_checker:outdated_image:age_seconds{update_type="patch"} >= 1209600) < 2592000
+          for: 1h
           labels:
             severity: warning
             update_type: patch
             age_tier: 14d
           annotations:
             summary: Patch image update overdue for {{ $labels.namespace }}/{{ $labels.container }} (>14d)
-            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream patch update available for over 14 days."
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }}; running image was built {{ $value | humanizeDuration }} ago and has an upstream patch update available."
         - alert: VersionCheckerImageOutdatedPatch
-          expr: |-
-            max by (namespace, container, image, current_version, update_type) (
-              version_checker:outdated_image:type{update_type="patch"}
-            ) == 1
-          for: 30d
+          expr: version_checker:outdated_image:age_seconds{update_type="patch"} >= 2592000
+          for: 1h
           labels:
             severity: critical
             update_type: patch
             age_tier: 30d
           annotations:
             summary: Patch image update critically overdue for {{ $labels.namespace }}/{{ $labels.container }} (>30d)
-            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream patch update available for over 30 days."
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }}; running image was built {{ $value | humanizeDuration }} ago and has an upstream patch update available."
         - alert: VersionCheckerImageOutdatedDigest
-          expr: |-
-            max by (namespace, container, image, current_version, update_type) (
-              version_checker:outdated_image:type{update_type="digest"}
-            ) == 1
-          for: 3d
+          expr: (version_checker:outdated_image:age_seconds{update_type="digest"} >= 259200) < 1209600
+          for: 1h
           labels:
             severity: info
             update_type: digest
             age_tier: 3d
           annotations:
             summary: Image digest drift detected for {{ $labels.namespace }}/{{ $labels.container }} (>3d)
-            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream digest or tag update available for over 3 days."
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }}; running image was built {{ $value | humanizeDuration }} ago and has an upstream digest or tag update available."
         - alert: VersionCheckerImageOutdatedDigest
-          expr: |-
-            max by (namespace, container, image, current_version, update_type) (
-              version_checker:outdated_image:type{update_type="digest"}
-            ) == 1
-          for: 14d
+          expr: (version_checker:outdated_image:age_seconds{update_type="digest"} >= 1209600) < 2592000
+          for: 1h
           labels:
             severity: warning
             update_type: digest
             age_tier: 14d
           annotations:
             summary: Image digest drift overdue for {{ $labels.namespace }}/{{ $labels.container }} (>14d)
-            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream digest or tag update available for over 14 days."
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }}; running image was built {{ $value | humanizeDuration }} ago and has an upstream digest or tag update available."
         - alert: VersionCheckerImageOutdatedDigest
-          expr: |-
-            max by (namespace, container, image, current_version, update_type) (
-              version_checker:outdated_image:type{update_type="digest"}
-            ) == 1
-          for: 30d
+          expr: version_checker:outdated_image:age_seconds{update_type="digest"} >= 2592000
+          for: 1h
           labels:
             severity: critical
             update_type: digest
             age_tier: 30d
           annotations:
             summary: Image digest drift critically overdue for {{ $labels.namespace }}/{{ $labels.container }} (>30d)
-            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream digest or tag update available for over 30 days."
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }}; running image was built {{ $value | humanizeDuration }} ago and has an upstream digest or tag update available."
+        - alert: VersionCheckerImageOutdatedUnknownAge
+          expr: |-
+            (
+              max by (namespace, container, image, current_version, update_type) (
+                version_checker:outdated_image:type
+              )
+              unless on (namespace, container, image, current_version, update_type)
+              version_checker:outdated_image:age_seconds
+            ) == 1
+          for: 7d
+          labels:
+            severity: info
+            age_tier: unknown
+          annotations:
+            summary: Outdated image without build timestamp in {{ $labels.namespace }}/{{ $labels.container }} (>7d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} (no upstream OCI build timestamp available) and has had an upstream {{ $labels.update_type }} update available for over 7 days."
         - alert: VersionCheckerImageUnavailable
           expr: |-
             min by (namespace, container, image) (
