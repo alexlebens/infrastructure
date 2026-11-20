@@ -1,0 +1,24 @@
+{{- range .Values.clusterImageCatalogs }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ClusterImageCatalog
+metadata:
+  name: {{ .name }}
+  labels:
+    app.kubernetes.io/name: {{ .name }}
+    {{- include "custom.labels" $ | nindent 4 }}
+spec:
+  images:
+    {{- range .images }}
+    - major: {{ .major | int }}
+      image: {{ .image | quote }}
+      {{- with .extensions }}
+      extensions:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- with .componentImages }}
+  componentImages:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
