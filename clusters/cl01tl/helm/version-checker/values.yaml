@@ -36,19 +36,24 @@ version-checker:
             - --cache-sync-period=6h
             - --kube-channel=stable
             - --kube-interval=6h
+            - --graceful-shutdown-timeout=30s
             - --log-level=info
           envFrom:
             - secretRef:
                 name: version-checker-dockerhub
+            - secretRef:
+                name: version-checker-ghcr
           env:
             - name: TZ
               value: America/Chicago
+            - name: GOMEMLIMIT
+              value: 900MiB
           resources:
             requests:
-              cpu: 10m
-              memory: 50Mi
+              cpu: 50m
+              memory: 256Mi
             limits:
-              memory: 250Mi
+              memory: 1Gi
           probes:
             liveness:
               enabled: true
@@ -59,6 +64,8 @@ version-checker:
                   port: 8080
                 initialDelaySeconds: 10
                 periodSeconds: 30
+                timeoutSeconds: 5
+                failureThreshold: 5
             readiness:
               enabled: true
               custom: true
@@ -68,6 +75,8 @@ version-checker:
                   port: 8080
                 initialDelaySeconds: 10
                 periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 5
   serviceAccount:
     version-checker:
       enabled: true
