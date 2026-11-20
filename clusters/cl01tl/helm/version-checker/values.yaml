@@ -1,0 +1,92 @@
+version-checker:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
+      pod:
+        automountServiceAccountToken: true
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          fsGroup: 65534
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+      serviceAccount:
+        name: version-checker
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: quay.io/jetstack/version-checker
+            tag: v0.12.0@sha256:19c919de162659c0a7568ff175977e658218d2d1158edb0b5d1dfbdd55b27db7
+          args:
+            - --metrics-serving-address=0.0.0.0:8080
+            - --test-all-containers=true
+            - --image-cache-timeout=1h
+            - --requeue-duration=2h
+            - --cache-sync-period=6h
+            - --kube-channel=stable
+            - --kube-interval=6h
+            - --log-level=info
+          envFrom:
+            - secretRef:
+                name: version-checker-dockerhub
+          env:
+            - name: TZ
+              value: America/Chicago
+          resources:
+            requests:
+              cpu: 10m
+              memory: 50Mi
+            limits:
+              memory: 250Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+                initialDelaySeconds: 10
+                periodSeconds: 30
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /readyz
+                  port: 8080
+                initialDelaySeconds: 10
+                periodSeconds: 15
+  serviceAccount:
+    version-checker:
+      enabled: true
+  service:
+    main:
+      forceRename: version-checker
+      ports:
+        metrics:
+          port: 8080
+          targetPort: 8080
+  serviceMonitor:
+    main:
+      serviceName: version-checker
+      endpoints:
+        - port: metrics
+          interval: 1m
+          honorLabels: true
+
+common-helpers:
+  grafanaDashboard:
+    enabled: true
+    folder: platform
