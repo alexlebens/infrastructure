@@ -32,6 +32,29 @@ data:
         fi
     }
 
+    is_transitional_phase() {
+        case "$1" in
+            "Upgrading Postgres major version"|\
+            "Setting up primary"|\
+            "Creating a new replica"|\
+            "Upgrading cluster"|\
+            "Online upgrade in progress"|\
+            "Cluster upgrade delayed"|\
+            "Applying configuration"|\
+            "Switchover in progress"|\
+            "Failing over"|\
+            "Primary instance is being restarted in-place"|\
+            "Primary instance is being restarted without a switchover"|\
+            "Promoting to primary cluster"|\
+            "Waiting for user action")
+                return 0
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    }
+
     send_ntfy() {
         local title="$1"
         local message="$2"
@@ -169,8 +192,33 @@ data:
         LAST_INSTANCE=$(echo "$cluster" | jq -r '.metadata.annotations["cnpg.io/last-remediated-instance"] // ""')
         REMEDIATION_COUNT=$(echo "$cluster" | jq -r '.metadata.annotations["cnpg.io/remediation-count"] // "0"')
         PERSISTENT_ALERT_SENT=$(echo "$cluster" | jq -r '.metadata.annotations["cnpg.io/persistent-alert-sent"] // "false"')
+        RECONCILIATION_LOOP=$(echo "$cluster" | jq -r '.metadata.annotations["cnpg.io/reconciliationLoop"] // ""')
+        HIBERNATION=$(echo "$cluster" | jq -r '.metadata.annotations["cnpg.io/hibernation"] // ""')
+        NODE_MAINT_IN_PROGRESS=$(echo "$cluster" | jq -r '.spec.nodeMaintenanceWindow.inProgress // false')
+        TARGET_PGDATA_IMAGE=$(echo "$cluster" | jq -r '.status.targetPGDataImageInfo.image // ""')
 
         echo "--- Cluster: ${NS}/${NAME} (Phase: ${PHASE}, Primary: ${PRIMARY}) ---"
+
+        # Safety Check 0: Lifecycle, maintenance, and transitional upgrade guards
+        if [ "$RECONCILIATION_LOOP" = "disabled" ]; then
+            echo "  [SKIP] Reconciliation loop is disabled (cnpg.io/reconciliationLoop=disabled). Skipping."
+            continue
+        fi
+
+        if [ "$HIBERNATION" = "on" ]; then
+            echo "  [SKIP] Cluster hibernation is active (cnpg.io/hibernation=on). Skipping."
+            continue
+        fi
+
+        if [ "$NODE_MAINT_IN_PROGRESS" = "true" ]; then
+            echo "  [SKIP] Node maintenance window is in progress. Skipping."
+            continue
+        fi
+
+        if is_transitional_phase "$PHASE" || [ -n "$TARGET_PGDATA_IMAGE" ]; then
+            echo "  [SKIP] Cluster is in transitional phase '${PHASE}'${TARGET_PGDATA_IMAGE:+ (targetPGDataImageInfo set)}. Skipping."
+            continue
+        fi
 
         # Safety Check 1: Primary exists
         if [ -z "$PRIMARY" ]; then
@@ -188,7 +236,7 @@ data:
             emit_k8s_event "$NS" "$NAME" "PrimaryNotFound" "Warning" "Primary pod '${PRIMARY}' not found. Auto-remediation blocked."
             continue
         fi
-        PRIMARY_READY=$(echo "$PRIMARY_POD_JSON" | jq -r '([.status.containerStatuses[]? | select(.ready == true)] | length) == (.status.containerStatuses? | length // 0)')
+        PRIMARY_READY=$(echo "$PRIMARY_POD_JSON" | jq -r '((.status.containerStatuses // []) | length) as $total | ($total > 0) and (([.status.containerStatuses[]? | select(.ready == true)] | length) == $total)')
         PRIMARY_PHASE=$(echo "$PRIMARY_POD_JSON" | jq -r '.status.phase // ""')
         if [ "$PRIMARY_READY" != "true" ] || [ "$PRIMARY_PHASE" != "Running" ]; then
             echo "  [ABORT] Primary pod '${PRIMARY}' is not healthy (Phase: ${PRIMARY_PHASE}, Ready: ${PRIMARY_READY}). Skipping cluster."
@@ -206,23 +254,23 @@ data:
 
         # Find failing standbys (strictly excluding the primary)
         STANDBYS=$(echo "$PODS_JSON" | jq -c --arg p "$PRIMARY" --argjson min "$MIN_RESTARTS" '
-            [ .items[] | select(.metadata.name != $p) ] |
+            [ .items[] | select(.metadata.name != $p and .metadata.deletionTimestamp == null) ] |
             [ .[] |
               . as $pod |
-              (if $pod.metadata.deletionTimestamp then "Terminating"
-               elif ($pod.status.containerStatuses[]?.state.waiting.reason) then
-                 [$pod.status.containerStatuses[]?.state.waiting.reason][0]
-               elif ($pod.status.containerStatuses[]?.state.terminated.reason) then
-                 [$pod.status.containerStatuses[]?.state.terminated.reason][0]
-               else ($pod.status.phase // "Unknown") end
-              ) as $status |
+              ([ $pod.status.containerStatuses[]?.state.waiting.reason | select(. != null) ][0]) as $waiting |
+              ([ $pod.status.containerStatuses[]?.state.terminated.reason | select(. != null) ][0]) as $terminated |
+              ($waiting // $terminated // ($pod.status.phase // "Unknown")) as $status |
               ([$pod.status.containerStatuses[]?.restartCount // 0] | add // 0) as $restarts |
               ([$pod.status.containerStatuses[]? | select(.ready == true)] | length) as $ready_count |
-              ($pod.status.containerStatuses? | length // 0) as $total_count |
+              (($pod.status.containerStatuses // []) | length) as $total_count |
               select(
-                ($status != "Running" and $status != "Completed") or
-                ($ready_count < $total_count and $restarts >= $min) or
-                ($restarts >= $min and ($status == "CrashLoopBackOff" or $status == "Error"))
+                $restarts >= $min and
+                (
+                  $status == "CrashLoopBackOff" or
+                  $status == "Error" or
+                  $status == "OOMKilled" or
+                  ($total_count > 0 and $ready_count < $total_count and $status != "ContainerCreating" and $status != "PodInitializing" and $status != "ImagePullBackOff" and $status != "ErrImagePull")
+                )
               ) |
               {
                 name: $pod.metadata.name,
