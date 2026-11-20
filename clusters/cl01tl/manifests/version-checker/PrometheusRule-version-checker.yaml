@@ -1,0 +1,321 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: version-checker
+  namespace: version-checker
+  labels:
+    app.kubernetes.io/name: version-checker
+    app.kubernetes.io/instance: version-checker
+    app.kubernetes.io/part-of: version-checker
+spec:
+  groups:
+    - name: version-checker.recording
+      interval: 5m
+      rules:
+        - record: version_checker:outdated_image:info
+          expr: |-
+            max by (namespace, container, image, current_version, latest_version) (
+              version_checker_is_latest_version == 0
+            )
+        - record: version_checker:outdated_image:type
+          labels:
+            update_type: major
+          expr: |-
+            (
+              max by (namespace, container, image, current_version, latest_version) (
+                label_replace(
+                  version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                  "maj", "$1", "current_version", "^v?([0-9]+)\\.[0-9]+.*"
+                )
+                unless on (namespace, container, image, current_version, latest_version, maj)
+                label_replace(
+                  version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                  "maj", "$1", "latest_version", "^v?([0-9]+)\\.[0-9]+.*"
+                )
+              )
+            ) * 0 + 1
+        - record: version_checker:outdated_image:type
+          labels:
+            update_type: minor
+          expr: |-
+            (
+              max by (namespace, container, image, current_version, latest_version) (
+                (
+                  label_replace(
+                    version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                    "mm", "$1.$2", "current_version", "^v?([0-9]+)\\.([0-9]+).*"
+                  )
+                  unless on (namespace, container, image, current_version, latest_version, mm)
+                  label_replace(
+                    version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                    "mm", "$1.$2", "latest_version", "^v?([0-9]+)\\.([0-9]+).*"
+                  )
+                )
+                and on (namespace, container, image, current_version, latest_version) (
+                  label_replace(
+                    version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                    "maj", "$1", "current_version", "^v?([0-9]+)\\.[0-9]+.*"
+                  )
+                  and on (namespace, container, image, current_version, latest_version, maj)
+                  label_replace(
+                    version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                    "maj", "$1", "latest_version", "^v?([0-9]+)\\.[0-9]+.*"
+                  )
+                )
+              )
+            ) * 0 + 1
+        - record: version_checker:outdated_image:type
+          labels:
+            update_type: patch
+          expr: |-
+            (
+              max by (namespace, container, image, current_version, latest_version) (
+                (
+                  label_replace(
+                    label_replace(
+                      version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                      "mmp", "$1.$2.0", "current_version", "^v?([0-9]+)\\.([0-9]+).*"
+                    ),
+                    "mmp", "$1.$2.$3", "current_version", "^v?([0-9]+)\\.([0-9]+)\\.([0-9]+).*"
+                  )
+                  unless on (namespace, container, image, current_version, latest_version, mmp)
+                  label_replace(
+                    label_replace(
+                      version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                      "mmp", "$1.$2.0", "latest_version", "^v?([0-9]+)\\.([0-9]+).*"
+                    ),
+                    "mmp", "$1.$2.$3", "latest_version", "^v?([0-9]+)\\.([0-9]+)\\.([0-9]+).*"
+                  )
+                )
+                and on (namespace, container, image, current_version, latest_version) (
+                  label_replace(
+                    version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                    "mm", "$1.$2", "current_version", "^v?([0-9]+)\\.([0-9]+).*"
+                  )
+                  and on (namespace, container, image, current_version, latest_version, mm)
+                  label_replace(
+                    version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                    "mm", "$1.$2", "latest_version", "^v?([0-9]+)\\.([0-9]+).*"
+                  )
+                )
+              )
+            ) * 0 + 1
+        - record: version_checker:outdated_image:type
+          labels:
+            update_type: digest
+          expr: |-
+            (
+              max by (namespace, container, image, current_version, latest_version) (
+                version_checker:outdated_image:info{current_version!~"^v?[0-9]+\\.[0-9]+.*"}
+                or version_checker:outdated_image:info{latest_version!~"^v?[0-9]+\\.[0-9]+.*"}
+                or (
+                  label_replace(
+                    label_replace(
+                      version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                      "mmp", "$1.$2.0", "current_version", "^v?([0-9]+)\\.([0-9]+).*"
+                    ),
+                    "mmp", "$1.$2.$3", "current_version", "^v?([0-9]+)\\.([0-9]+)\\.([0-9]+).*"
+                  )
+                  and on (namespace, container, image, current_version, latest_version, mmp)
+                  label_replace(
+                    label_replace(
+                      version_checker:outdated_image:info{current_version=~"^v?[0-9]+\\.[0-9]+.*", latest_version=~"^v?[0-9]+\\.[0-9]+.*"},
+                      "mmp", "$1.$2.0", "latest_version", "^v?([0-9]+)\\.([0-9]+).*"
+                    ),
+                    "mmp", "$1.$2.$3", "latest_version", "^v?([0-9]+)\\.([0-9]+)\\.([0-9]+).*"
+                  )
+                )
+              )
+            ) * 0 + 1
+    - name: version-checker.alerts
+      interval: 5m
+      rules:
+        - alert: VersionCheckerImageOutdatedMajor
+          expr: |-
+            max by (namespace, container, image, current_version, update_type) (
+              version_checker:outdated_image:type{update_type="major"}
+            ) == 1
+          for: 7d
+          labels:
+            severity: warning
+            update_type: major
+            age_tier: 7d
+          annotations:
+            summary: Major image update available for {{ $labels.namespace }}/{{ $labels.container }} (>7d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream major update available for over 7 days."
+        - alert: VersionCheckerImageOutdatedMajor
+          expr: |-
+            max by (namespace, container, image, current_version, update_type) (
+              version_checker:outdated_image:type{update_type="major"}
+            ) == 1
+          for: 30d
+          labels:
+            severity: critical
+            update_type: major
+            age_tier: 30d
+          annotations:
+            summary: Major image update critically overdue for {{ $labels.namespace }}/{{ $labels.container }} (>30d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream major update available for over 30 days."
+        - alert: VersionCheckerImageOutdatedMinor
+          expr: |-
+            max by (namespace, container, image, current_version, update_type) (
+              version_checker:outdated_image:type{update_type="minor"}
+            ) == 1
+          for: 7d
+          labels:
+            severity: info
+            update_type: minor
+            age_tier: 7d
+          annotations:
+            summary: Minor image update available for {{ $labels.namespace }}/{{ $labels.container }} (>7d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream minor update available for over 7 days."
+        - alert: VersionCheckerImageOutdatedMinor
+          expr: |-
+            max by (namespace, container, image, current_version, update_type) (
+              version_checker:outdated_image:type{update_type="minor"}
+            ) == 1
+          for: 14d
+          labels:
+            severity: warning
+            update_type: minor
+            age_tier: 14d
+          annotations:
+            summary: Minor image update overdue for {{ $labels.namespace }}/{{ $labels.container }} (>14d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream minor update available for over 14 days."
+        - alert: VersionCheckerImageOutdatedMinor
+          expr: |-
+            max by (namespace, container, image, current_version, update_type) (
+              version_checker:outdated_image:type{update_type="minor"}
+            ) == 1
+          for: 30d
+          labels:
+            severity: critical
+            update_type: minor
+            age_tier: 30d
+          annotations:
+            summary: Minor image update critically overdue for {{ $labels.namespace }}/{{ $labels.container }} (>30d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream minor update available for over 30 days."
+        - alert: VersionCheckerImageOutdatedPatch
+          expr: |-
+            max by (namespace, container, image, current_version, update_type) (
+              version_checker:outdated_image:type{update_type="patch"}
+            ) == 1
+          for: 3d
+          labels:
+            severity: info
+            update_type: patch
+            age_tier: 3d
+          annotations:
+            summary: Patch image update available for {{ $labels.namespace }}/{{ $labels.container }} (>3d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream patch update available for over 3 days."
+        - alert: VersionCheckerImageOutdatedPatch
+          expr: |-
+            max by (namespace, container, image, current_version, update_type) (
+              version_checker:outdated_image:type{update_type="patch"}
+            ) == 1
+          for: 14d
+          labels:
+            severity: warning
+            update_type: patch
+            age_tier: 14d
+          annotations:
+            summary: Patch image update overdue for {{ $labels.namespace }}/{{ $labels.container }} (>14d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream patch update available for over 14 days."
+        - alert: VersionCheckerImageOutdatedPatch
+          expr: |-
+            max by (namespace, container, image, current_version, update_type) (
+              version_checker:outdated_image:type{update_type="patch"}
+            ) == 1
+          for: 30d
+          labels:
+            severity: critical
+            update_type: patch
+            age_tier: 30d
+          annotations:
+            summary: Patch image update critically overdue for {{ $labels.namespace }}/{{ $labels.container }} (>30d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream patch update available for over 30 days."
+        - alert: VersionCheckerImageOutdatedDigest
+          expr: |-
+            max by (namespace, container, image, current_version, update_type) (
+              version_checker:outdated_image:type{update_type="digest"}
+            ) == 1
+          for: 3d
+          labels:
+            severity: info
+            update_type: digest
+            age_tier: 3d
+          annotations:
+            summary: Image digest drift detected for {{ $labels.namespace }}/{{ $labels.container }} (>3d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream digest or tag update available for over 3 days."
+        - alert: VersionCheckerImageOutdatedDigest
+          expr: |-
+            max by (namespace, container, image, current_version, update_type) (
+              version_checker:outdated_image:type{update_type="digest"}
+            ) == 1
+          for: 14d
+          labels:
+            severity: warning
+            update_type: digest
+            age_tier: 14d
+          annotations:
+            summary: Image digest drift overdue for {{ $labels.namespace }}/{{ $labels.container }} (>14d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream digest or tag update available for over 14 days."
+        - alert: VersionCheckerImageOutdatedDigest
+          expr: |-
+            max by (namespace, container, image, current_version, update_type) (
+              version_checker:outdated_image:type{update_type="digest"}
+            ) == 1
+          for: 30d
+          labels:
+            severity: critical
+            update_type: digest
+            age_tier: 30d
+          annotations:
+            summary: Image digest drift critically overdue for {{ $labels.namespace }}/{{ $labels.container }} (>30d)
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} is running {{ $labels.image }}:{{ $labels.current_version }} and has had an upstream digest or tag update available for over 30 days."
+        - alert: VersionCheckerImageUnavailable
+          expr: |-
+            min by (namespace, container, image) (
+              version_checker_is_available
+            ) == 0
+          for: 24h
+          labels:
+            severity: warning
+          annotations:
+            summary: Upstream image unavailable for {{ $labels.namespace }}/{{ $labels.container }}
+            description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} references {{ $labels.image }}, which version-checker has reported unavailable upstream for over 24 hours."
+        - alert: VersionCheckerKubeVersionOutdated
+          expr: version_checker_is_latest_kube_version == 0
+          for: 7d
+          labels:
+            severity: info
+            age_tier: 7d
+          annotations:
+            summary: Kubernetes cluster version {{ $labels.current_version }} is behind channel {{ $labels.channel }} ({{ $labels.latest_version }})
+            description: "Cluster is running Kubernetes {{ $labels.current_version }}; latest {{ $labels.channel }} release is {{ $labels.latest_version }} (>7d)."
+        - alert: VersionCheckerKubeVersionOutdated
+          expr: version_checker_is_latest_kube_version == 0
+          for: 30d
+          labels:
+            severity: warning
+            age_tier: 30d
+          annotations:
+            summary: Kubernetes cluster version {{ $labels.current_version }} is >30d behind {{ $labels.channel }} ({{ $labels.latest_version }})
+            description: "Cluster has been behind Kubernetes {{ $labels.channel }} release {{ $labels.latest_version }} for over 30 days (running {{ $labels.current_version }})."
+        - alert: VersionCheckerLookupErrors
+          expr: increase(version_checker_image_failures_total[6h]) > 10
+          for: 6h
+          labels:
+            severity: warning
+          annotations:
+            summary: Elevated image lookup failures in {{ $labels.namespace }}/{{ $labels.container }}
+            description: "version-checker recorded {{ $value | humanize }} lookup failures in the last 6h for {{ $labels.image }}."
+        - alert: VersionCheckerAbsent
+          expr: absent(up{job="version-checker"} == 1)
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: version-checker target is down
+            description: "Prometheus has not scraped a healthy version-checker target for more than 10 minutes."

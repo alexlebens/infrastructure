@@ -9,6 +9,8 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/name: diun
     helm.sh/chart: diun-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
   namespace: diun
 spec:
   revisionHistoryLimit: 3
@@ -46,38 +48,18 @@ spec:
         - args:
             - serve
           env:
+            - name: CONFIG
+              value: /etc/diun/diun.yml
             - name: TZ
               value: America/Chicago
             - name: LOG_LEVEL
               value: info
             - name: LOG_JSON
               value: "false"
-            - name: DIUN_WATCH_WORKERS
-              value: "1"
-            - name: DIUN_WATCH_SCHEDULE
-              value: 0 */6 * * *
-            - name: DIUN_PROVIDERS_KUBERNETES
-              value: "true"
-            - name: DIUN_PROVIDERS_KUBERNETES_NAMESPACES
-              value: '!kube-system,!kube-public,!kube-node-lease,!rook-ceph,!talos,!cilium,!cilium-secrets,!kube-prometheus-stack,!loki'
-            - name: DIUN_PROVIDERS_KUBERNETES_WATCHBYDEFAULT
-              value: "true"
-            - name: DIUN_DEFAULTS_WATCHREPO
-              value: "true"
-            - name: DIUN_DEFAULTS_SORTTAGS
-              value: semver
-            - name: DIUN_DEFAULTS_MAXTAGS
-              value: "10"
             - name: DIUN_REGOPTS_0_NAME
               value: docker.io
             - name: DIUN_REGOPTS_0_SELECTOR
               value: image
-            - name: DIUN_METRICS_ENABLED
-              value: "true"
-            - name: DIUN_METRICS_ADDR
-              value: :9090
-            - name: DIUN_METRICS_PATH
-              value: /metrics
           envFrom:
             - secretRef:
                 name: diun-ntfy
@@ -110,9 +92,16 @@ spec:
                 - ALL
             readOnlyRootFilesystem: true
           volumeMounts:
+            - mountPath: /etc/diun/diun.yml
+              name: config
+              readOnly: true
+              subPath: diun.yml
             - mountPath: /data
               name: data
       volumes:
+        - configMap:
+            name: diun
+          name: config
         - name: data
           persistentVolumeClaim:
             claimName: diun-data
