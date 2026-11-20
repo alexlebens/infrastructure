@@ -3,6 +3,8 @@ diun:
     main:
       type: deployment
       strategy: Recreate
+      annotations:
+        reloader.stakater.com/auto: "true"
       pod:
         automountServiceAccountToken: true
         securityContext:
@@ -34,38 +36,18 @@ diun:
             - secretRef:
                 name: diun-dockerhub
           env:
+            - name: CONFIG
+              value: /etc/diun/diun.yml
             - name: TZ
               value: America/Chicago
             - name: LOG_LEVEL
               value: info
             - name: LOG_JSON
               value: "false"
-            - name: DIUN_WATCH_WORKERS
-              value: "1"
-            - name: DIUN_WATCH_SCHEDULE
-              value: "0 */6 * * *"
-            - name: DIUN_PROVIDERS_KUBERNETES
-              value: "true"
-            - name: DIUN_PROVIDERS_KUBERNETES_NAMESPACES
-              value: "!kube-system,!kube-public,!kube-node-lease,!rook-ceph,!talos,!cilium,!cilium-secrets,!kube-prometheus-stack,!loki"
-            - name: DIUN_PROVIDERS_KUBERNETES_WATCHBYDEFAULT
-              value: "true"
-            - name: DIUN_DEFAULTS_WATCHREPO
-              value: "true"
-            - name: DIUN_DEFAULTS_SORTTAGS
-              value: "semver"
-            - name: DIUN_DEFAULTS_MAXTAGS
-              value: "10"
             - name: DIUN_REGOPTS_0_NAME
               value: "docker.io"
             - name: DIUN_REGOPTS_0_SELECTOR
               value: "image"
-            - name: DIUN_METRICS_ENABLED
-              value: "true"
-            - name: DIUN_METRICS_ADDR
-              value: ":9090"
-            - name: DIUN_METRICS_PATH
-              value: "/metrics"
           resources:
             requests:
               cpu: 10m
@@ -107,6 +89,16 @@ diun:
         - port: metrics
           interval: 1m
   persistence:
+    config:
+      enabled: true
+      type: configMap
+      name: diun
+      advancedMounts:
+        main:
+          main:
+            - path: /etc/diun/diun.yml
+              subPath: diun.yml
+              readOnly: true
     data:
       forceRename: diun-data
       storageClass: ceph-block
