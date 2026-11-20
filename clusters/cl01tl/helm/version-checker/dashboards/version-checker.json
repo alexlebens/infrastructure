@@ -26,7 +26,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Unique (namespace, container, image, current_version) workloads behind upstream latest",
+      "description": "Unique (image, current_version, latest_version) workloads behind upstream latest matching active filters",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -88,7 +88,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(version_checker:outdated_image:info{namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}) or vector(0)",
+          "expr": "count(max by (image, current_version, latest_version) (version_checker:outdated_image:info{namespace=~\"$namespace\", image=~\"(?i).*($image).*\"})) or vector(0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "__auto",
@@ -96,7 +96,7 @@
           "refId": "A"
         }
       ],
-      "title": "Outdated Containers",
+      "title": "Unique Outdated Images",
       "type": "stat"
     },
     {
@@ -104,7 +104,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Outdated containers with a new major SemVer version available",
+      "description": "Unique outdated images with a new major SemVer version available",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -158,7 +158,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(version_checker:outdated_image:type{update_type=\"major\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}) or vector(0)",
+          "expr": "count(max by (image, current_version, latest_version) (version_checker:outdated_image:type{update_type=\"major\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"})) or vector(0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "__auto",
@@ -174,7 +174,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Outdated containers with a new minor SemVer version available",
+      "description": "Unique outdated images with a new minor SemVer version available",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -228,7 +228,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(version_checker:outdated_image:type{update_type=\"minor\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}) or vector(0)",
+          "expr": "count(max by (image, current_version, latest_version) (version_checker:outdated_image:type{update_type=\"minor\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"})) or vector(0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "__auto",
@@ -244,7 +244,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Outdated containers with a new patch SemVer version available",
+      "description": "Unique outdated images with a new patch SemVer version available",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -298,7 +298,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(version_checker:outdated_image:type{update_type=\"patch\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}) or vector(0)",
+          "expr": "count(max by (image, current_version, latest_version) (version_checker:outdated_image:type{update_type=\"patch\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"})) or vector(0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "__auto",
@@ -314,7 +314,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Outdated containers on non-SemVer tags or same-tag SHA256 digest changes",
+      "description": "Unique outdated images on non-SemVer tags or same-tag SHA256 digest changes",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -368,7 +368,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(version_checker:outdated_image:type{update_type=\"digest\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}) or vector(0)",
+          "expr": "count(max by (image, current_version, latest_version) (version_checker:outdated_image:type{update_type=\"digest\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"})) or vector(0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "__auto",
@@ -384,7 +384,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Total unique (namespace, container, image, current_version) workloads checked by version-checker",
+      "description": "Total unique (image, current_version) container images scanned by version-checker",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -435,7 +435,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(max by (namespace, container, image, current_version) (version_checker_is_latest_version{namespace=~\"$namespace\", image=~\"(?i).*($image).*\"})) or vector(0)",
+          "expr": "count(max by (image, current_version) (version_checker_is_latest_version{namespace=~\"$namespace\", image=~\"(?i).*($image).*\"})) or vector(0)",
           "format": "time_series",
           "instant": true,
           "legendFormat": "__auto",
@@ -443,8 +443,307 @@
           "refId": "A"
         }
       ],
-      "title": "Tracked Containers",
+      "title": "Unique Tracked Images",
       "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Deduplicated view showing 1 row per unique outdated (image, current_version, latest_version) with affected namespace and container counts",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Image"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 300
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Update Type"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "digest": {
+                        "color": "blue",
+                        "text": "digest"
+                      },
+                      "major": {
+                        "color": "red",
+                        "text": "major"
+                      },
+                      "minor": {
+                        "color": "orange",
+                        "text": "minor"
+                      },
+                      "patch": {
+                        "color": "#EAB839",
+                        "text": "patch"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 115
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Namespaces"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 115
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Containers"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 115
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Current Version"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Latest Version"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Image Built"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 155
+              },
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              },
+              {
+                "id": "noValue",
+                "value": "\u2014"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last Checked"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              },
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              },
+              {
+                "id": "noValue",
+                "value": "\u2014"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 23,
+      "options": {
+        "cellHeight": "sm",
+        "filterable": true,
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Namespaces"
+          }
+        ]
+      },
+      "pluginVersion": "13.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "count by (image, current_version, latest_version, update_type) (version_checker:outdated_image:type{update_type=~\"$update_type\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "count by (image, current_version, latest_version, update_type) (max by (namespace, image, current_version, latest_version, update_type) (version_checker:outdated_image:type{update_type=~\"$update_type\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "((min by (image) (version_checker_image_timestamp{namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}) > 0) * 1000) * on(image) group_right() (count by (image, current_version, latest_version, update_type) (version_checker:outdated_image:type{update_type=~\"$update_type\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}) * 0 + 1)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "(max by (image) (version_checker_last_checked{namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}) * 1000) * on(image) group_right() (count by (image, current_version, latest_version, update_type) (version_checker:outdated_image:type{update_type=~\"$update_type\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}) * 0 + 1)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "D"
+        }
+      ],
+      "title": "Outdated Images \u2014 Unique Summary",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true
+            },
+            "indexByName": {
+              "image": 0,
+              "update_type": 1,
+              "Value #B": 2,
+              "Value #A": 3,
+              "current_version": 4,
+              "latest_version": 5,
+              "Value #C": 6,
+              "Value #D": 7
+            },
+            "renameByName": {
+              "Value #A": "Containers",
+              "Value #B": "Namespaces",
+              "Value #C": "Image Built",
+              "Value #D": "Last Checked",
+              "current_version": "Current Version",
+              "image": "Image",
+              "latest_version": "Latest Version",
+              "update_type": "Update Type"
+            }
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "datasource": {
@@ -612,10 +911,10 @@
         ]
       },
       "gridPos": {
-        "h": 11,
+        "h": 10,
         "w": 24,
         "x": 0,
-        "y": 4
+        "y": 15
       },
       "id": 7,
       "options": {
@@ -671,7 +970,7 @@
           "refId": "C"
         }
       ],
-      "title": "Outdated Container Images",
+      "title": "Outdated Container Images \u2014 Per Workload",
       "transformations": [
         {
           "id": "merge",
@@ -717,7 +1016,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Historical count of outdated workloads stacked by SemVer/digest category",
+      "description": "Historical count of unique outdated images stacked by SemVer/digest category",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -773,7 +1072,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 15
+        "y": 25
       },
       "id": 8,
       "options": {
@@ -797,7 +1096,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by (update_type) (version_checker:outdated_image:type{update_type=~\"$update_type\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"})",
+          "expr": "count by (update_type) (max by (image, current_version, latest_version, update_type) (version_checker:outdated_image:type{update_type=~\"$update_type\", namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}))",
           "format": "time_series",
           "instant": false,
           "legendFormat": "{{update_type}}",
@@ -810,10 +1109,10 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "count(version_checker:outdated_image:info{namespace=~\"$namespace\", image=~\"(?i).*($image).*\"})",
+          "expr": "count(max by (image, current_version, latest_version) (version_checker:outdated_image:info{namespace=~\"$namespace\", image=~\"(?i).*($image).*\"}))",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "total outdated",
+          "legendFormat": "unique outdated",
           "range": true,
           "refId": "B"
         }
@@ -954,7 +1253,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 15
+        "y": 25
       },
       "id": 9,
       "options": {
@@ -1166,7 +1465,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 23
+        "y": 33
       },
       "id": 10,
       "options": {
@@ -1406,7 +1705,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 23
+        "y": 33
       },
       "id": 11,
       "options": {
@@ -1530,7 +1829,7 @@
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 31
+        "y": 41
       },
       "id": 12,
       "options": {
@@ -1605,7 +1904,7 @@
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 31
+        "y": 41
       },
       "id": 13,
       "options": {
@@ -1703,7 +2002,7 @@
         "h": 5,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 45
       },
       "id": 14,
       "options": {
@@ -1748,7 +2047,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 31
+        "y": 41
       },
       "id": 15,
       "options": {
@@ -1785,7 +2084,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 50
       },
       "id": 100,
       "panels": [
@@ -1822,7 +2121,7 @@
             "h": 4,
             "w": 8,
             "x": 0,
-            "y": 41
+            "y": 51
           },
           "id": 16,
           "options": {
@@ -1889,7 +2188,7 @@
             "h": 4,
             "w": 8,
             "x": 8,
-            "y": 41
+            "y": 51
           },
           "id": 17,
           "options": {
@@ -1974,7 +2273,7 @@
             "h": 4,
             "w": 8,
             "x": 16,
-            "y": 41
+            "y": 51
           },
           "id": 18,
           "options": {
@@ -2073,7 +2372,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 45
+            "y": 55
           },
           "id": 19,
           "options": {
@@ -2170,7 +2469,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 45
+            "y": 55
           },
           "id": 20,
           "options": {
@@ -2293,7 +2592,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 52
+            "y": 62
           },
           "id": 21,
           "options": {
@@ -2458,7 +2757,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 52
+            "y": 62
           },
           "id": 22,
           "options": {
