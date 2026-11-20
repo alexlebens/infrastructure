@@ -53,33 +53,42 @@ spec:
             - --cache-sync-period=6h
             - --kube-channel=stable
             - --kube-interval=6h
+            - --graceful-shutdown-timeout=30s
             - --log-level=info
           env:
             - name: TZ
               value: America/Chicago
+            - name: GOMEMLIMIT
+              value: 900MiB
           envFrom:
             - secretRef:
                 name: version-checker-dockerhub
+            - secretRef:
+                name: version-checker-ghcr
           image: quay.io/jetstack/version-checker:v0.12.0@sha256:19c919de162659c0a7568ff175977e658218d2d1158edb0b5d1dfbdd55b27db7
           livenessProbe:
+            failureThreshold: 5
             httpGet:
               path: /healthz
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 30
+            timeoutSeconds: 5
           name: main
           readinessProbe:
+            failureThreshold: 5
             httpGet:
               path: /readyz
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 15
+            timeoutSeconds: 5
           resources:
             limits:
-              memory: 250Mi
+              memory: 1Gi
             requests:
-              cpu: 10m
-              memory: 50Mi
+              cpu: 50m
+              memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
