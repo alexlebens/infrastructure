@@ -3,6 +3,7 @@ ntfy:
   controllers:
     main:
       type: deployment
+      replicas: 0
       strategy: Recreate
       annotations:
         reloader.stakater.com/auto: "true"
@@ -147,8 +148,13 @@ cloudflared:
     targetUrl: https://ntfy.alexlebens.dev
 
 postgres-18-cluster:
+  nameOverride: ntfy-postgresql-18
   mode: recovery
   cluster:
+    enableSuperuserAccess: true
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: 18.7-standard-trixie
     resources:
       requests:
         cpu: 15m
@@ -156,13 +162,45 @@ postgres-18-cluster:
   recovery:
     objectStore:
       index: 1
+      serverNameOverride: ntfy-postgresql-18-backup-1
   backup:
+    backupServerName: ntfy-postgresql-18-backup-1
     objectStore:
       index: 1
       isWALArchiver: false
-    scheduledBackups:
+    scheduledBackup:
       suspend: false
       schedule: "0 30 6 * * *"
+
+# postgres-cluster:
+#   mode: recovery
+#   cluster:
+#     resources:
+#       requests:
+#         cpu: 15m
+#         memory: 140Mi
+#   recovery:
+#     method: import
+#     import:
+#       type: microservice
+#       databases:
+#         - app
+#       source:
+#         host: ntfy-postgresql-18-cluster-rw.ntfy.svc
+#         port: 5432
+#         username: postgres
+#         database: app
+#         sslMode: require
+#         passwordSecret:
+#           name: ntfy-postgresql-18-cluster-superuser
+#           key: password
+#   backup:
+#     objectStore:
+#       index: 1
+#       isWALArchiver: false
+#     scheduledBackup:
+#       suspend: false
+#       schedule: "0 30 6 * * *"
 
 s3-bucket:
   enabled: true

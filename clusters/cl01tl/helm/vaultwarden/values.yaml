@@ -2,6 +2,7 @@ vaultwarden:
   controllers:
     main:
       type: deployment
+      replicas: 0
       strategy: Recreate
       pod:
         securityContext:
@@ -161,8 +162,13 @@ cloudflared:
     targetUrl: https://passwords.alexlebens.dev/
 
 postgres-18-cluster:
+  nameOverride: vaultwarden-postgresql-18
   mode: recovery
   cluster:
+    enableSuperuserAccess: true
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: 18.7-standard-trixie
     resources:
       requests:
         cpu: 30m
@@ -170,12 +176,43 @@ postgres-18-cluster:
   recovery:
     objectStore:
       index: 1
+      serverNameOverride: vaultwarden-postgresql-18-backup-1
   backup:
+    backupServerName: vaultwarden-postgresql-18-backup-1
     objectStore:
       index: 1
-    scheduledBackups:
+    scheduledBackup:
       suspend: false
       schedule: "0 5 8 * * *"
+
+# postgres-cluster:
+#   mode: recovery
+#   cluster:
+#     resources:
+#       requests:
+#         cpu: 30m
+#         memory: 128Mi
+#   recovery:
+#     method: import
+#     import:
+#       type: microservice
+#       databases:
+#         - app
+#       source:
+#         host: vaultwarden-postgresql-18-cluster-rw.vaultwarden.svc
+#         port: 5432
+#         username: postgres
+#         database: app
+#         sslMode: require
+#         passwordSecret:
+#           name: vaultwarden-postgresql-18-cluster-superuser
+#           key: password
+#   backup:
+#     objectStore:
+#       index: 1
+#     scheduledBackup:
+#       suspend: false
+#       schedule: "0 5 8 * * *"
 
 volsync-target-data:
   pvcTarget: vaultwarden-data
