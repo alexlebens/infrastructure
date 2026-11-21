@@ -1,0 +1,76 @@
+synology-snmp:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          seccompProfile:
+            type: RuntimeDefault
+      annotations:
+        reloader.stakater.com/auto: "true"
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: prom/snmp-exporter
+            tag: v0.31.0@sha256:e5f1aba929145cea2a3bad89c29959efaec0dc26fb87e3761414616a1a392c1c
+          args:
+            - --config.file=/etc/snmp_exporter/snmp.yml
+            - --config.file=/etc/snmp_exporter/auth/auth.yml
+          resources:
+            requests:
+              cpu: 5m
+              memory: 30Mi
+            limits:
+              memory: 100Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/healthy
+                  port: 9116
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /-/ready
+                  port: 9116
+  service:
+    main:
+      forceRename: synology-snmp
+      ports:
+        metrics:
+          port: 9116
+  serviceMonitor:
+    main:
+      serviceName: synology-snmp
+      endpoints:
+        - port: metrics
+          interval: 1m
+          scrapeTimeout: 10s
+  persistence:
+    auth:
+      type: secret
+      name: synology-snmp-auth
+      advancedMounts:
+        main:
+          main:
+            - path: /etc/snmp_exporter/auth
+              readOnly: true
+
+common-helpers:
+  grafanaDashboard:
+    enabled: true
+    folder: hardware
