@@ -210,6 +210,36 @@ postgres-18-cluster:
       suspend: true
       schedule: "0 5 7 * * *"
 
+postgres-cluster:
+  mode: recovery
+  cluster:
+    resources:
+      requests:
+        cpu: 15m
+        memory: 128Mi
+  recovery:
+    method: import
+    import:
+      type: microservice
+      databases:
+        - app
+      source:
+        host: reactive-resume-postgresql-18-cluster-rw.reactive-resume.svc
+        port: 5432
+        username: postgres
+        database: app
+        sslMode: require
+        passwordSecret:
+          name: reactive-resume-postgresql-18-cluster-superuser
+          key: password
+  backup:
+    objectStore:
+      index: 1
+      isWALArchiver: false
+    scheduledBackup:
+      suspend: true
+      schedule: "0 5 7 * * *"
+
 s3-bucket:
   enabled: true
   bucketName: reactive-resume-assets

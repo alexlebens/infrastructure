@@ -178,6 +178,36 @@ postgres-18-cluster:
       suspend: true
       schedule: "0 45 7 * * *"
 
+postgres-cluster:
+  mode: recovery
+  cluster:
+    resources:
+      requests:
+        cpu: 15m
+        memory: 128Mi
+  recovery:
+    method: import
+    import:
+      type: microservice
+      databases:
+        - app
+      source:
+        host: yamtrack-postgresql-18-cluster-rw.yamtrack.svc
+        port: 5432
+        username: postgres
+        database: app
+        sslMode: require
+        passwordSecret:
+          name: yamtrack-postgresql-18-cluster-superuser
+          key: password
+  backup:
+    objectStore:
+      index: 1
+      isWALArchiver: false
+    scheduledBackup:
+      suspend: true
+      schedule: "0 45 7 * * *"
+
 common-helpers:
   probe:
     internal: http://yamtrack.yamtrack:80

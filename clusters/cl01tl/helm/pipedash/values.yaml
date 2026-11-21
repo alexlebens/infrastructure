@@ -172,6 +172,36 @@ postgres-18-cluster:
       suspend: true
       schedule: "0 45 7 * * *"
 
+postgres-cluster:
+  mode: recovery
+  cluster:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 160Mi
+  recovery:
+    method: import
+    import:
+      type: microservice
+      databases:
+        - app
+      source:
+        host: pipedash-postgresql-18-cluster-rw.pipedash.svc
+        port: 5432
+        username: postgres
+        database: app
+        sslMode: require
+        passwordSecret:
+          name: pipedash-postgresql-18-cluster-superuser
+          key: password
+  backup:
+    objectStore:
+      index: 1
+      isWALArchiver: false
+    scheduledBackup:
+      suspend: true
+      schedule: "0 45 7 * * *"
+
 volsync-target-data:
   pvcTarget: pipedash-data
   moverSecurityContext:
