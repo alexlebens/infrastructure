@@ -2,7 +2,6 @@ pipedash:
   controllers:
     main:
       type: deployment
-      replicas: 0
       strategy: Recreate
       annotations:
         reloader.stakater.com/auto: "true"
@@ -43,7 +42,7 @@ pipedash:
             - name: PIPEDASH_POSTGRES_URL
               valueFrom:
                 secretKeyRef:
-                  name: pipedash-postgresql-18-cluster-app
+                  name: pipedash-postgres-cluster-app
                   key: uri
             - name: GITHUB_TOKEN
               valueFrom:
@@ -180,26 +179,14 @@ postgres-cluster:
         cpu: 25m
         memory: 160Mi
   recovery:
-    method: import
-    import:
-      type: microservice
-      databases:
-        - app
-      source:
-        host: pipedash-postgresql-18-cluster-rw.pipedash.svc
-        port: 5432
-        username: postgres
-        database: app
-        sslMode: require
-        passwordSecret:
-          name: pipedash-postgresql-18-cluster-superuser
-          key: password
+    objectStore:
+      index: 1
   backup:
     objectStore:
       index: 1
       isWALArchiver: false
     scheduledBackup:
-      suspend: true
+      suspend: false
       schedule: "0 45 7 * * *"
 
 volsync-target-data:

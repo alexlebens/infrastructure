@@ -2,7 +2,6 @@ memos:
   controllers:
     main:
       type: deployment
-      replicas: 0
       strategy: Recreate
       annotations:
         reloader.stakater.com/auto: "true"
@@ -36,27 +35,27 @@ memos:
             - name: POSTGRES_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: memos-postgresql-18-cluster-app
+                  name: memos-postgres-cluster-app
                   key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: memos-postgresql-18-cluster-app
+                  name: memos-postgres-cluster-app
                   key: password
             - name: POSTGRES_HOST
               valueFrom:
                 secretKeyRef:
-                  name: memos-postgresql-18-cluster-app
+                  name: memos-postgres-cluster-app
                   key: host
             - name: POSTGRES_PORT
               valueFrom:
                 secretKeyRef:
-                  name: memos-postgresql-18-cluster-app
+                  name: memos-postgres-cluster-app
                   key: port
             - name: POSTGRES_DATABASE
               valueFrom:
                 secretKeyRef:
-                  name: memos-postgresql-18-cluster-app
+                  name: memos-postgres-cluster-app
                   key: dbname
             - name: MEMOS_DSN
               value: postgres://$(POSTGRES_USERNAME):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DATABASE)?sslmode=disable
@@ -198,25 +197,13 @@ postgres-cluster:
         cpu: 15m
         memory: 128Mi
   recovery:
-    method: import
-    import:
-      type: microservice
-      databases:
-        - app
-      source:
-        host: memos-postgresql-18-cluster-rw.memos.svc
-        port: 5432
-        username: postgres
-        database: app
-        sslMode: require
-        passwordSecret:
-          name: memos-postgresql-18-cluster-superuser
-          key: password
+    objectStore:
+      index: 1
   backup:
     objectStore:
       index: 1
     scheduledBackup:
-      suspend: true
+      suspend: false
       schedule: "0 15 10 * * *"
 
 s3-bucket:
