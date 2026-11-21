@@ -1,0 +1,40 @@
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: rybbit-postgres-backup
+  namespace: rybbit
+  labels:
+    app.kubernetes.io/name: rybbit-postgres-backup
+    helm.sh/chart: postgres-cluster-9.0.0
+    app.kubernetes.io/instance: rybbit
+    app.kubernetes.io/part-of: rybbit
+    app.kubernetes.io/version: "v1.30.2"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  retentionPolicy: 7d
+  instanceSidecarConfiguration:
+    env:
+      - name: AWS_REQUEST_CHECKSUM_CALCULATION
+        value: when_required
+      - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+        value: when_required
+  configuration:
+    destinationPath: s3://postgres-backups/cl01tl/rybbit/rybbit-postgres-cluster
+    endpointURL: http://synology.alexlebens.dev:3900
+    wal:
+      compression: snappy
+      maxParallel: 1
+    data:
+      compression: snappy
+      jobs: 1
+    s3Credentials:
+      accessKeyId:
+        name: rybbit-postgres-backup-secret
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: rybbit-postgres-backup-secret
+        key: ACCESS_SECRET_KEY
+      region:
+        name: rybbit-postgres-backup-secret
+        key: ACCESS_REGION
