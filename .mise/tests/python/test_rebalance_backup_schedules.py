@@ -512,6 +512,9 @@ def find_postgres_naming_violations(helm_dir: Path) -> list[str]:
             str(d.get("alias") or d.get("name")): _parse_major_version(d.get("version"))
             for d in deps
         }
+        has_versionless_v9 = any(
+            major >= 9 and not re.search(r"-\d+-cluster$", dk) for dk, major in dep_keys.items()
+        )
 
         vals_path = chart_yaml.parent / "values.yaml"
         vals = yaml.safe_load(vals_path.read_text(encoding="utf-8")) if vals_path.exists() else {}
@@ -532,11 +535,17 @@ def find_postgres_naming_violations(helm_dir: Path) -> list[str]:
                 continue
 
             if major >= 9:
+                dep_vals = vals.get(dep_key) or {}
                 if re.search(r"-\d+-cluster$", dep_key):
-                    violations.append(
-                        f"{app}: v{major} postgres-cluster key '{dep_key}' must use versionless naming"
-                    )
-                backup = (vals.get(dep_key) or {}).get("backup") or {}
+                    if not has_versionless_v9:
+                        violations.append(
+                            f"{app}: v{major} postgres-cluster key '{dep_key}' must use versionless naming"
+                        )
+                    elif not (isinstance(dep_vals, dict) and dep_vals.get("nameOverride")):
+                        violations.append(
+                            f"{app}: v{major} coexisting legacy key '{dep_key}' must set nameOverride"
+                        )
+                backup = dep_vals.get("backup") or {}
                 if isinstance(backup, dict) and "scheduledBackups" in backup:
                     violations.append(
                         f"{app}: v{major} '{dep_key}.backup.scheduledBackups' must be singular 'scheduledBackup'"
@@ -641,6 +650,50 @@ def test_naming_flags_v9_plural_scheduled_backups_and_versioned_key(tmp_path: Pa
     assert len(violations) == 2
     assert any("scheduledBackups" in v for v in violations)
     assert any("versionless naming" in v for v in violations)
+
+
+def test_naming_blue_green_v9_coexistence_requires_name_override(tmp_path: Path):
+    helm_dir = _write_chart_and_values(
+        tmp_path,
+        "valid-coexist",
+        [
+            {"name": "postgres-cluster", "alias": "postgres-18-cluster", "version": "9.0.0"},
+            {"name": "postgres-cluster", "version": "9.0.0"},
+        ],
+        """
+        postgres-18-cluster:
+          nameOverride: valid-coexist-postgresql-18
+          backup:
+            scheduledBackup:
+              schedule: "0 0 5 * * *"
+        postgres-cluster:
+          backup:
+            scheduledBackup:
+              schedule: "0 0 5 * * *"
+        """,
+    )
+    _write_chart_and_values(
+        tmp_path,
+        "missing-override",
+        [
+            {"name": "postgres-cluster", "alias": "postgres-18-cluster", "version": "9.0.0"},
+            {"name": "postgres-cluster", "version": "9.0.0"},
+        ],
+        """
+        postgres-18-cluster:
+          backup:
+            scheduledBackup:
+              schedule: "0 5 5 * * *"
+        postgres-cluster:
+          backup:
+            scheduledBackup:
+              schedule: "0 5 5 * * *"
+        """,
+    )
+    violations = find_postgres_naming_violations(helm_dir)
+    assert len(violations) == 1
+    assert "missing-override" in violations[0]
+    assert "must set nameOverride" in violations[0]
 
 
 # ── invariants against the real repository ─────────────────────────
