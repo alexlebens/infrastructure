@@ -1,0 +1,40 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: posterizarr
+  labels:
+    app.kubernetes.io/instance: posterizarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: posterizarr
+    helm.sh/chart: posterizarr-5.3.0
+  annotations:
+    gethomepage.dev/description: Posterizarr
+    gethomepage.dev/enabled: "true"
+    gethomepage.dev/group: Content
+    gethomepage.dev/icon: sh-posterizarr.webp
+    gethomepage.dev/name: Media Artwork
+    gethomepage.dev/pod-selector: ""
+    gethomepage.dev/siteMonitor: http://posterizarr.posterizarr:80
+    gethomepage.dev/weight: "350"
+  namespace: posterizarr
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: traefik-gateway
+      namespace: "traefik"
+  hostnames:
+    - "posterizarr.alexlebens.dev"
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: posterizarr
+          namespace: posterizarr
+          port: 4180
+          weight: 1
+      matches:
+        - path:
+            type: PathPrefix
+            value: /

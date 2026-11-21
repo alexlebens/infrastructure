@@ -1,0 +1,166 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: posterizarr
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: posterizarr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: posterizarr
+    helm.sh/chart: posterizarr-5.3.0
+  namespace: posterizarr
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/instance: posterizarr
+      app.kubernetes.io/name: posterizarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: posterizarr
+        app.kubernetes.io/name: posterizarr
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: posterizarr
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - env:
+            - name: TZ
+              value: America/Chicago
+            - name: TERM
+              value: xterm
+            - name: RUN_TIME
+              value: disabled
+            - name: APP_PORT
+              value: "8000"
+            - name: HOME
+              value: /tmp
+            - name: XDG_CACHE_HOME
+              value: /tmp/.cache
+          image: ghcr.io/fscorrupt/posterizarr:4.0.0@sha256:d4aa2958a310904df9d612c75830cadca0f3da23aae204cedfe47ffe5aeef3df
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 8000
+            periodSeconds: 15
+            timeoutSeconds: 5
+          name: main
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 8000
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 500Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          startupProbe:
+            failureThreshold: 60
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+          volumeMounts:
+            - mountPath: /assets
+              name: assets
+              subPath: assets
+            - mountPath: /assetsbackup
+              name: assets
+              subPath: assetsbackup
+            - mountPath: /manualassets
+              name: assets
+              subPath: manualassets
+            - mountPath: /config
+              name: config
+            - mountPath: /usr/share/fonts/custom
+              name: custom-fonts
+            - mountPath: /var/cache/fontconfig
+              name: fontconfig-cache
+            - mountPath: /tmp
+              name: tmp
+        - env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:8000
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: S256
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: '*'
+            - name: OAUTH2_PROXY_PROXY_WEBSOCKETS
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: posterizarr-oauth-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 4180
+          name: oauth
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4180
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - name: assets
+          persistentVolumeClaim:
+            claimName: posterizarr-assets
+        - name: config
+          persistentVolumeClaim:
+            claimName: posterizarr-config
+        - emptyDir: {}
+          name: custom-fonts
+        - emptyDir: {}
+          name: fontconfig-cache
+        - emptyDir: {}
+          name: tmp

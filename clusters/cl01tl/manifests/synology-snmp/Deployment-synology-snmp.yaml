@@ -1,0 +1,78 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synology-snmp
+  labels:
+    app.kubernetes.io/controller: main
+    app.kubernetes.io/instance: synology-snmp
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: synology-snmp
+    helm.sh/chart: synology-snmp-5.3.0
+  annotations:
+    reloader.stakater.com/auto: "true"
+  namespace: synology-snmp
+spec:
+  revisionHistoryLimit: 3
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/controller: main
+      app.kubernetes.io/instance: synology-snmp
+      app.kubernetes.io/name: synology-snmp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/controller: main
+        app.kubernetes.io/instance: synology-snmp
+        app.kubernetes.io/name: synology-snmp
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: synology-snmp
+      automountServiceAccountToken: false
+      securityContext:
+        runAsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - args:
+            - --config.file=/etc/snmp_exporter/snmp.yml
+            - --config.file=/etc/snmp_exporter/auth/auth.yml
+          image: prom/snmp-exporter:v0.31.0@sha256:e5f1aba929145cea2a3bad89c29959efaec0dc26fb87e3761414616a1a392c1c
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9116
+          name: main
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9116
+          resources:
+            limits:
+              memory: 100Mi
+            requests:
+              cpu: 5m
+              memory: 30Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /etc/snmp_exporter/auth
+              name: auth
+              readOnly: true
+      volumes:
+        - name: auth
+          secret:
+            secretName: synology-snmp-auth
