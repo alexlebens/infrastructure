@@ -2,7 +2,7 @@ outline:
   controllers:
     main:
       type: deployment
-      replicas: 0
+      replicas: 1
       strategy: Recreate
       annotations:
         reloader.stakater.com/auto: "true"
@@ -215,31 +215,6 @@ cloudflared:
     enabled: true
     targetUrl: https://outline.alexlebens.dev
 
-postgres-18-cluster:
-  nameOverride: outline-postgresql-18
-  mode: recovery
-  cluster:
-    enableSuperuserAccess: true
-    seccompProfile: null
-    image:
-      repository: ghcr.io/cloudnative-pg/postgresql
-      tag: 18.7-standard-trixie
-    resources:
-      requests:
-        cpu: 25m
-        memory: 128Mi
-  recovery:
-    objectStore:
-      index: 1
-      serverNameOverride: outline-postgresql-18-backup-1
-  backup:
-    backupServerName: outline-postgresql-18-backup-1
-    objectStore:
-      index: 1
-    scheduledBackup:
-      suspend: false
-      schedule: "0 10 15 * * *"
-
 postgres-cluster:
   mode: recovery
   cluster:
@@ -247,29 +222,14 @@ postgres-cluster:
       requests:
         cpu: 25m
         memory: 128Mi
-  # recovery:
-  #   objectStore:
-  #     index: 1
   recovery:
-    method: import
-    import:
-      type: microservice
-      databases:
-        - app
-      source:
-        host: outline-postgresql-18-cluster-rw.outline.svc
-        port: 5432
-        username: postgres
-        database: app
-        sslMode: require
-        passwordSecret:
-          name: outline-postgresql-18-cluster-superuser
-          key: password
+    objectStore:
+      index: 1
   backup:
     objectStore:
       index: 1
     scheduledBackup:
-      suspend: true
+      suspend: false
       schedule: "0 10 15 * * *"
 
 s3-bucket:
