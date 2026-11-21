@@ -2,6 +2,7 @@ rybbit:
   controllers:
     backend:
       type: deployment
+      replicas: 0
       strategy: Recreate
       annotations:
         reloader.stakater.com/auto: "true"
@@ -258,8 +259,13 @@ cloudflared:
     targetUrl: https://rybbit.alexlebens.dev
 
 postgres-18-cluster:
+  nameOverride: rybbit-postgresql-18
   mode: recovery
   cluster:
+    enableSuperuserAccess: true
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: 18.7-standard-trixie
     resources:
       requests:
         cpu: 25m
@@ -267,13 +273,45 @@ postgres-18-cluster:
   recovery:
     objectStore:
       index: 1
+      serverNameOverride: rybbit-postgresql-18-backup-1
   backup:
+    backupServerName: rybbit-postgresql-18-backup-1
     objectStore:
       index: 1
       isWALArchiver: false
-    scheduledBackups:
+    scheduledBackup:
       suspend: false
       schedule: "0 30 7 * * *"
+
+# postgres-cluster:
+#   mode: recovery
+#   cluster:
+#     resources:
+#       requests:
+#         cpu: 25m
+#         memory: 128Mi
+#   recovery:
+#     method: import
+#     import:
+#       type: microservice
+#       databases:
+#         - app
+#       source:
+#         host: rybbit-postgresql-18-cluster-rw.rybbit.svc
+#         port: 5432
+#         username: postgres
+#         database: app
+#         sslMode: require
+#         passwordSecret:
+#           name: rybbit-postgresql-18-cluster-superuser
+#           key: password
+#   backup:
+#     objectStore:
+#       index: 1
+#       isWALArchiver: false
+#     scheduledBackup:
+#       suspend: false
+#       schedule: "0 30 7 * * *"
 
 volsync-target-clickhouse-data:
   pvcTarget: clickhouse-data

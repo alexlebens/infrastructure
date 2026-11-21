@@ -2,6 +2,7 @@ freshrss:
   controllers:
     main:
       type: deployment
+      replicas: 0
       strategy: Recreate
       pod:
         securityContext:
@@ -317,8 +318,13 @@ cloudflared:
     module: http_401
 
 postgres-18-cluster:
+  nameOverride: freshrss-postgresql-18
   mode: recovery
   cluster:
+    enableSuperuserAccess: true
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: 18.7-standard-trixie
     resources:
       requests:
         cpu: 25m
@@ -326,13 +332,45 @@ postgres-18-cluster:
   recovery:
     objectStore:
       index: 2
+      serverNameOverride: freshrss-postgresql-18-backup-2
   backup:
+    backupServerName: freshrss-postgresql-18-backup-2
     objectStore:
       index: 2
       isWALArchiver: false
-    scheduledBackups:
+    scheduledBackup:
       suspend: false
       schedule: "0 20 5 * * *"
+
+# postgres-cluster:
+#   mode: recovery
+#   cluster:
+#     resources:
+#       requests:
+#         cpu: 25m
+#         memory: 140Mi
+#   recovery:
+#     method: import
+#     import:
+#       type: microservice
+#       databases:
+#         - app
+#       source:
+#         host: freshrss-postgresql-18-cluster-rw.freshrss.svc
+#         port: 5432
+#         username: postgres
+#         database: app
+#         sslMode: require
+#         passwordSecret:
+#           name: freshrss-postgresql-18-cluster-superuser
+#           key: password
+#   backup:
+#     objectStore:
+#       index: 2
+#       isWALArchiver: false
+#     scheduledBackup:
+#       suspend: false
+#       schedule: "0 20 5 * * *"
 
 volsync-target-data:
   pvcTarget: freshrss-data
