@@ -184,9 +184,14 @@ pocket-id-client:
       - https://homebox.alexlebens.dev/api/v1/users/login/oidc/callback
 
 postgres-18-cluster:
+  nameOverride: homebox-postgresql-18
   mode: recovery
   cluster:
     enableSuperuserAccess: true
+    seccompProfile: null
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: 18.7-standard-trixie
     resources:
       requests:
         cpu: 25m
@@ -194,12 +199,43 @@ postgres-18-cluster:
   recovery:
     objectStore:
       index: 1
+      serverNameOverride: homebox-postgresql-18-backup-1
   backup:
+    backupServerName: homebox-postgresql-18-backup-1
     objectStore:
       index: 1
-    scheduledBackups:
+    scheduledBackup:
       suspend: false
       schedule: "0 30 5 * * *"
+
+# postgres-cluster:
+#   mode: recovery
+#   cluster:
+#     resources:
+#       requests:
+#         cpu: 25m
+#         memory: 128Mi
+#   recovery:
+#     method: import
+#     import:
+#       type: microservice
+#       databases:
+#         - app
+#       source:
+#         host: homebox-postgresql-18-cluster-rw.homebox.svc
+#         port: 5432
+#         username: postgres
+#         database: app
+#         sslMode: require
+#         passwordSecret:
+#           name: homebox-postgresql-18-cluster-superuser
+#           key: password
+#   backup:
+#     objectStore:
+#       index: 1
+#     scheduledBackup:
+#       suspend: false
+#       schedule: "0 30 5 * * *"
 
 s3-bucket:
   enabled: true
