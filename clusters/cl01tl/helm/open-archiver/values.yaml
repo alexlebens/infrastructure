@@ -2,7 +2,6 @@ open-archiver:
   controllers:
     main:
       type: deployment
-      replicas: 0
       strategy: Recreate
       annotations:
         reloader.stakater.com/auto: "true"
@@ -39,32 +38,32 @@ open-archiver:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: open-archiver-postgresql-18-cluster-app
+                  name: open-archiver-postgres-cluster-app
                   key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: open-archiver-postgresql-18-cluster-app
+                  name: open-archiver-postgres-cluster-app
                   key: password
             - name: POSTGRES_HOST
               valueFrom:
                 secretKeyRef:
-                  name: open-archiver-postgresql-18-cluster-app
+                  name: open-archiver-postgres-cluster-app
                   key: host
             - name: POSTGRES_PORT
               valueFrom:
                 secretKeyRef:
-                  name: open-archiver-postgresql-18-cluster-app
+                  name: open-archiver-postgres-cluster-app
                   key: port
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
-                  name: open-archiver-postgresql-18-cluster-app
+                  name: open-archiver-postgres-cluster-app
                   key: dbname
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: open-archiver-postgresql-18-cluster-app
+                  name: open-archiver-postgres-cluster-app
                   key: uri
             - name: MEILI_HOST
               value: http://open-archiver-meilisearch.open-archiver:7700
@@ -290,20 +289,8 @@ postgres-cluster:
       parameters:
         shared_buffers: 128MB
   recovery:
-    method: import
-    import:
-      type: microservice
-      databases:
-        - app
-      source:
-        host: open-archiver-postgresql-18-cluster-rw.open-archiver.svc
-        port: 5432
-        username: postgres
-        database: app
-        sslMode: require
-        passwordSecret:
-          name: open-archiver-postgresql-18-cluster-superuser
-          key: password
+    objectStore:
+      index: 1
   backup:
     objectStore:
       index: 1
