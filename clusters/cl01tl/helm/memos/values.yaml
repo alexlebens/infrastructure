@@ -2,6 +2,7 @@ memos:
   controllers:
     main:
       type: deployment
+      replicas: 0
       strategy: Recreate
       annotations:
         reloader.stakater.com/auto: "true"
@@ -166,8 +167,13 @@ cloudflared:
     targetUrl: https://memos.alexlebens.dev
 
 postgres-18-cluster:
+  nameOverride: memos-postgresql-18
   mode: recovery
   cluster:
+    enableSuperuserAccess: true
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: 18.7-standard-trixie
     resources:
       requests:
         cpu: 15m
@@ -175,11 +181,13 @@ postgres-18-cluster:
   recovery:
     objectStore:
       index: 1
+      serverNameOverride: memos-postgresql-18-backup-1
   backup:
+    backupServerName: memos-postgresql-18-backup-1
     objectStore:
       index: 1
     scheduledBackup:
-      suspend: false
+      suspend: true
       schedule: "0 15 10 * * *"
 
 s3-bucket:
