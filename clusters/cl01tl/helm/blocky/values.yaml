@@ -219,6 +219,10 @@ powerdns-postgres-18-cluster:
   nameOverride: powerdns-postgresql-18
   mode: recovery
   cluster:
+    enableSuperuserAccess: true
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: 18.7-standard-trixie
     resources:
       requests:
         cpu: 15m
@@ -334,13 +338,46 @@ powerdns-postgres-18-cluster:
   recovery:
     objectStore:
       index: 1
+      serverNameOverride: powerdns-postgresql-18-backup-1
   backup:
+    backupServerName: powerdns-postgresql-18-backup-1
     objectStore:
       index: 1
       isWALArchiver: false
-    scheduledBackups:
+    scheduledBackup:
       suspend: false
       schedule: "0 5 5 * * *"
+
+# powerdns-postgres-cluster:
+#   nameOverride: powerdns-postgres
+#   mode: recovery
+#   cluster:
+#     resources:
+#       requests:
+#         cpu: 15m
+#         memory: 256Mi
+#   recovery:
+#     method: import
+#     import:
+#       type: microservice
+#       databases:
+#         - app
+#       source:
+#         host: powerdns-postgresql-18-cluster-rw.blocky.svc
+#         port: 5432
+#         username: postgres
+#         database: app
+#         sslMode: require
+#         passwordSecret:
+#           name: powerdns-postgresql-18-cluster-superuser
+#           key: password
+#   backup:
+#     objectStore:
+#       index: 1
+#       isWALArchiver: false
+#     scheduledBackup:
+#       suspend: false
+#       schedule: "0 5 5 * * *"
 
 common-helpers:
   grafanaDashboard:
