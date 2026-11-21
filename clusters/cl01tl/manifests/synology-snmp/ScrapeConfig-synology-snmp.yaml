@@ -1,0 +1,32 @@
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: synology-snmp
+  namespace: synology-snmp
+  labels:
+    app.kubernetes.io/name: synology-snmp
+    app.kubernetes.io/instance: synology-snmp
+    app.kubernetes.io/part-of: synology-snmp
+spec:
+  staticConfigs:
+    - labels:
+        job: synology-snmp
+      targets:
+        - synology.alexlebens.dev
+  metricsPath: /snmp
+  params:
+    module:
+      - synology
+    auth:
+      - synology
+  scheme: HTTP
+  scrapeInterval: 1m
+  scrapeTimeout: 30s
+  relabelings:
+    - sourceLabels: [__address__]
+      targetLabel: __param_target
+    - sourceLabels: [__param_target]
+      targetLabel: instance
+    - targetLabel: __address__
+      replacement: synology-snmp.synology-snmp:9116
