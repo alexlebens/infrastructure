@@ -1,0 +1,241 @@
+posterizarr:
+  controllers:
+    main:
+      type: deployment
+      strategy: Recreate
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+        main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: ghcr.io/fscorrupt/posterizarr
+            tag: 4.0.0@sha256:d4aa2958a310904df9d612c75830cadca0f3da23aae204cedfe47ffe5aeef3df
+          env:
+            - name: TZ
+              value: America/Chicago
+            - name: TERM
+              value: xterm
+            - name: RUN_TIME
+              value: disabled
+            - name: APP_PORT
+              value: "8000"
+            - name: HOME
+              value: /tmp
+            - name: XDG_CACHE_HOME
+              value: /tmp/.cache
+          resources:
+            requests:
+              cpu: 50m
+              memory: 500Mi
+          probes:
+            startup:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 8000
+                initialDelaySeconds: 10
+                periodSeconds: 5
+                timeoutSeconds: 5
+                failureThreshold: 60
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 8000
+                periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 3
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /
+                  port: 8000
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+        oauth:
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          image:
+            repository: quay.io/oauth2-proxy/oauth2-proxy
+            tag: v7.15.6@sha256:c3415e8660af553f5e18f5d90db050614c02493c0ac6260ac59442f6d9b12048
+          envFrom:
+            - secretRef:
+                name: posterizarr-oauth-proxy
+          env:
+            - name: OAUTH2_PROXY_HTTP_ADDRESS
+              value: 0.0.0.0:4180
+            - name: OAUTH2_PROXY_METRICS_ADDRESS
+              value: 0.0.0.0:44180
+            - name: OAUTH2_PROXY_UPSTREAMS
+              value: http://localhost:8000
+            - name: OAUTH2_PROXY_PROVIDER
+              value: oidc
+            - name: OAUTH2_PROXY_CODE_CHALLENGE_METHOD
+              value: "S256"
+            - name: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
+              value: "true"
+            - name: OAUTH2_PROXY_EMAIL_DOMAINS
+              value: "*"
+            - name: OAUTH2_PROXY_PROXY_WEBSOCKETS
+              value: "true"
+          resources:
+            requests:
+              cpu: 1m
+              memory: 20Mi
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ping
+                  port: 4180
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                httpGet:
+                  path: /ready
+                  port: 4180
+  service:
+    main:
+      forceRename: posterizarr
+      ports:
+        http:
+          port: 80
+          targetPort: 8000
+        oauth:
+          port: 4180
+        oauth-metrics:
+          port: 44180
+  serviceMonitor:
+    main:
+      serviceName: posterizarr
+      endpoints:
+        - port: oauth-metrics
+  route:
+    main:
+      kind: HTTPRoute
+      annotations:
+        gethomepage.dev/enabled: "true"
+        gethomepage.dev/name: "Media Artwork"
+        gethomepage.dev/description: "Posterizarr"
+        gethomepage.dev/group: "Content"
+        gethomepage.dev/icon: "sh-posterizarr.webp"
+        gethomepage.dev/siteMonitor: "http://posterizarr.posterizarr:80"
+        gethomepage.dev/weight: "350"
+        gethomepage.dev/pod-selector: ""
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+      hostnames:
+        - posterizarr.alexlebens.dev
+      rules:
+        - backendRefs:
+            - name: posterizarr
+              port: 4180
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
+  persistence:
+    config:
+      forceRename: posterizarr-config
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 5Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /config
+    assets:
+      forceRename: posterizarr-assets
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 20Gi
+      advancedMounts:
+        main:
+          main:
+            - path: /assets
+              subPath: assets
+            - path: /assetsbackup
+              subPath: assetsbackup
+            - path: /manualassets
+              subPath: manualassets
+    fontconfig-cache:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /var/cache/fontconfig
+    custom-fonts:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /usr/share/fonts/custom
+    tmp:
+      type: emptyDir
+      advancedMounts:
+        main:
+          main:
+            - path: /tmp
+          oauth:
+            - path: /tmp
+
+pocket-id-client:
+  mode: oauth
+  client:
+    displayName: "Posterizarr"
+    description: "Automated artwork and dynamic overlay generator for Jellyfin."
+    allowedUserGroups:
+      - name: admin
+        namespace: pocket-id-operator
+  seedJob:
+    enabled: true
+
+volsync-target-config:
+  pvcTarget: posterizarr-config
+  moverSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+  a:
+    enabled: true
+    schedule: 45 12 * * *
+  c:
+    enabled: true
+    schedule: 15 11 * * 0
+  d:
+    enabled: true
+    schedule: 15 10 * * 0
+
+common-helpers:
+  probe:
+    internal: http://posterizarr.posterizarr:80
+    external: https://posterizarr.alexlebens.dev
