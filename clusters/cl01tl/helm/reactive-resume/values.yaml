@@ -2,6 +2,7 @@ reactive-resume:
   controllers:
     main:
       type: deployment
+      replicas: 0
       strategy: Recreate
       pod:
         securityContext:
@@ -185,8 +186,13 @@ pocket-id-client:
       selfhstDarkLogo: true
 
 postgres-18-cluster:
+  nameOverride: reactive-resume-postgresql-18
   mode: recovery
   cluster:
+    enableSuperuserAccess: true
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: 18.7-standard-trixie
     resources:
       requests:
         cpu: 15m
@@ -194,12 +200,14 @@ postgres-18-cluster:
   recovery:
     objectStore:
       index: 1
+      serverNameOverride: reactive-resume-postgresql-18-backup-1
   backup:
+    backupServerName: reactive-resume-postgresql-18-backup-1
     objectStore:
       index: 1
       isWALArchiver: false
-    scheduledBackups:
-      suspend: false
+    scheduledBackup:
+      suspend: true
       schedule: "0 5 7 * * *"
 
 s3-bucket:
