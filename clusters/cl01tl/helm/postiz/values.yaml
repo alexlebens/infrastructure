@@ -1,7 +1,6 @@
 postiz:
   controllers:
     main:
-      replicas: 0
       type: deployment
       strategy: Recreate
       annotations:
@@ -34,7 +33,7 @@ postiz:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: postiz-postgresql-18-cluster-app
+                  name: postiz-postgres-cluster-app
                   key: uri
             - name: REDIS_URL
               valueFrom:
@@ -195,10 +194,10 @@ temporal:
               pluginName: postgres12
               driverName: postgres12
               databaseName: temporal
-              connectAddr: postiz-postgresql-18-cluster-rw.postiz:5432
+              connectAddr: postiz-postgres-cluster-rw.postiz:5432
               connectProtocol: "tcp"
               user: postgres
-              existingSecret: postiz-postgresql-18-cluster-superuser
+              existingSecret: postiz-postgres-cluster-superuser
               secretKey: password
               tls:
                 enabled: false
@@ -207,10 +206,10 @@ temporal:
               pluginName: postgres12
               driverName: postgres12
               databaseName: temporal_visibility
-              connectAddr: postiz-postgresql-18-cluster-rw.postiz:5432
+              connectAddr: postiz-postgres-cluster-rw.postiz:5432
               connectProtocol: "tcp"
               user: postgres
-              existingSecret: postiz-postgresql-18-cluster-superuser
+              existingSecret: postiz-postgres-cluster-superuser
               secretKey: password
               tls:
                 enabled: false
@@ -439,22 +438,8 @@ postgres-cluster:
         memory: 170Mi
     enableSuperuserAccess: true
   recovery:
-    method: import
-    import:
-      type: monolith
-      databases:
-        - app
-        - temporal
-        - temporal_visibility
-      source:
-        host: postiz-postgresql-18-cluster-rw.postiz.svc
-        port: 5432
-        username: postgres
-        database: postgres
-        sslMode: require
-        passwordSecret:
-          name: postiz-postgresql-18-cluster-superuser
-          key: password
+    objectStore:
+      index: 1
   backup:
     objectStore:
       index: 1
