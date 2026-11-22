@@ -97,6 +97,13 @@ jobs:
           echo "FAILED_STAGE=Lint Helm Chart" >> "$GITHUB_ENV"
           mise run check-chart "${CHART}" --cluster "${CLUSTER}" --step lint
 
+      - name: Lint Grafana Dashboards
+        id: dashboards
+        continue-on-error: true
+        run: |
+          echo "FAILED_STAGE=Lint Grafana Dashboards" >> "$GITHUB_ENV"
+          mise run check-chart "${CHART}" --cluster "${CLUSTER}" --step dashboards
+
       - name: Configure Kubeconfig
         uses: azure/k8s-set-context@89b837d75b40a7bd2ddafde837473c212db8b313 # v5
         with:
@@ -194,12 +201,14 @@ jobs:
           steps.harbor.outcome == 'failure' ||
           steps.trivy.outcome == 'failure' ||
           steps.kubeconform.outcome == 'failure' ||
+          steps.dashboards.outcome == 'failure' ||
           steps.diff.outcome == 'failure'
         run: |
           failed_stages=()
           [ "${{ steps.harbor.outcome }}" = "failure" ] && failed_stages+=("Harbor Cache")
           [ "${{ steps.trivy.outcome }}" = "failure" ] && failed_stages+=("Trivy Security Scan")
           [ "${{ steps.kubeconform.outcome }}" = "failure" ] && failed_stages+=("Kubeconform Validation")
+          [ "${{ steps.dashboards.outcome }}" = "failure" ] && failed_stages+=("Grafana Dashboard Lint")
           [ "${{ steps.diff.outcome }}" = "failure" ] && failed_stages+=("ArgoCD Diff")
 
           failed_str=$(IFS=", "; echo "${failed_stages[*]}")

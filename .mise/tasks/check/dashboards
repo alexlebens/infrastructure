@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+#MISE description="Lint a chart's Grafana dashboard JSON files with grafana/dashboard-linter"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)"
+REPO_ROOT="${MISE_PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd -- "$SCRIPT_DIR/../../.." &>/dev/null && pwd -P))}"
+# shellcheck source=../../lib/log.sh
+source "${REPO_ROOT}/.mise/lib/log.sh"
+
+MAIN_DIR="${REPO_ROOT}"
+CLUSTER="${CLUSTER:-cl01tl}"
+CHART=""
+STRICT=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --main-dir) MAIN_DIR="$2"; shift 2 ;;
+    --cluster) CLUSTER="$2"; shift 2 ;;
+    --chart) CHART="$2"; shift 2 ;;
+    --strict) STRICT=1; shift ;;
+    -h|--help)
+      echo "Usage: mise run check:dashboards <chart-name-or-path> [--cluster <cluster>] [--strict]"
+      echo "Lints <chart>/dashboards/*.json with dashboard-linter."
+      echo "Optional rule exclusions: <chart>/dashboards/.lint (see grafana/dashboard-linter docs)."
+      exit 0
+      ;;
+    *)
+      if [ -z "${CHART}" ]; then CHART="$1"; shift; else log_fatal "Unknown argument: $1"; fi
+      ;;
+  esac
+done
+
+[ -n "${CHART}" ] || log_fatal "Usage: mise run check:dashboards <chart-name-or-path> [--cluster <cluster>]"
+
+CHART_NAME="$(basename "${CHART}")"
+DASH_DIR="${MAIN_DIR}/clusters/${CLUSTER}/helm/${CHART_NAME}/dashboards"
+
+if [ ! -d "${MAIN_DIR}/clusters/${CLUSTER}/helm/${CHART_NAME}" ]; then
+  log_fatal "Chart '${CHART_NAME}' not found in clusters/${CLUSTER}/helm."
+fi
+
+shopt -s nullglob
+files=("${DASH_DIR}"/*.json)
+shopt -u nullglob
+
+if [ ${#files[@]} -eq 0 ]; then
+  log_info "No Grafana dashboards found for ${CHART_NAME}."
+  exit 0
+fi
+
+args=(lint)
+[ "${STRICT}" -eq 1 ] && args+=(--strict)
+[ -f "${DASH_DIR}/.lint" ] && args+=(--config "${DASH_DIR}/.lint")
+
+failed=0
+for f in "${files[@]}"; do
+  log_info "dashboard-linter ${f#"${MAIN_DIR}/"}"
+  if ! dashboard-linter "${args[@]}" "$f"; then
+    failed=1
+  fi
+done
+
+[ "${failed}" -eq 0 ] || log_fatal "Grafana dashboard lint failed for ${CHART_NAME}."
+log_success "All ${#files[@]} dashboard(s) passed for ${CHART_NAME}."
