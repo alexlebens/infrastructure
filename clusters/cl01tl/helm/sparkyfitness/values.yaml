@@ -23,7 +23,6 @@ sparkyfitness:
   httpRoute:
     enabled: false
   server:
-    replicas: 0
     image:
       repository: ghcr.io/codewithcj/sparkyfitness-server
       tag: v1.12.1@sha256:2f064604c2034fa5953cb3e17651aad32e8a9f8362895500cd5d188376215b3a
@@ -35,7 +34,7 @@ sparkyfitness:
       generate: false
       existingSecret: sparkyfitness-key-secret
     appDatabase:
-      existingSecret: sparkyfitness-postgresql-18-cluster-app
+      existingSecret: sparkyfitness-postgres-cluster-app
     persistence:
       backup:
         storageClass: ceph-block
@@ -52,10 +51,10 @@ sparkyfitness:
   postgresql:
     enabled: false
   externalDatabase:
-    host: sparkyfitness-postgresql-18-cluster-rw
+    host: sparkyfitness-postgres-cluster-rw
     database: app
     auth:
-      existingSecret: sparkyfitness-postgresql-18-cluster-superuser
+      existingSecret: sparkyfitness-postgres-cluster-superuser
 
 pocket-id-client:
   mode: oidc
@@ -121,20 +120,8 @@ postgres-cluster:
         - CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
         - GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO "app" WITH GRANT OPTION;
   recovery:
-    method: import
-    import:
-      type: microservice
-      databases:
-        - app
-      source:
-        host: sparkyfitness-postgresql-18-cluster-rw.sparkyfitness.svc
-        port: 5432
-        username: postgres
-        database: app
-        sslMode: require
-        passwordSecret:
-          name: sparkyfitness-postgresql-18-cluster-superuser
-          key: password
+    objectStore:
+      index: 1
   backup:
     objectStore:
       index: 1
