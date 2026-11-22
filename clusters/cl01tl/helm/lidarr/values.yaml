@@ -1,7 +1,6 @@
 lidarr:
   controllers:
     main:
-      replicas: 0
       type: deployment
       strategy: Recreate
       pod:
@@ -30,6 +29,30 @@ lidarr:
               value: "DisabledForLocalAddresses"
             - name: LIDARR__SERVER__BINDADDRESS
               value: "*"
+            - name: LIDARR__POSTGRES__HOST
+              valueFrom:
+                secretKeyRef:
+                  name: lidarr-postgres-cluster-app
+                  key: host
+            - name: LIDARR__POSTGRES__PORT
+              valueFrom:
+                secretKeyRef:
+                  name: lidarr-postgres-cluster-app
+                  key: port
+            - name: LIDARR__POSTGRES__MAINDB
+              value: "lidarr-main"
+            - name: LIDARR__POSTGRES__LOGDB
+              value: "lidarr-log"
+            - name: LIDARR__POSTGRES__USER
+              valueFrom:
+                secretKeyRef:
+                  name: lidarr-postgres-cluster-app
+                  key: username
+            - name: LIDARR__POSTGRES__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lidarr-postgres-cluster-app
+                  key: password
           resources:
             requests:
               cpu: 20m
@@ -284,22 +307,8 @@ postgres-cluster:
       parameters:
         shared_buffers: 512MB
   recovery:
-    method: import
-    import:
-      type: monolith
-      databases:
-        - app
-        - lidarr-main
-        - lidarr-log
-      source:
-        host: lidarr-postgresql-18-cluster-rw.lidarr.svc
-        port: 5432
-        username: postgres
-        database: postgres
-        sslMode: require
-        passwordSecret:
-          name: lidarr-postgresql-18-cluster-superuser
-          key: password
+    objectStore:
+      index: 1
   backup:
     objectStore:
       index: 1

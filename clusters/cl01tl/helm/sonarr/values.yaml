@@ -1,7 +1,6 @@
 sonarr:
   controllers:
     main:
-      replicas: 0
       type: deployment
       strategy: Recreate
       pod:
@@ -28,6 +27,30 @@ sonarr:
               value: "External"
             - name: SONARR__AUTH__REQUIRED
               value: "DisabledForLocalAddresses"
+            - name: SONARR__POSTGRES__HOST
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgres-cluster-app
+                  key: host
+            - name: SONARR__POSTGRES__PORT
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgres-cluster-app
+                  key: port
+            - name: SONARR__POSTGRES__MAINDB
+              value: "sonarr-main"
+            - name: SONARR__POSTGRES__LOGDB
+              value: "sonarr-log"
+            - name: SONARR__POSTGRES__USER
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgres-cluster-app
+                  key: username
+            - name: SONARR__POSTGRES__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgres-cluster-app
+                  key: password
           resources:
             requests:
               cpu: 50m
@@ -272,22 +295,8 @@ postgres-cluster:
       parameters:
         shared_buffers: 256MB
   recovery:
-    method: import
-    import:
-      type: monolith
-      databases:
-        - app
-        - sonarr-main
-        - sonarr-log
-      source:
-        host: sonarr-postgresql-18-cluster-rw.sonarr.svc
-        port: 5432
-        username: postgres
-        database: postgres
-        sslMode: require
-        passwordSecret:
-          name: sonarr-postgresql-18-cluster-superuser
-          key: password
+    objectStore:
+      index: 1
   backup:
     objectStore:
       index: 1
