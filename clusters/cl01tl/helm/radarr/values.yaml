@@ -1,7 +1,6 @@
 radarr:
   controllers:
     main:
-      replicas: 0
       type: deployment
       strategy: Recreate
       pod:
@@ -72,12 +71,12 @@ radarr:
             - name: RADARR__POSTGRES__HOST
               valueFrom:
                 secretKeyRef:
-                  name: radarr-postgresql-18-cluster-app
+                  name: radarr-postgres-cluster-app
                   key: host
             - name: RADARR__POSTGRES__PORT
               valueFrom:
                 secretKeyRef:
-                  name: radarr-postgresql-18-cluster-app
+                  name: radarr-postgres-cluster-app
                   key: port
             - name: RADARR__POSTGRES__MAINDB
               value: "radarr-main"
@@ -86,12 +85,12 @@ radarr:
             - name: RADARR__POSTGRES__USER
               valueFrom:
                 secretKeyRef:
-                  name: radarr-postgresql-18-cluster-app
+                  name: radarr-postgres-cluster-app
                   key: username
             - name: RADARR__POSTGRES__PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: radarr-postgresql-18-cluster-app
+                  name: radarr-postgres-cluster-app
                   key: password
             - name: RADARR__LOG__LEVEL
               value: "debug"
@@ -291,22 +290,8 @@ postgres-cluster:
       parameters:
         shared_buffers: 256MB
   recovery:
-    method: import
-    import:
-      type: monolith
-      databases:
-        - app
-        - radarr-main
-        - radarr-log
-      source:
-        host: radarr-postgresql-18-cluster-rw.radarr.svc
-        port: 5432
-        username: postgres
-        database: postgres
-        sslMode: require
-        passwordSecret:
-          name: radarr-postgresql-18-cluster-superuser
-          key: password
+    objectStore:
+      index: 1
   backup:
     objectStore:
       index: 1
