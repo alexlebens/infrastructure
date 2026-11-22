@@ -1,6 +1,7 @@
 dawarich:
   controllers:
     main:
+      replicas: 0
       type: deployment
       strategy: Recreate
       pod:
@@ -374,8 +375,12 @@ pocket-id-client:
       - https://dawarich.alexlebens.dev/users/auth/openid_connect/callback
 
 postgres-18-cluster:
+  nameOverride: dawarich-postgresql-18
   mode: recovery
   cluster:
+    enableSuperuserAccess: true
+    imageCatalog:
+      enabled: false
     image:
       repository: ghcr.io/cloudnative-pg/postgis
       tag: 18-3-system-trixie
@@ -398,12 +403,64 @@ postgres-18-cluster:
   recovery:
     objectStore:
       index: 1
+      serverNameOverride: dawarich-postgresql-18-backup-1
   backup:
     objectStore:
       index: 1
+      serverNameOverride: dawarich-postgresql-18-backup-1
+      backupServerName: dawarich-postgresql-18-backup-1
     scheduledBackups:
       suspend: false
       schedule: "0 10 5 * * *"
+    scheduledBackup:
+      suspend: false
+      schedule: "0 10 5 * * *"
+
+# postgres-cluster:
+#   mode: recovery
+#   cluster:
+#     imageCatalog:
+#       enabled: false
+#     image:
+#       repository: ghcr.io/cloudnative-pg/postgis
+#       tag: 19-3-system-trixie@sha256:549ec907f11aaaba25f5f2febcf8f6365766628ea53c6b9ee57c783401ea78fd
+#     resources:
+#       requests:
+#         cpu: 25m
+#         memory: 420Mi
+#     postgresql:
+#       parameters:
+#         shared_buffers: 256MB
+#   databases:
+#     - name: app
+#       ensure: present
+#       owner: app
+#       extensions:
+#         - name: postgis
+#         - name: postgis_topology
+#         - name: fuzzystrmatch
+#         - name: postgis_tiger_geocoder
+#   recovery:
+#     method: import
+#     import:
+#       type: microservice
+#       databases:
+#         - app
+#       source:
+#         host: dawarich-postgresql-18-cluster-rw.dawarich.svc
+#         port: 5432
+#         username: postgres
+#         database: app
+#         sslMode: require
+#         passwordSecret:
+#           name: dawarich-postgresql-18-cluster-superuser
+#           key: password
+#   backup:
+#     objectStore:
+#       index: 1
+#     scheduledBackup:
+#       suspend: false
+#       schedule: "0 10 5 * * *"
 
 volsync-target-storage:
   pvcTarget: dawarich-storage
