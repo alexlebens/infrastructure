@@ -1,0 +1,39 @@
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: sonarr-anime-postgres-recovery
+  namespace: sonarr-anime
+  labels:
+    app.kubernetes.io/name: sonarr-anime-postgres-recovery
+    helm.sh/chart: postgres-cluster-9.0.0
+    app.kubernetes.io/instance: sonarr-anime
+    app.kubernetes.io/part-of: sonarr-anime
+    app.kubernetes.io/version: "v1.30.2"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  instanceSidecarConfiguration:
+    env:
+      - name: AWS_REQUEST_CHECKSUM_CALCULATION
+        value: when_required
+      - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+        value: when_required
+  configuration:
+    destinationPath: s3://postgres-backups/cl01tl/sonarr-anime/sonarr-anime-postgres-cluster
+    endpointURL: http://synology.alexlebens.dev:3900
+    wal:
+      compression: snappy
+      maxParallel: 1
+    data:
+      compression: snappy
+      jobs: 1
+    s3Credentials:
+      accessKeyId:
+        name: sonarr-anime-postgres-recovery-secret
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: sonarr-anime-postgres-recovery-secret
+        key: ACCESS_SECRET_KEY
+      region:
+        name: sonarr-anime-postgres-recovery-secret
+        key: ACCESS_REGION
