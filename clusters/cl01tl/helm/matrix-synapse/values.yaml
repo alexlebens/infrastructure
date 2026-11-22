@@ -299,26 +299,34 @@ mautrix-discord:
     fullnameOverride: mautrix-discord
   controllers:
     main:
+      replicas: 0
       type: statefulset
       strategy: RollingUpdate
       pod:
         annotations:
           enable.version-checker.io/main: "false"
-      # initContainers:
-      #   init-copy-config:
-      #     image:
-      #       repository: busybox
-      #       tag: 1.37.0
-      #     command:
-      #       - /bin/sh
-      #       - -ec
-      #       - |
-      #         echo ">> Coping files ..."
-      #         ls /tmp
-      #         cp -fv /tmp/config.yaml /data/config.yaml
-      #         cp -fv /tmp/mautrix-discord-registration.yaml /data/registration.yaml
-      #         echo ">> Files in data:"
-      #         ls /data
+      initContainers:
+        sync-db-config:
+          image:
+            repository: busybox
+            tag: 1.37.0@sha256:e2c6b9b4989d601e0f104e239e48e39c65c521c44fc4f682f313e112000375df
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              if [ -f /data/config.yaml ]; then
+                URI=$(grep -E '^\s*uri:\s*' /tmp/generated/config.yaml | head -n1)
+                awk -v uri="$URI" '{ if ($0 ~ /^\s*uri:\s*/) print uri; else print $0 }' /data/config.yaml > /data/config.yaml.tmp
+                mv /data/config.yaml.tmp /data/config.yaml
+              else
+                cp /tmp/generated/config.yaml /data/config.yaml
+              fi
       containers:
         main:
           workingDir: /data
@@ -343,6 +351,14 @@ mautrix-discord:
         http:
           port: 29334
   persistence:
+    generated-config:
+      type: secret
+      name: mautrix-discord-config
+      advancedMounts:
+        main:
+          sync-db-config:
+            - path: /tmp/generated
+              readOnly: true
     config:
       type: custom
       volumeSpec:
@@ -363,7 +379,7 @@ mautrix-discord:
       size: 500Mi
       advancedMounts:
         main:
-          init-copy-config:
+          sync-db-config:
             - path: /data
           main:
             - path: /data
@@ -383,26 +399,34 @@ mautrix-whatsapp:
     fullnameOverride: mautrix-whatsapp
   controllers:
     main:
+      replicas: 0
       type: statefulset
       strategy: RollingUpdate
       pod:
         annotations:
           enable.version-checker.io/main: "false"
-      # initContainers:
-      #   init-copy-config:
-      #     image:
-      #       repository: busybox
-      #       tag: 1.37.0
-      #     command:
-      #       - /bin/sh
-      #       - -ec
-      #       - |
-      #         echo ">> Coping files ..."
-      #         ls /tmp
-      #         cp -fv /tmp/config.yaml /data/config.yaml
-      #         cp -fv /tmp/mautrix-whatsapp-registration.yaml /data/registration.yaml
-      #         echo ">> Files in data:"
-      #         ls /data
+      initContainers:
+        sync-db-config:
+          image:
+            repository: busybox
+            tag: 1.37.0@sha256:e2c6b9b4989d601e0f104e239e48e39c65c521c44fc4f682f313e112000375df
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              if [ -f /data/config.yaml ]; then
+                URI=$(grep -E '^\s*uri:\s*' /tmp/generated/config.yaml | head -n1)
+                awk -v uri="$URI" '{ if ($0 ~ /^\s*uri:\s*/) print uri; else print $0 }' /data/config.yaml > /data/config.yaml.tmp
+                mv /data/config.yaml.tmp /data/config.yaml
+              else
+                cp /tmp/generated/config.yaml /data/config.yaml
+              fi
       containers:
         main:
           workingDir: /data
@@ -427,6 +451,14 @@ mautrix-whatsapp:
         http:
           port: 29318
   persistence:
+    generated-config:
+      type: secret
+      name: mautrix-whatsapp-config
+      advancedMounts:
+        main:
+          sync-db-config:
+            - path: /tmp/generated
+              readOnly: true
     config:
       type: custom
       volumeSpec:
@@ -447,7 +479,7 @@ mautrix-whatsapp:
       size: 500Mi
       advancedMounts:
         main:
-          init-copy-config:
+          sync-db-config:
             - path: /data
           main:
             - path: /data
@@ -475,8 +507,15 @@ cloudflared-hookshot:
   name: hookshot
 
 postgres-18-cluster:
+  nameOverride: matrix-synapse-postgresql-18
   mode: recovery
   cluster:
+    enableSuperuserAccess: true
+    imageCatalog:
+      enabled: false
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: 18.7-standard-trixie
     resources:
       requests:
         cpu: 15m
@@ -484,10 +523,16 @@ postgres-18-cluster:
   recovery:
     objectStore:
       index: 1
+      serverNameOverride: matrix-synapse-postgresql-18-backup-1
   backup:
     objectStore:
       index: 1
+      serverNameOverride: matrix-synapse-postgresql-18-backup-1
+      backupServerName: matrix-synapse-postgresql-18-backup-1
     scheduledBackups:
+      suspend: false
+      schedule: "0 0 6 * * *"
+    scheduledBackup:
       suspend: false
       schedule: "0 0 6 * * *"
   databases:
@@ -497,6 +542,44 @@ postgres-18-cluster:
     - name: mautrix-whatsapp
       ensure: present
       owner: app
+
+# postgres-cluster:
+#   mode: recovery
+#   cluster:
+#     resources:
+#       requests:
+#         cpu: 15m
+#         memory: 160Mi
+#   recovery:
+#     method: import
+#     import:
+#       type: monolith
+#       databases:
+#         - app
+#         - mautrix-discord
+#         - mautrix-whatsapp
+#       source:
+#         host: matrix-synapse-postgresql-18-cluster-rw.matrix-synapse.svc
+#         port: 5432
+#         username: postgres
+#         database: postgres
+#         sslMode: require
+#         passwordSecret:
+#           name: matrix-synapse-postgresql-18-cluster-superuser
+#           key: password
+#   backup:
+#     objectStore:
+#       index: 1
+#     scheduledBackup:
+#       suspend: false
+#       schedule: "0 0 6 * * *"
+#   databases:
+#     - name: mautrix-discord
+#       ensure: present
+#       owner: app
+#     - name: mautrix-whatsapp
+#       ensure: present
+#       owner: app
 
 valkey-matrix-synapse:
   valkey:
