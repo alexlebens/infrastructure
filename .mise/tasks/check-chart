@@ -25,7 +25,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|trivy|kubeconform|all>] [--cluster <cluster>]"
+      echo "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|trivy|kubeconform|dashboards|all>] [--cluster <cluster>]"
       exit 0
       ;;
     *)
@@ -42,7 +42,7 @@ done
 CHART="${CHART:-${CHART_ENV}}"
 
 if [ -z "${CHART}" ]; then
-  log_fatal "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|trivy|kubeconform|all>]"
+  log_fatal "Usage: mise run check-chart <chart-name-or-path> [--step <repos|build|lint|render|trivy|kubeconform|dashboards|all>]"
 fi
 
 # Normalize chart name from path if provided (e.g. clusters/cl01tl/helm/actual -> actual)
@@ -99,6 +99,11 @@ step_kubeconform() {
   "${REPO_ROOT}/.mise/tasks/check/kubeconform" "${KUBECONFORM_ARGS[@]}"
 }
 
+step_dashboards() {
+  log_step "Linting Grafana dashboards for ${CHART_NAME} ..."
+  "${REPO_ROOT}/.mise/tasks/check/dashboards" --main-dir "${REPO_ROOT}" --cluster "${CLUSTER}" --chart "${CHART_NAME}"
+}
+
 case "${STEP}" in
   repos|add-repos)
     step_repos
@@ -118,6 +123,9 @@ case "${STEP}" in
   kubeconform)
     step_kubeconform
     ;;
+  dashboards)
+    step_dashboards
+    ;;
   all)
     step_repos
     step_build
@@ -125,9 +133,10 @@ case "${STEP}" in
     step_render
     step_trivy
     step_kubeconform
+    step_dashboards
     log_success "Chart '${CHART_NAME}' passed all test-chart checks!"
     ;;
   *)
-    log_fatal "Unknown step '${STEP}'. Valid steps: repos, build, lint, render, trivy, kubeconform, all."
+    log_fatal "Unknown step '${STEP}'. Valid steps: repos, build, lint, render, trivy, kubeconform, dashboards, all."
     ;;
 esac
