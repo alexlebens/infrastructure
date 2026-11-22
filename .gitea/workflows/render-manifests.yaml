@@ -95,6 +95,20 @@ jobs:
         id: get-api-versions
         run: mise run kube:api-versions --cache-file ~/.cache/k8s-api-versions/api-versions.txt
 
+      - name: Cache CRD Schemas
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+        id: cache-schemas
+        with:
+          path: ~/.schemas
+          key: ${{ runner.os }}-crd-schemas-v2-${{ steps.cluster-fingerprint.outputs.fingerprint }}
+          restore-keys: |
+            ${{ runner.os }}-crd-schemas-v2-
+            ${{ runner.os }}-crd-schemas-v1-
+
+      - name: Generate CRD Schemas
+        if: steps.cache-schemas.outputs.cache-hit != 'true'
+        run: mise run kube:generate-schemas
+
       - name: Determine Mode & Prepare Branch
         id: mode
         env:
