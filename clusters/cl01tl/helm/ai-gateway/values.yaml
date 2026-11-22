@@ -137,13 +137,32 @@ ai-gateway:
               subPath: config.json
               readOnly: true
     data:
-      type: emptyDir
+      forceRename: ai-gateway-data
+      storageClass: ceph-block
+      accessMode: ReadWriteOnce
+      size: 1Gi
       globalMounts:
         - path: /app/data
     tmp:
       type: emptyDir
       globalMounts:
         - path: /tmp
+
+volsync-target-data:
+  pvcTarget: ai-gateway-data
+  moverSecurityContext:
+    runAsUser: 65532
+    runAsGroup: 65532
+    fsGroup: 65532
+  a:
+    enabled: true
+    schedule: 30 7 * * *
+  c:
+    enabled: true
+    schedule: 30 10 * * 0
+  d:
+    enabled: true
+    schedule: 30 9 * * 0
 
 common-helpers:
   probe:
