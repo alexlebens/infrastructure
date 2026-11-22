@@ -1,0 +1,88 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: radarr-anime-postgres-cluster
+  namespace: radarr-anime
+  labels:
+    app.kubernetes.io/name: radarr-anime-postgres-cluster
+    helm.sh/chart: postgres-cluster-9.0.0
+    app.kubernetes.io/instance: radarr-anime
+    app.kubernetes.io/part-of: radarr-anime
+    app.kubernetes.io/version: "v1.30.2"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  instances: 3
+  inheritedMetadata:
+    annotations:
+      match-regex.version-checker.io/postgres: ^[0-9]+\.[0-9]+-standard-trixie$
+  imageCatalogRef:
+    apiGroup: postgresql.cnpg.io
+    kind: ClusterImageCatalog
+    name: postgresql-standard-trixie
+    major: 19
+  imagePullPolicy: IfNotPresent
+  postgresUID: 26
+  postgresGID: 26
+  storage:
+    size: 10Gi
+    storageClass: local-path
+  walStorage:
+    size: 2Gi
+    storageClass: local-path
+  resources:
+    requests:
+      cpu: 20m
+      memory: 140Mi
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+  primaryUpdateMethod: switchover
+  primaryUpdateStrategy: unsupervised
+  logLevel: info
+  enableSuperuserAccess: false
+  enablePDB: true
+  seccompProfile:
+    type: RuntimeDefault
+  postgresql:
+    parameters:
+      archive_timeout: 30min
+      checkpoint_timeout: 15min
+      hot_standby_feedback: "on"
+      max_slot_wal_keep_size: 2000MB
+      shared_buffers: 128MB
+      wal_compression: zstd
+  monitoring:
+    disableDefaultQueries: false
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: false
+      parameters:
+        barmanObjectName: radarr-anime-postgres-backup
+        serverName: radarr-anime-postgres-pg19-backup-1
+  bootstrap:
+    initdb:
+      database: app
+      postInitTemplateSQL: []
+      owner: app
+      import:
+        source:
+          externalCluster: importSource
+        type: monolith
+        databases:
+          - app
+          - radarr-main
+          - radarr-log
+        schemaOnly: false
+  externalClusters:
+    - name: importSource
+      connectionParameters:
+        host: "radarr-anime-postgresql-18-cluster-rw.radarr-anime.svc"
+        port: "5432"
+        user: "postgres"
+        dbname: "postgres"
+        sslmode: "require"
+      password:
+        name: radarr-anime-postgresql-18-cluster-superuser
+        key: password
