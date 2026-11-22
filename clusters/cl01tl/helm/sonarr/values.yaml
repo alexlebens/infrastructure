@@ -1,6 +1,7 @@
 sonarr:
   controllers:
     main:
+      replicas: 0
       type: deployment
       strategy: Recreate
       pod:
@@ -223,8 +224,15 @@ pocket-id-client:
         namespace: pocket-id-operator
 
 postgres-18-cluster:
+  nameOverride: sonarr-postgresql-18
   mode: recovery
   cluster:
+    enableSuperuserAccess: true
+    imageCatalog:
+      enabled: false
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: 18.7-standard-trixie
     resources:
       requests:
         cpu: 30m
@@ -235,11 +243,17 @@ postgres-18-cluster:
   recovery:
     objectStore:
       index: 1
+      serverNameOverride: sonarr-postgresql-18-backup-1
   backup:
     objectStore:
       index: 1
       isWALArchiver: false
+      serverNameOverride: sonarr-postgresql-18-backup-1
+      backupServerName: sonarr-postgresql-18-backup-1
     scheduledBackups:
+      suspend: false
+      schedule: "0 35 7 * * *"
+    scheduledBackup:
       suspend: false
       schedule: "0 35 7 * * *"
   databases:
@@ -249,6 +263,48 @@ postgres-18-cluster:
     - name: sonarr-log
       ensure: present
       owner: app
+
+# postgres-cluster:
+#   mode: recovery
+#   cluster:
+#     resources:
+#       requests:
+#         cpu: 30m
+#         memory: 410Mi
+#     postgresql:
+#       parameters:
+#         shared_buffers: 256MB
+#   recovery:
+#     method: import
+#     import:
+#       type: monolith
+#       databases:
+#         - app
+#         - sonarr-main
+#         - sonarr-log
+#       source:
+#         host: sonarr-postgresql-18-cluster-rw.sonarr.svc
+#         port: 5432
+#         username: postgres
+#         database: postgres
+#         sslMode: require
+#         passwordSecret:
+#           name: sonarr-postgresql-18-cluster-superuser
+#           key: password
+#   backup:
+#     objectStore:
+#       index: 1
+#       isWALArchiver: false
+#     scheduledBackup:
+#       suspend: false
+#       schedule: "0 35 7 * * *"
+#   databases:
+#     - name: sonarr-main
+#       ensure: present
+#       owner: app
+#     - name: sonarr-log
+#       ensure: present
+#       owner: app
 
 volsync-target-config:
   pvcTarget: sonarr-config
