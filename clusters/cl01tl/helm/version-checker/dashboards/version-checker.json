@@ -2114,12 +2114,240 @@
       "type": "logs"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Running containers missing from version_checker_is_latest_version (excluding intentional opt-outs and Talos control-plane static pods)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Namespace"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 135
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Container"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 145
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 50
+      },
+      "id": 24,
+      "options": {
+        "cellHeight": "sm",
+        "filterable": true,
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Namespace"
+          }
+        ]
+      },
+      "pluginVersion": "13.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (namespace, container, image_spec) ((kube_pod_container_info{namespace=~\"$namespace\", image_spec=~\"(?i).*($image).*\", image_spec!~\"^(harbor\\\\.alexlebens\\\\.dev|docker\\\\.elastic\\\\.co|dock\\\\.mau\\\\.dev)/.*|registry\\\\.k8s\\\\.io/kube-(apiserver|controller-manager|scheduler):.*\", pod!~\"^(loki-canary-|cilium-envoy-|blog-|docs-|elastic-operator-|elasticsearch-tubearchivist-|mautrix-).*\"} and on (namespace, pod) (kube_pod_status_phase{phase=\"Running\"} == 1)) unless on (namespace, pod, container) version_checker_is_latest_version)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Untracked Running Containers (False-Negative Guard)",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "indexByName": {
+              "namespace": 0,
+              "container": 1,
+              "image_spec": 2
+            },
+            "renameByName": {
+              "namespace": "Namespace",
+              "container": "Container",
+              "image_spec": "Image"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Tracked images using a variant/build suffix (- or _) without match-regex.version-checker.io, causing version-checker to skip suffixed upstream tags",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Current Version"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 210
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Latest Picked"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 185
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 50
+      },
+      "id": 25,
+      "options": {
+        "cellHeight": "sm",
+        "filterable": true,
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Image"
+          }
+        ]
+      },
+      "pluginVersion": "13.2.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "max by (image, current_version, latest_version) (version_checker_is_latest_version{namespace=~\"$namespace\", image=~\"(?i).*($image).*\", current_version=~\"^[^@]*[-_][^@]*(@sha256:.*)?$\", latest_version!~\"^[^@]*[-_][^@]*(@sha256:.*)?$\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Suffixed Tags Missing match-regex",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "indexByName": {
+              "image": 0,
+              "current_version": 1,
+              "latest_version": 2
+            },
+            "renameByName": {
+              "image": "Image",
+              "current_version": "Current Version",
+              "latest_version": "Latest Picked"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 58
       },
       "id": 100,
       "panels": [
@@ -2156,7 +2384,7 @@
             "h": 4,
             "w": 8,
             "x": 0,
-            "y": 51
+            "y": 59
           },
           "id": 16,
           "options": {
@@ -2223,7 +2451,7 @@
             "h": 4,
             "w": 8,
             "x": 8,
-            "y": 51
+            "y": 59
           },
           "id": 17,
           "options": {
@@ -2308,7 +2536,7 @@
             "h": 4,
             "w": 8,
             "x": 16,
-            "y": 51
+            "y": 59
           },
           "id": 18,
           "options": {
@@ -2407,7 +2635,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 55
+            "y": 63
           },
           "id": 19,
           "options": {
@@ -2504,7 +2732,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 55
+            "y": 63
           },
           "id": 20,
           "options": {
@@ -2627,7 +2855,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 62
+            "y": 70
           },
           "id": 21,
           "options": {
@@ -2792,7 +3020,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 62
+            "y": 70
           },
           "id": 22,
           "options": {
