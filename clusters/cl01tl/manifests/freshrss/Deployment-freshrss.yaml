@@ -211,6 +211,21 @@ spec:
             - secretRef:
                 name: freshrss-install-config
           image: freshrss/freshrss:1.31.0@sha256:31b0acfcb8e11600aa6ce697ff8d9d7ea620c85d766e5e764f487b433d20d066
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    if [ -f /var/www/FreshRSS/data/config.php ]; then
+                      php -f /var/www/FreshRSS/cli/reconfigure.php -- \
+                        --db-type pgsql \
+                        --db-host "$DB_HOST" \
+                        --db-user "$DB_USER" \
+                        --db-password "$DB_PASSWORD" \
+                        --db-base "$DB_BASE"
+                    fi
           livenessProbe:
             exec:
               command:
