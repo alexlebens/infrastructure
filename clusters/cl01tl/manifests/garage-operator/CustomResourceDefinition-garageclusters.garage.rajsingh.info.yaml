@@ -7,11 +7,11 @@ metadata:
     helm.sh/resource-policy: keep
     cert-manager.io/inject-ca-from: garage-operator/garage-operator-webhook-cert
   labels:
-    helm.sh/chart: garage-operator-0.9.2
+    helm.sh/chart: garage-operator-0.9.3
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.9.2"
+    app.kubernetes.io/version: "0.9.3"
     app.kubernetes.io/managed-by: Helm
   name: garageclusters.garage.rajsingh.info
 spec:
@@ -27,6 +27,8 @@ spec:
         - v1
   group: garage.rajsingh.info
   names:
+    categories:
+      - garage
     kind: GarageCluster
     listKind: GarageClusterList
     plural: garageclusters
@@ -1431,12 +1433,14 @@ spec:
                           x-kubernetes-map-type: atomic
                         name:
                           description: Name of the GarageCluster resource.
+                          maxLength: 253
                           type: string
                         namespace:
                           description: |-
                             Namespace of the GarageCluster. Defaults to the referencing resource's namespace.
                             Cross-namespace references require a GarageReferenceGrant where supported by
                             the owning resource. GarageNode and GarageAdminToken reject them.
+                          maxLength: 63
                           type: string
                       required:
                         - name
@@ -2003,6 +2007,14 @@ spec:
                       maximum: 65535
                       minimum: 1
                       type: integer
+                    publicEndpoint:
+                      description: |-
+                        PublicEndpoint is the public K2V URL advertised in auto-generated client
+                        configurations (Garage k2v_api.public_endpoint). Must be a complete URL
+                        with a scheme and host, for example "https://k2v.example.com". There is
+                        no default. Rendered only for Garage v2.5.0 and newer; older tagged
+                        images skip the key and admission warns.
+                      type: string
                   type: object
                 layoutManagement:
                   description: |-
@@ -2033,7 +2045,11 @@ spec:
                           type: string
                       type: object
                     minNodesHealthy:
-                      description: MinNodesHealthy is the minimum healthy nodes required before applying layout changes
+                      description: |-
+                        MinNodesHealthy is the minimum healthy nodes required before applying layout changes.
+
+                        Deprecated: MinNodesHealthy is currently a no-op and is ignored by the
+                        controller; it will be removed in the next API version.
                       type: integer
                     redundancyVerification:
                       description: RedundancyVerification configures the FullyReplicated proof (#474).
@@ -2696,6 +2712,24 @@ spec:
                       maximum: 65535
                       minimum: 1
                       type: integer
+                    publicEndpoint:
+                      description: |-
+                        PublicEndpoint is the public S3 URL advertised in auto-generated client
+                        configurations (Garage s3_api.public_endpoint). Must be a complete URL
+                        with a scheme and host, for example "https://s3.example.com". There is no
+                        default. Rendered only for Garage v2.5.0 and newer; older tagged images
+                        skip the key and admission warns.
+                      type: string
+                    publicEndpointPathStyle:
+                      description: |-
+                        PublicEndpointPathStyle, when set, selects path-style (true) or
+                        virtual-hosted (false) URLs in those auto-generated S3 client
+                        configurations (Garage s3_api.public_endpoint_path_style). Unset omits
+                        the key so Garage applies its own default. Setting false requires
+                        rootDomain; Garage v2.5.0+ will not start otherwise. Rendered only for
+                        Garage v2.5.0 and newer; older tagged images skip the key and admission
+                        warns.
+                      type: boolean
                     region:
                       default: garage
                       description: Region is the AWS S3 region name to use
@@ -5000,6 +5034,12 @@ spec:
                   rule: '!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != ''Follower'' || !has(self.connectTo)'
                 - message: initContainers and extraContainers names must be unique across both lists
                   rule: '!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))'
+                - message: spec.gateway is immutable after creation
+                  rule: '(has(self.gateway) ? self.gateway : false) == (has(oldSelf.gateway) ? oldSelf.gateway : false)'
+                - message: layoutPolicy transition from Manual to Auto is not supported (one-way only)
+                  rule: '!has(oldSelf.layoutPolicy) || oldSelf.layoutPolicy != ''Manual'' || (has(self.layoutPolicy) && self.layoutPolicy == ''Manual'')'
+                - message: spec.storage.layoutPolicy transition from Manual to Auto is not supported (one-way only)
+                  rule: '((has(oldSelf.storage.layoutPolicy) ? oldSelf.storage.layoutPolicy : (has(oldSelf.layoutPolicy) ? oldSelf.layoutPolicy : ''Auto'')) != ''Manual'') || ((has(self.storage.layoutPolicy) ? self.storage.layoutPolicy : (has(self.layoutPolicy) ? self.layoutPolicy : ''Auto'')) == ''Manual'')'
             status:
               description: GarageClusterStatus defines the observed state of GarageCluster
               properties:
@@ -5360,7 +5400,10 @@ spec:
                       type: array
                   type: object
                 layoutPreview:
-                  description: LayoutPreview shows what would change if staged layout is applied
+                  description: |-
+                    LayoutPreview shows what would change if staged layout is applied
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   properties:
                     dataTransferEstimate:
                       description: DataTransferEstimate is a human-readable estimate of data movement (e.g., "~50 GB")
@@ -5970,11 +6013,17 @@ spec:
                     subresource.
                   type: string
                 stagedLayoutVersion:
-                  description: StagedLayoutVersion is the staged layout version pending application
+                  description: |-
+                    StagedLayoutVersion is the staged layout version pending application
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   format: int64
                   type: integer
                 stagedRoles:
-                  description: StagedRoles is the number of roles in the staged layout
+                  description: |-
+                    StagedRoles is the number of roles in the staged layout
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   format: int32
                   type: integer
                 storageDrain:
@@ -9858,6 +9907,14 @@ spec:
                       maximum: 65535
                       minimum: 1
                       type: integer
+                    publicEndpoint:
+                      description: |-
+                        PublicEndpoint is the public K2V URL advertised in auto-generated client
+                        configurations (Garage k2v_api.public_endpoint). Must be a complete URL
+                        with a scheme and host, for example "https://k2v.example.com". There is
+                        no default. Rendered only for Garage v2.5.0 and newer; older tagged
+                        images skip the key and admission warns.
+                      type: string
                   type: object
                 layoutManagement:
                   description: LayoutManagement controls automatic layout application behavior.
@@ -9885,7 +9942,11 @@ spec:
                           type: string
                       type: object
                     minNodesHealthy:
-                      description: MinNodesHealthy is the minimum healthy nodes required before applying layout changes.
+                      description: |-
+                        MinNodesHealthy is the minimum healthy nodes required before applying layout changes.
+
+                        Deprecated: MinNodesHealthy is currently a no-op and is ignored by the
+                        controller; it will be removed in the next API version.
                       type: integer
                     redundancyVerification:
                       description: RedundancyVerification configures the FullyReplicated proof (#474).
@@ -10388,6 +10449,24 @@ spec:
                       maximum: 65535
                       minimum: 1
                       type: integer
+                    publicEndpoint:
+                      description: |-
+                        PublicEndpoint is the public S3 URL advertised in auto-generated client
+                        configurations (Garage s3_api.public_endpoint). Must be a complete URL
+                        with a scheme and host, for example "https://s3.example.com". There is no
+                        default. Rendered only for Garage v2.5.0 and newer; older tagged images
+                        skip the key and admission warns.
+                      type: string
+                    publicEndpointPathStyle:
+                      description: |-
+                        PublicEndpointPathStyle, when set, selects path-style (true) or
+                        virtual-hosted (false) URLs in those auto-generated S3 client
+                        configurations (Garage s3_api.public_endpoint_path_style). Unset omits
+                        the key so Garage applies its own default. Setting false requires
+                        rootDomain; Garage v2.5.0+ will not start otherwise. Rendered only for
+                        Garage v2.5.0 and newer; older tagged images skip the key and admission
+                        warns.
+                      type: boolean
                     region:
                       default: garage
                       description: Region is the AWS S3 region name to use.
@@ -13312,6 +13391,7 @@ spec:
                             properties:
                               hostPath:
                                 description: HostPath is an absolute directory on each selected Kubernetes Node.
+                                maxLength: 4096
                                 type: string
                               hostPathType:
                                 default: Directory
@@ -13387,6 +13467,7 @@ spec:
                             properties:
                               hostPath:
                                 description: HostPath is an absolute directory on each selected Kubernetes Node.
+                                maxLength: 4096
                                 type: string
                               hostPathType:
                                 default: Directory
@@ -15946,6 +16027,8 @@ spec:
                     - replicas
                   type: object
                   x-kubernetes-validations:
+                    - message: spec.storage.nodeLocalPools[].metadata.hostPath is immutable for retained pools
+                      rule: '!has(oldSelf.nodeLocalPools) || !has(self.nodeLocalPools) || oldSelf.nodeLocalPools.all(o, self.nodeLocalPools.all(n, n.name != o.name || (has(o.metadata) && has(n.metadata) && o.metadata.hostPath == n.metadata.hostPath)))'
                     - message: initContainers and extraContainers names must be unique across both lists
                       rule: '!has(self.initContainers) || !has(self.extraContainers) || !self.initContainers.exists(i, self.extraContainers.exists(e, e.name == i.name))'
                 webApi:
@@ -16052,6 +16135,14 @@ spec:
                   rule: '!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != ''Follower'' || (has(self.remoteClusters) && size(self.remoteClusters) > 0)'
                 - message: 'layoutManagement.siteRole: Follower is not supported with connectTo; edge gateways and management handles act on their layout owner'
                   rule: '!has(self.layoutManagement) || !has(self.layoutManagement.siteRole) || self.layoutManagement.siteRole != ''Follower'' || !has(self.connectTo)'
+                - message: spec.storage presence (layout ownership vs connectTo/edge mode) is immutable after creation
+                  rule: has(self.storage) == has(oldSelf.storage)
+                - message: edge-gateway versus management-handle mode is immutable after creation
+                  rule: has(self.storage) || (has(self.gateway) == has(oldSelf.gateway))
+                - message: layoutPolicy transition from Manual to Auto is not supported (one-way only)
+                  rule: '!has(oldSelf.layoutPolicy) || oldSelf.layoutPolicy != ''Manual'' || (has(self.layoutPolicy) && self.layoutPolicy == ''Manual'')'
+                - message: spec.storage.layoutPolicy transition from Manual to Auto is not supported (one-way only)
+                  rule: '!(has(oldSelf.storage) && ((has(oldSelf.storage.layoutPolicy) ? oldSelf.storage.layoutPolicy : (has(oldSelf.layoutPolicy) ? oldSelf.layoutPolicy : ''Auto'')) == ''Manual'')) || (has(self.storage) && ((has(self.storage.layoutPolicy) ? self.storage.layoutPolicy : (has(self.layoutPolicy) ? self.layoutPolicy : ''Auto'')) == ''Manual''))'
             status:
               description: GarageClusterStatus defines the observed state of GarageCluster.
               properties:
@@ -16466,7 +16557,10 @@ spec:
                       type: array
                   type: object
                 layoutPreview:
-                  description: LayoutPreview shows what would change if staged layout is applied.
+                  description: |-
+                    LayoutPreview shows what would change if staged layout is applied.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   properties:
                     dataTransferEstimate:
                       description: DataTransferEstimate is a human-readable estimate of data movement.
@@ -17088,11 +17182,17 @@ spec:
                     this cluster. It is not used by the scale subresource.
                   type: string
                 stagedLayoutVersion:
-                  description: StagedLayoutVersion is the staged layout version pending application.
+                  description: |-
+                    StagedLayoutVersion is the staged layout version pending application.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   format: int64
                   type: integer
                 stagedRoles:
-                  description: StagedRoles is the number of roles in the staged layout.
+                  description: |-
+                    StagedRoles is the number of roles in the staged layout.
+
+                    Deprecated: never populated by the operator. It will be removed in the next API version.
                   format: int32
                   type: integer
                 storageDrain:
