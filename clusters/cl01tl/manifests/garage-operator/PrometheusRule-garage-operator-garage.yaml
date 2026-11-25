@@ -5,11 +5,11 @@ metadata:
   name: garage-operator-garage
   namespace: garage-operator
   labels:
-    helm.sh/chart: garage-operator-0.9.1
+    helm.sh/chart: garage-operator-0.9.2
     app.kubernetes.io/name: garage-operator
     app.kubernetes.io/instance: garage-operator
     control-plane: controller-manager
-    app.kubernetes.io/version: "0.9.1"
+    app.kubernetes.io/version: "0.9.2"
     app.kubernetes.io/managed-by: Helm
 spec:
   groups:
@@ -18,7 +18,7 @@ spec:
         - alert: GarageNodeDown
           annotations:
             summary: "Garage node {{ $labels.instance }} is down"
-            description: "Garage node {{ $labels.instance }} has been unreachable for more than 5 minutes."
+            description: "Garage node {{ $labels.instance }} has been unreachable for more than 5m."
           expr: up{job="garage"} == 0
           for: 5m
           labels:
@@ -26,11 +26,11 @@ spec:
         - alert: GarageHighRPCErrorRate
           annotations:
             summary: "High RPC error rate on {{ $labels.instance }}"
-            description: "More than 10% of RPC requests are failing on {{ $labels.instance }} for 10 minutes."
+            description: "More than 10% of RPC requests are failing on {{ $labels.instance }} for 10m."
           expr: |
-            sum by (instance) (rate(rpc_netapp_request_counter{job="garage",status="error"}[5m]))
+            sum by (instance) (rate({__name__=~"rpc_netapp_error_counter|rpc_garage_error_counter|rpc_timeout_counter",job="garage"}[5m]))
             /
-            sum by (instance) (rate(rpc_netapp_request_counter{job="garage"}[5m])) > 0.1
+            sum by (instance) (rate(rpc_request_counter{job="garage"}[5m])) > 0.1
           for: 10m
           labels:
             severity: warning
@@ -47,7 +47,7 @@ spec:
         - alert: GarageHighBlockResyncQueue
           annotations:
             summary: "Large block resync queue on {{ $labels.instance }}"
-            description: "Block resync queue has {{ $value }} items on {{ $labels.instance }} for 30 minutes."
+            description: "Block resync queue has {{ $value }} items on {{ $labels.instance }} for 30m."
           expr: block_resync_queue_length{job="garage"} > 10000
           for: 30m
           labels:
@@ -66,7 +66,7 @@ spec:
         - alert: GarageBucketSizeQuotaNearLimit
           annotations:
             summary: "Garage bucket {{ $labels.namespace }}/{{ $labels.bucket }} is near its size quota"
-            description: "Garage bucket {{ $labels.namespace }}/{{ $labels.bucket }} has used {{ $value | humanizePercentage }} of its configured size quota for 15 minutes."
+            description: "Garage bucket {{ $labels.namespace }}/{{ $labels.bucket }} has used {{ $value | humanizePercentage }} of its configured size quota for 15m."
           expr: |
             garage_operator_bucket_quota_size_utilization_ratio > 0.9
             and on (namespace, bucket)
@@ -77,7 +77,7 @@ spec:
         - alert: GarageBucketObjectQuotaNearLimit
           annotations:
             summary: "Garage bucket {{ $labels.namespace }}/{{ $labels.bucket }} is near its object quota"
-            description: "Garage bucket {{ $labels.namespace }}/{{ $labels.bucket }} has used {{ $value | humanizePercentage }} of its configured object quota for 15 minutes."
+            description: "Garage bucket {{ $labels.namespace }}/{{ $labels.bucket }} has used {{ $value | humanizePercentage }} of its configured object quota for 15m."
           expr: |
             garage_operator_bucket_quota_object_utilization_ratio > 0.9
             and on (namespace, bucket)
@@ -90,7 +90,7 @@ spec:
         - alert: GarageClusterUnhealthy
           annotations:
             summary: "Garage cluster unhealthy on {{ $labels.instance }}"
-            description: "Garage cluster is reporting unhealthy status for 2+ minutes. Data may be unavailable."
+            description: "Garage cluster is reporting unhealthy status for at least 2m. Data may be unavailable."
           expr: cluster_healthy{job="garage"} == 0
           for: 2m
           labels:
@@ -98,7 +98,7 @@ spec:
         - alert: GarageClusterUnavailable
           annotations:
             summary: "Garage cluster unavailable on {{ $labels.instance }}"
-            description: "Garage cluster cannot serve requests (quorum lost) for 1+ minutes."
+            description: "Garage cluster cannot serve requests (quorum lost) for at least 1m."
           expr: cluster_available{job="garage"} == 0
           for: 1m
           labels:
@@ -114,7 +114,7 @@ spec:
         - alert: GaragePartitionsDegraded
           annotations:
             summary: "Garage partitions degraded on {{ $labels.instance }}"
-            description: "Not all replicas available for some partitions for 10+ minutes."
+            description: "Not all replicas available for some partitions for at least 10m."
           expr: cluster_partitions_all_ok{job="garage"} < cluster_partitions{job="garage"}
           for: 10m
           labels:
@@ -122,7 +122,7 @@ spec:
         - alert: GarageNodeDisconnected
           annotations:
             summary: "Garage layout node disconnected"
-            description: "Node {{ $labels.id }} has been disconnected for 3+ minutes."
+            description: "Node {{ $labels.id }} has been disconnected for at least 3m."
           expr: sum by (id) (cluster_layout_node_connected{job="garage"}) == 0
           for: 3m
           labels:
