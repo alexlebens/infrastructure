@@ -6,9 +6,9 @@ metadata:
   namespace: cloudnative-pg
   labels:
     app.kubernetes.io/name: postgres-backups-backup-c
-    helm.sh/chart: s3-bucket-0.9.0
-    app.kubernetes.io/name: postgres-backups
+    helm.sh/chart: s3-bucket-0.11.0
     app.kubernetes.io/instance: cloudnative-pg
+    app.kubernetes.io/part-of: cloudnative-pg
     app.kubernetes.io/version: "v1.76.0"
     app.kubernetes.io/managed-by: Helm
 spec:
@@ -33,7 +33,13 @@ spec:
             runAsGroup: 1000
             runAsNonRoot: true
             runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
           volumes:
+            - name: scripts
+              configMap:
+                name: postgres-backups-backup-scripts
+                defaultMode: 0755
             - name: tmp
               emptyDir: {}
           containers:
@@ -52,14 +58,36 @@ spec:
                   cpu: 100m
                   memory: 128Mi
               volumeMounts:
+                - name: scripts
+                  mountPath: /scripts/backup.sh
+                  subPath: backup.sh
+                  readOnly: true
                 - name: tmp
                   mountPath: /tmp
               command:
                 - /bin/sh
-                - -c
-              args:
-                - "set -o pipefail\n\n# --- Copy Phase ---\nrclone copy \\\n  \"src:postgres-backups\" \\\n  \"dest:postgres-backups\" \\\n  --s3-no-check-bucket \\\n  --exclude \"wals/**\" \\\n  --verbose 2>&1 | tee /tmp/rclone-sync.log\n\nsync_res=$?\nSTATS=$(grep \"Transferred:\" /tmp/rclone-sync.log | tail -n 2)\nDATA_TRANS=$(echo \"$STATS\" | head -n 1 | sed 's/.*Transferred:[ \\t]*//')\nif [ -z \"$DATA_TRANS\" ]; then DATA_TRANS=\"Unknown\"; fi\n\nif [ $sync_res -eq 0 ]; then\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: ✅ Backup - postgres-backups - c\" --header \"Priority: 3\" --post-data \"Job for c transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: ✅ Backup - postgres-backups - c\" --header \"Priority: 3\" --post-data \"Job for c transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  fi\nelse\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: \U0001F6A8 Backup - postgres-backups - c\" --header \"Priority: 4\" --post-data \"Job for c failed, transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: \U0001F6A8 Backup - postgres-backups - c\" --header \"Priority: 4\" --post-data \"Job for c failed, transferred: $DATA_TRANS\" \"$NTFY_URL\"\n  fi\n  exit $sync_res\nfi\n\n# --- Prune Phase ---\nrclone delete \\\n  \"dest:postgres-backups\" \\\n  --min-age \"7d\" \\\n  --verbose 2>&1 | tee /tmp/rclone-prune.log\n\nprune_res=$?\nSTATS=$(grep \"Deleted:\" /tmp/rclone-prune.log | tail -n 1)\nFILES_PRUNED=$(echo \"$STATS\" | sed 's/.*Deleted:[ \\t]*//')\nif [ -z \"$FILES_PRUNED\" ]; then FILES_PRUNED=\"0 files\"; fi\n\nif [ $prune_res -eq 0 ]; then\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: ✅ Prune - postgres-backups - c\" --header \"Priority: 3\" --post-data \"Job for c pruned: $FILES_PRUNED\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: ✅ Prune - postgres-backups - c\" --header \"Priority: 3\" --post-data \"Job for c pruned: $FILES_PRUNED\" \"$NTFY_URL\"\n  fi\nelse\n  if [ -n \"${NTFY_TOKEN:-}\" ]; then\n    wget -qO- --header \"Authorization: Bearer $NTFY_TOKEN\" --header \"Title: \U0001F6A8 Prune - postgres-backups - c\" --header \"Priority: 4\" --post-data \"Job for c failed, pruned: $FILES_PRUNED\" \"$NTFY_URL\"\n  else\n    wget -qO- --header \"Title: \U0001F6A8 Prune - postgres-backups - c\" --header \"Priority: 4\" --post-data \"Job for c failed, pruned: $FILES_PRUNED\" \"$NTFY_URL\"\n  fi\nfi\n\nexit $prune_res\n"
+                - /scripts/backup.sh
               env:
+                - name: MODE
+                  value: "copy"
+                - name: SRC_BUCKET
+                  value: "postgres-backups"
+                - name: DEST_BUCKET
+                  value: "postgres-backups"
+                - name: BACKUP_NAME
+                  value: "c"
+                - name: JOB_TYPE_TITLE
+                  value: ""
+                - name: RCLONE_EXCLUDE_FLAGS
+                  value: "--exclude=wals/**"
+                - name: RCLONE_MAX_AGE
+                  value: ""
+                - name: NTFY_ENABLED
+                  value: "true"
+                - name: PRUNE_ENABLED
+                  value: "true"
+                - name: PRUNE_AGE
+                  value: "7d"
                 - name: RCLONE_CONFIG_SRC_TYPE
                   value: "s3"
                 - name: RCLONE_CONFIG_SRC_PROVIDER
