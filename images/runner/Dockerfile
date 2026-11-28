@@ -6,7 +6,7 @@
 # =========================================================================
 
 # renovate: datasource=docker depName=jdxcode/mise versioning=docker
-FROM harbor.alexlebens.dev/proxy-hub.docker/jdxcode/mise:2026.11.10@sha256:80aa2afb17ba760cabe74ac90771ca2d1470773d514cc2bb79c69c8d3f92f150 AS mise-source
+FROM harbor.alexlebens.dev/proxy-hub.docker/jdxcode/mise:2026.11.14@sha256:7178a0bc7eb30d5090f81237fc0a7830f57e52126b9d8df656e24547437a1e53 AS mise-source
 
 # =========================================================================
 # Gitea Runner Image
